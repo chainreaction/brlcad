@@ -127,9 +127,9 @@ namespace gte
             std::vector<bool> referenced(numVertices, false);
             for (auto const& tri : triangles)
             {
-                referenced[tri[0]] = true;
-                referenced[tri[1]] = true;
-                referenced[tri[2]] = true;
+                if (tri[0] >= 0 && tri[0] < numVertices) referenced[tri[0]] = true;
+                if (tri[1] >= 0 && tri[1] < numVertices) referenced[tri[1]] = true;
+                if (tri[2] >= 0 && tri[2] < numVertices) referenced[tri[2]] = true;
             }
 
             std::vector<int32_t> oldToNew(numVertices, -1);
@@ -147,9 +147,9 @@ namespace gte
 
             for (auto& tri : triangles)
             {
-                tri[0] = oldToNew[tri[0]];
-                tri[1] = oldToNew[tri[1]];
-                tri[2] = oldToNew[tri[2]];
+                if (tri[0] >= 0 && tri[0] < numVertices) tri[0] = oldToNew[tri[0]];
+                if (tri[1] >= 0 && tri[1] < numVertices) tri[1] = oldToNew[tri[1]];
+                if (tri[2] >= 0 && tri[2] < numVertices) tri[2] = oldToNew[tri[2]];
             }
 
             vertices = std::move(newVertices);
@@ -226,6 +226,13 @@ namespace gte
             std::vector<Vector3<Real>> const& vertices,
             std::array<int32_t, 3> const& tri)
         {
+            if (tri[0] < 0 || static_cast<size_t>(tri[0]) >= vertices.size() ||
+                tri[1] < 0 || static_cast<size_t>(tri[1]) >= vertices.size() ||
+                tri[2] < 0 || static_cast<size_t>(tri[2]) >= vertices.size())
+            {
+                return static_cast<Real>(0);
+            }
+
             Vector3<Real> const& p0 = vertices[tri[0]];
             Vector3<Real> const& p1 = vertices[tri[1]];
             Vector3<Real> const& p2 = vertices[tri[2]];
@@ -243,6 +250,13 @@ namespace gte
             std::vector<Vector3<Real>> const& vertices,
             std::array<int32_t, 3> const& tri)
         {
+            if (tri[0] < 0 || static_cast<size_t>(tri[0]) >= vertices.size() ||
+                tri[1] < 0 || static_cast<size_t>(tri[1]) >= vertices.size() ||
+                tri[2] < 0 || static_cast<size_t>(tri[2]) >= vertices.size())
+            {
+                return static_cast<Real>(0);
+            }
+
             Vector3<Real> const& p0 = vertices[tri[0]];
             Vector3<Real> const& p1 = vertices[tri[1]];
             Vector3<Real> const& p2 = vertices[tri[2]];

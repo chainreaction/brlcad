@@ -60,6 +60,7 @@ static std::vector<std::vector<int>> build_adj(size_t numV, size_t numF, const i
     for (size_t f = 0; f < numF; ++f) {
         for (int j=0;j<3;++j) {
             int a=faces[3*f+j], b=faces[3*f+(j+1)%3];
+            if (a < 0 || (size_t)a >= numV || b < 0 || (size_t)b >= numV) continue;
             if (!seen[(size_t)a].count(b)){ adj[(size_t)a].push_back(b); seen[(size_t)a].insert(b); }
             if (!seen[(size_t)b].count(a)){ adj[(size_t)b].push_back(a); seen[(size_t)b].insert(a); }
         }
@@ -73,6 +74,7 @@ static std::vector<bool> find_boundary(size_t numV, size_t numF, const int* face
     for (size_t f = 0; f < numF; ++f) {
         for (int j=0;j<3;++j) {
             int v0=faces[3*f+j], v1=faces[3*f+(j+1)%3];
+            if (v0 < 0 || (size_t)v0 >= numV || v1 < 0 || (size_t)v1 >= numV) continue;
             if (hm.find({v1,v0})==hm.end()) { bnd[(size_t)v0]=true; bnd[(size_t)v1]=true; }
         }
     }
@@ -85,6 +87,7 @@ static std::vector<Vec3> compute_normals(size_t numV, size_t numF,
     std::vector<Vec3> N(numV, {0.f,0.f,0.f});
     for (size_t f = 0; f < numF; ++f) {
         int v0=faces[3*f],v1=faces[3*f+1],v2=faces[3*f+2];
+        if (v0 < 0 || (size_t)v0 >= numV || v1 < 0 || (size_t)v1 >= numV || v2 < 0 || (size_t)v2 >= numV) continue;
         float ax=V[3*v1]-V[3*v0], ay=V[3*v1+1]-V[3*v0+1], az=V[3*v1+2]-V[3*v0+2];
         float bx=V[3*v2]-V[3*v0], by=V[3*v2+1]-V[3*v0+1], bz=V[3*v2+2]-V[3*v0+2];
         float nx=ay*bz-az*by, ny=az*bx-ax*bz, nz=ax*by-ay*bx;
@@ -152,6 +155,12 @@ inline bool gte_bot_smooth(
 
     if (!verts || !faces || numV == 0 || numF == 0 || iterations <= 0)
         return false;
+    if (numV > SIZE_MAX / 3 || numF > SIZE_MAX / 3)
+        return false;
+    for (size_t i = 0; i < numF * 3; ++i) {
+        if (faces[i] < 0 || (size_t)faces[i] >= numV)
+            return false;
+    }
 
     outV.assign(verts, verts + numV*3);
     outF.assign(faces, faces + numF*3);

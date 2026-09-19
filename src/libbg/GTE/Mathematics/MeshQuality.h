@@ -229,6 +229,9 @@ public:
     static TriangleMetrics ComputeTriangleRaw(
         Real const* p0, Real const* p1, Real const* p2)
     {
+        if (!p0 || !p1 || !p2) {
+            return TriangleMetrics{};
+        }
         std::array<Real, 3> v0{ p0[0], p0[1], p0[2] };
         std::array<Real, 3> v1{ p1[0], p1[1], p1[2] };
         std::array<Real, 3> v2{ p2[0], p2[1], p2[2] };

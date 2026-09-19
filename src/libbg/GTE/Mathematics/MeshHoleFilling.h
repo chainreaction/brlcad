@@ -113,6 +113,21 @@ namespace gte
             std::vector<std::array<int32_t, 3>>& triangles,
             Parameters const& params = Parameters())
         {
+            if (vertices.empty() || triangles.empty())
+            {
+                return;
+            }
+            int32_t numVerts = static_cast<int32_t>(vertices.size());
+            for (auto const& tri : triangles)
+            {
+                if (tri[0] < 0 || tri[0] >= numVerts ||
+                    tri[1] < 0 || tri[1] >= numVerts ||
+                    tri[2] < 0 || tri[2] >= numVerts)
+                {
+                    return;
+                }
+            }
+
             // Step 1: Build directed-edge existence set using unordered_map for O(T) average.
             // Key: directed edge (v0, v1) encoded as int64_t = (v0<<32)|v1.
             // An undirected edge is a boundary edge iff its reverse (v1, v0) is absent.
@@ -614,6 +629,12 @@ namespace gte
             // Map local indices back to global mesh indices
             for (auto const& tri : localTriangles)
             {
+                if (tri[0] < 0 || static_cast<size_t>(tri[0]) >= hole.vertices.size() ||
+                    tri[1] < 0 || static_cast<size_t>(tri[1]) >= hole.vertices.size() ||
+                    tri[2] < 0 || static_cast<size_t>(tri[2]) >= hole.vertices.size())
+                {
+                    continue;
+                }
                 triangles.push_back({
                     hole.vertices[tri[0]],
                     hole.vertices[tri[1]],
@@ -773,6 +794,17 @@ namespace gte
             EdgeTriple const& t1,
             EdgeTriple const& t2)
         {
+            size_t nV = vertices.size();
+            if (t1.v0 < 0 || static_cast<size_t>(t1.v0) >= nV ||
+                t1.v1 < 0 || static_cast<size_t>(t1.v1) >= nV ||
+                t1.v2 < 0 || static_cast<size_t>(t1.v2) >= nV ||
+                t2.v0 < 0 || static_cast<size_t>(t2.v0) >= nV ||
+                t2.v1 < 0 || static_cast<size_t>(t2.v1) >= nV ||
+                t2.v2 < 0 || static_cast<size_t>(t2.v2) >= nV)
+            {
+                return -std::numeric_limits<Real>::max();
+            }
+
             // Get triangle vertices
             Vector3<Real> const& p10 = vertices[t1.v0];
             Vector3<Real> const& p11 = vertices[t1.v1];
@@ -860,6 +892,12 @@ namespace gte
 
             for (auto const& tri : triangles)
             {
+                if (tri[0] < 0 || static_cast<size_t>(tri[0]) >= vertices.size() ||
+                    tri[1] < 0 || static_cast<size_t>(tri[1]) >= vertices.size() ||
+                    tri[2] < 0 || static_cast<size_t>(tri[2]) >= vertices.size())
+                {
+                    continue;
+                }
                 Vector3<Real> const& p0 = vertices[tri[0]];
                 Vector3<Real> const& p1 = vertices[tri[1]];
                 Vector3<Real> const& p2 = vertices[tri[2]];

@@ -139,6 +139,12 @@ public:
 
     /* Add a triangular face; looks up / creates halfedge pairs */
     FaceHandle add_face(VertexHandle va, VertexHandle vb, VertexHandle vc) {
+        if (va.idx < 0 || (size_t)va.idx >= vertices_.size() ||
+            vb.idx < 0 || (size_t)vb.idx >= vertices_.size() ||
+            vc.idx < 0 || (size_t)vc.idx >= vertices_.size() ||
+            va.idx == vb.idx || vb.idx == vc.idx || vc.idx == va.idx) {
+            return FaceHandle{-1};
+        }
         int v[3] = {va.idx, vb.idx, vc.idx};
         /* get or create halfedges */
         int h[3];
@@ -173,7 +179,7 @@ public:
         if (vs.size() == 3)
             return add_face(vs[0], vs[1], vs[2]);
         /* Polygon: fan-triangulate from vs[0] */
-        FaceHandle last;
+        FaceHandle last{-1};
         for (size_t i = 1; i+1 < vs.size(); ++i)
             last = add_face(vs[0], vs[i], vs[i+1]);
         return last;
@@ -187,12 +193,12 @@ public:
         for (int i = 0; i < (int)halfedges_.size(); ++i) {
             if (halfedges_[i].face >= 0) continue;
             int from_v = halfedges_[i^1].to_vertex;
-            if (from_v >= 0) bnd_out[from_v] = i;
+            if (from_v >= 0 && (size_t)from_v < bnd_out.size()) bnd_out[from_v] = i;
         }
         for (int i = 0; i < (int)halfedges_.size(); ++i) {
             if (halfedges_[i].face >= 0) continue;
             int to_v = halfedges_[i].to_vertex;
-            if (to_v >= 0 && bnd_out[to_v] >= 0) {
+            if (to_v >= 0 && (size_t)to_v < bnd_out.size() && bnd_out[to_v] >= 0) {
                 halfedges_[i].next            = bnd_out[to_v];
                 halfedges_[bnd_out[to_v]].prev = i;
             }
@@ -211,6 +217,7 @@ public:
         halfedges_.push_back(hd);
         halfedge_map_[{from,to}] = h0;
         halfedge_map_[{to,from}] = h0+1;
+        edge_status_.push_back(EdgeStatus{});
         edge_tagged_.push_back(false);
         return HalfedgeHandle{h0};
     }
@@ -222,6 +229,7 @@ public:
         halfedges_.push_back(hd);
         hd.to_vertex = from.idx;
         halfedges_.push_back(hd);
+        edge_status_.push_back(EdgeStatus{});
         edge_tagged_.push_back(false);
         return HalfedgeHandle{h0};
     }
@@ -234,90 +242,162 @@ public:
     }
 
     /* ---- Navigation ---- */
-    HalfedgeHandle next_halfedge_handle(HalfedgeHandle h) const { return {halfedges_[h.idx].next}; }
-    HalfedgeHandle prev_halfedge_handle(HalfedgeHandle h) const { return {halfedges_[h.idx].prev}; }
-    HalfedgeHandle opposite_halfedge_handle(HalfedgeHandle h) const { return {h.idx ^ 1}; }
-    VertexHandle   to_vertex_handle(HalfedgeHandle h) const { return {halfedges_[h.idx].to_vertex}; }
-    VertexHandle   from_vertex_handle(HalfedgeHandle h) const { return {halfedges_[h.idx^1].to_vertex}; }
-    FaceHandle     face_handle(HalfedgeHandle h) const { return {halfedges_[h.idx].face}; }
-    EdgeHandle     edge_handle(HalfedgeHandle h) const { return {h.idx/2}; }
-    HalfedgeHandle halfedge_handle(EdgeHandle e, int side) const { return {e.idx*2 + side}; }
-    HalfedgeHandle halfedge_handle(VertexHandle v) const { return {vertices_[v.idx].outgoing_halfedge}; }
-    HalfedgeHandle halfedge_handle(FaceHandle f)   const { return {faces_[f.idx].halfedge}; }
+    HalfedgeHandle next_halfedge_handle(HalfedgeHandle h) const {
+        if (h.idx < 0 || (size_t)h.idx >= halfedges_.size()) return HalfedgeHandle{-1};
+        return {halfedges_[h.idx].next};
+    }
+    HalfedgeHandle prev_halfedge_handle(HalfedgeHandle h) const {
+        if (h.idx < 0 || (size_t)h.idx >= halfedges_.size()) return HalfedgeHandle{-1};
+        return {halfedges_[h.idx].prev};
+    }
+    HalfedgeHandle opposite_halfedge_handle(HalfedgeHandle h) const {
+        if (h.idx < 0 || (size_t)(h.idx ^ 1) >= halfedges_.size()) return HalfedgeHandle{-1};
+        return {h.idx ^ 1};
+    }
+    VertexHandle to_vertex_handle(HalfedgeHandle h) const {
+        if (h.idx < 0 || (size_t)h.idx >= halfedges_.size()) return VertexHandle{-1};
+        return {halfedges_[h.idx].to_vertex};
+    }
+    VertexHandle from_vertex_handle(HalfedgeHandle h) const {
+        if (h.idx < 0 || (size_t)(h.idx ^ 1) >= halfedges_.size()) return VertexHandle{-1};
+        return {halfedges_[h.idx^1].to_vertex};
+    }
+    FaceHandle face_handle(HalfedgeHandle h) const {
+        if (h.idx < 0 || (size_t)h.idx >= halfedges_.size()) return FaceHandle{-1};
+        return {halfedges_[h.idx].face};
+    }
+    EdgeHandle edge_handle(HalfedgeHandle h) const {
+        if (h.idx < 0) return EdgeHandle{-1};
+        return {h.idx/2};
+    }
+    HalfedgeHandle halfedge_handle(EdgeHandle e, int side) const {
+        if (e.idx < 0 || side < 0 || side > 1) return HalfedgeHandle{-1};
+        int h = e.idx*2 + side;
+        if ((size_t)h >= halfedges_.size()) return HalfedgeHandle{-1};
+        return {h};
+    }
+    HalfedgeHandle halfedge_handle(VertexHandle v) const {
+        if (v.idx < 0 || (size_t)v.idx >= vertices_.size()) return HalfedgeHandle{-1};
+        return {vertices_[v.idx].outgoing_halfedge};
+    }
+    HalfedgeHandle halfedge_handle(FaceHandle f) const {
+        if (f.idx < 0 || (size_t)f.idx >= faces_.size()) return HalfedgeHandle{-1};
+        return {faces_[f.idx].halfedge};
+    }
 
     /* ---- Setters (low-level topology mutation) ---- */
-    void set_vertex_handle(HalfedgeHandle h, VertexHandle v) { halfedges_[h.idx].to_vertex = v.idx; }
-    void set_face_handle  (HalfedgeHandle h, FaceHandle f)   { halfedges_[h.idx].face = f.idx; }
-    void set_next_halfedge_handle(HalfedgeHandle h, HalfedgeHandle n) {
-        halfedges_[h.idx].next = n.idx;
-        halfedges_[n.idx].prev = h.idx;
+    void set_vertex_handle(HalfedgeHandle h, VertexHandle v) {
+        if (h.idx >= 0 && (size_t)h.idx < halfedges_.size())
+            halfedges_[h.idx].to_vertex = v.idx;
     }
-    void set_halfedge_handle(FaceHandle f,   HalfedgeHandle h) { faces_[f.idx].halfedge = h.idx; }
-    void set_halfedge_handle(VertexHandle v, HalfedgeHandle h) { vertices_[v.idx].outgoing_halfedge = h.idx; }
+    void set_face_handle(HalfedgeHandle h, FaceHandle f) {
+        if (h.idx >= 0 && (size_t)h.idx < halfedges_.size())
+            halfedges_[h.idx].face = f.idx;
+    }
+    void set_next_halfedge_handle(HalfedgeHandle h, HalfedgeHandle n) {
+        if (h.idx >= 0 && (size_t)h.idx < halfedges_.size())
+            halfedges_[h.idx].next = n.idx;
+        if (n.idx >= 0 && (size_t)n.idx < halfedges_.size())
+            halfedges_[n.idx].prev = h.idx;
+    }
+    void set_halfedge_handle(FaceHandle f, HalfedgeHandle h) {
+        if (f.idx >= 0 && (size_t)f.idx < faces_.size())
+            faces_[f.idx].halfedge = h.idx;
+    }
+    void set_halfedge_handle(VertexHandle v, HalfedgeHandle h) {
+        if (v.idx >= 0 && (size_t)v.idx < vertices_.size())
+            vertices_[v.idx].outgoing_halfedge = h.idx;
+    }
 
     /* ---- Points ---- */
-    Point& point(VertexHandle v)             { return vertices_[v.idx].point; }
-    const Point& point(VertexHandle v) const { return vertices_[v.idx].point; }
-    void set_point(VertexHandle v, const Point& p) { vertices_[v.idx].point = p; }
+    Point& point(VertexHandle v) {
+        static Point dummy{0.f, 0.f, 0.f};
+        if (v.idx < 0 || (size_t)v.idx >= vertices_.size()) return dummy;
+        return vertices_[v.idx].point;
+    }
+    const Point& point(VertexHandle v) const {
+        static const Point dummy{0.f, 0.f, 0.f};
+        if (v.idx < 0 || (size_t)v.idx >= vertices_.size()) return dummy;
+        return vertices_[v.idx].point;
+    }
+    void set_point(VertexHandle v, const Point& p) {
+        if (v.idx >= 0 && (size_t)v.idx < vertices_.size())
+            vertices_[v.idx].point = p;
+    }
 
     /* ---- Edge midpoint ---- */
     Point calc_edge_midpoint(EdgeHandle e) const {
         auto h0 = halfedge_handle(e, 0);
         auto h1 = halfedge_handle(e, 1);
-        const Point& a = point(to_vertex_handle(h0));
-        const Point& b = point(to_vertex_handle(h1));
+        auto v0 = to_vertex_handle(h0);
+        auto v1 = to_vertex_handle(h1);
+        if (!v0.is_valid() || !v1.is_valid()) return {0.f, 0.f, 0.f};
+        const Point& a = point(v0);
+        const Point& b = point(v1);
         return {(a[0]+b[0])*0.5f, (a[1]+b[1])*0.5f, (a[2]+b[2])*0.5f};
     }
 
     /* ---- Boundary queries ---- */
-    bool is_boundary(HalfedgeHandle h) const { return halfedges_[h.idx].face < 0; }
+    bool is_boundary(HalfedgeHandle h) const {
+        if (h.idx < 0 || (size_t)h.idx >= halfedges_.size()) return true;
+        return halfedges_[h.idx].face < 0;
+    }
     bool is_boundary(EdgeHandle e) const {
         return is_boundary(halfedge_handle(e,0)) || is_boundary(halfedge_handle(e,1));
     }
     bool is_boundary(VertexHandle v) const {
+        if (v.idx < 0 || (size_t)v.idx >= vertices_.size()) return true;
         int h = vertices_[v.idx].outgoing_halfedge;
-        if (h < 0) return true;
+        if (h < 0 || (size_t)h >= halfedges_.size()) return true;
         return halfedges_[h].face < 0;
     }
     bool is_boundary(FaceHandle f) const {
+        if (f.idx < 0 || (size_t)f.idx >= faces_.size()) return true;
         int h = faces_[f.idx].halfedge;
         int start = h;
-        if (h < 0) return true;
+        if (h < 0 || (size_t)h >= halfedges_.size()) return true;
+        int cnt = 0;
         do {
             if (is_boundary(opposite_halfedge_handle({h})))
                 return true;
             h = halfedges_[h].next;
+            if (++cnt > 100 || h < 0 || (size_t)h >= halfedges_.size()) break;
         } while (h != start);
         return false;
     }
 
     /* ---- Valence ---- */
     int valence(VertexHandle v) const {
+        if (v.idx < 0 || (size_t)v.idx >= vertices_.size()) return 0;
         int h0 = vertices_[v.idx].outgoing_halfedge;
-        if (h0 < 0) return 0;
+        if (h0 < 0 || (size_t)h0 >= halfedges_.size()) return 0;
         int cnt = 0, h = h0;
         do {
             ++cnt;
             int ph = halfedges_[h].prev;
-            if (ph < 0) break;
+            if (ph < 0 || (size_t)ph >= halfedges_.size()) break;
             h = ph ^ 1;
+            if ((size_t)h >= halfedges_.size()) break;
         } while (h != h0 && cnt < 1000);
         return cnt;
     }
 
     /* ---- Adjust outgoing halfedge (prefer boundary) ---- */
     void adjust_outgoing_halfedge(VertexHandle v) {
+        if (v.idx < 0 || (size_t)v.idx >= vertices_.size()) return;
         int h0 = vertices_[v.idx].outgoing_halfedge;
-        if (h0 < 0) return;
+        if (h0 < 0 || (size_t)h0 >= halfedges_.size()) return;
         int h = h0;
+        int cnt = 0;
         do {
             if (halfedges_[h].face < 0) {
                 vertices_[v.idx].outgoing_halfedge = h;
                 return;
             }
             int ph = halfedges_[h].prev;
-            if (ph < 0) return;
+            if (ph < 0 || (size_t)ph >= halfedges_.size()) return;
             h = ph ^ 1;
+            if ((size_t)h >= halfedges_.size() || ++cnt > 1000) return;
         } while (h != h0);
     }
 
@@ -341,9 +421,13 @@ public:
         bool feature()  const { return false; }
     };
     EdgeStatus& status(EdgeHandle e) {
-        if ((int)edge_tagged_.size() <= e.idx)
+        static EdgeStatus dummy;
+        if (e.idx < 0) return dummy;
+        if ((int)edge_status_.size() <= e.idx) {
+            edge_status_.resize(e.idx+1);
             edge_tagged_.resize(e.idx+1, false);
-        return reinterpret_cast<EdgeStatus&>(edge_tagged_[e.idx]);
+        }
+        return edge_status_[e.idx];
     }
 
     /* ---- Normals ---- */
@@ -352,9 +436,11 @@ public:
         for (int fi = 0; fi < (int)faces_.size(); ++fi) {
             if (faces_[fi].deleted) { face_normals_[fi] = nm_zero(); continue; }
             int h = faces_[fi].halfedge;
-            if (h < 0) { face_normals_[fi] = nm_zero(); continue; }
+            if (h < 0 || (size_t)h >= halfedges_.size()) { face_normals_[fi] = nm_zero(); continue; }
             int h1 = halfedges_[h].next;
+            if (h1 < 0 || (size_t)h1 >= halfedges_.size()) { face_normals_[fi] = nm_zero(); continue; }
             int h2 = halfedges_[h1].next;
+            if (h2 < 0 || (size_t)h2 >= halfedges_.size()) { face_normals_[fi] = nm_zero(); continue; }
             Point a = point({halfedges_[h].to_vertex});
             Point b = point({halfedges_[h1].to_vertex});
             Point c = point({halfedges_[h2].to_vertex});
@@ -371,13 +457,17 @@ public:
             if (faces_[fi].deleted) continue;
             Normal fn = (fi < (int)face_normals_.size()) ? face_normals_[fi] : nm_zero();
             int h = faces_[fi].halfedge, start = h;
-            if (h < 0) continue;
+            if (h < 0 || (size_t)h >= halfedges_.size()) continue;
+            int cnt = 0;
             do {
                 int vi = halfedges_[h].to_vertex;
-                vertex_normals_[vi][0] += fn[0];
-                vertex_normals_[vi][1] += fn[1];
-                vertex_normals_[vi][2] += fn[2];
+                if (vi >= 0 && (size_t)vi < vertex_normals_.size()) {
+                    vertex_normals_[vi][0] += fn[0];
+                    vertex_normals_[vi][1] += fn[1];
+                    vertex_normals_[vi][2] += fn[2];
+                }
                 h = halfedges_[h].next;
+                if (++cnt > 100 || h < 0 || (size_t)h >= halfedges_.size()) break;
             } while (h != start);
         }
         for (auto& n : vertex_normals_) {
@@ -386,7 +476,7 @@ public:
         }
     }
     Normal normal(VertexHandle v) const {
-        if (v.idx < (int)vertex_normals_.size()) return vertex_normals_[v.idx];
+        if (v.idx >= 0 && v.idx < (int)vertex_normals_.size()) return vertex_normals_[v.idx];
         return nm_zero();
     }
 
@@ -399,22 +489,25 @@ public:
     void remove_property(VPropHandleT<T>& h) { h.invalidate(); }
     template<typename T>
     T& property(VPropHandleT<T>& h, VertexHandle v) {
+        if (v.idx < 0) { static T dummy{}; return dummy; }
         if (v.idx >= (int)h.data_->size()) h.data_->resize(v.idx+1);
         return (*h.data_)[v.idx];
     }
     template<typename T>
     const T& property(const VPropHandleT<T>& h, VertexHandle v) const {
+        if (v.idx < 0 || (size_t)v.idx >= h.data_->size()) { static const T dummy{}; return dummy; }
         return (*h.data_)[v.idx];
     }
 
     template<typename T>
     void add_property(EPropHandleT<T>& h) {
-        h.data_ = std::make_shared<std::vector<T>>(edge_tagged_.size());
+        h.data_ = std::make_shared<std::vector<T>>(edge_status_.size());
     }
     template<typename T>
     void remove_property(EPropHandleT<T>& h) { h.invalidate(); }
     template<typename T>
     T& property(EPropHandleT<T>& h, EdgeHandle e) {
+        if (e.idx < 0) { static T dummy{}; return dummy; }
         if (e.idx >= (int)h.data_->size()) h.data_->resize(e.idx+1);
         return (*h.data_)[e.idx];
     }
@@ -427,6 +520,7 @@ public:
     void remove_property(FPropHandleT<T>& h) { h.invalidate(); }
     template<typename T>
     T& property(FPropHandleT<T>& h, FaceHandle f) {
+        if (f.idx < 0) { static T dummy{}; return dummy; }
         if (f.idx >= (int)h.data_->size()) h.data_->resize(f.idx+1);
         return (*h.data_)[f.idx];
     }
@@ -442,30 +536,43 @@ public:
 
     /* ---- split(FaceHandle, VertexHandle): 1→3 split ---- */
     void split(FaceHandle fh, VertexHandle vh) {
+        if (fh.idx < 0 || (size_t)fh.idx >= faces_.size() ||
+            vh.idx < 0 || (size_t)vh.idx >= vertices_.size())
+            return;
         int h0 = faces_[fh.idx].halfedge;
+        if (h0 < 0 || (size_t)h0 >= halfedges_.size()) return;
         int h1 = halfedges_[h0].next;
+        if (h1 < 0 || (size_t)h1 >= halfedges_.size()) return;
         int h2 = halfedges_[h1].next;
+        if (h2 < 0 || (size_t)h2 >= halfedges_.size()) return;
 
         int v0 = halfedges_[h2].to_vertex;  /* from(h0) */
         int v1 = halfedges_[h0].to_vertex;  /* to(h0)   */
         int v2 = halfedges_[h1].to_vertex;  /* to(h1)   */
+        if (v0 < 0 || (size_t)v0 >= vertices_.size() ||
+            v1 < 0 || (size_t)v1 >= vertices_.size() ||
+            v2 < 0 || (size_t)v2 >= vertices_.size())
+            return;
 
         /* e0: v0→vh, e0^1: vh→v0 */
         int e0 = (int)halfedges_.size();
         { HalfedgeData hd{}; hd.to_vertex = vh.idx; halfedges_.push_back(hd); }
         { HalfedgeData hd{}; hd.to_vertex = v0;     halfedges_.push_back(hd); }
+        edge_status_.push_back(EdgeStatus{});
         edge_tagged_.push_back(false);
 
         /* e1: v1→vh, e1^1: vh→v1 */
         int e1 = (int)halfedges_.size();
         { HalfedgeData hd{}; hd.to_vertex = vh.idx; halfedges_.push_back(hd); }
         { HalfedgeData hd{}; hd.to_vertex = v1;     halfedges_.push_back(hd); }
+        edge_status_.push_back(EdgeStatus{});
         edge_tagged_.push_back(false);
 
         /* e2: v2→vh, e2^1: vh→v2 */
         int e2 = (int)halfedges_.size();
         { HalfedgeData hd{}; hd.to_vertex = vh.idx; halfedges_.push_back(hd); }
         { HalfedgeData hd{}; hd.to_vertex = v2;     halfedges_.push_back(hd); }
+        edge_status_.push_back(EdgeStatus{});
         edge_tagged_.push_back(false);
 
         /* face f1 and f2 (f0 reuses fh) */
@@ -497,19 +604,32 @@ public:
 
     /* ---- flip(EdgeHandle): standard edge flip ---- */
     void flip(EdgeHandle eh) {
+        if (eh.idx < 0 || (size_t)(eh.idx * 2 + 1) >= halfedges_.size()) return;
         int a0 = eh.idx*2,   b0 = eh.idx*2+1;
         int a1 = halfedges_[a0].next;
+        if (a1 < 0 || (size_t)a1 >= halfedges_.size()) return;
         int a2 = halfedges_[a1].next;
+        if (a2 < 0 || (size_t)a2 >= halfedges_.size()) return;
         int b1 = halfedges_[b0].next;
+        if (b1 < 0 || (size_t)b1 >= halfedges_.size()) return;
         int b2 = halfedges_[b1].next;
+        if (b2 < 0 || (size_t)b2 >= halfedges_.size()) return;
 
         int va0 = halfedges_[a0].to_vertex;  /* B = to(a0) */
         int va1 = halfedges_[a1].to_vertex;  /* C */
         int vb0 = halfedges_[b0].to_vertex;  /* A = to(b0) */
         int vb1 = halfedges_[b1].to_vertex;  /* D */
+        if (va0 < 0 || (size_t)va0 >= vertices_.size() ||
+            va1 < 0 || (size_t)va1 >= vertices_.size() ||
+            vb0 < 0 || (size_t)vb0 >= vertices_.size() ||
+            vb1 < 0 || (size_t)vb1 >= vertices_.size())
+            return;
 
         int fa = halfedges_[a0].face;
         int fb = halfedges_[b0].face;
+        if (fa < 0 || (size_t)fa >= faces_.size() ||
+            fb < 0 || (size_t)fb >= faces_.size())
+            return;
 
         /* Fix outgoing halfedges before changing a0/b0 targets */
         if (vertices_[va0].outgoing_halfedge == a0) vertices_[va0].outgoing_halfedge = a1;
@@ -536,25 +656,30 @@ public:
 
     /* ---- delete_vertex: marks vertex and incident faces as deleted ---- */
     void delete_vertex(VertexHandle vh) {
+        if (vh.idx < 0 || (size_t)vh.idx >= vertices_.size()) return;
         vertices_[vh.idx].deleted = true;
         /* Delete all incident faces */
         int h0 = vertices_[vh.idx].outgoing_halfedge;
-        if (h0 < 0) return;
+        if (h0 < 0 || (size_t)h0 >= halfedges_.size()) return;
         int h = h0;
+        int cnt = 0;
         do {
             int fi = halfedges_[h].face;
-            if (fi >= 0 && !faces_[fi].deleted) {
+            if (fi >= 0 && (size_t)fi < faces_.size() && !faces_[fi].deleted) {
                 faces_[fi].deleted = true;
                 /* unlink face halfedges from faces */
                 int fh = faces_[fi].halfedge, fhs = fh;
-                do {
+                int fcnt = 0;
+                while (fh >= 0 && (size_t)fh < halfedges_.size() && ++fcnt <= 100) {
                     halfedges_[fh].face = -1;
                     fh = halfedges_[fh].next;
-                } while (fh != fhs && fh >= 0);
+                    if (fh == fhs) break;
+                }
             }
             int ph = halfedges_[h].prev;
-            if (ph < 0) break;
+            if (ph < 0 || (size_t)ph >= halfedges_.size()) break;
             h = ph ^ 1;
+            if ((size_t)h >= halfedges_.size() || ++cnt > 1000) break;
         } while (h != h0);
     }
 
@@ -569,34 +694,33 @@ public:
                 newV.push_back(vertices_[i]);
             }
         }
-        /* Remap faces */
-        std::vector<FaceData> newF;
-        for (int i = 0; i < (int)faces_.size(); ++i) {
-            if (!faces_[i].deleted) newF.push_back(faces_[i]);
+        /* Extract face connectivity from active faces BEFORE clearing halfedges */
+        std::vector<std::array<int,3>> tmpF;
+        for (size_t fi = 0; fi < faces_.size(); ++fi) {
+            if (faces_[fi].deleted) continue;
+            int h0 = faces_[fi].halfedge;
+            if (h0 < 0 || (size_t)h0 >= halfedges_.size()) continue;
+            int h1 = halfedges_[h0].next;
+            if (h1 < 0 || (size_t)h1 >= halfedges_.size()) continue;
+            int h2 = halfedges_[h1].next;
+            if (h2 < 0 || (size_t)h2 >= halfedges_.size()) continue;
+            int v0 = halfedges_[h2].to_vertex;
+            int v1 = halfedges_[h0].to_vertex;
+            int v2 = halfedges_[h1].to_vertex;
+            if (v0 >= 0 && (size_t)v0 < vertices_.size() &&
+                v1 >= 0 && (size_t)v1 < vertices_.size() &&
+                v2 >= 0 && (size_t)v2 < vertices_.size()) {
+                tmpF.push_back({v0, v1, v2});
+            }
         }
         /* Rebuild from scratch */
         vertices_ = newV;
         faces_.clear();
         halfedges_.clear();
         halfedge_map_.clear();
+        edge_status_.clear();
         edge_tagged_.clear();
         for (auto& v : vertices_) v.outgoing_halfedge = -1;
-        /* Reconstruct halfedges from new faces */
-        std::vector<std::array<int,3>> tmpF;
-        for (auto& fd : newF) {
-            /* Find vertices of the face */
-            int h = fd.halfedge;
-            /* h may be stale; we need to reconstruct from old halfedges */
-            /* This is a best-effort; do it via an intermediate rebuild */
-            (void)h;
-        }
-        /* Full rebuild: remap old face vertex references */
-        /* We stored the old halfedge indices in FaceData.halfedge; we need
-           to walk the old halfedges to get the face vertices.  But at this
-           point, halfedges_ is cleared.  So we do the rebuild using
-           tmpF that we populated before clearing. */
-        /* Safer: iterate old faces before clearing */
-        /* Already done above - fall through to tmpF rebuild */
         for (auto& fa : tmpF) {
             if (vmap[fa[0]] >= 0 && vmap[fa[1]] >= 0 && vmap[fa[2]] >= 0)
                 add_face({vmap[fa[0]]}, {vmap[fa[1]]}, {vmap[fa[2]]});
@@ -616,11 +740,15 @@ public:
         }
         vertices_ = newV;
         faces_.clear(); halfedges_.clear();
-        halfedge_map_.clear(); edge_tagged_.clear();
+        halfedge_map_.clear(); edge_status_.clear(); edge_tagged_.clear();
         for (auto& v : vertices_) v.outgoing_halfedge = -1;
         for (auto& fa : orig_faces) {
-            if (vmap[fa[0]] >= 0 && vmap[fa[1]] >= 0 && vmap[fa[2]] >= 0)
-                add_face({vmap[fa[0]]}, {vmap[fa[1]]}, {vmap[fa[2]]});
+            if (fa[0] >= 0 && (size_t)fa[0] < vmap.size() &&
+                fa[1] >= 0 && (size_t)fa[1] < vmap.size() &&
+                fa[2] >= 0 && (size_t)fa[2] < vmap.size()) {
+                if (vmap[fa[0]] >= 0 && vmap[fa[1]] >= 0 && vmap[fa[2]] >= 0)
+                    add_face({vmap[fa[0]]}, {vmap[fa[1]]}, {vmap[fa[2]]});
+            }
         }
         rebuild_boundary_loops();
     }
@@ -692,6 +820,7 @@ public:
         bool is_valid() const { return valid; }
     };
     VertexVertexIter vv_iter(VertexHandle v) const {
+        if (v.idx < 0 || (size_t)v.idx >= vertices_.size()) return {this, -1, -1, 0, false};
         int h = vertices_[v.idx].outgoing_halfedge;
         return {this, h, h, 0, h >= 0};
     }
@@ -713,6 +842,7 @@ public:
         bool is_valid() const { return valid; }
     };
     ConstVertexOHalfedgeIter cvoh_iter(VertexHandle v) const {
+        if (v.idx < 0 || (size_t)v.idx >= vertices_.size()) return {this, -1, -1, 0, false};
         int h = vertices_[v.idx].outgoing_halfedge;
         return {this, h, h, 0, h >= 0};
     }
@@ -732,6 +862,7 @@ public:
         bool is_valid() const { return valid; }
     };
     FaceVertexIter fv_iter(FaceHandle f) const {
+        if (f.idx < 0 || (size_t)f.idx >= faces_.size()) return {this, -1, -1, 0, false};
         int h = faces_[f.idx].halfedge;
         return {this, h, h, 0, h >= 0};
     }
@@ -751,6 +882,7 @@ public:
         bool is_valid() const { return valid; }
     };
     FaceHalfedgeIter fh_iter(FaceHandle f) const {
+        if (f.idx < 0 || (size_t)f.idx >= faces_.size()) return {this, -1, -1, 0, false};
         int h = faces_[f.idx].halfedge;
         return {this, h, h, 0, h >= 0};
     }
@@ -770,6 +902,7 @@ public:
         bool is_valid() const { return valid; }
     };
     FaceEdgeIter fe_iter(FaceHandle f) const {
+        if (f.idx < 0 || (size_t)f.idx >= faces_.size()) return {this, -1, -1, 0, false};
         int h = faces_[f.idx].halfedge;
         return {this, h, h, 0, h >= 0};
     }
@@ -813,6 +946,7 @@ public:
             bool operator!=(const Iter& o) const { return valid != o.valid || cur_h != o.cur_h; }
         };
         Iter begin() const {
+            if (v.idx < 0 || (size_t)v.idx >= m->vertices_.size()) return end();
             int h = m->vertices_[v.idx].outgoing_halfedge;
             return {m, h, h, 0, h >= 0};
         }
@@ -825,7 +959,7 @@ public:
 
     /* ---- Size queries ---- */
     int n_vertices() const { return (int)vertices_.size(); }
-    int n_edges()    const { return (int)edge_tagged_.size(); }
+    int n_edges()    const { return (int)edge_status_.size(); }
     int n_faces()    const { return (int)faces_.size(); }
 
     /* ---- Iterator begin/end for OpenMesh-style for-loops ---- */
@@ -861,6 +995,7 @@ public:  /* allow direct access for algorithms */
     std::vector<HalfedgeData>  halfedges_;
     std::vector<FaceData>      faces_;
     std::map<std::pair<int,int>, int> halfedge_map_;
+    std::vector<EdgeStatus>    edge_status_;
     std::vector<bool>          edge_tagged_;
     std::vector<Normal>        face_normals_;
     std::vector<Normal>        vertex_normals_;

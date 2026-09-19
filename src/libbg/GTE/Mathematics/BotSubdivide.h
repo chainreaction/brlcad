@@ -132,16 +132,18 @@ static std::vector<bool> find_boundary_verts(size_t numV, size_t numF, const int
 /* For boundary vertex v, find the two boundary neighbors in order (prev, next) */
 static std::pair<int,int> boundary_neighbors(size_t numV, size_t numF, const int* faces,
                                                const HalfedgeMap& hm, int v) {
-    (void)numV; (void)numF; (void)faces;
+    (void)numF; (void)faces;
     int prev_v = -1, next_v = -1;
     for (auto& kv : hm) {
         int from = kv.first.first, to = kv.first.second;
         /* boundary edge v→to: to→v is NOT in map */
-        if (from == v && hm.find({to,v}) == hm.end())
-            next_v = to;
+        if (from == v && hm.find({to,v}) == hm.end()) {
+            if (to >= 0 && (size_t)to < numV) next_v = to;
+        }
         /* boundary edge from→v: v→from is NOT in map */
-        if (to == v && hm.find({v,from}) == hm.end())
-            prev_v = from;
+        if (to == v && hm.find({v,from}) == hm.end()) {
+            if (from >= 0 && (size_t)from < numV) prev_v = from;
+        }
     }
     return {prev_v, next_v};
 }
@@ -201,7 +203,9 @@ static bool loop_one_iteration(std::vector<float>& V, std::vector<int>& F,
         std::vector<std::set<int>> seen(numV);
         for (auto& kv : hm) {
             int from = kv.first.first, to = kv.first.second;
-            if (!seen[from].count(to)) { nbrs[from].push_back(to); seen[from].insert(to); }
+            if (from >= 0 && from < numV && to >= 0 && to < numV) {
+                if (!seen[from].count(to)) { nbrs[from].push_back(to); seen[from].insert(to); }
+            }
         }
         for (int v = 0; v < numV; ++v) {
             if (bnd[v]) {
@@ -280,7 +284,9 @@ static bool sqrt3_one_iteration(std::vector<float>& V, std::vector<int>& F, int 
         std::vector<std::set<int>> seen(numV);
         for (auto& kv : hm) {
             int from = kv.first.first, to = kv.first.second;
-            if (!seen[from].count(to)) { nbrs[from].push_back(to); seen[from].insert(to); }
+            if (from >= 0 && from < numV && to >= 0 && to < numV) {
+                if (!seen[from].count(to)) { nbrs[from].push_back(to); seen[from].insert(to); }
+            }
         }
     }
     for (int v = 0; v < numV; ++v) {
@@ -551,7 +557,10 @@ static bool sqrt3interp_one_iteration(std::vector<float>& V, std::vector<int>& F
 
     /* Precompute vertex valences (outgoing halfedge count per vertex) */
     std::vector<int> valence(numV, 0);
-    for (auto& kv : hm) ++valence[kv.first.first];
+    for (auto& kv : hm) {
+        if (kv.first.first >= 0 && kv.first.first < numV)
+            ++valence[kv.first.first];
+    }
 
     /* Compute centroid positions (using original vertex positions) */
     std::vector<Vec3> centroids(numF);
@@ -786,7 +795,10 @@ static bool mb_one_iteration(std::vector<float>& V, std::vector<int>& F) {
 
     /* Precompute vertex valences (outgoing halfedge count per vertex) */
     std::vector<int> valence(numV, 0);
-    for (auto& kv : hm) ++valence[kv.first.first];
+    for (auto& kv : hm) {
+        if (kv.first.first >= 0 && kv.first.first < numV)
+            ++valence[kv.first.first];
+    }
 
     /* Compute midpoints */
     EdgeMidMap edge_mid;
@@ -928,8 +940,14 @@ inline bool gte_bot_subdivide(
 {
     using namespace subd_detail;
 
-    if (!verts || !faces || numV == 0 || numF == 0 || level <= 0)
+    if (!verts || !faces || numV == 0 || numF == 0 || level <= 0 || level > 10)
         return false;
+    if (numV > SIZE_MAX / 3 || numF > SIZE_MAX / 3)
+        return false;
+    for (size_t i = 0; i < numF * 3; ++i) {
+        if (faces[i] < 0 || (size_t)faces[i] >= numV)
+            return false;
+    }
 
     /* Copy inputs */
     outV.assign(verts, verts + numV*3);

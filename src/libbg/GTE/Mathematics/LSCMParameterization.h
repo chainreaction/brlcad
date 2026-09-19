@@ -85,9 +85,18 @@ namespace gte
             std::vector<Vector2<Real>>& uv)
         {
             int32_t n = static_cast<int32_t>(boundaryIndices.size());
-            if (n < 3)
+            if (n < 3 || vertices3D.empty())
             {
                 return false;
+            }
+
+            for (int32_t i = 0; i < n; ++i)
+            {
+                if (boundaryIndices[i] < 0 ||
+                    static_cast<size_t>(boundaryIndices[i]) >= vertices3D.size())
+                {
+                    return false;
+                }
             }
 
             // Compute cumulative arc lengths along the boundary.
@@ -152,6 +161,24 @@ namespace gte
             if (numVertices < 3 || static_cast<int32_t>(boundaryIndices.size()) < 3)
             {
                 return false;
+            }
+
+            for (int32_t idx : boundaryIndices)
+            {
+                if (idx < 0 || idx >= numVertices)
+                    return false;
+            }
+            for (int32_t idx : interiorIndices)
+            {
+                if (idx < 0 || idx >= numVertices)
+                    return false;
+            }
+            for (auto const& tri : triangles)
+            {
+                if (tri[0] < 0 || tri[0] >= numVertices ||
+                    tri[1] < 0 || tri[1] >= numVertices ||
+                    tri[2] < 0 || tri[2] >= numVertices)
+                    return false;
             }
 
             // Step 1: initialise all UV to zero, then pin boundary.
@@ -325,6 +352,11 @@ namespace gte
             }
 
             // Step 3: solve A * x_u = b_u  and  A * x_v = b_v.
+            if (A.empty() || numInterior <= 0)
+            {
+                return false;
+            }
+
             // Tolerance: 1e-8 for double; for float-precision Real, 1e-6 would be
             // more appropriate.  Using 1e-8 as a conservative default suitable for
             // both since float accuracy is limited to ~7 decimal digits.

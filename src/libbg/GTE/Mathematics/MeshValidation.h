@@ -122,6 +122,10 @@ template <typename Real>
 	// Quick check: is the mesh manifold?
 	static bool IsManifold(std::vector<std::array<int32_t, 3>> const& triangles)
 	{
+	    if (triangles.empty())
+	    {
+		return false;
+	    }
 	    ValidationResult result;
 	    CheckManifold(triangles, result);
 	    return result.isManifold;
@@ -132,6 +136,10 @@ template <typename Real>
 		std::vector<Vector3<Real>> const& vertices,
 		std::vector<std::array<int32_t, 3>> const& triangles)
 	{
+	    if (vertices.empty() || triangles.empty())
+	    {
+		return false;
+	    }
 	    ValidationResult result;
 	    CheckSelfIntersections(vertices, triangles, result);
 	    return result.hasSelfIntersections;
@@ -220,6 +228,17 @@ template <typename Real>
 		std::array<int32_t, 3> const& tri1,
 		std::array<int32_t, 3> const& tri2)
 	{
+	    size_t n = vertices.size();
+	    if (tri1[0] < 0 || static_cast<size_t>(tri1[0]) >= n ||
+		tri1[1] < 0 || static_cast<size_t>(tri1[1]) >= n ||
+		tri1[2] < 0 || static_cast<size_t>(tri1[2]) >= n ||
+		tri2[0] < 0 || static_cast<size_t>(tri2[0]) >= n ||
+		tri2[1] < 0 || static_cast<size_t>(tri2[1]) >= n ||
+		tri2[2] < 0 || static_cast<size_t>(tri2[2]) >= n)
+	    {
+		return false;
+	    }
+
 	    Vector3<Real> min1 = vertices[tri1[0]];
 	    Vector3<Real> max1 = vertices[tri1[0]];
 	    Vector3<Real> min2 = vertices[tri2[0]];
@@ -254,8 +273,27 @@ template <typename Real>
 		ValidationResult& result)
 	{
 	    result.intersectingTrianglePairs = 0;
+	    if (vertices.empty() || triangles.empty())
+	    {
+		result.hasSelfIntersections = false;
+		return;
+	    }
 
 	    size_t n = triangles.size();
+	    size_t numV = vertices.size();
+
+	    for (auto const& tri : triangles)
+	    {
+		for (int i = 0; i < 3; ++i)
+		{
+		    if (tri[i] < 0 || static_cast<size_t>(tri[i]) >= numV)
+		    {
+			result.errorMessage = "Invalid vertex index in triangle";
+			result.hasSelfIntersections = false;
+			return;
+		    }
+		}
+	    }
 
 	    // Brute force check all pairs
 	    // TODO: Could optimize with spatial data structure (octree, BVH) for large meshes

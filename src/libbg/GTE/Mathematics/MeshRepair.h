@@ -198,8 +198,15 @@ namespace gte
                 auto computeTotalArea = [&]() -> Real
                 {
                     Real total = static_cast<Real>(0);
+                    size_t numV = vertices.size();
                     for (auto const& tri : triangles)
                     {
+                        if (tri[0] < 0 || static_cast<size_t>(tri[0]) >= numV ||
+                            tri[1] < 0 || static_cast<size_t>(tri[1]) >= numV ||
+                            tri[2] < 0 || static_cast<size_t>(tri[2]) >= numV)
+                        {
+                            continue;
+                        }
                         Vector3<Real> const& a = vertices[tri[0]];
                         Vector3<Real> const& b = vertices[tri[1]];
                         Vector3<Real> const& c = vertices[tri[2]];
@@ -428,9 +435,9 @@ namespace gte
 
             for (auto const& tri : triangles)
             {
-                isolated[tri[0]] = false;
-                isolated[tri[1]] = false;
-                isolated[tri[2]] = false;
+                if (tri[0] >= 0 && tri[0] < numVertices) isolated[tri[0]] = false;
+                if (tri[1] >= 0 && tri[1] < numVertices) isolated[tri[1]] = false;
+                if (tri[2] >= 0 && tri[2] < numVertices) isolated[tri[2]] = false;
             }
         }
 
@@ -457,16 +464,17 @@ namespace gte
             std::vector<int32_t> colocated;
             DetectColocatedVertices(vertices, colocated, epsilon);
 
+            int32_t numVertices = static_cast<int32_t>(vertices.size());
+
             // Remap triangle indices to canonical vertices
             for (auto& tri : triangles)
             {
-                tri[0] = colocated[tri[0]];
-                tri[1] = colocated[tri[1]];
-                tri[2] = colocated[tri[2]];
+                if (tri[0] >= 0 && tri[0] < numVertices) tri[0] = colocated[tri[0]];
+                if (tri[1] >= 0 && tri[1] < numVertices) tri[1] = colocated[tri[1]];
+                if (tri[2] >= 0 && tri[2] < numVertices) tri[2] = colocated[tri[2]];
             }
 
             // Compact vertex array: build mapping from old to new indices
-            int32_t numVertices = static_cast<int32_t>(vertices.size());
             std::vector<int32_t> oldToNew(numVertices, -1);
             std::vector<Vector3<Real>> newVertices;
             newVertices.reserve(numVertices);
@@ -484,7 +492,7 @@ namespace gte
             // Update non-canonical vertices to point to new indices
             for (int32_t i = 0; i < numVertices; ++i)
             {
-                if (colocated[i] != i)
+                if (colocated[i] != i && colocated[i] >= 0 && colocated[i] < numVertices)
                 {
                     oldToNew[i] = oldToNew[colocated[i]];
                 }
@@ -493,9 +501,9 @@ namespace gte
             // Update triangle indices
             for (auto& tri : triangles)
             {
-                tri[0] = oldToNew[tri[0]];
-                tri[1] = oldToNew[tri[1]];
-                tri[2] = oldToNew[tri[2]];
+                if (tri[0] >= 0 && tri[0] < numVertices) tri[0] = oldToNew[tri[0]];
+                if (tri[1] >= 0 && tri[1] < numVertices) tri[1] = oldToNew[tri[1]];
+                if (tri[2] >= 0 && tri[2] < numVertices) tri[2] = oldToNew[tri[2]];
             }
 
             vertices = std::move(newVertices);
@@ -595,6 +603,12 @@ namespace gte
             std::vector<std::array<int32_t, 3>> const& tris,
             int32_t f1, int32_t f2)
         {
+            if (f1 < 0 || static_cast<size_t>(f1) >= tris.size() ||
+                f2 < 0 || static_cast<size_t>(f2) >= tris.size())
+            {
+                return 0;
+            }
+
             for (int e1 = 0; e1 < 3; ++e1)
             {
                 int32_t v11 = tris[f1][e1];
@@ -616,10 +630,17 @@ namespace gte
             std::vector<int32_t>& adj,
             int32_t f1, int32_t f2)
         {
+            if (f1 < 0 || f2 < 0)
+            {
+                return;
+            }
+            size_t n = adj.size();
             for (int e = 0; e < 3; ++e)
             {
-                if (adj[f1 * 3 + e] == f2) { adj[f1 * 3 + e] = -1; }
-                if (adj[f2 * 3 + e] == f1) { adj[f2 * 3 + e] = -1; }
+                size_t idx1 = static_cast<size_t>(f1) * 3 + static_cast<size_t>(e);
+                size_t idx2 = static_cast<size_t>(f2) * 3 + static_cast<size_t>(e);
+                if (idx1 < n && adj[idx1] == f2) { adj[idx1] = -1; }
+                if (idx2 < n && adj[idx2] == f1) { adj[idx2] = -1; }
             }
         }
 
@@ -973,9 +994,9 @@ namespace gte
             // Update triangle indices
             for (auto& tri : triangles)
             {
-                tri[0] = oldToNew[tri[0]];
-                tri[1] = oldToNew[tri[1]];
-                tri[2] = oldToNew[tri[2]];
+                if (tri[0] >= 0 && tri[0] < numVertices) tri[0] = oldToNew[tri[0]];
+                if (tri[1] >= 0 && tri[1] < numVertices) tri[1] = oldToNew[tri[1]];
+                if (tri[2] >= 0 && tri[2] < numVertices) tri[2] = oldToNew[tri[2]];
             }
 
             vertices = std::move(newVertices);
