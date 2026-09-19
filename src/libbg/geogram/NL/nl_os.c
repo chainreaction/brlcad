@@ -53,32 +53,38 @@
 
 
 void nl_assertion_failed(const char* cond, const char* file, int line) {
-    nl_fprintf(
-        stderr,
-        "OpenNL assertion failed: %s, file:%s, line:%d\n",
-        cond,file,line
-    ) ;
+    if (nl_fprintf) {
+        nl_fprintf(
+            stderr,
+            "OpenNL assertion failed: %s, file:%s, line:%d\n",
+            cond ? cond : "?", file ? file : "?", line
+        );
+    }
     bu_bomb("OpenNL assertion failed") ;
 }
 
 void nl_range_assertion_failed(
     double x, double min_val, double max_val, const char* file, int line
 ) {
-    nl_fprintf(
-        stderr,
-        "OpenNL range assertion failed: "
-        "%f in [ %f ... %f ], file:%s, line:%d\n",
-        x, min_val, max_val, file,line
-    ) ;
+    if (nl_fprintf) {
+        nl_fprintf(
+            stderr,
+            "OpenNL range assertion failed: "
+            "%f in [ %f ... %f ], file:%s, line:%d\n",
+            x, min_val, max_val, file ? file : "?", line
+        );
+    }
     bu_bomb("OpenNL range assertion failed") ;
 }
 
 void nl_should_not_have_reached(const char* file, int line) {
-    nl_fprintf(
-        stderr,
-        "OpenNL should not have reached this point: file:%s, line:%d\n",
-        file,line
-    ) ;
+    if (nl_fprintf) {
+        nl_fprintf(
+            stderr,
+            "OpenNL should not have reached this point: file:%s, line:%d\n",
+            file ? file : "?", line
+        );
+    }
     bu_bomb("OpenNL should not have reached this point") ;
 }
 
@@ -120,16 +126,24 @@ NLprintfFunc nl_printf = printf;
 NLfprintfFunc nl_fprintf = fprintf;
 
 void nlError(const char* function, const char* message) {
-    nl_fprintf(stderr, "OpenNL error in %s(): %s\n", function, message) ;
+    if (nl_fprintf) {
+        nl_fprintf(stderr, "OpenNL error in %s(): %s\n",
+                   function ? function : "?",
+                   message ? message : "unknown error") ;
+    }
 }
 
 void nlWarning(const char* function, const char* message) {
-    nl_fprintf(stderr, "OpenNL warning in %s(): %s\n", function, message) ;
+    if (nl_fprintf) {
+        nl_fprintf(stderr, "OpenNL warning in %s(): %s\n",
+                   function ? function : "?",
+                   message ? message : "unknown warning") ;
+    }
 }
 
 void nlPrintfFuncs(NLprintfFunc f1, NLfprintfFunc f2) {
-    nl_printf = f1;
-    nl_fprintf = f2;
+    nl_printf = f1 ? f1 : printf;
+    nl_fprintf = f2 ? f2 : fprintf;
 }
 
 /******************************************************************************/

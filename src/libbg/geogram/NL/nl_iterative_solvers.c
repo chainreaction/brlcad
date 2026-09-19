@@ -452,6 +452,9 @@ NLuint nlSolveSystemIterative(
     NLenum solver,
     double eps, NLuint max_iter, NLuint inner_iter
 ) {
+    if (!blas || !M || !b_in || !x_in) {
+        return 0;
+    }
     NLuint N = M->n;
     NLuint result=0;
     NLdouble rnorm=0.0;
@@ -502,7 +505,7 @@ NLuint nlSolveSystemIterative(
     if(nlCurrentContext != NULL) {
         bnorm = sqrt(blas->sq_bnorm);
         rnorm = sqrt(blas->sq_rnorm);
-        if(bnorm == 0.0) {
+        if(ZERO(bnorm)) {
             nlCurrentContext->error = rnorm;
             if(nlCurrentContext->verbose) {
                 nl_printf(

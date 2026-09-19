@@ -176,6 +176,10 @@ template <class Backend> NLboolean nlSolveAMGCL_generic() {
 
     // Get linear system to solve from OpenNL context
     NLContextStruct* ctxt = (NLContextStruct*)nlGetCurrent();
+    if (!ctxt || !ctxt->M || !ctxt->b || !ctxt->x) {
+        nlError("nlSolveAMGCL", "No active context or invalid system matrices/vectors");
+        return NL_FALSE;
+    }
 
     if(ctxt->verbose) {
     }
@@ -186,8 +190,16 @@ template <class Backend> NLboolean nlSolveAMGCL_generic() {
         nlMatrixCompress(&ctxt->M);
     }
 
-    nl_assert(ctxt->M->type == NL_MATRIX_CRS);
+    if (!ctxt->M || ctxt->M->type != NL_MATRIX_CRS) {
+        nlError("nlSolveAMGCL", "Expected compressed row storage (CRS) matrix");
+        return NL_FALSE;
+    }
+
     NLCRSMatrix* M = (NLCRSMatrix*)(ctxt->M);
+    if (!M->rowptr || !M->colind || !M->val) {
+        nlError("nlSolveAMGCL", "Corrupt CRS matrix");
+        return NL_FALSE;
+    }
     size_t n = size_t(M->m);
     NLdouble* b = ctxt->b;
     NLdouble* x = ctxt->x;

@@ -65,6 +65,9 @@ NLContext nlNewContext(void) {
 
 void nlDeleteContext(NLContext context_in) {
     NLContextStruct* context = (NLContextStruct*)(context_in);
+    if (!context) {
+        return;
+    }
     if(nlCurrentContext == context) {
         nlCurrentContext = NULL;
     }

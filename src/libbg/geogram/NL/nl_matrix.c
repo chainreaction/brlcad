@@ -59,13 +59,18 @@ void nlDeleteMatrix(NLMatrix M) {
     if(M == NULL) {
         return;
     }
-    M->destroy_func(M);
+    if (M->destroy_func != NULL) {
+        M->destroy_func(M);
+    }
     NL_DELETE(M);
 }
 
 void nlMultMatrixVector(
     NLMatrix M, const double* x, double* y
 ) {
+    if (!M || !x || !y || !M->mult_func) {
+        return;
+    }
     M->mult_func(M,x,y);
 }
 
@@ -130,7 +135,11 @@ void nlRowColumnClear(NLRowColumn* c) {
 }
 
 static int nlCoeffCompare(const void* p1, const void* p2, void *UNUSED(data)) {
-    return (((NLCoeff*)(p2))->index < ((NLCoeff*)(p1))->index);
+    NLuint i1 = ((const NLCoeff*)p1)->index;
+    NLuint i2 = ((const NLCoeff*)p2)->index;
+    if (i1 < i2) return -1;
+    if (i1 > i2) return 1;
+    return 0;
 }
 
 void nlRowColumnSort(NLRowColumn* c) {
@@ -763,7 +772,7 @@ void nlSparseMatrixConstruct(
     if(storage & NL_MATRIX_STORE_ROWS) {
         M->row = NL_NEW_ARRAY(NLRowColumn, m);
         M->row_capacity = m;
-        for(i=0; i<n; i++) {
+        for(i=0; i<m; i++) {
             nlRowColumnConstruct(&(M->row[i]));
         }
     } else {

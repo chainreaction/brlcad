@@ -1373,32 +1373,54 @@ static int NL_FORTRAN_WRAP(dtpsv)(
 /************************************************************************/
 
 void nlBlasResetStats(NLBlas_t blas) {
-    blas->reset_stats(blas);
+    if (blas && blas->reset_stats) {
+        blas->reset_stats(blas);
+    }
 }
 
 void nlBlasShowStats(NLBlas_t blas) {
-    blas->show_stats(blas);
+    if (blas && blas->show_stats) {
+        blas->show_stats(blas);
+    }
 }
 
 double nlBlasGFlops(NLBlas_t blas) {
+    if (!blas) {
+        return 0.0;
+    }
     double now = nlCurrentTime();
     double elapsed_time = now - blas->start_time;
+    if (elapsed_time <= 0.0) {
+        return 0.0;
+    }
     return (NLdouble)(blas->flops) / (elapsed_time * 1e9);
 }
 
 NLulong nlBlasUsedRam(NLBlas_t blas, NLmemoryType type) {
+    if (!blas || (unsigned int)type >= 2) {
+        return 0;
+    }
     return blas->used_ram[type];
 }
 
 NLulong nlBlasMaxUsedRam(NLBlas_t blas, NLmemoryType type) {
+    if (!blas || (unsigned int)type >= 2) {
+        return 0;
+    }
     return blas->max_used_ram[type];
 }
 
 NLboolean nlBlasHasUnifiedMemory(NLBlas_t blas) {
+    if (!blas) {
+        return NL_FALSE;
+    }
     return blas->has_unified_memory;
 }
 
 static void host_blas_reset_stats(NLBlas_t blas) {
+    if (!blas) {
+        return;
+    }
     blas->start_time = nlCurrentTime();
     blas->flops = 0;
     blas->used_ram[0] = 0;
@@ -1411,12 +1433,15 @@ static void host_blas_reset_stats(NLBlas_t blas) {
 }
 
 static void host_blas_show_stats(NLBlas_t blas) {
+    if (!blas) {
+        return;
+    }
     nl_printf("BLAS stats\n");
     nl_printf("----------\n");
-    nl_printf("  GFlops: %d\n", nlBlasGFlops(blas));
-    nl_printf("  Used CPU RAM: %ld\n", nlBlasUsedRam(blas, NL_HOST_MEMORY));
-    nl_printf("  Used GPU RAM: %ld\n", nlBlasUsedRam(blas, NL_DEVICE_MEMORY));
-    if(blas->aux_time != 0.0) {
+    nl_printf("  GFlops: %f\n", nlBlasGFlops(blas));
+    nl_printf("  Used CPU RAM: %ld\n", (long)nlBlasUsedRam(blas, NL_HOST_MEMORY));
+    nl_printf("  Used GPU RAM: %ld\n", (long)nlBlasUsedRam(blas, NL_DEVICE_MEMORY));
+    if (!ZERO(blas->aux_time)) {
 	nl_printf("  Aux time: %f\n",blas->aux_time);
     }
 }
@@ -1425,10 +1450,12 @@ static void* host_blas_malloc(
     NLBlas_t blas, NLmemoryType type, size_t size
 ) {
     nl_arg_used(type);
-    blas->used_ram[type] += (NLulong)size;
-    blas->max_used_ram[type] = MAX(
-        blas->max_used_ram[type],blas->used_ram[type]
-    );
+    if (blas && (unsigned int)type < 2) {
+        blas->used_ram[type] += (NLulong)size;
+        blas->max_used_ram[type] = MAX(
+            blas->max_used_ram[type],blas->used_ram[type]
+        );
+    }
     return malloc(size);
 }
 
@@ -1436,7 +1463,9 @@ static void host_blas_free(
     NLBlas_t blas, NLmemoryType type, size_t size, void* ptr
 ) {
     nl_arg_used(type);
-    blas->used_ram[type] -= (NLulong)size;
+    if (blas && (unsigned int)type < 2) {
+        blas->used_ram[type] -= (NLulong)size;
+    }
     free(ptr);
 }
 

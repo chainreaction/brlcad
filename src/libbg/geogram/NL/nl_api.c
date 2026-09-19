@@ -160,6 +160,7 @@ void nlSolverParameteri(NLenum pname, NLint param) {
 }
 
 void nlGetBooleanv(NLenum pname, NLboolean* params) {
+    if (!params || !nlCurrentContext) return;
     switch(pname) {
     case NL_LEAST_SQUARES: {
         *params = nlCurrentContext->least_squares;
@@ -175,6 +176,7 @@ void nlGetBooleanv(NLenum pname, NLboolean* params) {
 }
 
 void nlGetDoublev(NLenum pname, NLdouble* params) {
+    if (!params || !nlCurrentContext) return;
     switch(pname) {
     case NL_THRESHOLD: {
         *params = nlCurrentContext->threshold;
@@ -189,7 +191,7 @@ void nlGetDoublev(NLenum pname, NLdouble* params) {
         *params = nlCurrentContext->elapsed_time;
     } break;
     case NL_GFLOPS: {
-        if(nlCurrentContext->elapsed_time == 0) {
+        if(ZERO(nlCurrentContext->elapsed_time)) {
             *params = 0.0;
         } else {
             *params = (NLdouble)(nlCurrentContext->flops) /
@@ -204,6 +206,7 @@ void nlGetDoublev(NLenum pname, NLdouble* params) {
 }
 
 void nlGetIntegerv(NLenum pname, NLint* params) {
+    if (!params || !nlCurrentContext) return;
     switch(pname) {
     case NL_SOLVER: {
         *params = (NLint)(nlCurrentContext->solver);
@@ -241,6 +244,7 @@ void nlGetIntegerv(NLenum pname, NLint* params) {
 
 
 void nlGetIntegervL(NLenum pname, NLlong* params) {
+    if (!params || !nlCurrentContext) return;
     switch(pname) {
     case NL_SOLVER: {
         *params = (NLlong)(nlCurrentContext->solver);
@@ -659,7 +663,9 @@ static void nlNormalizeRow(NLdouble weight) {
         norm += al->coeff[i].value * al->coeff[i].value;
     }
     norm = sqrt(norm);
-    nlScaleRow(weight / norm);
+    if (!ZERO(norm)) {
+        nlScaleRow(weight / norm);
+    }
 }
 
 static void nlEndRow(void) {
@@ -678,7 +684,7 @@ static void nlEndRow(void) {
 
     if(nlCurrentContext->normalize_rows) {
         nlNormalizeRow(nlCurrentContext->row_scaling);
-    } else if(nlCurrentContext->row_scaling != 1.0) {
+    } else if(!EQUAL(nlCurrentContext->row_scaling, 1.0)) {
         nlScaleRow(nlCurrentContext->row_scaling);
     }
     /*
@@ -933,6 +939,9 @@ void nlUpdateRightHandSide(NLdouble* values) {
      * If we are in the solved state, get back to the
      * constructed state.
      */
+    if (!values) {
+        return;
+    }
     nl_assert(nlCurrentContext->nb_systems == 1);
     if(nlCurrentContext->state == NL_STATE_SOLVED) {
         nlTransition(NL_STATE_SOLVED, NL_STATE_SYSTEM_CONSTRUCTED);

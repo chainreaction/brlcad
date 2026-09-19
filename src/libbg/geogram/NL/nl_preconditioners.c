@@ -99,11 +99,9 @@ NLMatrix nlNewJacobiPreconditioner(NLMatrix M) {
     NLJacobiPreconditioner* result = NULL;
     NLuint i;
     NLuint_big jj;
-    nl_assert(
-        M->type == NL_MATRIX_SPARSE_DYNAMIC ||
-        M->type == NL_MATRIX_CRS
-    );
-    nl_assert(M->m == M->n);
+    if (!M || M->m != M->n || (M->type != NL_MATRIX_SPARSE_DYNAMIC && M->type != NL_MATRIX_CRS)) {
+        return NULL;
+    }
     result = NL_NEW(NLJacobiPreconditioner);
     result->m = M->m;
     result->n = M->n;
@@ -115,7 +113,7 @@ NLMatrix nlNewJacobiPreconditioner(NLMatrix M) {
         M_dyn = (NLSparseMatrix*)M;
         for(i=0; i<M_dyn->n; ++i) {
             result->diag_inv[i] =
-                (M_dyn->diag[i] == 0.0) ? 1.0 : 1.0/M_dyn->diag[i];
+                ZERO(M_dyn->diag[i]) ? 1.0 : 1.0/M_dyn->diag[i];
         }
     } else if(M->type == NL_MATRIX_CRS) {
         M_CRS = (NLCRSMatrix*)M;
@@ -123,7 +121,7 @@ NLMatrix nlNewJacobiPreconditioner(NLMatrix M) {
             result->diag_inv[i] = 1.0;
             for(jj=M_CRS->rowptr[i]; jj<M_CRS->rowptr[i+1]; ++jj) {
                 if(M_CRS->colind[jj] == i) {
-                    result->diag_inv[i] = 1.0 / M_CRS->val[jj];
+                    result->diag_inv[i] = ZERO(M_CRS->val[jj]) ? 1.0 : 1.0 / M_CRS->val[jj];
                 }
             }
         }
@@ -220,7 +218,7 @@ static void nlSparseMatrixMultLowerInverse(
             }
         }
         nlHostBlas()->flops += (NLulong)(2*Ri->size);
-        y[i] = (x[i] - S) * omega / diag[i];
+        y[i] = ZERO(diag[i]) ? 0.0 : ((x[i] - S) * omega / diag[i]);
     }
     nlHostBlas()->flops += (NLulong)(n*3);
 }
@@ -259,7 +257,7 @@ static void nlSparseMatrixMultUpperInverse(
             }
         }
         nlHostBlas()->flops += (NLulong)(2*Ci->size);
-        y[i] = (x[i] - S) * omega / diag[i];
+        y[i] = ZERO(diag[i]) ? 0.0 : ((x[i] - S) * omega / diag[i]);
     }
     nlHostBlas()->flops += (NLulong)(n*3);
 }
@@ -286,8 +284,9 @@ static void nlSSORPreconditionerMult(
 NLMatrix nlNewSSORPreconditioner(NLMatrix M_in, double omega) {
     NLSparseMatrix* M = NULL;
     NLSSORPreconditioner* result = NULL;
-    nl_assert(M_in->type == NL_MATRIX_SPARSE_DYNAMIC);
-    nl_assert(M_in->m == M_in->n);
+    if (!M_in || M_in->type != NL_MATRIX_SPARSE_DYNAMIC || M_in->m != M_in->n) {
+        return NULL;
+    }
     M = (NLSparseMatrix*)M_in;
     result = NL_NEW(NLSSORPreconditioner);
     result->m = M->m;

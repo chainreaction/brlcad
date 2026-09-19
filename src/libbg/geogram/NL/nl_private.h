@@ -45,6 +45,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include "vmath.h"
 
 #ifndef NDEBUG
 #define NL_DEBUG
@@ -288,14 +289,14 @@ void nlSetNumThreads(NLuint nb_threads);
  * \brief Deallocates an element
  * \param[in,out] x a pointer to the element to be deallocated
  */
-#define NL_DELETE(x)             free(x); x = NULL
+#define NL_DELETE(x)             do { free((void*)(x)); (x) = NULL; } while(0)
 
 /**
  * \brief Deallocates an array
  * \param[in,out] x a pointer to the first element of the array to
  *  be deallocated
  */
-#define NL_DELETE_ARRAY(x)       free(x); x = NULL
+#define NL_DELETE_ARRAY(x)       do { free((void*)(x)); (x) = NULL; } while(0)
 
 /**
  * \brief Clears an element
