@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-19 03:42:16 UTC
+**Last Updated:** 2026-09-19 03:48:07 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
 - **Files Reviewed:** 274 (7.8%)
 - **Files Pending Review:** 3219
-- **Total Issues Identified:** 185
+- **Total Issues Identified:** 190
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
-| **3 (High)** | 13 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 129 | Possible exploit or crash under specific circumstances |
+| **3 (High)** | 16 | Likely exploit or crash potential; widespread/library exposure |
+| **2 (Medium)** | 131 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 43 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 184
+- **Fixed (Committed):** 189
 - **Pending Verification:** 1
 - **Disproven:** 0
 
@@ -302,3 +302,8 @@
 | `SEC-0183` | **Sev 2** | Input Validation / Division by Zero / Matrix Solvability | `src/libbg/GTE/Mathematics/LSCMParameterization.h:96-120, 160-220, 275-310` | `FIXED` | Missing vertex index bounds checking on boundaryIndices, interiorIndices, and triangle vertex references when indexing vertices3D in MapBoundaryToCircle and Parameterize; unchecked linear system matrix dimensions could lead to division by zero or invalid memory access in SolveSymmetricCG. |
 | `SEC-0184` | **Sev 2** | Out-of-Bounds Memory Access / Input Validation | `src/libbg/GTE/Mathematics/MeshHoleFilling.h:275-320, 520-560, MeshPreprocessing.h:130-155, 225-255` | `FIXED` | Unchecked triangle vertex indices allowed out-of-bounds reads in ComputeEarScore3D, ComputeTriangulationArea, TriangulateHoleLSCM, and MeshPreprocessing::ComputeTriangleArea / ComputeSignedVolume / RemoveSmallComponents. |
 | `SEC-0185` | **Sev 3** | Null Pointer Dereference / Out-of-Bounds Array Access | `src/libbg/GTE/Mathematics/MeshQuality.h:230-236, MeshValidation.h:122-138, 220-250, MeshRepair.h:200-215, 430-495, 600-630, 990-1005` | `FIXED` | MeshQuality::ComputeTriangleRaw lacked null pointer validation for raw vertex pointers; MeshValidation::HasSelfIntersections and TriangleBoxesOverlap lacked empty mesh and vertex index bounds validation; MeshRepair lacked vertex index bounds validation in computeTotalArea, DetectIsolatedVertices, ColocateVertices, RelativeOrientation, Dissociate, and RemoveIsolatedVertices. |
+| `SEC-0186` | **Sev 2** | Unsigned Integer Underflow / Out-of-Bounds Memory Access | `src/libbg/tests/polygon_op.c:55-80, 240-270` | `FIXED` | In _bg_polygon_diff, offset calculation size_t p2_ind = ((offset + j) >= c1->num_points) ? (j - offset) : (offset + j); produces an unsigned integer underflow when j < offset, wrapping p2_ind to SIZE_MAX and causing an out-of-bounds array access. In addition, unvalidated dcr2 dereferencing could crash on empty polygons, and plot_files contained a contour array dimension mismatch. |
+| `SEC-0187` | **Sev 2** | Stack Buffer Overflow / Potential Null Pointer Dereference | `src/libbg/tests/bgtester.c:85-115, 230-260` | `FIXED` | In parse_case, parameter arrays d, l, i, u were fixed 50-element stack buffers populated in a while loop without bounds checking, allowing stack buffer overflows on inputs exceeding 50 parameters. In main, token strings returned by strtok were dereferenced without checking for NULL. |
+| `SEC-0188` | **Sev 3** | Null Pointer Dereference / Logical Indexing Flaw | `src/libbg/tests/chull.c:40-70, obr.c:45-75` | `FIXED` | In plot2d_chull, plot_chull3d, and plot_obr, fopen results were passed directly to pl_color and fclose without NULL verification, risking null pointer crashes if file creation failed. Additionally, plot2d_chull indexed pnt_array[i][0] when closing the polygon loop instead of pnt_array[0][Y]. |
+| `SEC-0189` | **Sev 3** | Division by Zero / Unchecked Parsing / Missing Pointer Validation | `src/libbg/tests/plane_dist.c:35-50, lseg_pt.c:45-65, geogram_optimizer.cpp:55-80` | `FIXED` | In plane_dist.c, relative error calculation performed division by expected_return without checking for zero, resulting in division by zero (NaN/Inf). In lseg_pt.c, sscanf return counts were unchecked, allowing uninitialized stack values to be used. In geogram_optimizer.cpp, converged_optimizer was dereferenced without checking for NULL. |
+| `SEC-0190` | **Sev 3** | Resource Leak / Memory Management | `src/libbg/tests/poly2tri.c:110-180, chull.c:120-170, chull3d.c:70-130` | `FIXED` | Dynamically allocated vertex, face, hole, and output polygon arrays allocated via bu_calloc/bu_malloc in poly2tri.c, chull.c, and chull3d.c were never freed prior to test completion or return, resulting in systematic memory leaks. |

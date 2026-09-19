@@ -15228,7 +15228,7 @@
       "path": "src/libbg/tests/aabb_ray.c",
       "subsystem": "src/libbg",
       "lines": 103,
-      "status": "PENDING",
+      "status": "REVIEWED_CLEAN",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -15238,7 +15238,7 @@
       "path": "src/libbg/tests/ballpivot.c",
       "subsystem": "src/libbg",
       "lines": 141,
-      "status": "PENDING",
+      "status": "REVIEWED_CLEAN",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -15248,7 +15248,7 @@
       "path": "src/libbg/tests/bgtester.c",
       "subsystem": "src/libbg",
       "lines": 630,
-      "status": "PENDING",
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -15258,7 +15258,7 @@
       "path": "src/libbg/tests/chull.c",
       "subsystem": "src/libbg",
       "lines": 411,
-      "status": "PENDING",
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -15268,7 +15268,7 @@
       "path": "src/libbg/tests/chull3d.c",
       "subsystem": "src/libbg",
       "lines": 186,
-      "status": "PENDING",
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -15278,7 +15278,7 @@
       "path": "src/libbg/tests/geogram_optimizer.cpp",
       "subsystem": "src/libbg",
       "lines": 148,
-      "status": "PENDING",
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -15288,7 +15288,7 @@
       "path": "src/libbg/tests/line_distance.c",
       "subsystem": "src/libbg",
       "lines": 185,
-      "status": "PENDING",
+      "status": "REVIEWED_CLEAN",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -15298,7 +15298,7 @@
       "path": "src/libbg/tests/lseg_lseg.c",
       "subsystem": "src/libbg",
       "lines": 122,
-      "status": "PENDING",
+      "status": "REVIEWED_CLEAN",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -15308,7 +15308,7 @@
       "path": "src/libbg/tests/lseg_pt.c",
       "subsystem": "src/libbg",
       "lines": 78,
-      "status": "PENDING",
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -15318,7 +15318,7 @@
       "path": "src/libbg/tests/obr.c",
       "subsystem": "src/libbg",
       "lines": 354,
-      "status": "PENDING",
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -15328,7 +15328,7 @@
       "path": "src/libbg/tests/plane_dist.c",
       "subsystem": "src/libbg",
       "lines": 346,
-      "status": "PENDING",
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -15338,7 +15338,7 @@
       "path": "src/libbg/tests/plane_isect.c",
       "subsystem": "src/libbg",
       "lines": 134,
-      "status": "PENDING",
+      "status": "REVIEWED_CLEAN",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -15348,7 +15348,7 @@
       "path": "src/libbg/tests/plane_pt.c",
       "subsystem": "src/libbg",
       "lines": 354,
-      "status": "PENDING",
+      "status": "REVIEWED_CLEAN",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -15358,7 +15358,7 @@
       "path": "src/libbg/tests/poly2tri.c",
       "subsystem": "src/libbg",
       "lines": 318,
-      "status": "PENDING",
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -15368,7 +15368,7 @@
       "path": "src/libbg/tests/polygon_op.c",
       "subsystem": "src/libbg",
       "lines": 282,
-      "status": "PENDING",
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
