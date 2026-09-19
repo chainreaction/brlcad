@@ -38,6 +38,7 @@
  */
 
 #include "common.h"
+#include "bu/exit.h"
 #include <geogram/basic/packed_arrays.h>
 
 namespace GEOBRL {
@@ -91,13 +92,24 @@ namespace GEOBRL {
         nb_arrays_ = nb_arrays;
         Z1_block_size_ = Z1_block_size;
         Z1_stride_ = Z1_block_size_ + 1;  // +1 for storing array size.
-        Z1_ = (index_t*) calloc(
-            nb_arrays_, sizeof(index_t) * Z1_stride_
-        );
-        if(!static_mode) {
-            ZV_ = (index_t**) calloc(
-                nb_arrays_, sizeof(index_t*)
+        if(nb_arrays_ > 0 && Z1_stride_ > 0) {
+            if(SIZE_MAX / sizeof(index_t) < (size_t)Z1_stride_) {
+                bu_bomb("PackedArrays::init size overflow");
+            }
+            Z1_ = (index_t*) calloc(
+                nb_arrays_, sizeof(index_t) * Z1_stride_
             );
+            if(!Z1_) {
+                bu_bomb("PackedArrays::init out of memory");
+            }
+            if(!static_mode) {
+                ZV_ = (index_t**) calloc(
+                    nb_arrays_, sizeof(index_t*)
+                );
+                if(!ZV_) {
+                    bu_bomb("PackedArrays::init out of memory");
+                }
+            }
         }
         if(thread_safe_) {
             Z1_spinlocks_.resize(nb_arrays_);
@@ -107,7 +119,9 @@ namespace GEOBRL {
     void PackedArrays::get_array(
         index_t array_index, index_t* array, bool lock
     ) const {
-        geo_debug_assert(array_index < nb_arrays_);
+        if(array_index >= nb_arrays_ || !array || !Z1_) {
+            return;
+        }
         if(lock) {
             lock_array(array_index);
         }
@@ -117,7 +131,7 @@ namespace GEOBRL {
         array_base++;
         index_t nb_in_block = std::min(nb, Z1_block_size_);
         Memory::copy(array, array_base, sizeof(index_t) * nb_in_block);
-        if(nb > nb_in_block) {
+        if(nb > nb_in_block && ZV_ != nullptr && ZV_[array_index] != nullptr) {
             nb -= nb_in_block;
             array += nb_in_block;
             array_base = ZV_[array_index];
@@ -133,7 +147,9 @@ namespace GEOBRL {
         index_t array_size, const index_t* array,
         bool lock
     ) {
-        geo_debug_assert(array_index < nb_arrays_);
+        if(array_index >= nb_arrays_ || (!array && array_size > 0) || !Z1_) {
+            return;
+        }
         if(lock) {
             lock_array(array_index);
         }
@@ -145,8 +161,10 @@ namespace GEOBRL {
         }
         index_t nb = array_size;
         index_t nb_in_block = std::min(nb, Z1_block_size_);
-        Memory::copy(array_base, array, sizeof(index_t) * nb_in_block);
-        if(nb > nb_in_block) {
+        if(array && nb_in_block > 0) {
+            Memory::copy(array_base, array, sizeof(index_t) * nb_in_block);
+        }
+        if(nb > nb_in_block && array && ZV_ != nullptr && ZV_[array_index] != nullptr) {
             nb -= nb_in_block;
             array += nb_in_block;
             array_base = ZV_[array_index];
@@ -160,7 +178,9 @@ namespace GEOBRL {
     void PackedArrays::resize_array(
         index_t array_index, index_t array_size, bool lock
     ) {
-        geo_debug_assert(array_index < nb_arrays_);
+        if(array_index >= nb_arrays_ || !Z1_) {
+            return;
+        }
         if(lock) {
             lock_array(array_index);
         }
@@ -170,13 +190,22 @@ namespace GEOBRL {
             *array_base = array_size;
             if(static_mode()) {
                 geo_assert(array_size <= Z1_block_size_);
-            } else {
+            } else if(ZV_ != nullptr) {
                 index_t nb_in_ZV =
                     (array_size > Z1_block_size_) ?
                     array_size - Z1_block_size_ : 0;
-                ZV_[array_index] = (index_t*) realloc(
-                    ZV_[array_index], sizeof(index_t) * nb_in_ZV
-                );
+                if(nb_in_ZV == 0) {
+                    free(ZV_[array_index]);
+                    ZV_[array_index] = nullptr;
+                } else {
+                    index_t* new_ptr = (index_t*) realloc(
+                        ZV_[array_index], sizeof(index_t) * nb_in_ZV
+                    );
+                    if(!new_ptr) {
+                        bu_bomb("PackedArrays::resize_array out of memory");
+                    }
+                    ZV_[array_index] = new_ptr;
+                }
             }
         }
         if(lock) {

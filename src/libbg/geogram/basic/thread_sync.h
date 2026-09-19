@@ -156,6 +156,13 @@ namespace GEOBRL {
             }
 
             /**
+             * \brief BasicSpinLockArray destructor
+             */
+            ~BasicSpinLockArray() {
+                clear();
+            }
+
+            /**
              * \brief Forbids copy
              */
             BasicSpinLockArray(const BasicSpinLockArray& rhs) = delete;
@@ -174,12 +181,13 @@ namespace GEOBRL {
              */
             void resize(index_t size_in) {
                 delete[] spinlocks_;
-                spinlocks_ = new spinlock[size_in];
+                spinlocks_ = nullptr;
                 size_ = size_in;
-                // Need to initialize the spinlocks to false (dirty !)
-                // (maybe use placement new on each item..., to be tested)
-                for(index_t i=0; i<size_; ++i) {
-                    Process::release_spinlock(spinlocks_[i]);
+                if(size_ > 0) {
+                    spinlocks_ = new spinlock[size_in];
+                    for(index_t i=0; i<size_; ++i) {
+                        Process::release_spinlock(spinlocks_[i]);
+                    }
                 }
             }
 
@@ -189,6 +197,7 @@ namespace GEOBRL {
             void clear() {
                 delete[] spinlocks_;
                 spinlocks_ = nullptr;
+                size_ = 0;
             }
 
             /**
@@ -205,7 +214,9 @@ namespace GEOBRL {
              * \param[in] i index of the spinlock
              */
             void acquire_spinlock(index_t i) {
-                geo_debug_assert(i < size());
+                if(!spinlocks_ || i >= size()) {
+                    return;
+                }
                 GEOBRL::Process::acquire_spinlock(spinlocks_[i]);
             }
 
@@ -215,7 +226,9 @@ namespace GEOBRL {
              * \param[in] i index of the spinlock
              */
             void release_spinlock(index_t i) {
-                geo_debug_assert(i < size());
+                if(!spinlocks_ || i >= size()) {
+                    return;
+                }
                 GEOBRL::Process::release_spinlock(spinlocks_[i]);
             }
 
@@ -286,25 +299,19 @@ namespace GEOBRL {
             void resize(index_t size_in) {
                 if(size_ != size_in) {
                     size_ = size_in;
-                    index_t nb_words = (size_ >> 5) + 1;
                     delete[] spinlocks_;
-                    spinlocks_ = new std::atomic<uint32_t>[nb_words];
-                    for(index_t i=0; i<nb_words; ++i) {
-                        // Note: std::atomic_init() is deprecated in C++20
-                        // that can initialize std::atomic through its
-                        // non-default constructor. We'll need to do something
-                        // else when we'll switch to C++20 (placement new...)
-                        std::atomic_init<uint32_t>(&spinlocks_[i],0u);
+                    spinlocks_ = nullptr;
+                    if(size_ > 0) {
+                        index_t nb_words = (size_ >> 5) + 1;
+                        spinlocks_ = new std::atomic<uint32_t>[nb_words];
+                        for(index_t i=0; i<nb_words; ++i) {
+                            std::atomic_init<uint32_t>(&spinlocks_[i],0u);
+                        }
                     }
                 }
-// Test at compile time that we are using atomic uint32_t operations (and not
-// using an additional lock which would be catastrophic in terms of performance)
 #ifdef __cpp_lib_atomic_is_always_lock_free
                 static_assert(std::atomic<uint32_t>::is_always_lock_free);
 #else
-// If we cannot test that at compile time, we test that at runtime in debug
-// mode (so that we will be notified in the non-regression test if one of
-// the platforms has the problem, which is very unlikely though...)
                 geo_debug_assert(size_ == 0 || spinlocks_[0].is_lock_free());
 #endif
             }
@@ -321,6 +328,7 @@ namespace GEOBRL {
              */
             void clear() {
                 delete[] spinlocks_;
+                spinlocks_ = nullptr;
                 size_ = 0;
             }
 
@@ -331,7 +339,9 @@ namespace GEOBRL {
              * \param[in] i index of the spinlock
              */
             void acquire_spinlock(index_t i) {
-                geo_debug_assert(i < size());
+                if(!spinlocks_ || i >= size()) {
+                    return;
+                }
                 index_t  w = i >> 5;
                 uint32_t b = uint32_t(i & 31);
                 uint32_t mask = (1u << b);
@@ -350,7 +360,9 @@ namespace GEOBRL {
              * \param[in] i index of the spinlock
              */
             void release_spinlock(index_t i) {
-                geo_debug_assert(i < size());
+                if(!spinlocks_ || i >= size()) {
+                    return;
+                }
                 index_t  w = i >> 5;
                 uint32_t b = uint32_t(i & 31);
                 uint32_t mask = ~(1u << b);

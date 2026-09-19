@@ -159,12 +159,22 @@ namespace GEOBRL {
             void* data, const vector<index_t>& permutation_in,
             size_t elemsize
         ) {
+            if (!data || elemsize == 0 || permutation_in.empty()) {
+                return;
+            }
 	    geo_debug_assert(permutation_in.size() <= MAX_SIZE);
             Memory::pointer pdata = (Memory::pointer) (data);
             vector<index_t>& permutation =
                 const_cast<vector<index_t>&>(permutation_in);
             geo_debug_assert(is_valid(permutation));
-            Memory::byte* temp = static_cast<Memory::byte*>(BRLCAD_ALLOCA(elemsize));
+            std::vector<Memory::byte> heap_buf;
+            Memory::byte* temp = nullptr;
+            if (elemsize <= 4096) {
+                temp = static_cast<Memory::byte*>(BRLCAD_ALLOCA(elemsize));
+            } else {
+                heap_buf.resize(elemsize);
+                temp = heap_buf.data();
+            }
             for(index_t k = 0; k < permutation.size(); k++) {
                 if(is_marked(permutation, k)) {
                     continue;
@@ -213,6 +223,12 @@ namespace GEOBRL {
         inline void apply(
             vector<T>& data, const vector<index_t>& permutation_in
         ) {
+            if (permutation_in.empty()) {
+                return;
+            }
+            if (data.size() < permutation_in.size()) {
+                throw std::out_of_range("Permutation::apply: data size is smaller than permutation size");
+            }
 	    geo_debug_assert(permutation_in.size() <= MAX_SIZE);
             vector<index_t>& permutation =
                 const_cast<vector<index_t>&>(permutation_in);

@@ -68,6 +68,10 @@ namespace GEOBRL {
         index_t from, index_t to, std::function<void(index_t)> func,
         index_t threads_per_core, bool interleaved
     ) {
+        if(from >= to || !func) {
+            return;
+        }
+
         index_t nb_threads = std::min(
             to - from,
             Process::maximum_concurrent_threads() * threads_per_core

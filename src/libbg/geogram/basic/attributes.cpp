@@ -152,16 +152,27 @@ namespace GEOBRL {
     }
 
     void AttributeStore::zero() {
+        if(cached_base_addr_ == nullptr || cached_size_ == 0) {
+            return;
+        }
         Memory::clear(
             cached_base_addr_, element_size_ * dimension_ * cached_size_
         );
     }
 
     void AttributeStore::swap_items(index_t i, index_t j) {
-        geo_debug_assert(i < cached_size_);
-        geo_debug_assert(j < cached_size_);
-	size_t item_size = element_size_ * dimension_;
-        void* temp = BRLCAD_ALLOCA(item_size);
+        if(i >= cached_size_ || j >= cached_size_ || !cached_base_addr_) {
+            return;
+        }
+        size_t item_size = element_size_ * dimension_;
+        std::vector<char> heap_buf;
+        void* temp = nullptr;
+        if(item_size <= 4096) {
+            temp = BRLCAD_ALLOCA(item_size);
+        } else {
+            heap_buf.resize(item_size);
+            temp = heap_buf.data();
+        }
         Memory::copy(
             temp,
             cached_base_addr_+i*item_size,
@@ -391,8 +402,8 @@ namespace GEOBRL {
                 return false;
             }
             if(
-                (store->size() != new_store->size()) &&
-                (store->dimension() != new_store->dimension()) &&
+                (store->size() != new_store->size()) ||
+                (store->dimension() != new_store->dimension()) ||
                 (store->element_size() != new_store->element_size())
             ) {
                 return false;
@@ -461,11 +472,12 @@ namespace GEOBRL {
         size_t pos = name.find('[');
         if(pos != std::string::npos) {
             try {
-                if(pos+2 > name.length()) {
+                size_t closing = name.find(']', pos + 1);
+                if(closing == std::string::npos || closing <= pos + 1) {
                     result = index_t(-1);
                 } else {
                     result = static_cast<index_t>(std::stoul(
-                        name.substr(pos+1, name.length()-pos-2)
+                        name.substr(pos+1, closing - pos - 1)
                     ));
                 }
             } catch(...) {

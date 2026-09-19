@@ -393,7 +393,7 @@ namespace GEOBRL {
          * \return An aligned pointer to a memory block of \p size bytes.
          */
 #define geo_aligned_alloca(size)                                        \
-        GEOBRL::Memory::align(BRLCAD_ALLOCA(size + GEOBRL_MEMORY_ALIGNMENT - 1))
+        GEOBRL::Memory::align(BRLCAD_ALLOCA(((size) + GEOBRL_MEMORY_ALIGNMENT - 1)))
 
         /**
          * \brief An allocator that performs aligned memory allocations
@@ -477,6 +477,9 @@ namespace GEOBRL {
             pointer allocate(
                 size_type nb_elt, const void* hint = nullptr
             ) {
+                if(sizeof(T) > 0 && nb_elt > (SIZE_MAX / sizeof(T))) {
+                    throw std::bad_alloc();
+                }
 		nb_elt = std::max(nb_elt,size_type(1));
                 geo_argused(hint);
 		while(true) {

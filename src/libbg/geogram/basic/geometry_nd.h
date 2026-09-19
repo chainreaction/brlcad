@@ -217,7 +217,8 @@ namespace GEOBRL {
             double b = distance(p2, p3);
             double c = distance(p3, p1);
             double s = double(0.5) * (a + b + c);
-            return ::sqrt(s * (s - a) * (s - b) * (s - c));
+            double A2 = s * (s - a) * (s - b) * (s - c);
+            return ::sqrt(std::max(A2, 0.0));
         }
 
         /**
@@ -283,6 +284,12 @@ namespace GEOBRL {
 
             double c31 = (a23 * a12 - a22 * a13);
             double d = c31;
+            if(denom != nullptr) {
+                *denom = d;
+            }
+            if(d == 0.0 || ::fabs(d) < 1e-30) {
+                return (1.0 / 3.0) * (Q1 + Q2 + Q3);
+            }
             double s = 1.0 / d;
             double lambda1 = s * ((a23 - a22) * l2 + (a12 - a13) * l3 + c31);
             double lambda2 = s * ((-a23) * l2 + (a13) * l3);

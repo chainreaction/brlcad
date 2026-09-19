@@ -158,7 +158,9 @@ namespace GEOBRL {
      * \return the actual size of the sub-array elements
      */
     index_t array_size(index_t array_index) const {
-        geo_debug_assert(array_index < nb_arrays_);
+        if(array_index >= nb_arrays_ || Z1_ == nullptr) {
+            return 0;
+        }
         return Z1_[array_index * Z1_stride_];
     }
 

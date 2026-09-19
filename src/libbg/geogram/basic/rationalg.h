@@ -543,7 +543,11 @@ namespace GEOBRL {
          * \return an approximation of the stored value.
          */
         double estimate() const {
-            return num_.estimate() / denom_.estimate();
+            double d = denom_.estimate();
+            if (d == 0.0) {
+                return 0.0;
+            }
+            return num_.estimate() / d;
         }
 
     protected:
