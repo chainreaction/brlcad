@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-19 03:23:59 UTC
+**Last Updated:** 2026-09-19 03:33:42 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
 - **Files Reviewed:** 274 (7.8%)
 - **Files Pending Review:** 3219
-- **Total Issues Identified:** 174
+- **Total Issues Identified:** 180
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
-| **3 (High)** | 11 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 122 | Possible exploit or crash under specific circumstances |
-| **1 (Low)** | 41 | Localized / low-impact vulnerability |
+| **3 (High)** | 12 | Likely exploit or crash potential; widespread/library exposure |
+| **2 (Medium)** | 126 | Possible exploit or crash under specific circumstances |
+| **1 (Low)** | 42 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 173
+- **Fixed (Committed):** 179
 - **Pending Verification:** 1
 - **Disproven:** 0
 
@@ -291,3 +291,9 @@
 | `SEC-0172` | **Sev 2** | Unchecked Error Code / Parameter Validation | `src/libbg/ballpivot.cpp:30-75` | `FIXED` | Unchecked negative return code in bg_3d_ballpivot (if (nfaces == 0) instead of if (nfaces <= 0)), allowing negative face count to be passed into bg_trimesh_3d_gc; missing validation for radii_cnt < 0 or radii_cnt > 0 with NULL radii; missing initial NULL assignment to output pointers. |
 | `SEC-0173` | **Sev 1** | Unchecked File Operation / Null Dereference | `src/libbg/RTree.h:465-480, 1740-1800` | `FIXED` | Unchecked fopen() return value in RTree::plot() and RTree::plot2d() leading to NULL pointer dereference on file write failure; missing NULL check on filename in RTFileStream::OpenRead and RTFileStream::OpenWrite; unguarded VertexDataSource count on NULL pointer in QuickHull.hpp. |
 | `SEC-0174` | **Sev 1** | Defensive Parameter Validation | `src/libbg/polygon_triangulate.cpp:560-585` | `FIXED` | Missing parameter validation in bg_detria for faces, num_faces, poly, poly_pnts, pts, holes_array, holes_npts, and steiner, which could cause segmentation faults when called with NULL or undersized inputs. |
+| `SEC-0175` | **Sev 3** | Pointer Corruption / Memory Leak / Logic Error | `src/libbg/trimesh.cpp:368-379, 458-465, 754, 789` | `FIXED` | In get_unmatched_edges, &unmatched was passed instead of unmatched to bg_trimesh_unmatched_edges with bg_trimesh_edge_gather, corrupting pointer memory; unmatched->count was used uninitialized in bu_calloc; edge_list was leaked permanently. In bg_trimesh_hanging_nodes, unmatched was leaked on all paths and memcpy was undersized (num_edges * 2 bytes instead of num_edges * 2 * sizeof(int)). In bg_trimesh_solid, a false positive solid result occurred when unmatched edges were zero but misoriented or excess edges existed, leaking memory and passing NULL to memcpy. |
+| `SEC-0176` | **Sev 2** | Out-of-Bounds Memory Access / Buffer Overflow | `src/libbg/trimesh.cpp:812, 840-848, 876-878` | `FIXED` | Missing vertex index bounds validation in bg_trimesh_aabb, bg_trimesh_area, and bg_trimesh_volume allowed out-of-bounds reads into point array p and out-of-bounds writes into visit_vert bitvector when called with corrupted or invalid mesh face data. |
+| `SEC-0177` | **Sev 2** | Logic Error / Inverted Topology Map | `src/libbg/trimesh_diff.cpp:67-77, 206-255, 313-348` | `FIXED` | In bg_trimesh_diff, ind_map_1 and ind_map_2 inverted the mapping from original to sorted vertex indices (ind_map[i] = orig_ind instead of ind_map[orig_ind] = i), and tri_2 indexed with f1 instead of f2, ignoring mesh 2 face data; bg_trimesh_hash had the same mapping inversion and an early break in its minimum vertex search loop; dbl_clamp could trigger float overflow on non-positive tolerance. |
+| `SEC-0178` | **Sev 2** | Unchecked Exception / Memory Leak / Input Validation | `src/libbg/spsr.cpp:52-54, 105-178` | `FIXED` | In bg_3d_spsr, missing parameter validation on points, normals, and face pointers allowed NULL pointer dereferences; num_input_pnts < 3 caused solver failures; negative cnt in PtStream caused unsigned overflow; unhandled C++ exceptions escaping the extern C boundary leaked implicit solver memory and aborted the program. |
+| `SEC-0179` | **Sev 2** | Unchecked File Operation / Null Pointer Dereference / Division by Zero | `src/libbg/trimesh_isect.cpp:56-74, 95-245, trimesh_plot3.cpp:82, 351-372` | `FIXED` | In trimesh_isect.cpp, plot_faces called pl_color on unchecked fopen() return, causing NULL pointer dereference on file write failure; bg_trimesh_isect failed to validate vertex indices in faces_1 and faces_2 against vertex counts, risking OOB access, and never assigned output intersecting faces. In trimesh_plot3.cpp, pntset_2d_plot3 used bitwise OR (!p | !c); polyline_2d_plot3 allowed division by zero on scale <= 0.0 and loop condition i < xy.size() - 1 dropped the last vertex before closing. |
+| `SEC-0180` | **Sev 1** | Input Validation / Integer Overflow / Exception Safety | `src/libbg/trimesh_remesh.cpp:82-87, trimesh_repair.cpp:126-131, trimesh_split.cpp:94-192, trimesh_sync.cpp:122` | `FIXED` | Missing vertex index validation, integer overflow guards on face counts / allocation sizes, and unhandled C++ exceptions escaping extern C functions in bg_trimesh_remesh, bg_trimesh_repair, bg_trimesh_separate, bg_trimesh_split, and bg_trimesh_sync. |
