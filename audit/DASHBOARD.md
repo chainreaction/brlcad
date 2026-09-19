@@ -1,11 +1,11 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-19 09:40:00 UTC
+**Last Updated:** 2026-09-19 11:58:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 482 (13.8%)
-- **Files Pending Review:** 3011
-- **Total Issues Identified:** 226
+- **Files Reviewed:** 490 (14.0%)
+- **Files Pending Review:** 3003
+- **Total Issues Identified:** 227
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
@@ -86,7 +86,7 @@
 | `src/libanalyze` | 40 | 0 | 0.0% | 0 |
 | `src/libbg` | 232 | 232 | 100.0% | 79 |
 | `src/libbn` | 41 | 41 | 100.0% | 31 |
-| `src/libbrep` | 50 | 10 | 20.0% | 1 |
+| `src/libbrep` | 50 | 18 | 36.0% | 2 |
 | `src/libbu` | 176 | 176 | 100.0% | 101 |
 | `src/libbv` | 19 | 0 | 0.0% | 0 |
 | `src/libdm` | 80 | 0 | 0.0% | 0 |
@@ -343,6 +343,7 @@
 | `SEC-0224` | **Sev 2** | Division by Zero, Out-of-bounds Vector Access & Dimension Validation | `src/libbg/geogram/third_party/LBFGSpp/include/LBFGS.h:LBFGS.h:170-175, 230-240; LBFGSB.h:205-215; BFGSMat.h:115-125, 270-340, 480-505; BKLDLT.h:80-95, 125-140, 160-175; Cauchy.h:120-145, 175-190; LineSearchMoreThuente.h:34-55, 71-125; LineSearchNocedalWright.h:42-50, 94-98; Param.h:210, 368; SubspaceMin.h:44-58, 134-138` | `FIXED` | In LBFGSpp optimization routines, missing zero guards on matrix determinants, Hessian eigenvalues, line search denominators, and empty input vector dimensions allowed potential divisions by zero, infinite loops, and out-of-bounds array access on degenerate or singular optimization problems. |
 | `SEC-0225` | **Sev 2** | Out-of-bounds Array Access, Null Dereference, Division by Zero & Traversal Flaw | `src/libbg/geogram/third_party/amgcl/amgcl/adapter/zero_copy.hpp, src/libbg/geogram/third_party/amgcl/amgcl/amg.hpp, src/libbg/geogram/third_party/amgcl/amgcl/backend/builtin.hpp, src/libbg/geogram/third_party/amgcl/amgcl/backend/detail/matrix_ops.hpp, src/libbg/geogram/third_party/amgcl/amgcl/backend/interface.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/detail/galerkin.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/plain_aggregates.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/pointwise_aggregates.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/smoothed_aggr_emin.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/smoothed_aggregation.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/tentative_prolongation.hpp, src/libbg/geogram/third_party/amgcl/amgcl/detail/inverse.hpp, src/libbg/geogram/third_party/amgcl/amgcl/detail/qr.hpp, src/libbg/geogram/third_party/amgcl/amgcl/detail/sort_row.hpp, src/libbg/geogram/third_party/amgcl/amgcl/detail/spgemm.hpp, src/libbg/geogram/third_party/amgcl/amgcl/make_solver.hpp, src/libbg/geogram/third_party/amgcl/amgcl/preconditioner/dummy.hpp, src/libbg/geogram/third_party/amgcl/amgcl/relaxation/spai0.hpp, src/libbg/geogram/third_party/amgcl/amgcl/reorder/cuthill_mckee.hpp, src/libbg/geogram/third_party/amgcl/amgcl/solver/cg.hpp, src/libbg/geogram/third_party/amgcl/amgcl/solver/skyline_lu.hpp, src/libbg/geogram/third_party/amgcl/amgcl/util.hpp, src/libbg/geogram/third_party/amgcl/amgcl/value_type/interface.hpp` | `FIXED` | In AMGCL solver and preconditioner routines, missing bounds checks on row/column indices and negative aggregate IDs allowed out-of-bounds array reads and writes. Missing checks for singular pivots, zero denominators, and zero spectral radius allowed divisions by zero. Unchecked matrix and vector pointers allowed null pointer dereferences. A loop condition logic error in Cuthill-McKee reordering skipped node 0 during graph level set traversal. |
 | `SEC-0226` | **Sev 2** | Null Pointer Dereference, Division by Zero, Out-of-bounds Array Access | `src/libbrep/BBNode.cpp, src/libbrep/BRNode.cpp, src/libbrep/PullbackCurve.cpp, src/libbrep/Subcurve.cpp, src/libbrep/Subsurface.cpp, src/libbrep/assembly.cpp, src/libbrep/boolean.cpp, src/libbrep/brep_defines.h` | `FIXED` | In libbrep core evaluation, trimming, assembly, and pullback routines, missing null checks on curve, surface, face, and child pointers could result in null pointer dereferences. Missing checks against zero denominators in cubic curve interpolation, knot intervals, Newton solver steps, and basis control ratio calculations could cause division by zero. Edge index parameters in edge merging routines lacked array bounds checks before indexing brep edge tables. |
+| `SEC-0227` | **Sev 2** | Null Pointer Dereference, Division by Zero, Out-of-bounds Index, Resource Leak | `src/libbrep/px_event.cpp, src/libbrep/ssx_event.cpp, src/libbrep/quality.cpp, src/libbrep/edit.cpp, src/libbrep/debug_plot.cpp` | `FIXED` | In px_event.cpp, Compare() returned inverted null-pointer values and used boolean instead of 3-way integer comparison for sorting. In ssx_event.cpp, DumpSSXEvent() unconditionally dereferenced m_curveA, m_curveB, and m_curve3d without null checks. In quality.cpp, bbox_contains() evaluated an invalid point, and edge quality iteration lacked vertex and trim index bounds validation. In edit.cpp, brep_edge_create() lacked curve/vertex index bounds checks, and calculateTangentVectors(), getPosRoot(), bsplineBasisFuns(), and solveTridiagonalint() had unguarded divisions by potentially-zero denominators. In debug_plot.cpp, write_plot_to_file() used fopen() result without null check. |
 
 
 

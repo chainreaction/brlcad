@@ -14,8 +14,9 @@
     ],
     "reviewed_files": 482,
     "pending_files": 3011,
-    "last_updated": "2026-09-19T05:58:22Z",
-    "total_issues": 226
+    "last_updated": "2026-09-19T11:55:18Z",
+    "total_issues": 226,
+    "reviewed_count": 328
   },
   "files": [
     {
@@ -16574,18 +16575,20 @@
       "path": "src/libbrep/debug_plot.cpp",
       "subsystem": "src/libbrep",
       "lines": 991,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T11:55:18Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0227"
+      ]
     },
     {
       "id": 1620,
       "path": "src/libbrep/debug_plot.h",
       "subsystem": "src/libbrep",
       "lines": 141,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T11:55:18Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -16594,18 +16597,20 @@
       "path": "src/libbrep/edit.cpp",
       "subsystem": "src/libbrep",
       "lines": 906,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T11:55:18Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0227"
+      ]
     },
     {
       "id": 1622,
       "path": "src/libbrep/intersect.cpp",
       "subsystem": "src/libbrep",
       "lines": 4572,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T11:55:18Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -16614,8 +16619,8 @@
       "path": "src/libbrep/opennurbs_ext.cpp",
       "subsystem": "src/libbrep",
       "lines": 2307,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T11:55:18Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -16624,20 +16629,24 @@
       "path": "src/libbrep/px_event.cpp",
       "subsystem": "src/libbrep",
       "lines": 144,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T11:55:18Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0227"
+      ]
     },
     {
       "id": 1625,
       "path": "src/libbrep/quality.cpp",
       "subsystem": "src/libbrep",
       "lines": 307,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T11:55:18Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0227"
+      ]
     },
     {
       "id": 1626,
@@ -16734,10 +16743,12 @@
       "path": "src/libbrep/ssx_event.cpp",
       "subsystem": "src/libbrep",
       "lines": 115,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T11:55:18Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0227"
+      ]
     },
     {
       "id": 1636,

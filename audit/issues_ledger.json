@@ -4065,7 +4065,25 @@
       "created_at": "2026-09-19T05:58:00Z",
       "verified_at": "2026-09-19T05:58:00Z",
       "fixed_at": "2026-09-19T05:58:22Z"
+    },
+    {
+      "id": "SEC-0227",
+      "file": "src/libbrep/debug_plot.cpp, src/libbrep/edit.cpp, src/libbrep/px_event.cpp, src/libbrep/quality.cpp, src/libbrep/ssx_event.cpp",
+      "lines": "debug_plot.cpp:137; edit.cpp:556-563, 680, 699-718, 832, 858-876; px_event.cpp:35-50; quality.cpp:70, 222-241; ssx_event.cpp:82-112",
+      "severity": 2,
+      "category": "Null Pointer Dereference, Division by Zero, Out-of-bounds Array Access, Incorrect Comparison Logic",
+      "description": "In libbrep editing, event comparison, quality checking, and debug plotting routines: ON_PX_EVENT::Compare() had inverted null-pointer return values and returned bool instead of proper 3-way int; DumpSSXEvent() dereferenced curve pointers without null checks; bbox_contains() operated on potentially invalid points; edge quality loop accessed vertex and trim arrays without bounds checks; brep_edge_create() lacked bounds validation on indices; calculateTangentVectors(), getPosRoot(), bsplineBasisFuns(), and solveTridiagonalint() had unguarded divisions; write_plot_to_file() used fopen() result without NULL check.",
+      "verification_status": "CONFIRMED",
+      "verification_test": "Code inspection, compilation, unit tests (brep_*), and regression test suite.",
+      "test_result": "All fixes compile cleanly, 6/6 brep tests pass, regress-licenses and regress-repository pass.",
+      "fix_status": "FIXED",
+      "fix_description": "Fixed Compare() return values and 3-way comparison; added null guards for curve pointers in DumpSSXEvent(); added point validity and bounds checks in quality.cpp; added index bounds checks in brep_edge_create(); guarded divisions in calculateTangentVectors(), getPosRoot(), bsplineBasisFuns(), and solveTridiagonalint(); added fopen() NULL check in write_plot_to_file().",
+      "commit_hash": "b629cf8e27",
+      "commit_message": "libbrep batch B2: fix security vulnerabilities in 5 source files",
+      "created_at": "2026-09-19T11:55:18Z",
+      "verified_at": "2026-09-19T11:55:18Z",
+      "fixed_at": "2026-09-19T11:55:18Z"
     }
   ],
-  "last_updated": "2026-09-19T05:58:22Z"
+  "last_updated": "2026-09-19T11:55:18Z"
 }
