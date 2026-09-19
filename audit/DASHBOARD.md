@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-19 09:05:06 UTC
+**Last Updated:** 2026-09-19 09:15:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 387 (11.1%)
-- **Files Pending Review:** 3106
-- **Total Issues Identified:** 210
+- **Files Reviewed:** 397 (11.4%)
+- **Files Pending Review:** 3096
+- **Total Issues Identified:** 215
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
-| **3 (High)** | 20 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 143 | Possible exploit or crash under specific circumstances |
+| **3 (High)** | 21 | Likely exploit or crash potential; widespread/library exposure |
+| **2 (Medium)** | 147 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 47 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 209
+- **Fixed (Committed):** 214
 - **Pending Verification:** 1
 - **Disproven:** 0
 
@@ -84,7 +84,7 @@
 | `src/isst` | 9 | 0 | 0.0% | 0 |
 | `src/launcher` | 8 | 0 | 0.0% | 0 |
 | `src/libanalyze` | 40 | 0 | 0.0% | 0 |
-| `src/libbg` | 232 | 147 | 63.4% | 64 |
+| `src/libbg` | 232 | 157 | 67.7% | 69 |
 | `src/libbn` | 41 | 41 | 100.0% | 31 |
 | `src/libbrep` | 50 | 0 | 0.0% | 0 |
 | `src/libbu` | 176 | 176 | 100.0% | 101 |
@@ -327,3 +327,8 @@
 | `SEC-0208` | **Sev 2** | Out-of-Bounds Memory Access, Stack Exhaustion & Process Abort | `src/libbg/geogram/mesh/mesh_repair.cpp, src/libbg/geogram/mesh/mesh_preprocessing.h, src/libbg/geogram/mesh/mesh_preprocessing.cpp, src/libbg/geogram/mesh/mesh_topology.cpp:mesh_repair.cpp:65-175, 490-590, 665-685, 820-840, 920-1010, 1145-1215; mesh_preprocessing.h:77; mesh_preprocessing.cpp:65-135; mesh_topology.cpp:48-105` | `FIXED` | In repair_connect_facets, v2c[v1], c2f[c2], and next_c_around_v[c] were indexed without validating vertex/corner indices against mesh element counts, causing out-of-bounds array reads. facet_is_degenerate and normalize_facet_vertices_order performed unbounded BRLCAD_ALLOCA stack allocations for vertex arrays on arbitrary polygonal facets without heap fallback, causing stack overflow vulnerabilities. find_corner, repair_propagate_orientation, and SimplePriorityQueue::pop aborted the process on malformed topological meshes via geo_assert_not_reached. mesh_colocate_vertices_no_check indexed old2new without bounds checks. In mesh_preprocessing.cpp and mesh_topology.cpp, empty meshes or unbound attributes resulted in out-of-bounds indexing in component traversal and signed volume calculation. |
 | `SEC-0209` | **Sev 2** | Divide-by-Zero & Out-of-Bounds Buffer Indexing | `src/libbg/geogram/mesh/mesh_reorder.cpp, src/libbg/geogram/mesh/mesh_remesh.cpp:mesh_reorder.cpp:280-295, 430-445, 570-585, 935-945, 1115-1175; mesh_remesh.cpp:75-80, 125-140, 150-165, 205-255, 285-295, 470-505` | `FIXED` | In mesh_reorder.cpp, Base_fcmp::center and Base_ccmp::center computed 1.0 / double(nb_vertices) without checking nb_vertices == 0, causing floating-point division by zero; Base_tcmp accessed 4 cell vertices without validating vertex count. In mesh_remesh.cpp, remesh_smooth and mesh_adjust_surface crashed or had undefined behavior on empty meshes or meshes with dimension < 3; mesh_adjust_surface divided by double(d) on facets with 0 vertices; create_ribbon_on_border called normalize on zero-length normal vectors, causing NaNs. |
 | `SEC-0210` | **Sev 2** | Divide-by-Zero & Buffer Overflow | `src/libbg/geogram/mesh/mesh_sampling.h:mesh_sampling.h:68-95, 120-165, 215-265, 285-335` | `FIXED` | In mesh_generate_random_samples_on_surface and mesh_generate_random_samples_in_volume, division by total area (Atot) and total volume (Vtot) occurred without checking Atot <= 0.0 or Vtot <= 0.0, resulting in division by zero and NaN sample coordinates on degenerate meshes. mesh_facet_mass and mesh_tetra_mass lacked bounds checking on facet/cell vertex counts and attribute arrays, potentially reading out of bounds. |
+| `SEC-0211` | **Sev 2** | Out-of-Bounds Memory Access & Assertion Abort | `src/libbg/geogram/delaunay/delaunay.cpp, src/libbg/geogram/delaunay/delaunay.h:delaunay.cpp:115-180, 245-290; delaunay.h:200-245` | `FIXED` | In delaunay.cpp (update_v_to_cell, update_cicl, get_neighbors_internal, save_histogram), missing bounds checks on vertex and cell indices allowed out-of-bounds writes to v_to_cell_ and cicl_ on corrupted mesh topology or NO_INDEX vertices. In save_histogram, an off-by-one check (histogram.size() <= N instead of < N) allowed out-of-bounds array writes. In delaunay.h, geo_assert_not_reached() was called on unlinked cells causing process crashes instead of graceful failure. |
+| `SEC-0212` | **Sev 2** | Stack Exhaustion & Unbounded Allocation | `src/libbg/geogram/delaunay/delaunay_nn.cpp:delaunay_nn.cpp:120-195, 230-310` | `FIXED` | In delaunay_nn.cpp (enlarge_neighborhood, store_neighbors_CB, get_neighbors_internal), unbounded BRLCAD_ALLOCA was used for neighbor candidate and distance arrays proportional to requested neighbor counts. High neighbor counts or deep recursion could exhaust thread call stacks causing stack overflow crashes. Additionally, float equality comparison against 0.0 triggered compiler warnings. |
+| `SEC-0213` | **Sev 2** | Stack Exhaustion & Unbounded Allocation | `src/libbg/geogram/points/colocate.cpp:colocate.cpp:85-150` | `FIXED` | In Colocate::find_nearest_neighbors, unbounded BRLCAD_ALLOCA was invoked per point for neighbor query arrays based on requested neighbor counts, creating risk of stack overflow on large neighbor queries. |
+| `SEC-0214` | **Sev 3** | Uninitialized Memory, Out-of-Bounds Access & Infinite Recursion | `src/libbg/geogram/points/kd_tree.cpp, src/libbg/geogram/points/kd_tree.h:kd_tree.h:110-145; kd_tree.cpp:180-260, 410-480, 520-600` | `FIXED` | In kd_tree.h, KdTree::NearestNeighbors constructor initialized loop condition with nb_neighbors (which was 0) instead of nb_neighbors_max, leaving neighbor index and distance arrays uninitialized and leaking memory to user callers via copy_to_user(). In kd_tree.cpp, AdaptiveKdTree::split_kd_node failed to clamp split point m, resulting in child nodes duplicating parent intervals [b, e) and causing infinite recursion and call stack exhaustion. KdTree::get_nearest_neighbors_leaf used fixed-size stack arrays local_idx[MAX_LEAF_SIZE] without checking e - b <= MAX_LEAF_SIZE. BalancedKdTree::get_node and AdaptiveKdTree::get_node lacked bounds checks on node index n. |
+| `SEC-0215` | **Sev 2** | Out-of-Bounds Access & Assertion Abort | `src/libbg/geogram/points/nn_search.cpp, src/libbg/geogram/points/nn_search.h:nn_search.h:70-90; nn_search.cpp:45-75` | `FIXED` | In nn_search.cpp (get_nearest_neighbors), query point index q_index was not validated against nb_points(), risking out-of-bounds point access. In nn_search.h (get_nearest_neighbor), geo_assert(result < nb_points()) triggered process abort when no neighbors were found on empty point sets instead of returning NO_INDEX. |

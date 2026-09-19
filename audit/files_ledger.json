@@ -12,10 +12,10 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 293,
-    "pending_files": 3200,
-    "last_updated": "2026-09-18T23:42:00Z",
-    "total_issues": 185
+    "reviewed_files": 397,
+    "pending_files": 3096,
+    "last_updated": "2026-09-19T05:15:00Z",
+    "total_issues": 215
   },
   "files": [
     {
@@ -14039,38 +14039,44 @@
       "path": "src/libbg/geogram/delaunay/delaunay.cpp",
       "subsystem": "src/libbg",
       "lines": 366,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0211"
+      ]
     },
     {
       "id": 1394,
       "path": "src/libbg/geogram/delaunay/delaunay.h",
       "subsystem": "src/libbg",
       "lines": 797,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0211"
+      ]
     },
     {
       "id": 1395,
       "path": "src/libbg/geogram/delaunay/delaunay_nn.cpp",
       "subsystem": "src/libbg",
       "lines": 157,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0212"
+      ]
     },
     {
       "id": 1396,
       "path": "src/libbg/geogram/delaunay/delaunay_nn.h",
       "subsystem": "src/libbg",
       "lines": 146,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14559,18 +14565,20 @@
       "path": "src/libbg/geogram/points/colocate.cpp",
       "subsystem": "src/libbg",
       "lines": 314,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0213"
+      ]
     },
     {
       "id": 1443,
       "path": "src/libbg/geogram/points/colocate.h",
       "subsystem": "src/libbg",
       "lines": 93,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14579,40 +14587,48 @@
       "path": "src/libbg/geogram/points/kd_tree.cpp",
       "subsystem": "src/libbg",
       "lines": 769,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0214"
+      ]
     },
     {
       "id": 1445,
       "path": "src/libbg/geogram/points/kd_tree.h",
       "subsystem": "src/libbg",
       "lines": 707,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0214"
+      ]
     },
     {
       "id": 1446,
       "path": "src/libbg/geogram/points/nn_search.cpp",
       "subsystem": "src/libbg",
       "lines": 139,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0215"
+      ]
     },
     {
       "id": 1447,
       "path": "src/libbg/geogram/points/nn_search.h",
       "subsystem": "src/libbg",
       "lines": 280,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0215"
+      ]
     },
     {
       "id": 1448,
