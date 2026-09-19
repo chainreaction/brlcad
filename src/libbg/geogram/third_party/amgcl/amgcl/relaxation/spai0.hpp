@@ -75,7 +75,7 @@ struct spai0 {
                 if (a.col() == i) num += v;
             }
 
-            (*m)[i] = math::inverse(den) * num;
+            (*m)[i] = math::is_zero(den) ? math::zero<value_type>() : math::inverse(den) * num;
         }
 
         M = Backend::copy_vector(m, backend_prm);
@@ -89,7 +89,7 @@ struct spai0 {
     {
         static const scalar_type one = math::identity<scalar_type>();
         backend::residual(rhs, A, x, tmp);
-        backend::vmul(one, *M, tmp, one, x);
+        if (M) backend::vmul(one, *M, tmp, one, x);
     }
 
     /// \copydoc amgcl::relaxation::damped_jacobi::apply_post
@@ -100,17 +100,17 @@ struct spai0 {
     {
         static const scalar_type one = math::identity<scalar_type>();
         backend::residual(rhs, A, x, tmp);
-        backend::vmul(one, *M, tmp, one, x);
+        if (M) backend::vmul(one, *M, tmp, one, x);
     }
 
     template <class Matrix, class VectorRHS, class VectorX>
     void apply( const Matrix&, const VectorRHS &rhs, VectorX &x) const
     {
-        backend::vmul(math::identity<scalar_type>(), *M, rhs, math::zero<scalar_type>(), x);
+        if (M) backend::vmul(math::identity<scalar_type>(), *M, rhs, math::zero<scalar_type>(), x);
     }
 
     size_t bytes() const {
-        return backend::bytes(*M);
+        return M ? backend::bytes(*M) : 0;
     }
 
     std::shared_ptr<matrix_diagonal> M;

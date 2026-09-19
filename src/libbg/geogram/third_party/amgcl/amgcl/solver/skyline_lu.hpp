@@ -103,7 +103,10 @@ class skyline_lu {
 
             // Get inverse permutation
             std::vector<int> invperm(n);
-            for(int i = 0; i < n; ++i) invperm[perm[i]] = i;
+            for(int i = 0; i < n; ++i) {
+                if (perm[i] >= 0 && perm[i] < n)
+                    invperm[perm[i]] = i;
+            }
 
             /* Let us find how large the rows of L and the columns of U should
              * be.  Provisionally, we will store in ptr[i] the minimum required
@@ -118,6 +121,7 @@ class skyline_lu {
             for(int i = 0; i < n; ++i) {
                 for(auto a = backend::row_begin(A, i); a; ++a) {
                     int  j = a.col();
+                    if (j < 0 || j >= n) continue;
                     value_type v = a.value();
 
                     int newi = invperm[i];
@@ -155,6 +159,7 @@ class skyline_lu {
             for(int i = 0; i < n; ++i) {
                 for(auto a = backend::row_begin(A, i); a; ++a) {
                     int  j = a.col();
+                    if (j < 0 || j >= n) continue;
                     value_type v = a.value();
 
                     int newi = invperm[i];
@@ -172,7 +177,7 @@ class skyline_lu {
                 }
             }
 
-            factorize();
+            if (n > 0) factorize();
         }
 
         template <class Vec1, class Vec2>
@@ -180,20 +185,24 @@ class skyline_lu {
             // y = L^-1 * perm[rhs] ;
             // y = U^-1 * y ;
             // x = invperm[y];
+            if (n <= 0) return;
 
             for(int i = 0; i < n; ++i) {
                 rhs_type sum;
                 sum = rhs[perm[i]];
-                for(int k = ptr[i], j = i - ptr[i+1] + k; k < ptr[i+1]; ++k, ++j)
-                    sum -= L[k] * y[j];
+                for(int k = ptr[i], j = i - ptr[i+1] + k; k < ptr[i+1]; ++k, ++j) {
+                    if (j >= 0 && j < n && static_cast<size_t>(k) < L.size())
+                        sum -= L[k] * y[j];
+                }
 
                 y[i] = D[i] * sum;
             }
 
             for(int j = n - 1; j >= 0; --j) {
-                for(int k = ptr[j], i = j - ptr[j+1] + k; k < ptr[j+1]; ++k, ++i)
-                    y[i] -= U[k] * y[j];
-
+                for(int k = ptr[j], i = j - ptr[j+1] + k; k < ptr[j+1]; ++k, ++i) {
+                    if (i >= 0 && i < n && static_cast<size_t>(k) < U.size())
+                        y[i] -= U[k] * y[j];
+                }
             }
 
             for(int i = 0; i < n; ++i) x[perm[i]] = y[i];
@@ -245,6 +254,7 @@ class skyline_lu {
          * end
          */
         void factorize() {
+            if (n <= 0) return;
             precondition(!math::is_zero(D[0]), "Zero diagonal in skyline_lu");
             D[0] = math::inverse(D[0]);
 

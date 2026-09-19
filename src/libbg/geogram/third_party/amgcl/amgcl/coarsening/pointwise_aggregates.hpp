@@ -80,6 +80,8 @@ class pointwise_aggregates {
         pointwise_aggregates(const Matrix &A, const params &prm, unsigned min_aggregate)
             : count(0)
         {
+            if (prm.block_size == 0) return;
+
             if (prm.block_size == 1) {
                 plain_aggregates aggr(A, prm);
 
@@ -112,7 +114,7 @@ class pointwise_aggregates {
                         ptrdiff_t ia = ip * prm.block_size;
 
                         for(unsigned k = 0; k < prm.block_size; ++k, ++ia) {
-                            id[ia] = prm.block_size * pw_aggr.id[ip] + k;
+                            id[ia] = pw_aggr.id[ip] < 0 ? pw_aggr.id[ip] : static_cast<ptrdiff_t>(prm.block_size * pw_aggr.id[ip] + k);
 
                             j[k] = A.ptr[ia];
                             e[k] = A.ptr[ia+1];
@@ -127,9 +129,10 @@ class pointwise_aggregates {
                             for(unsigned k = 0; k < prm.block_size; ++k) {
                                 ptrdiff_t beg = j[k];
                                 ptrdiff_t end = e[k];
+                                ptrdiff_t row_k = ip * prm.block_size + k;
 
                                 while(beg < end && A.col[beg] < col_end) {
-                                    strong_connection[beg] = sp && A.col[beg] != (ia + k);
+                                    strong_connection[beg] = sp && A.col[beg] != row_k;
                                     ++beg;
                                 }
 
@@ -146,14 +149,14 @@ class pointwise_aggregates {
                 plain_aggregates &aggr
                 )
         {
-            if (min_aggregate <= 1) return; // nothing to do
+            if (min_aggregate <= 1 || aggr.count == 0) return; // nothing to do
 
             // Count entries in each of the aggregates
             std::vector<ptrdiff_t> count(aggr.count, 0);
 
             for(size_t i = 0; i < n; ++i) {
                 ptrdiff_t id = aggr.id[i];
-                if (id != removed) ++count[id];
+                if (id >= 0 && static_cast<size_t>(id) < count.size()) ++count[id];
             }
 
             // If any aggregate has less entries than required, remove it.
@@ -172,7 +175,8 @@ class pointwise_aggregates {
 
             for(size_t i = 0; i < n; ++i) {
                 ptrdiff_t id = aggr.id[i];
-                if (id != removed) aggr.id[i] = count[id];
+                if (id >= 0 && static_cast<size_t>(id) < count.size())
+                    aggr.id[i] = count[id];
             }
         }
 };

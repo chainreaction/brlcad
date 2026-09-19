@@ -74,9 +74,11 @@ void spgemm_saad(const AMatrix &A, const BMatrix &B, CMatrix &C, bool sort = tru
             Col C_cols = 0;
             for(Idx ja = A.ptr[ia], ea = A.ptr[ia+1]; ja < ea; ++ja) {
                 Col ca = A.col[ja];
+                if (ca < 0 || static_cast<size_t>(ca) >= B.nrows) continue;
 
                 for(Idx jb = B.ptr[ca], eb = B.ptr[ca+1]; jb < eb; ++jb) {
                     Col cb = B.col[jb];
+                    if (cb < 0 || static_cast<size_t>(cb) >= B.ncols) continue;
                     if (marker[cb] != ia) {
                         marker[cb]  = ia;
                         ++C_cols;
@@ -100,10 +102,12 @@ void spgemm_saad(const AMatrix &A, const BMatrix &B, CMatrix &C, bool sort = tru
 
             for(Idx ja = A.ptr[ia], ea = A.ptr[ia+1]; ja < ea; ++ja) {
                 Col ca = A.col[ja];
+                if (ca < 0 || static_cast<size_t>(ca) >= B.nrows) continue;
                 Val va = A.val[ja];
 
                 for(Idx jb = B.ptr[ca], eb = B.ptr[ca+1]; jb < eb; ++jb) {
                     Col cb = B.col[jb];
+                    if (cb < 0 || static_cast<size_t>(cb) >= B.ncols) continue;
                     Val vb = B.val[jb];
 
                     if (marker[cb] < row_beg) {
@@ -423,7 +427,8 @@ void spgemm_rmerge(const AMatrix &A, const BMatrix &B, CMatrix &C) {
             Idx row_width = 0;
             for(Idx j = row_beg; j < row_end; ++j) {
                 Idx a_col = A.col[j];
-                row_width += B.ptr[a_col + 1] - B.ptr[a_col];
+                if (a_col >= 0 && static_cast<size_t>(a_col) < B.nrows)
+                    row_width += B.ptr[a_col + 1] - B.ptr[a_col];
             }
             my_max = std::max(my_max, row_width);
         }
@@ -450,7 +455,7 @@ void spgemm_rmerge(const AMatrix &A, const BMatrix &B, CMatrix &C) {
     {
         const int tid = 0;
 
-        Col *t_col = &tmp_col[tid][0];
+        Col *t_col = tmp_col[tid].data();
 
 #pragma omp for
         for(Idx i = 0; i < static_cast<Idx>(A.nrows); ++i) {

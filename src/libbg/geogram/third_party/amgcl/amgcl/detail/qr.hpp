@@ -157,7 +157,7 @@ class QR {
             const int n = cols;
             const int k = std::min(m, n);
 
-            if (k <= 0) return;
+            if (k <= 0 || !A) return;
 
             r = A;
 
@@ -197,6 +197,7 @@ class QR {
              *
              *  ==============================================================
              */
+            if (!A || rows <= 0 || cols <= 0) return;
             compute(rows, cols, row_stride, col_stride, A);
 
             m = rows;
@@ -390,8 +391,12 @@ class QR {
             scalar_type beta = -std::abs(sqrt(sqr(math::norm(alpha)) + xnorm2));
             if (amgcl::detail::real(alpha) < 0) beta = -beta;
 
+            if (math::is_zero(beta)) return tau;
+            value_type denom = alpha - beta * math::identity<value_type>();
+            if (math::is_zero(denom)) return tau;
+
             tau = math::identity<value_type>() - math::inverse(beta) * alpha;
-            alpha = math::inverse(alpha - beta * math::identity<value_type>());
+            alpha = math::inverse(denom);
 
             for(int i = 0, ii = 0; i < n; ++i, ii += stride)
                 x[ii] = alpha * x[ii];
@@ -580,6 +585,8 @@ class QR<value_type, typename std::enable_if<math::is_static_matrix<value_type>:
         std::vector<scalar_type> buf;
 
         void copy_to_scalar_buf(int rows, int cols, int row_stride, int col_stride, value_type *A) {
+            if (!A || rows <= 0 || cols <= 0) return;
+
             const int M = math::static_rows<value_type>::value;
             const int N = math::static_cols<value_type>::value;
 

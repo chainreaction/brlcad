@@ -238,6 +238,7 @@ class amg {
          */
         template <class Vec1, class Vec2>
         void cycle(const Vec1 &rhs, Vec2 &&x) const {
+            if (levels.empty()) return;
             cycle(levels.begin(), rhs, x);
         }
 
@@ -261,11 +262,15 @@ class amg {
 
         /// Returns the system matrix from the finest level.
         std::shared_ptr<matrix> system_matrix_ptr() const {
+            if (levels.empty())
+                return std::shared_ptr<matrix>();
             return levels.front().A;
         }
 
         const matrix& system_matrix() const {
-            return *system_matrix_ptr();
+            auto ptr = system_matrix_ptr();
+            precondition(ptr != nullptr, "System matrix is not initialized!");
+            return *ptr;
         }
 
         size_t bytes() const {
@@ -430,8 +435,9 @@ class amg {
         void do_init(
                 std::shared_ptr<build_matrix> A,
                 const backend_params &bprm = backend_params()
-           )
+            )
         {
+            precondition(A != nullptr, "Matrix pointer cannot be null!");
             precondition(
                     backend::rows(*A) == backend::cols(*A),
                     "Matrix should be square!"

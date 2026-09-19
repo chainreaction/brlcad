@@ -147,6 +147,8 @@ class cg {
                 }
             }
 
+            if (!r || !s || !p || !q) return std::make_tuple(0, norm_rhs);
+
             scalar_type eps = std::max(prm.tol * norm_rhs, prm.abstol);
 
             coef_type rho1 = 2 * eps * one;
@@ -162,24 +164,30 @@ class cg {
                 rho2 = rho1;
                 rho1 = inner_product(*r, *s);
 
-                if (iter)
+                if (iter) {
+                    if (math::is_zero(rho2)) break;
                     backend::axpby(one, *s, rho1 / rho2, *p);
-                else
+                } else {
                     backend::copy(*s, *p);
+                }
 
                 backend::spmv(one, A, *p, zero, *q);
 
-                coef_type alpha = rho1 / inner_product(*q, *p);
+                coef_type qp = inner_product(*q, *p);
+                if (math::is_zero(qp)) break;
+                coef_type alpha = rho1 / qp;
 
                 backend::axpby( alpha, *p, one,  x);
                 backend::axpby(-alpha, *q, one, *r);
 
                 res_norm = norm(*r);
-                if (prm.verbose && iter % 5 == 0)
-                    std::cout << iter << "\t" << std::scientific << res_norm / norm_rhs << std::endl;
+                if (prm.verbose && iter % 5 == 0) {
+                    scalar_type rel_res = (norm_rhs > 0) ? (res_norm / norm_rhs) : res_norm;
+                    std::cout << iter << "\t" << std::scientific << rel_res << std::endl;
+                }
             }
 
-            return std::make_tuple(iter, res_norm / norm_rhs);
+            return std::make_tuple(iter, (norm_rhs > 0) ? (res_norm / norm_rhs) : res_norm);
         }
 
         /* Computes the solution for the given right-hand side \p rhs. The
@@ -198,10 +206,10 @@ class cg {
 
         size_t bytes() const {
             return
-                backend::bytes(*r) +
-                backend::bytes(*s) +
-                backend::bytes(*p) +
-                backend::bytes(*q);
+                (r ? backend::bytes(*r) : 0) +
+                (s ? backend::bytes(*s) : 0) +
+                (p ? backend::bytes(*p) : 0) +
+                (q ? backend::bytes(*q) : 0);
         }
 
         friend std::ostream& operator<<(std::ostream &os, const cg &s) {

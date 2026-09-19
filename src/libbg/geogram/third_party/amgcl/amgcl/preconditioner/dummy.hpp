@@ -82,6 +82,10 @@ class dummy {
         }
 
         const matrix& system_matrix() const {
+            if (!A) {
+                static const matrix empty_matrix{};
+                return empty_matrix;
+            }
             return *A;
         }
 
@@ -93,8 +97,10 @@ class dummy {
 
         friend std::ostream& operator<<(std::ostream &os, const dummy &p) {
             os << "identity matrix as preconditioner" << std::endl;
-            os << "  unknowns: " << backend::rows(p.system_matrix()) << std::endl;
-            os << "  nonzeros: " << backend::nonzeros(p.system_matrix()) << std::endl;
+            if (p.A) {
+                os << "  unknowns: " << backend::rows(p.system_matrix()) << std::endl;
+                os << "  nonzeros: " << backend::nonzeros(p.system_matrix()) << std::endl;
+            }
 
             return os;
         }

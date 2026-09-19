@@ -43,7 +43,9 @@ std::shared_ptr<Matrix> galerkin(
         const Matrix &A, const Matrix &P, const Matrix &R
         )
 {
-    return product(R, *product(A, P));
+    auto AP = product(A, P);
+    if (!AP) return std::shared_ptr<Matrix>();
+    return product(R, *AP);
 }
 
 } // namespace detail

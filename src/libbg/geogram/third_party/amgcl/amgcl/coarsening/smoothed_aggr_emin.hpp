@@ -89,6 +89,7 @@ struct smoothed_aggr_emin {
         auto P_tent = tentative_prolongation<Matrix>(
                 rows(A), aggr.count, aggr.id, prm.nullspace, prm.aggr.block_size
                 );
+        if (!P_tent) return std::make_tuple(std::shared_ptr<Matrix>(), std::shared_ptr<Matrix>());
 
         // Filter the system matrix
         backend::crs<Val, Col, Ptr> Af;
@@ -171,6 +172,7 @@ struct smoothed_aggr_emin {
             const size_t nc = cols(P_tent);
 
             auto AP = product(A, P_tent, /*sort rows: */true);
+            if (!AP) return nullptr;
 
             omega.resize(nc, math::zero<Val>());
             std::vector<Val> denum(nc, math::zero<Val>());
@@ -193,7 +195,9 @@ struct smoothed_aggr_emin {
                     // Form current row of ADAP matrix.
                     for(auto a = A.row_begin(ia); a; ++a) {
                         Col ca  = a.col();
-                        Val va  = math::inverse(Adia[ca]) * a.value();
+                        Val d_ca = (ca >= 0 && static_cast<size_t>(ca) < Adia.size() && !math::is_zero(Adia[ca]))
+                                   ? math::inverse(Adia[ca]) : math::zero<Val>();
+                        Val va  = d_ca * a.value();
 
                         for(auto p = AP->row_begin(ca); p; ++p) {
                             Col c = p.col();
@@ -209,9 +213,11 @@ struct smoothed_aggr_emin {
                         }
                     }
 
-                    amgcl::detail::sort_row(
-                            &adap_col[0], &adap_val[0], adap_col.size()
-                            );
+                    if (!adap_col.empty()) {
+                        amgcl::detail::sort_row(
+                                &adap_col[0], &adap_val[0], adap_col.size()
+                                );
+                    }
 
                     // Update columnwise scalar products (AP,ADAP) and (ADAP,ADAP).
                     // 1. (AP, ADAP)
@@ -249,7 +255,7 @@ struct smoothed_aggr_emin {
             }
 
             for(size_t i = 0, m = omega.size(); i < m; ++i)
-                omega[i] = math::inverse(denum[i]) * omega[i];
+                omega[i] = math::is_zero(denum[i]) ? math::zero<Val>() : math::inverse(denum[i]) * omega[i];
 
             // Update AP to obtain P: P = (P_tent - D^-1 A P Omega)
             /*
@@ -260,7 +266,8 @@ struct smoothed_aggr_emin {
              */
 #pragma omp parallel for
             for(ptrdiff_t i = 0; i < static_cast<ptrdiff_t>(n); ++i) {
-                Val dia = math::inverse(Adia[i]);
+                Val dia = (static_cast<size_t>(i) < Adia.size() && !math::is_zero(Adia[i]))
+                          ? math::inverse(Adia[i]) : math::zero<Val>();
 
                 for(Ptr ja = AP->ptr[i],    ea = AP->ptr[i+1],
                         jp = P_tent.ptr[i], ep = P_tent.ptr[i+1];
@@ -299,9 +306,11 @@ struct smoothed_aggr_emin {
             const size_t nc = cols(P_tent);
 
             auto R_tent = transpose(P_tent);
+            if (!R_tent) return nullptr;
             sort_rows(*R_tent);
 
             auto RA = product(*R_tent, A, /*sort rows: */true);
+            if (!RA) return nullptr;
 
             // Compute R = R_tent - Omega R_tent A D^-1.
             /*
@@ -320,7 +329,9 @@ struct smoothed_aggr_emin {
                    )
                 {
                     Col ca = RA->col[ja];
-                    Val va = -w * math::inverse(Adia[ca]) * RA->val[ja];
+                    Val inv_d = (ca >= 0 && static_cast<size_t>(ca) < Adia.size() && !math::is_zero(Adia[ca]))
+                                ? math::inverse(Adia[ca]) : math::zero<Val>();
+                    Val va = -w * inv_d * RA->val[ja];
 
                     for(; jr < er; ++jr) {
                         Col cr = R_tent->col[jr];

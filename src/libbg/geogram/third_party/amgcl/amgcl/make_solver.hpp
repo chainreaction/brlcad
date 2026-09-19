@@ -91,9 +91,9 @@ class make_solver : public amgcl::detail::non_copyable {
                 const params &prm = params(),
                 const backend_params &bprm = backend_params()
                 ) :
-            prm(prm), n(backend::rows(*A)),
+            prm(prm), n(A ? backend::rows(*A) : 0),
             P(A, prm.precond, bprm),
-            S(backend::rows(*A), prm.solver, bprm)
+            S(A ? backend::rows(*A) : 0, prm.solver, bprm)
         {}
 
         /** Computes the solution for the given system matrix \p A and the

@@ -120,13 +120,18 @@ struct smoothed_aggregation {
         auto P_tent = tentative_prolongation<Matrix>(
                 n, aggr.count, aggr.id, prm.nullspace, prm.aggr.block_size
                 );
+        if (!P_tent) return std::make_tuple(std::shared_ptr<Matrix>(), std::shared_ptr<Matrix>());
 
         auto P = std::make_shared<Matrix>();
         P->set_size(rows(*P_tent), cols(*P_tent), true);
 
         scalar_type omega = prm.relax;
         if (prm.estimate_spectral_radius) {
-            omega *= static_cast<scalar_type>(4.0/3) / backend::spectral_radius<true>(A, prm.power_iters);
+            scalar_type rho = backend::spectral_radius<true>(A, prm.power_iters);
+            if (rho > 0)
+                omega *= static_cast<scalar_type>(4.0/3) / rho;
+            else
+                omega *= static_cast<scalar_type>(2.0/3);
         } else {
             omega *= static_cast<scalar_type>(2.0/3);
         }
@@ -146,10 +151,13 @@ struct smoothed_aggregation {
                     if (ca != i && !aggr.strong_connection[ja])
                         continue;
 
+                    if (ca < 0 || static_cast<size_t>(ca) >= rows(*P_tent))
+                        continue;
+
                     for(ptrdiff_t jp = P_tent->ptr[ca], ep = P_tent->ptr[ca+1]; jp < ep; ++jp) {
                         ptrdiff_t cp = P_tent->col[jp];
 
-                        if (marker[cp] != i) {
+                        if (cp >= 0 && static_cast<size_t>(cp) < P->ncols && marker[cp] != i) {
                             marker[cp] = i;
                             ++( P->ptr[i + 1] );
                         }
@@ -185,6 +193,7 @@ struct smoothed_aggregation {
 
                     // Skip weak off-diagonal connections.
                     if (ca != i && !aggr.strong_connection[ja]) continue;
+                    if (ca < 0 || static_cast<size_t>(ca) >= rows(*P_tent)) continue;
 
                     value_type va = (ca == i)
                         ? static_cast<value_type>(static_cast<scalar_type>(1 - omega) * math::identity<value_type>())
@@ -194,13 +203,18 @@ struct smoothed_aggregation {
                         ptrdiff_t cp = P_tent->col[jp];
                         value_type vp = P_tent->val[jp];
 
+                        if (cp < 0 || static_cast<size_t>(cp) >= P->ncols) continue;
+
                         if (marker[cp] < row_beg) {
                             marker[cp] = row_end;
-                            P->col[row_end] = cp;
-                            P->val[row_end] = va * vp;
+                            if (static_cast<size_t>(row_end) < P->nnz) {
+                                P->col[row_end] = cp;
+                                P->val[row_end] = va * vp;
+                            }
                             ++row_end;
                         } else {
-                            P->val[ marker[cp] ] += va * vp;
+                            if (marker[cp] >= 0 && static_cast<size_t>(marker[cp]) < P->nnz)
+                                P->val[ marker[cp] ] += va * vp;
                         }
                     }
                 }

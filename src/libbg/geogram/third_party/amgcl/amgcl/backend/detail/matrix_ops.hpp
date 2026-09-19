@@ -61,6 +61,7 @@ struct spmv_impl<
         typedef typename value_type<Vector2>::type V;
 
         const ptrdiff_t n = static_cast<ptrdiff_t>( rows(A) );
+        if (n <= 0) return;
 
         if (!math::is_zero(beta)) {
 #pragma omp parallel for
@@ -103,6 +104,7 @@ struct residual_impl<
         typedef typename value_type<Vector3>::type V;
 
         const ptrdiff_t n = static_cast<ptrdiff_t>( rows(A) );
+        if (n <= 0) return;
 
 #pragma omp parallel for
         for(ptrdiff_t i = 0; i < n; ++i) {

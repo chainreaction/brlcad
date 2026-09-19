@@ -43,6 +43,12 @@ namespace detail {
 
     template <typename value_type>
     static void inverse(int n, value_type *A, value_type *t, int *p) {
+        if (n <= 0 || !A || !t || !p) return;
+        if (n == 1) {
+            A[0] = math::is_zero(A[0]) ? math::zero<value_type>() : math::inverse(A[0]);
+            return;
+        }
+
         std::iota(p, p + n, 0);
 
         // Perform LU-factorization of A in-place
@@ -62,8 +68,7 @@ namespace detail {
             std::swap(p[col], p[pivot_i]);
             int pivot_row = p[col];
             // We have found pivot element, perform Gauss elimination
-            value_type d = math::inverse(A[pivot_row*n+col]);
-            assert(!math::is_zero(d));
+            value_type d = math::is_zero(A[pivot_row*n+col]) ? math::zero<value_type>() : math::inverse(A[pivot_row*n+col]);
             for (int i = col+1; i < n; ++i) {
                 int row = p[i];
                 A[row*n+col] *= d;

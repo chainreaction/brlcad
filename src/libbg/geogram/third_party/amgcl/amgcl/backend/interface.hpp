@@ -433,6 +433,7 @@ struct coarsening_is_supported : std::true_type {};
  */
 template <class Coefs, class Vecs, class Coef, class Vec>
 void lin_comb(size_t n, const Coefs &c, const Vecs &v, const Coef &alpha, Vec &y) {
+    if (n == 0) return;
     axpby(c[0], *v[0], alpha, y);
     size_t i = 1;
     for(; i + 1 < n; i += 2)

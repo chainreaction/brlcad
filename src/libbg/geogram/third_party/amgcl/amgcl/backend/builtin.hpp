@@ -182,6 +182,9 @@ struct crs {
     }
 
     const crs& operator=(const crs &other) {
+        if (this == &other)
+            return *this;
+
         free_data();
 
         nrows = other.nrows;
@@ -208,6 +211,11 @@ struct crs {
     }
 
     const crs& operator=(crs &&other) {
+        if (this == &other)
+            return *this;
+
+        free_data();
+
         std::swap(nrows,    other.nrows);
         std::swap(ncols,    other.ncols);
         std::swap(nnz,      other.nnz);
@@ -311,9 +319,11 @@ struct crs {
     };
 
     row_iterator row_begin(size_t row) const {
+        if (!ptr || row >= nrows)
+            return row_iterator(nullptr, nullptr, nullptr);
         ptr_type p = ptr[row];
         ptr_type e = ptr[row + 1];
-        return row_iterator(col + p, col + e, val + p);
+        return row_iterator(col ? col + p : nullptr, col ? col + e : nullptr, val ? val + p : nullptr);
     }
 
     size_t bytes() const {
@@ -669,11 +679,47 @@ class numa_vector {
             }
         }
 
+        numa_vector(const numa_vector &other) : n(other.n), p(other.n ? new T[other.n] : 0) {
+            if (p) {
+#pragma omp parallel for
+                for(ptrdiff_t i = 0; i < static_cast<ptrdiff_t>(n); ++i)
+                    p[i] = other.p[i];
+            }
+        }
+
+        numa_vector(numa_vector &&other) noexcept : n(other.n), p(other.p) {
+            other.n = 0;
+            other.p = 0;
+        }
+
+        numa_vector& operator=(const numa_vector &other) {
+            if (this == &other) return *this;
+            delete[] p;
+            n = other.n;
+            p = other.n ? new T[other.n] : 0;
+            if (p) {
+#pragma omp parallel for
+                for(ptrdiff_t i = 0; i < static_cast<ptrdiff_t>(n); ++i)
+                    p[i] = other.p[i];
+            }
+            return *this;
+        }
+
+        numa_vector& operator=(numa_vector &&other) noexcept {
+            if (this == &other) return *this;
+            delete[] p;
+            n = other.n;
+            p = other.p;
+            other.n = 0;
+            other.p = 0;
+            return *this;
+        }
+
         void resize(size_t size, bool init = true) {
             delete[] p; p = 0;
 
             n = size;
-            p = new T[n];
+            p = size ? new T[n] : 0;
 
             if (init) {
 #pragma omp parallel for
@@ -838,7 +884,10 @@ spectral_radius(const Matrix &A, int power_iters = 0) {
         }
 
         // Normalize b0
-        b0_norm = 1 / sqrt(b0_norm);
+        if (b0_norm > 0)
+            b0_norm = 1 / sqrt(b0_norm);
+        else
+            b0_norm = 0;
 #pragma omp parallel for
         for(ptrdiff_t i = 0; i < n; ++i) {
             b0[i] = b0_norm * b0[i];
@@ -884,7 +933,10 @@ spectral_radius(const Matrix &A, int power_iters = 0) {
 
             if (++iter < power_iters) {
                 // b0 = b1 / b1_norm
-                b1_norm = 1 / sqrt(b1_norm);
+                if (b1_norm > 0)
+                    b1_norm = 1 / sqrt(b1_norm);
+                else
+                    b1_norm = 0;
 #pragma omp parallel for
                 for(ptrdiff_t i = 0; i < n; ++i) {
                     b0[i] = b1_norm * b1[i];
@@ -1033,7 +1085,7 @@ template < typename V, typename C, typename P >
 struct ptr_data_impl< crs<V, C, P> > {
     typedef const P* type;
     static type get(const crs<V, C, P> &A) {
-        return &A.ptr[0];
+        return A.ptr;
     }
 };
 
@@ -1041,7 +1093,7 @@ template < typename V, typename C, typename P >
 struct col_data_impl< crs<V, C, P> > {
     typedef const C* type;
     static type get(const crs<V, C, P> &A) {
-        return &A.col[0];
+        return A.col;
     }
 };
 
@@ -1049,20 +1101,21 @@ template < typename V, typename C, typename P >
 struct val_data_impl< crs<V, C, P> > {
     typedef const V* type;
     static type get(const crs<V, C, P> &A) {
-        return &A.val[0];
+        return A.val;
     }
 };
 
 template < typename V, typename C, typename P >
 struct nonzeros_impl< crs<V, C, P> > {
     static size_t get(const crs<V, C, P> &A) {
-        return A.nrows == 0 ? 0 : A.ptr[A.nrows];
+        return (A.nrows == 0 || !A.ptr) ? 0 : A.ptr[A.nrows];
     }
 };
 
 template < typename V, typename C, typename P >
 struct row_nonzeros_impl< crs<V, C, P> > {
     static size_t get(const crs<V, C, P> &A, size_t row) {
+        if (!A.ptr || row >= A.nrows) return 0;
         return A.ptr[row + 1] - A.ptr[row];
     }
 };
@@ -1275,6 +1328,8 @@ struct reinterpret_as_rhs_impl<
 
     template <class V>
     static return_type get(V &&x) {
+        if (x.size() == 0)
+            return make_iterator_range(static_cast<ptr_type>(nullptr), static_cast<ptr_type>(nullptr));
         auto ptr = reinterpret_cast<ptr_type>(&x[0]);
         const size_t n = x.size() * sizeof(src_type) / sizeof(dst_type);
         return make_iterator_range(ptr, ptr + n);

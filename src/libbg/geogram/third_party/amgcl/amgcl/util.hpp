@@ -205,6 +205,7 @@ class circular_buffer {
         }
 
         void push_back(const T &v) {
+            if (buf.capacity() == 0) return;
             if (buf.size() < buf.capacity()) {
                 buf.push_back(v);
             } else {
@@ -214,11 +215,11 @@ class circular_buffer {
         }
 
         const T& operator[](size_t i) const {
-            return buf[(start + i) % buf.capacity()];
+            return buf[buf.capacity() ? ((start + i) % buf.capacity()) : 0];
         }
 
         T& operator[](size_t i) {
-            return buf[(start + i) % buf.capacity()];
+            return buf[buf.capacity() ? ((start + i) % buf.capacity()) : 0];
         }
 
         void clear() {

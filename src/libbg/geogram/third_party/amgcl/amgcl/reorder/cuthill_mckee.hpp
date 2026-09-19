@@ -80,6 +80,7 @@ struct cuthill_mckee {
     template <class Matrix, class Vector>
     static void get(const Matrix &A, Vector &perm) {
         const ptrdiff_t n = backend::rows(A);
+        if (n <= 0) return;
 
         /* The data structure used to sort and traverse the level sets:
          *
@@ -140,21 +141,23 @@ struct cuthill_mckee {
             for(ptrdiff_t soughtDegree = firstVal; soughtDegree != finalVal; soughtDegree += increment)
             {
                 ptrdiff_t node = firstWithDegree[soughtDegree];
-                while (node > 0) {
+                while (node >= 0) {
                     // Visit neighbors
                     for(auto a = backend::row_begin(A, node); a; ++a) {
                         ptrdiff_t c = a.col();
-                        if (levelSet[c] == 0) {
+                        if (c >= 0 && c < n && levelSet[c] == 0) {
                             levelSet[c] = currentLevelSet + 1;
                             perm[next] = c;
                             ++next;
                             empty = false; // this level set is not empty
-                            nextSameDegree[c] = nFirstWithDegree[degree[c]];
-                            nFirstWithDegree[degree[c]] = c;
+                            if (degree[c] >= 0 && static_cast<size_t>(degree[c]) < nFirstWithDegree.size()) {
+                                nextSameDegree[c] = nFirstWithDegree[degree[c]];
+                                nFirstWithDegree[degree[c]] = c;
+                            }
                             nMDICLS = std::max(nMDICLS, degree[c]);
                         }
                     }
-                    node = nextSameDegree[node];
+                    node = (node < n) ? nextSameDegree[node] : -1;
                 }
             }
 

@@ -49,10 +49,14 @@ zero_copy(size_t nrows, size_t ncols, const Ptr *ptr, const Col *col, const Val 
     static_assert(sizeof(Ptr) == sizeof(ptrdiff_t), "Unsupported Ptr type");
     static_assert(sizeof(Col) == sizeof(ptrdiff_t), "Unsupported Col type");
 
+    if (nrows > 0) {
+        precondition(ptr != nullptr, "ptr cannot be null when nrows > 0");
+    }
+
     auto A = std::make_shared< backend::crs<Val> >();
     A->nrows = nrows;
     A->ncols = ncols;
-    A->nnz   = nrows ? ptr[nrows] : 0;
+    A->nnz   = (nrows && ptr) ? ptr[nrows] : 0;
 
     A->ptr = (ptrdiff_t*)ptr;
     A->col = (ptrdiff_t*)col;
@@ -72,10 +76,14 @@ zero_copy(size_t n, const Ptr *ptr, const Col *col, const Val *val) {
 template <typename Ptr, typename Col, typename Val>
 std::shared_ptr< backend::crs<Val, Col, Ptr> >
 zero_copy_direct(size_t nrows, size_t ncols, const Ptr *ptr, const Col *col, const Val *val) {
+    if (nrows > 0) {
+        precondition(ptr != nullptr, "ptr cannot be null when nrows > 0");
+    }
+
     auto A = std::make_shared< backend::crs<Val, Col, Ptr> >();
     A->nrows = nrows;
     A->ncols = ncols;
-    A->nnz   = nrows ? ptr[nrows] : 0;
+    A->nnz   = (nrows && ptr) ? ptr[nrows] : 0;
 
     A->ptr = const_cast<Ptr*>(ptr);
     A->col = const_cast<Col*>(col);

@@ -36,6 +36,7 @@ namespace detail {
 
 template <typename Col, typename Val>
 void sort_row(Col *col, Val *val, int n) {
+    if (!col || !val || n <= 1) return;
     for(int j = 1; j < n; ++j) {
         Col c = col[j];
         Val v = val[j];

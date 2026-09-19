@@ -116,13 +116,13 @@ struct plain_aggregates {
         auto dia = diagonal(A);
 #pragma omp parallel for
         for(ptrdiff_t i = 0; i < static_cast<ptrdiff_t>(n); ++i) {
-            value_type eps_dia_i = eps_squared * (*dia)[i];
+            value_type eps_dia_i = dia ? (eps_squared * (*dia)[i]) : math::zero<value_type>();
 
             for(ptrdiff_t j = A.ptr[i], e = A.ptr[i+1]; j < e; ++j) {
                 ptrdiff_t c = A.col[j];
                 value_type v = A.val[j];
 
-                strong_connection[j] = (c != i) && (eps_dia_i * (*dia)[c] < v * v);
+                strong_connection[j] = (c >= 0 && c < static_cast<ptrdiff_t>(n) && c != i) && (dia && eps_dia_i * (*dia)[c] < v * v);
             }
         }
 
@@ -160,7 +160,7 @@ struct plain_aggregates {
             neib.clear();
             for(ptrdiff_t j = A.ptr[i], e = A.ptr[i+1]; j < e; ++j) {
                 ptrdiff_t c = A.col[j];
-                if (strong_connection[j] && id[c] != removed) {
+                if (strong_connection[j] && c >= 0 && static_cast<size_t>(c) < n && id[c] != removed) {
                     id[c] = cur_id;
                     neib.push_back(c);
                 }
@@ -170,9 +170,10 @@ struct plain_aggregates {
             // as members of the aggregate.
             // If nobody claims them later, they will stay here.
             for(ptrdiff_t c : neib) {
+                if (c < 0 || static_cast<size_t>(c) >= n) continue;
                 for(ptrdiff_t j = A.ptr[c], e = A.ptr[c+1]; j < e; ++j) {
                     ptrdiff_t cc = A.col[j];
-                    if (strong_connection[j] && id[cc] == undefined)
+                    if (strong_connection[j] && cc >= 0 && static_cast<size_t>(cc) < n && id[cc] == undefined)
                         id[cc] = cur_id;
                 }
             }
@@ -184,14 +185,14 @@ struct plain_aggregates {
         // step (*) above. We need to exclude those and renumber the rest.
         std::vector<ptrdiff_t> cnt(count, 0);
         for(ptrdiff_t i : id)
-            if (i >= 0) cnt[i] = 1;
+            if (i >= 0 && static_cast<size_t>(i) < count) cnt[i] = 1;
         std::partial_sum(cnt.begin(), cnt.end(), cnt.begin());
 
         if (static_cast<ptrdiff_t>(count) > cnt.back()) {
             count = cnt.back();
 
             for(size_t i = 0; i < n; ++i)
-                if (id[i] >= 0) id[i] = cnt[id[i]] - 1;
+                if (id[i] >= 0 && static_cast<size_t>(id[i]) < cnt.size()) id[i] = cnt[id[i]] - 1;
         }
     }
 };
