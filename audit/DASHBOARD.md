@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-19 03:33:42 UTC
+**Last Updated:** 2026-09-19 03:42:16 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
 - **Files Reviewed:** 274 (7.8%)
 - **Files Pending Review:** 3219
-- **Total Issues Identified:** 180
+- **Total Issues Identified:** 185
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
-| **3 (High)** | 12 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 126 | Possible exploit or crash under specific circumstances |
-| **1 (Low)** | 42 | Localized / low-impact vulnerability |
+| **3 (High)** | 13 | Likely exploit or crash potential; widespread/library exposure |
+| **2 (Medium)** | 129 | Possible exploit or crash under specific circumstances |
+| **1 (Low)** | 43 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 179
+- **Fixed (Committed):** 184
 - **Pending Verification:** 1
 - **Disproven:** 0
 
@@ -297,3 +297,8 @@
 | `SEC-0178` | **Sev 2** | Unchecked Exception / Memory Leak / Input Validation | `src/libbg/spsr.cpp:52-54, 105-178` | `FIXED` | In bg_3d_spsr, missing parameter validation on points, normals, and face pointers allowed NULL pointer dereferences; num_input_pnts < 3 caused solver failures; negative cnt in PtStream caused unsigned overflow; unhandled C++ exceptions escaping the extern C boundary leaked implicit solver memory and aborted the program. |
 | `SEC-0179` | **Sev 2** | Unchecked File Operation / Null Pointer Dereference / Division by Zero | `src/libbg/trimesh_isect.cpp:56-74, 95-245, trimesh_plot3.cpp:82, 351-372` | `FIXED` | In trimesh_isect.cpp, plot_faces called pl_color on unchecked fopen() return, causing NULL pointer dereference on file write failure; bg_trimesh_isect failed to validate vertex indices in faces_1 and faces_2 against vertex counts, risking OOB access, and never assigned output intersecting faces. In trimesh_plot3.cpp, pntset_2d_plot3 used bitwise OR (!p | !c); polyline_2d_plot3 allowed division by zero on scale <= 0.0 and loop condition i < xy.size() - 1 dropped the last vertex before closing. |
 | `SEC-0180` | **Sev 1** | Input Validation / Integer Overflow / Exception Safety | `src/libbg/trimesh_remesh.cpp:82-87, trimesh_repair.cpp:126-131, trimesh_split.cpp:94-192, trimesh_sync.cpp:122` | `FIXED` | Missing vertex index validation, integer overflow guards on face counts / allocation sizes, and unhandled C++ exceptions escaping extern C functions in bg_trimesh_remesh, bg_trimesh_repair, bg_trimesh_separate, bg_trimesh_split, and bg_trimesh_sync. |
+| `SEC-0181` | **Sev 1** | Undefined Behavior / Data Loss / Out-of-Bounds Memory Access | `src/libbg/GTE/Mathematics/TriMesh.h:208-212, 536-580, 595-650, 715-775` | `FIXED` | status(EdgeHandle e) used reinterpret_cast<EdgeStatus&> on std::vector<bool>::operator[] proxy bit-reference yielding undefined behavior; TriMesh::garbage_collection() wiped face connectivity before reading vertices destroying active geometry; multiple handle and iterator methods lacked index bounds validation. |
+| `SEC-0182` | **Sev 2** | Input Validation / Integer Overflow / Denial of Service | `src/libbg/GTE/Mathematics/BotSmooth.h:85-115, BotSubdivide.h:48-95, 330-360` | `FIXED` | Unchecked face vertex indices allowed out-of-bounds reads into vertex coordinate arrays in gte_bot_smooth and gte_bot_subdivide; unconstrained subdivision recursion levels allowed exponential memory allocation and integer overflow. |
+| `SEC-0183` | **Sev 2** | Input Validation / Division by Zero / Matrix Solvability | `src/libbg/GTE/Mathematics/LSCMParameterization.h:96-120, 160-220, 275-310` | `FIXED` | Missing vertex index bounds checking on boundaryIndices, interiorIndices, and triangle vertex references when indexing vertices3D in MapBoundaryToCircle and Parameterize; unchecked linear system matrix dimensions could lead to division by zero or invalid memory access in SolveSymmetricCG. |
+| `SEC-0184` | **Sev 2** | Out-of-Bounds Memory Access / Input Validation | `src/libbg/GTE/Mathematics/MeshHoleFilling.h:275-320, 520-560, MeshPreprocessing.h:130-155, 225-255` | `FIXED` | Unchecked triangle vertex indices allowed out-of-bounds reads in ComputeEarScore3D, ComputeTriangulationArea, TriangulateHoleLSCM, and MeshPreprocessing::ComputeTriangleArea / ComputeSignedVolume / RemoveSmallComponents. |
+| `SEC-0185` | **Sev 3** | Null Pointer Dereference / Out-of-Bounds Array Access | `src/libbg/GTE/Mathematics/MeshQuality.h:230-236, MeshValidation.h:122-138, 220-250, MeshRepair.h:200-215, 430-495, 600-630, 990-1005` | `FIXED` | MeshQuality::ComputeTriangleRaw lacked null pointer validation for raw vertex pointers; MeshValidation::HasSelfIntersections and TriangleBoxesOverlap lacked empty mesh and vertex index bounds validation; MeshRepair lacked vertex index bounds validation in computeTotalArea, DetectIsolatedVertices, ColocateVertices, RelativeOrientation, Dissociate, and RemoveIsolatedVertices. |

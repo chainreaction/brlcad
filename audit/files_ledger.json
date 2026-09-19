@@ -12,10 +12,10 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 239,
-    "pending_files": 3254,
-    "last_updated": "2026-09-18T13:40:00Z",
-    "total_issues": 149
+    "reviewed_files": 293,
+    "pending_files": 3200,
+    "last_updated": "2026-09-18T23:42:00Z",
+    "total_issues": 185
   },
   "files": [
     {
@@ -13280,90 +13280,117 @@
       "path": "src/libbg/GTE/Mathematics/BotSmooth.h",
       "subsystem": "src/libbg",
       "lines": 294,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:42:00Z",
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issues": [
+        "SEC-0182"
+      ]
     },
     {
       "id": 1327,
       "path": "src/libbg/GTE/Mathematics/BotSubdivide.h",
       "subsystem": "src/libbg",
       "lines": 954,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:42:00Z",
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issues": [
+        "SEC-0182"
+      ]
     },
     {
       "id": 1328,
       "path": "src/libbg/GTE/Mathematics/LSCMParameterization.h",
       "subsystem": "src/libbg",
       "lines": 359,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:42:00Z",
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issues": [
+        "SEC-0183"
+      ]
     },
     {
       "id": 1329,
       "path": "src/libbg/GTE/Mathematics/MeshHoleFilling.h",
       "subsystem": "src/libbg",
       "lines": 877,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:42:00Z",
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issues": [
+        "SEC-0184"
+      ]
     },
     {
       "id": 1330,
       "path": "src/libbg/GTE/Mathematics/MeshPreprocessing.h",
       "subsystem": "src/libbg",
       "lines": 329,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:42:00Z",
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issues": [
+        "SEC-0184"
+      ]
     },
     {
       "id": 1331,
       "path": "src/libbg/GTE/Mathematics/MeshQuality.h",
       "subsystem": "src/libbg",
       "lines": 345,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:42:00Z",
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issues": [
+        "SEC-0185"
+      ]
     },
     {
       "id": 1332,
       "path": "src/libbg/GTE/Mathematics/MeshRepair.h",
       "subsystem": "src/libbg",
       "lines": 1003,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:42:00Z",
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issues": [
+        "SEC-0185"
+      ]
     },
     {
       "id": 1333,
       "path": "src/libbg/GTE/Mathematics/MeshValidation.h",
       "subsystem": "src/libbg",
       "lines": 329,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:42:00Z",
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issues": [
+        "SEC-0185"
+      ]
     },
     {
       "id": 1334,
       "path": "src/libbg/GTE/Mathematics/TriMesh.h",
       "subsystem": "src/libbg",
       "lines": 869,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:42:00Z",
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issues": [
+        "SEC-0181"
+      ]
     },
     {
       "id": 1335,
