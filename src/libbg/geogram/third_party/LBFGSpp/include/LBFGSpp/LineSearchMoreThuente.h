@@ -34,7 +34,10 @@ private:
     static Scalar quadratic_minimizer(const Scalar& a, const Scalar& b, const Scalar& fa, const Scalar& ga, const Scalar& fb)
     {
         const Scalar ba = b - a;
-        const Scalar w = Scalar(0.5) * ba * ga / (fa - fb + ba * ga);
+        const Scalar denom = fa - fb + ba * ga;
+        if (denom == Scalar(0))
+            return (a + b) / Scalar(2);
+        const Scalar w = Scalar(0.5) * ba * ga / denom;
         return a + w * ba;
     }
 
@@ -45,7 +48,10 @@ private:
     // For case III: ga * (b - a) < 0, ga * ga >= 0, |gb| <= |ga|
     static Scalar quadratic_minimizer(const Scalar& a, const Scalar& b, const Scalar& ga, const Scalar& gb)
     {
-        const Scalar w = ga / (ga - gb);
+        const Scalar denom = ga - gb;
+        if (denom == Scalar(0))
+            return (a + b) / Scalar(2);
+        const Scalar w = ga / denom;
         return a + w * (b - a);
     }
 
@@ -71,21 +77,26 @@ private:
 
         // If c3 = z/(b-a)^3 == 0, reduce to quadratic problem
         const Scalar eps = std::numeric_limits<Scalar>::epsilon();
-        if (abs(z3) < eps * abs(z2) || abs(z3) < eps * abs(z1))
+        if (abs(z3) < eps * abs(z2) || abs(z3) < eps * abs(z1) || z2 == Scalar(0) || z3 == Scalar(0))
         {
             // Minimizer exists if c2 > 0
             exists = (z2 * ba > Scalar(0));
             // Return the end point if the minimizer does not exist
-            return exists ? (-Scalar(0.5) * z1 / z2) : b;
+            return (exists && z2 != Scalar(0)) ? (-Scalar(0.5) * z1 / z2) : b;
         }
 
-        // Now we can assume z3 > 0
+        // Now we can assume z3 != 0 and z2 != 0
         // The minimizer is a solution to the equation c1 + 2*c2 * x + 3*c3 * x^2 = 0
         // roots = -(z2/z3) / 3 (+-) sqrt((z2/z3)^2 - 3 * (z1/z3)) / 3
         //
         // Let u = z2/(3z3) and v = z1/z2
         // The minimizer exists if v/u <= 1
         const Scalar u = z2 / (Scalar(3) * z3), v = z1 / z2;
+        if (u == Scalar(0))
+        {
+            exists = false;
+            return b;
+        }
         const Scalar vu = v / u;
         exists = (vu <= Scalar(1));
         if (!exists)
@@ -108,6 +119,8 @@ private:
         }
         else
         {
+            if (v == Scalar(0))
+                return b;
             const Scalar sqrtd = sqrt(abs(u)) * sqrt(abs(v)) * sqrt(1 - u / v);
             r1 = -u - sqrtd;
             r2 = -u + sqrtd;

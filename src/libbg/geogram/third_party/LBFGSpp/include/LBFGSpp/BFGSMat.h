@@ -80,6 +80,8 @@ public:
     // Add correction vectors to the BFGS matrix
     inline void add_correction(const RefConstVec& s, const RefConstVec& y)
     {
+        if (m_m <= 0)
+            return;
         const int loc = m_ptr % m_m;
 
         m_s.col(loc).noalias() = s;
@@ -89,7 +91,8 @@ public:
         const Scalar ys = m_s.col(loc).dot(m_y.col(loc));
         m_ys[loc] = ys;
 
-        m_theta = m_y.col(loc).squaredNorm() / ys;
+        if (ys > Scalar(0))
+            m_theta = m_y.col(loc).squaredNorm() / ys;
 
         if (m_ncorr < m_m)
             m_ncorr++;
@@ -140,9 +143,16 @@ public:
             }
 
             // Matrix LDLT factorization
-            m_permMinv.block(m_m, m_m, m_m, m_m) *= m_theta;
-            m_permMsolver.compute(m_permMinv);
-            m_permMinv.block(m_m, m_m, m_m, m_m) /= m_theta;
+            if (m_theta > Scalar(0))
+            {
+                m_permMinv.block(m_m, m_m, m_m, m_m) *= m_theta;
+                m_permMsolver.compute(m_permMinv);
+                m_permMinv.block(m_m, m_m, m_m, m_m) /= m_theta;
+            }
+            else
+            {
+                m_permMsolver.compute(m_permMinv);
+            }
         }
     }
 
@@ -152,7 +162,7 @@ public:
         // Initial approximation theta * I
         const int n = m_s.rows();
         Matrix B = m_theta * Matrix::Identity(n, n);
-        if (m_ncorr < 1)
+        if (m_ncorr < 1 || m_m <= 0)
             return B;
 
         // Construct W matrix, W = [Y, theta * S]
@@ -212,8 +222,9 @@ public:
     {
         // Initial approximation 1/theta * I
         const int n = m_s.rows();
-        Matrix H = (Scalar(1) / m_theta) * Matrix::Identity(n, n);
-        if (m_ncorr < 1)
+        const Scalar inv_theta = (m_theta > Scalar(0)) ? (Scalar(1) / m_theta) : Scalar(1);
+        Matrix H = inv_theta * Matrix::Identity(n, n);
+        if (m_ncorr < 1 || m_m <= 0)
             return H;
 
         // Construct W matrix, W = [1/theta * Y, S]
@@ -255,7 +266,7 @@ public:
         // The symmetric block
         M.bottomLeftCorner(m_ncorr, m_ncorr).noalias() = -Rinv.transpose();
         // 1/theta * Y'Y
-        Matrix block = (Scalar(1) / m_theta) * W.leftCols(m_ncorr).transpose() * W.leftCols(m_ncorr);
+        Matrix block = inv_theta * W.leftCols(m_ncorr).transpose() * W.leftCols(m_ncorr);
         // D + 1/theta * Y'Y
         Vector ys = W.leftCols(m_ncorr).cwiseProduct(W.rightCols(m_ncorr)).colwise().sum().transpose();
         block.diagonal().array() += ys.array();
@@ -263,7 +274,7 @@ public:
         M.bottomRightCorner(m_ncorr, m_ncorr).noalias() = Rinv.transpose() * block * Rinv;
 
         // Set the true W matrix
-        W.leftCols(m_ncorr).array() *= (Scalar(1) / m_theta);
+        W.leftCols(m_ncorr).array() *= inv_theta;
 
         // Compute H = 1/theta * I + W * M * W'
         H.noalias() += W * M * W.transpose();
@@ -276,26 +287,36 @@ public:
     inline void apply_Hv(const Vector& v, const Scalar& a, Vector& res)
     {
         res.resize(v.size());
+        res.noalias() = a * v;
+
+        if (m_m <= 0 || m_ncorr <= 0)
+        {
+            if (m_theta > Scalar(0))
+                res /= m_theta;
+            return;
+        }
 
         // L-BFGS two-loop recursion
 
         // Loop 1
-        res.noalias() = a * v;
         int j = m_ptr % m_m;
         for (int i = 0; i < m_ncorr; i++)
         {
             j = (j + m_m - 1) % m_m;
-            m_alpha[j] = m_s.col(j).dot(res) / m_ys[j];
+            const Scalar ys = m_ys[j];
+            m_alpha[j] = (ys != Scalar(0)) ? (m_s.col(j).dot(res) / ys) : Scalar(0);
             res.noalias() -= m_alpha[j] * m_y.col(j);
         }
 
         // Apply initial H0
-        res /= m_theta;
+        if (m_theta > Scalar(0))
+            res /= m_theta;
 
         // Loop 2
         for (int i = 0; i < m_ncorr; i++)
         {
-            const Scalar beta = m_y.col(j).dot(res) / m_ys[j];
+            const Scalar ys = m_ys[j];
+            const Scalar beta = (ys != Scalar(0)) ? (m_y.col(j).dot(res) / ys) : Scalar(0);
             res.noalias() += (m_alpha[j] - beta) * m_s.col(j);
             j = (j + 1) % m_m;
         }
@@ -530,6 +551,11 @@ public:
     {
         const int nP = WP.rows();
         res.resize(nP);
+        if (m_theta <= Scalar(0))
+        {
+            res.noalias() = v;
+            return;
+        }
         if (m_ncorr < 1 || nP < 1)
         {
             res.noalias() = v / m_theta;

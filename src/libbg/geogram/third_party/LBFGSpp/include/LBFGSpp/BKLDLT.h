@@ -307,6 +307,8 @@ private:
         // inv(E) = [d11, d12], d11 = e22/delta, d21 = -e21/delta, d22 = e11/delta
         //          [d21, d22]
         const Scalar delta = e11 * e22 - e21 * e21;
+        if (delta == Scalar(0))
+            return;
         std::swap(e11, e22);
         e11 /= delta;
         e22 /= delta;
@@ -394,6 +396,12 @@ public:
         m_n = mat.rows();
         if (m_n != mat.cols())
             throw std::invalid_argument("BKLDLT: matrix must be square");
+        if (m_n <= 0)
+        {
+            m_computed = true;
+            m_info = SUCCESSFUL;
+            return;
+        }
 
         m_perm.setLinSpaced(m_n, 0, m_n - 1);
         m_permc.clear();
@@ -430,9 +438,14 @@ public:
         {
             const Scalar akk = diag_coeff(k);
             if (akk == Scalar(0))
+            {
                 m_info = NUMERICAL_ISSUE;
-
-            diag_coeff(k) = Scalar(1) / diag_coeff(k);
+                diag_coeff(k) = Scalar(0);
+            }
+            else
+            {
+                diag_coeff(k) = Scalar(1) / akk;
+            }
         }
 
         compress_permutation();
@@ -445,6 +458,8 @@ public:
     {
         if (!m_computed)
             throw std::logic_error("BKLDLT: need to call compute() first");
+        if (m_n <= 0 || b.size() < m_n)
+            return;
 
         // PAP' = LDL'
         // 1. b -> Pb

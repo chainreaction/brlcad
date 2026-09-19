@@ -158,7 +158,8 @@ public:
         Scalar fpp = -bfgs.theta() * fp - vecp.dot(cache);
 
         // Theoretical step size to move
-        Scalar deltatmin = -fp / fpp;
+        const Scalar eps = std::numeric_limits<Scalar>::epsilon();
+        Scalar deltatmin = (fpp > eps) ? (-fp / fpp) : (-fp / eps);
 
         // Limit on the current interval
         Scalar il = Scalar(0);
@@ -237,7 +238,7 @@ public:
 
             // Step 4
             // Theoretical step size to move
-            deltatmin = -fp / fpp;
+            deltatmin = (fpp > eps) ? (-fp / fpp) : (-fp / eps);
             // Update interval bound
             il = iu;
             b = act_end + 1;

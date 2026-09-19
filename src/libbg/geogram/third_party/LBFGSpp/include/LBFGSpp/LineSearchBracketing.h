@@ -54,6 +54,9 @@ public:
         if (step <= Scalar(0))
             throw std::invalid_argument("'step' must be positive");
 
+        if (xp.size() <= 0 || drt.size() != xp.size())
+            throw std::invalid_argument("vector dimensions must be positive and matching");
+
         // Save the function value at the current x
         const Scalar fx_init = fx;
         // Projection of gradient on the search direction

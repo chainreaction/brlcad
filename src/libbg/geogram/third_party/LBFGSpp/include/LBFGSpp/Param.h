@@ -207,7 +207,7 @@ public:
             throw std::invalid_argument("unsupported line search termination condition");
         if (max_linesearch <= 0)
             throw std::invalid_argument("'max_linesearch' must be positive");
-        if (min_step < 0)
+        if (min_step <= 0)
             throw std::invalid_argument("'min_step' must be positive");
         if (max_step < min_step)
             throw std::invalid_argument("'max_step' must be greater than 'min_step'");
@@ -365,7 +365,7 @@ public:
             throw std::invalid_argument("'max_submin' must be non-negative");
         if (max_linesearch <= 0)
             throw std::invalid_argument("'max_linesearch' must be positive");
-        if (min_step < 0)
+        if (min_step <= 0)
             throw std::invalid_argument("'min_step' must be positive");
         if (max_step < min_step)
             throw std::invalid_argument("'max_step' must be greater than 'min_step'");

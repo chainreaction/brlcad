@@ -120,6 +120,8 @@ public:
 
         // Dimension of the vector
         const int n = x.size();
+        if (n <= 0)
+            return 0;
         if (lb.size() != n || ub.size() != n)
             throw std::invalid_argument("'lb' and 'ub' must have the same size as 'x'");
 

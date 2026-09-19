@@ -44,7 +44,12 @@ private:
         const int nsub = ind.size();
         Vector res(nsub);
         for (int i = 0; i < nsub; i++)
-            res[i] = v[ind[i]];
+        {
+            if (ind[i] >= 0 && ind[i] < v.size())
+                res[i] = v[ind[i]];
+            else
+                res[i] = Scalar(0);
+        }
         return res;
     }
 
@@ -53,7 +58,10 @@ private:
     {
         const int nsub = ind.size();
         for (int i = 0; i < nsub; i++)
-            v[ind[i]] = rhs[i];
+        {
+            if (ind[i] >= 0 && ind[i] < v.size() && i < rhs.size())
+                v[ind[i]] = rhs[i];
+        }
     }
 
     // Check whether the vector is within the bounds
@@ -125,6 +133,9 @@ public:
         Vector& drt)
     {
         // std::cout << "========================= Entering subspace minimization =========================\n\n";
+
+        if (x0.size() <= 0)
+            return;
 
         // d = xcp - x0
         drt.noalias() = xcp - x0;

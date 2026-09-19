@@ -82,6 +82,8 @@ public:
 
         // Dimension of the vector
         const int n = x.size();
+        if (n <= 0)
+            return 0;
         reset(n);
 
         // The length of lag for objective function value to test convergence
@@ -105,7 +107,8 @@ public:
         // Initial direction
         m_drt.noalias() = -m_grad;
         // Initial step size
-        Scalar step = Scalar(1) / m_drt.norm();
+        const Scalar drt_norm = m_drt.norm();
+        Scalar step = (drt_norm > Scalar(0)) ? (Scalar(1) / drt_norm) : Scalar(1);
         // Tolerance for s'y >= eps * (y'y)
         constexpr Scalar eps = std::numeric_limits<Scalar>::epsilon();
         // s and y vectors

@@ -42,8 +42,10 @@ private:
         const Scalar fdiff = fx_hi - fx_lo;
         const Scalar sdiff = step_hi - step_lo;
         const Scalar smid = (step_hi + step_lo) / Scalar(2);
-        Scalar step_candid = fdiff * step_lo - smid * sdiff * dg_lo;
-        step_candid = step_candid / (fdiff - sdiff * dg_lo);
+        const Scalar denom = fdiff - sdiff * dg_lo;
+        if (abs(denom) <= std::numeric_limits<Scalar>::epsilon())
+            return smid;
+        Scalar step_candid = (fdiff * step_lo - smid * sdiff * dg_lo) / denom;
 
         // In some cases the interpolation is not a good choice
         // This includes (a) NaN values; (b) too close to the end points; (c) outside the interval
@@ -91,6 +93,9 @@ public:
         // Check the value of step
         if (step <= Scalar(0))
             throw std::invalid_argument("'step' must be positive");
+
+        if (xp.size() <= 0 || drt.size() != xp.size())
+            throw std::invalid_argument("vector dimensions must be positive and matching");
 
         if (param.linesearch != LBFGS_LINESEARCH_BACKTRACKING_STRONG_WOLFE)
             throw std::invalid_argument("'param.linesearch' must be 'LBFGS_LINESEARCH_BACKTRACKING_STRONG_WOLFE' for LineSearchNocedalWright");
