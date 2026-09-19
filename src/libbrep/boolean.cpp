@@ -95,7 +95,7 @@ struct SSICurve {
 	SSICurve *out = new SSICurve();
 	if (out != NULL) {
 	    *out = *this;
-	    out->m_curve = m_curve->Duplicate();
+	    out->m_curve = m_curve ? m_curve->Duplicate() : NULL;
 	}
 	return out;
     }
@@ -142,7 +142,7 @@ public:
 
     ON_3dPoint PointAtStart() const
     {
-	if (m_ssi_curves.Count()) {
+	if (m_ssi_curves.Count() && m_ssi_curves[0].m_curve) {
 	    return m_ssi_curves[0].m_curve->PointAtStart();
 	} else {
 	    return ON_3dPoint::UnsetPoint;
@@ -151,7 +151,7 @@ public:
 
     ON_3dPoint PointAtEnd() const
     {
-	if (m_ssi_curves.Count()) {
+	if (m_ssi_curves.Count() && m_ssi_curves.Last()->m_curve) {
 	    return m_ssi_curves.Last()->m_curve->PointAtEnd();
 	} else {
 	    return ON_3dPoint::UnsetPoint;
@@ -168,6 +168,11 @@ public:
 
     bool IsValid() const
     {
+	for (int i = 0; i < m_ssi_curves.Count(); i++) {
+	    if (!m_ssi_curves[i].m_curve) {
+		return false;
+	    }
+	}
 	// Check whether the curve has "gaps".
 	for (int i = 1; i < m_ssi_curves.Count(); i++) {
 	    if (m_ssi_curves[i].m_curve->PointAtStart().DistanceTo(m_ssi_curves[i - 1].m_curve->PointAtEnd()) >= ON_ZERO_TOLERANCE) {
@@ -182,7 +187,7 @@ public:
     {
 	ON_SimpleArray<SSICurve> new_array;
 	for (int i = m_ssi_curves.Count() - 1; i >= 0; i--) {
-	    if (!m_ssi_curves[i].m_curve->Reverse()) {
+	    if (!m_ssi_curves[i].m_curve || !m_ssi_curves[i].m_curve->Reverse()) {
 		return false;
 	    }
 	    new_array.Append(m_ssi_curves[i]);
@@ -204,7 +209,9 @@ public:
     void AppendCurvesToArray(ON_SimpleArray<ON_Curve *> &arr) const
     {
 	for (int i = 0; i < m_ssi_curves.Count(); i++) {
-	    arr.Append(m_ssi_curves[i].m_curve->Duplicate());
+	    if (m_ssi_curves[i].m_curve) {
+		arr.Append(m_ssi_curves[i].m_curve->Duplicate());
+	    }
 	}
     }
 
@@ -218,7 +225,9 @@ public:
 	}
 	ON_PolyCurve *polycurve = new ON_PolyCurve;
 	for (int i = 0; i < m_ssi_curves.Count(); i++) {
-	    append_to_polycurve(m_ssi_curves[i].m_curve->Duplicate(), *polycurve);
+	    if (m_ssi_curves[i].m_curve) {
+		append_to_polycurve(m_ssi_curves[i].m_curve->Duplicate(), *polycurve);
+	    }
 	}
 	m_curve = polycurve;
 	return m_curve;
@@ -3347,6 +3356,9 @@ ON_BrepPointInside(const ON_3dPoint &point, const ON_Brep *brep)
 static bool
 is_point_inside_trimmed_face(const ON_2dPoint &pt, const TrimmedFace *tface)
 {
+    if (!tface) {
+	return false;
+    }
     bool inside = false;
     if (is_point_inside_loop(pt, tface->m_outerloop)) {
 	inside = true;
@@ -3368,6 +3380,9 @@ is_point_inside_trimmed_face(const ON_2dPoint &pt, const TrimmedFace *tface)
 static ON_2dPoint
 get_point_inside_trimmed_face(const TrimmedFace *tface)
 {
+    if (!tface) {
+	throw InvalidGeometry("get_point_inside_trimmed_face(): NULL tface.\n");
+    }
     const int GP_MAX_STEPS = 8; // must be a power of two
 
     ON_PolyCurve polycurve;
@@ -3377,6 +3392,9 @@ get_point_inside_trimmed_face(const TrimmedFace *tface)
     ON_BoundingBox bbox =  polycurve.BoundingBox();
     double u_len = bbox.m_max.x - bbox.m_min.x;
     double v_len = bbox.m_max.y - bbox.m_min.y;
+    if (u_len <= 0.0 || v_len <= 0.0 || !std::isfinite(u_len) || !std::isfinite(v_len)) {
+	throw InvalidGeometry("face_brep_location(): degenerate outerloop bounding box.\n");
+    }
 
     ON_2dPoint test_pt2d;
     bool found = false;

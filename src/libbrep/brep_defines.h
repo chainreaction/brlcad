@@ -61,7 +61,7 @@
 
 // tol value used in ON_3dVector::IsParallelTo(). We use a smaller tolerance
 // than the default one ON_PI/180.
-#define ANGLE_TOL ON_PI/1800.0
+#define ANGLE_TOL (ON_PI / 1800.0)
 
 /*
  * Local Variables:

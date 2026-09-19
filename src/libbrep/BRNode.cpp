@@ -57,9 +57,12 @@ BRNode::BRNode(
     m_estimate(),
     m_slope(0.0),
     m_bb_diag(0.0),
-    m_start(curve->PointAt(m_t[0])),
-    m_end(curve->PointAt(m_t[1]))
+    m_start(curve ? curve->PointAt(m_t[0]) : ON_3dPoint::UnsetPoint),
+    m_end(curve ? curve->PointAt(m_t[1]) : ON_3dPoint::UnsetPoint)
 {
+    if (!curve) {
+	return;
+    }
     /* check for vertical segments they can be removed from trims
      * above (can't tell direction and don't need
      */
@@ -105,7 +108,12 @@ BRNode::BRNode(
 	} else {
 	    m_XIncreasing = false;
 	}
-	m_slope = (m_end[Y] - m_start[Y]) / (m_end[X] - m_start[X]);
+	double dx = m_end[X] - m_start[X];
+	if (!NEAR_ZERO(dx, BREP_UV_DIST_FUZZ)) {
+	    m_slope = (m_end[Y] - m_start[Y]) / dx;
+	} else {
+	    m_slope = 0.0;
+	}
     }
     m_bb_diag = DIST_PNT_PNT(m_start, m_end);
 }
@@ -254,7 +262,9 @@ BRNode::depth() const
 {
     int d = 0;
     for (size_t i = 0; i < m_stl->m_children.size(); i++) {
-	d = 1 + std::max(d, m_stl->m_children[i]->depth());
+	if (m_stl->m_children[i]) {
+	    d = 1 + std::max(d, m_stl->m_children[i]->depth());
+	}
     }
     return d;
 }
@@ -265,7 +275,9 @@ BRNode::getLeaves(std::list<const BRNode *> &out_leaves) const
 {
     if (!m_stl->m_children.empty()) {
 	for (size_t i = 0; i < m_stl->m_children.size(); i++) {
-	    m_stl->m_children[i]->getLeaves(out_leaves);
+	    if (m_stl->m_children[i]) {
+		m_stl->m_children[i]->getLeaves(out_leaves);
+	    }
 	}
     } else {
 	out_leaves.push_back(this);
@@ -276,6 +288,12 @@ BRNode::getLeaves(std::list<const BRNode *> &out_leaves) const
 const BRNode *
 BRNode::closer(const ON_3dPoint &pt, const BRNode *left, const BRNode *right) const
 {
+    if (!left) {
+	return right;
+    }
+    if (!right) {
+	return left;
+    }
     double ldist = pt.DistanceTo(left->m_estimate);
     double rdist = pt.DistanceTo(right->m_estimate);
     TRACE("\t" << ldist << " < " << rdist);
@@ -341,7 +359,7 @@ BRNode::getClosestPointEstimate(const ON_3dPoint &pt, ON_Interval &u, ON_Interva
 			    {m_u.Mid(), m_v.Mid()}
 	}; /* include the estimate */
 	ON_3dPoint corners[5];
-	const ON_Surface *surf = m_face->SurfaceOf();
+	const ON_Surface *surf = m_face ? m_face->SurfaceOf() : NULL;
 
 	u = m_u;
 	v = m_v;
@@ -349,7 +367,8 @@ BRNode::getClosestPointEstimate(const ON_3dPoint &pt, ON_Interval &u, ON_Interva
 	/* ??? should we pass these in from SurfaceTree::curveBBox()
 	 * to avoid this recalculation?
 	 */
-	if (!surf->EvPoint(uvs[0][0], uvs[0][1], corners[0]) ||
+	if (!surf ||
+	    !surf->EvPoint(uvs[0][0], uvs[0][1], corners[0]) ||
 	    !surf->EvPoint(uvs[1][0], uvs[1][1], corners[1]) ||
 	    !surf->EvPoint(uvs[2][0], uvs[2][1], corners[2]) ||
 	    !surf->EvPoint(uvs[3][0], uvs[3][1], corners[3]))
@@ -378,6 +397,9 @@ BRNode::getClosestPointEstimate(const ON_3dPoint &pt, ON_Interval &u, ON_Interva
 	    for (size_t i = 1; i < m_stl->m_children.size(); i++) {
 		closestNode = closer(pt, closestNode, m_stl->m_children[i]);
 	    }
+	    if (!closestNode) {
+		throw std::exception();
+	    }
 	    return closestNode->getClosestPointEstimate(pt, u, v);
 	} else {
 	    throw std::exception();
@@ -397,6 +419,9 @@ BRNode::getLinearEstimateOfV(fastf_t u) const
 fastf_t
 BRNode::getCurveEstimateOfV(fastf_t u, fastf_t tol) const
 {
+    if (!m_trim) {
+	return m_start[Y];
+    }
     point_t A, B;
     double Ta, Tb;
 
@@ -489,6 +514,9 @@ BRNode::getCurveEstimateOfV(fastf_t u, fastf_t tol) const
 fastf_t
 BRNode::getCurveEstimateOfU(fastf_t v, fastf_t tol) const
 {
+    if (!m_trim) {
+	return m_start[X];
+    }
     point_t A, B;
     double Ta, Tb;
 

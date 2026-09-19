@@ -56,9 +56,10 @@ matching_basis_controls(const Curve &first, const Curve &second,
     double maximum_ratio = 0.0;
     for (int i = 0; i < first.CVCount(); ++i) {
 	ON_3dPoint a, b;
+	if (!(first.Weight(i) > 0.0) || !(second.Weight(i) > 0.0))
+	    return false;
 	const double ratio = second.Weight(i) / first.Weight(i);
-	if (!(first.Weight(i) > 0.0) || !(second.Weight(i) > 0.0) ||
-	    !(ratio > 0.0) || !std::isfinite(ratio) ||
+	if (!(ratio > 0.0) || !std::isfinite(ratio) ||
 	    !first.GetCV(i, a) || !second.GetCV(i, b) ||
 	    !a.IsValid() || !b.IsValid() || a.DistanceTo(b) > tolerance)
 	    return false;
@@ -70,7 +71,8 @@ matching_basis_controls(const Curve &first, const Curve &second,
     /* Identical nonnegative bases bound control-point displacement.  A
      * change of rational weights contributes at most this additional
      * displacement about the first control point. */
-    const double weight_error = radius * ((maximum_ratio - minimum_ratio) / minimum_ratio);
+    const double weight_error = (minimum_ratio > 0.0 && std::isfinite(minimum_ratio)) ?
+	(radius * ((maximum_ratio - minimum_ratio) / minimum_ratio)) : ON_DBL_MAX;
     return std::isfinite(weight_error) && deviation + weight_error <= tolerance;
 }
 
@@ -351,13 +353,20 @@ bool
 merge_edge_pair(ON_Brep &brep, int first_index, int second_index,
 	bool reversed, enum brep_assembly_error *error)
 {
+    if (first_index < 0 || first_index >= brep.m_E.Count() ||
+	second_index < 0 || second_index >= brep.m_E.Count()) {
+	if (error)
+	    *error = BREP_ASSEMBLY_EDGE_MERGE_FAILED;
+	return false;
+    }
     for (int endpoint = 0; endpoint < 2; ++endpoint) {
 	const int first_vertex = brep.m_E[first_index].m_vi[endpoint];
 	const int second_vertex = brep.m_E[second_index].m_vi[
 	    reversed ? 1 - endpoint : endpoint];
 	if (first_vertex < 0 || first_vertex >= brep.m_V.Count() ||
 		second_vertex < 0 || second_vertex >= brep.m_V.Count()) {
-	    *error = BREP_ASSEMBLY_VERTEX_MERGE_FAILED;
+	    if (error)
+		*error = BREP_ASSEMBLY_VERTEX_MERGE_FAILED;
 	    return false;
 	}
 	if (first_vertex == second_vertex)
@@ -366,7 +375,8 @@ merge_edge_pair(ON_Brep &brep, int first_index, int second_index,
 	ON_BrepVertex &second = brep.m_V[second_vertex];
 	const double separation = first.Point().DistanceTo(second.Point());
 	if (!std::isfinite(separation)) {
-	    *error = BREP_ASSEMBLY_VERTEX_MERGE_FAILED;
+	    if (error)
+		*error = BREP_ASSEMBLY_VERTEX_MERGE_FAILED;
 	    return false;
 	}
 	/* Matching edge geometry establishes the shared endpoint.  Authored
@@ -379,7 +389,8 @@ merge_edge_pair(ON_Brep &brep, int first_index, int second_index,
 	    second.m_tolerance >= 0.0 ?
 	    std::max(second.m_tolerance, separation) : separation;
 	if (!brep.CombineCoincidentVertices(first, second)) {
-	    *error = BREP_ASSEMBLY_VERTEX_MERGE_FAILED;
+	    if (error)
+		*error = BREP_ASSEMBLY_VERTEX_MERGE_FAILED;
 	    return false;
 	}
     }
@@ -388,12 +399,14 @@ merge_edge_pair(ON_Brep &brep, int first_index, int second_index,
      * duplicate edge as a semantic operation; OpenNURBS also updates all of
      * that edge's trim senses. */
     if (reversed && !brep.m_E[second_index].Reverse()) {
-	*error = BREP_ASSEMBLY_EDGE_MERGE_FAILED;
+	if (error)
+	    *error = BREP_ASSEMBLY_EDGE_MERGE_FAILED;
 	return false;
     }
     if (!brep.CombineCoincidentEdges(brep.m_E[first_index],
 	    brep.m_E[second_index])) {
-	*error = BREP_ASSEMBLY_EDGE_MERGE_FAILED;
+	if (error)
+	    *error = BREP_ASSEMBLY_EDGE_MERGE_FAILED;
 	return false;
     }
     return true;
@@ -441,6 +454,7 @@ brep_curves_coincident(const ON_Curve &first, const ON_Curve &second,
 	if (direction && (!b.Reverse() || !b.SetDomain(0.0, 1.0)))
 	    return false;
 	const bool same_knots = a.Order() == b.Order() && a.CVCount() == b.CVCount() &&
+	    a.KnotCount() == b.KnotCount() && a.m_knot && b.m_knot &&
 	    std::equal(a.m_knot, a.m_knot + a.KnotCount(), b.m_knot);
 	if ((direction ? reverse : forward) &&
 	    ((same_knots && matching_basis_controls(a, b, tolerance)) ||

@@ -46,7 +46,7 @@ Subcurve::Subcurve(ON_Curve *curve)
 Subcurve::Subcurve(const Subcurve &_scurve)
 {
     m_islinear = _scurve.m_islinear;
-    m_curve = _scurve.m_curve->Duplicate();
+    m_curve = _scurve.m_curve ? _scurve.m_curve->Duplicate() : NULL;
     m_t = _scurve.m_t;
     m_children[0] = m_children[1] = NULL;
     SetBBox(_scurve.m_node);
@@ -70,6 +70,9 @@ Subcurve::Split()
     if (m_children[0] && m_children[1]) {
 	return 0;
     }
+    if (!m_curve) {
+	return -1;
+    }
 
     for (int i = 0; i < 2; i++) {
 	m_children[i] = new Subcurve();
@@ -79,7 +82,11 @@ Subcurve::Split()
     if (m_curve->IsPolyline(NULL, &pline_t) && pline_t.Count() > 2) {
 	split_t = pline_t[pline_t.Count() / 2];
     }
-    if (m_curve->Split(split_t, m_children[0]->m_curve, m_children[1]->m_curve) == false) {
+    if (!m_curve->Split(split_t, m_children[0]->m_curve, m_children[1]->m_curve) ||
+	!m_children[0]->m_curve || !m_children[1]->m_curve) {
+	delete m_children[0];
+	delete m_children[1];
+	m_children[0] = m_children[1] = NULL;
 	return -1;
     }
 

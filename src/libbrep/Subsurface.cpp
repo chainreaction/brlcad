@@ -47,7 +47,7 @@ Subsurface::Subsurface(ON_Surface *surf)
 
 Subsurface::Subsurface(const Subsurface &_ssurf)
 {
-    m_surf = _ssurf.m_surf->Duplicate();
+    m_surf = _ssurf.m_surf ? _ssurf.m_surf->Duplicate() : NULL;
     m_u = _ssurf.m_u;
     m_v = _ssurf.m_v;
     m_isplanar = _ssurf.m_isplanar;
@@ -73,23 +73,33 @@ Subsurface::Split()
     if (m_children[0] && m_children[1] && m_children[2] && m_children[3]) {
 	return 0;
     }
+    if (!m_surf) {
+	return -1;
+    }
 
     for (int i = 0; i < 4; i++) {
 	m_children[i] = new Subsurface();
     }
     ON_Surface *temp_surf1 = NULL, *temp_surf2 = NULL;
-    bool ret = true;
-    ret = m_surf->Split(0, m_surf->Domain(0).Mid(), temp_surf1, temp_surf2);
-    if (!ret) {
+    bool ret = m_surf->Split(0, m_surf->Domain(0).Mid(), temp_surf1, temp_surf2);
+    if (!ret || !temp_surf1 || !temp_surf2) {
 	delete temp_surf1;
 	delete temp_surf2;
+	for (int i = 0; i < 4; i++) {
+	    delete m_children[i];
+	    m_children[i] = NULL;
+	}
 	return -1;
     }
 
     ret = temp_surf1->Split(1, m_surf->Domain(1).Mid(), m_children[0]->m_surf, m_children[1]->m_surf);
     delete temp_surf1;
-    if (!ret) {
+    if (!ret || !m_children[0]->m_surf || !m_children[1]->m_surf) {
 	delete temp_surf2;
+	for (int i = 0; i < 4; i++) {
+	    delete m_children[i];
+	    m_children[i] = NULL;
+	}
 	return -1;
     }
     m_children[0]->m_u = ON_Interval(m_u.Min(), m_u.Mid());
@@ -103,7 +113,11 @@ Subsurface::Split()
 
     ret = temp_surf2->Split(1, m_v.Mid(), m_children[2]->m_surf, m_children[3]->m_surf);
     delete temp_surf2;
-    if (!ret) {
+    if (!ret || !m_children[2]->m_surf || !m_children[3]->m_surf) {
+	for (int i = 0; i < 4; i++) {
+	    delete m_children[i];
+	    m_children[i] = NULL;
+	}
 	return -1;
     }
     m_children[2]->m_u = ON_Interval(m_u.Mid(), m_u.Max());

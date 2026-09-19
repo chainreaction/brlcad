@@ -134,7 +134,9 @@ BBNode::BBNode(Deserializer &deserializer, const CurveTree &ctree) :
 void
 BBNode::serialize(Serializer &serializer) const
 {
-    const std::vector<std::size_t> leaves_keys = m_ctree->serialize_get_leaves_keys(m_stl->m_trims_above);
+    const std::vector<std::size_t> leaves_keys = m_ctree ?
+	m_ctree->serialize_get_leaves_keys(m_stl->m_trims_above) :
+	std::vector<std::size_t>();
     const uint8_t bool_flags = (m_checkTrim << 0) | (m_trimmed << 1);
 
     serializer.write(m_node);
@@ -207,7 +209,9 @@ BBNode::intersectsHierarchy(const ON_Ray &ray, std::list<const BBNode *> &result
 	results_opt.push_back(this);
     } else if (intersects) {
 	for (size_t i = 0; i < m_stl->m_children.size(); i++) {
-	    m_stl->m_children[i]->intersectsHierarchy(ray, results_opt);
+	    if (m_stl->m_children[i]) {
+		m_stl->m_children[i]->intersectsHierarchy(ray, results_opt);
+	    }
 	}
     }
     return intersects;
@@ -230,7 +234,9 @@ BBNode::depth() const
 {
     int d = 0;
     for (size_t i = 0; i < m_stl->m_children.size(); i++) {
-	d = 1 + std::max(d, m_stl->m_children[i]->depth());
+	if (m_stl->m_children[i]) {
+	    d = 1 + std::max(d, m_stl->m_children[i]->depth());
+	}
     }
     return d;
 }
@@ -241,7 +247,9 @@ BBNode::getLeaves(std::list<const BBNode *> &out_leaves) const
 {
     if (!m_stl->m_children.empty()) {
 	for (size_t i = 0; i < m_stl->m_children.size(); i++) {
-	    m_stl->m_children[i]->getLeaves(out_leaves);
+	    if (m_stl->m_children[i]) {
+		m_stl->m_children[i]->getLeaves(out_leaves);
+	    }
 	}
     } else {
 	out_leaves.push_back(this);
@@ -252,6 +260,12 @@ BBNode::getLeaves(std::list<const BBNode *> &out_leaves) const
 const BBNode *
 BBNode::closer(const ON_3dPoint &pt, const BBNode *left, const BBNode *right) const
 {
+    if (!left) {
+	return right;
+    }
+    if (!right) {
+	return left;
+    }
     double ldist = pt.DistanceTo(left->m_estimate);
     double rdist = pt.DistanceTo(right->m_estimate);
     TRACE("\t" << ldist << " < " << rdist);
@@ -288,7 +302,8 @@ BBNode::getClosestPointEstimate(const ON_3dPoint &pt, ON_Interval &u, ON_Interva
 	/* ??? pass these in from SurfaceTree::surfaceBBox() to avoid
 	 * this recalculation?
 	 */
-	if (!surf->EvPoint(uvs[0][0], uvs[0][1], corners[0]) ||
+	if (!surf ||
+	    !surf->EvPoint(uvs[0][0], uvs[0][1], corners[0]) ||
 	    !surf->EvPoint(uvs[1][0], uvs[1][1], corners[1]) ||
 	    !surf->EvPoint(uvs[2][0], uvs[2][1], corners[2]) ||
 	    !surf->EvPoint(uvs[3][0], uvs[3][1], corners[3]))
@@ -316,7 +331,12 @@ BBNode::getClosestPointEstimate(const ON_3dPoint &pt, ON_Interval &u, ON_Interva
 	    const BBNode *closestNode = m_stl->m_children[0];
 	    for (size_t i = 1; i < m_stl->m_children.size(); i++) {
 		closestNode = closer(pt, closestNode, m_stl->m_children[i]);
-		TRACE("\t" << PT(closestNode->m_estimate));
+		if (closestNode) {
+		    TRACE("\t" << PT(closestNode->m_estimate));
+		}
+	    }
+	    if (!closestNode) {
+		throw std::exception();
 	    }
 	    return closestNode->getClosestPointEstimate(pt, u, v);
 	}
@@ -343,7 +363,9 @@ BBNode::getLeavesBoundingPoint(const ON_3dPoint &pt, std::list<const BBNode *> &
     } else {
 	int sum = 0;
 	for (size_t i = 0; i < m_stl->m_children.size(); i++) {
-	    sum += m_stl->m_children[i]->getLeavesBoundingPoint(pt, out);
+	    if (m_stl->m_children[i]) {
+		sum += m_stl->m_children[i]->getLeavesBoundingPoint(pt, out);
+	    }
 	}
 	return sum;
     }
@@ -375,6 +397,9 @@ BBNode::isTrimmed(const ON_2dPoint &uv, const BRNode **closest, double &closestt
 
 	    for (i = trims.begin(); i != trims.end(); i++) {
 		br = *i;
+		if (!br) {
+		    continue;
+		}
 
 		/* skip if trim below */
 		if (br->m_node.m_max[1] + within_distance_tol < uv[Y]) {
@@ -474,6 +499,9 @@ BBNode::getTrimsAbove(const ON_2dPoint &uv, std::list<const BRNode *> &out_leave
     double dist;
     for (std::list<const BRNode *>::const_iterator i = m_stl->m_trims_above.begin(); i != m_stl->m_trims_above.end(); i++) {
 	const BRNode *br = *i;
+	if (!br) {
+	    continue;
+	}
 	br->GetBBox(bmin, bmax);
 	dist = BREP_UV_DIST_FUZZ; /* 0.03*DIST_PNT_PNT(bmin, bmax); */
 	if ((uv[X] > bmin[X] - dist) && (uv[X] < bmax[X] + dist)) {
@@ -486,12 +514,17 @@ BBNode::getTrimsAbove(const ON_2dPoint &uv, std::list<const BRNode *> &out_leave
 void BBNode::BuildBBox()
 {
     if (!m_stl->m_children.empty()) {
-	for (std::vector<BBNode *>::const_iterator childnode = m_stl->m_children.begin(); childnode != m_stl->m_children.end(); childnode++) {
+	bool first = true;
+	for (std::vector<BBNode *>::const_iterator childnode = m_stl->m_children.begin(); childnode != m_stl->m_children.end(); ++childnode) {
+	    if (!*childnode) {
+		continue;
+	    }
 	    if (!(*childnode)->isLeaf()) {
 		(*childnode)->BuildBBox();
 	    }
-	    if (childnode == m_stl->m_children.begin()) {
+	    if (first) {
 		m_node = ON_BoundingBox((*childnode)->m_node.m_min, (*childnode)->m_node.m_max);
+		first = false;
 	    } else {
 		for (int j = 0; j < 3; j++) {
 		    V_MIN(m_node.m_min[j], (*childnode)->m_node.m_min[j]);
@@ -525,6 +558,10 @@ BBNode::prepTrims()
 	i = m_stl->m_trims_above.begin();
 	while (i != m_stl->m_trims_above.end()) {
 	    br = *i;
+	    if (!br) {
+		i = m_stl->m_trims_above.erase(i);
+		continue;
+	    }
 	    if (br->m_Vertical) { /* check V to see if trim possibly overlaps */
 		br->GetBBox(curvemin, curvemax);
 		if (curvemin[Y] - dist <= m_v[1]) {
@@ -549,6 +586,10 @@ BBNode::prepTrims()
 	} else if (!m_stl->m_trims_above.empty()) { /*trimmed above check contains */
 	    i = m_stl->m_trims_above.begin();
 	    br = *i;
+	    if (!br) {
+		bu_log("Error prepping trims: NULL trim\n");
+		return false;
+	    }
 	    br->GetBBox(curvemin, curvemax);
 	    dist = BREP_UV_DIST_FUZZ; /* 0.03*DIST_PNT_PNT(curvemin, curvemax); */
 	    if (curvemin[Y] - dist > m_v[1]) {
@@ -568,6 +609,10 @@ BBNode::prepTrims()
 		     */
 		    const BRNode *bs;
 		    bs = *i;
+		    if (!bs) {
+			m_checkTrim = true;
+			return true;
+		    }
 		    point_t smin, smax;
 		    bs->GetBBox(smin, smax);
 		    if ((smin[Y] >= curvemax[Y]) || (smin[X] >= curvemax[X]) || (smax[X] <= curvemin[X])) { /* can determine inside/outside without closer inspection */

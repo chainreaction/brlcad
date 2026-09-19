@@ -3187,8 +3187,11 @@ bool trim_GetClosestPoint3dFirstOrder(
 		   && ON_EvCurvature(firstDervative, secondDervative, T, K)) {
 		ON_Line line(point, point + 100.0 * T);
 		q = line.ClosestPointTo(p2d);
-		double delta_t = (firstDervative * (q - point))
-		    / (firstDervative * firstDervative);
+		double denom = (firstDervative * firstDervative);
+		if (NEAR_ZERO(denom, PBC_TOL)) {
+		    break;
+		}
+		double delta_t = (firstDervative * (q - point)) / denom;
 		double new_t0 = t0 + delta_t;
 		if (!span_interval[span_index].Includes(new_t0, false)) {
 		    // limit to interval
@@ -3377,9 +3380,11 @@ generateKnots(BSpline& bspline)
 int
 getKnotInterval(BSpline& bspline, double u)
 {
+    if (bspline.knots.empty()) return 0;
     int k = 0;
-    while (u >= bspline.knots[k]) k++;
-    k = (k == 0) ? k : k - 1;
+    int max_k = static_cast<int>(bspline.knots.size());
+    while (k < max_k && u >= bspline.knots[k]) k++;
+    k = (k == 0) ? 0 : (k >= max_k ? max_k - 1 : k - 1);
     return k;
 }
 
@@ -3388,6 +3393,9 @@ ON_NurbsCurve*
 interpolateLocalCubicCurve(ON_2dPointArray &Q)
 {
     int num_samples = Q.Count();
+    if (num_samples < 2) {
+	return NULL;
+    }
     int num_segments = Q.Count() - 1;
     int qsize = num_samples + 4;
     std::vector < ON_2dVector > qarray(qsize);
@@ -3408,10 +3416,11 @@ interpolateLocalCubicCurve(ON_2dPointArray &Q)
 	ON_3dVector a = ON_CrossProduct(qarray[k], qarray[k + 1]);
 	ON_3dVector b = ON_CrossProduct(qarray[k + 2], qarray[k + 3]);
 	double alength = a.Length();
-	if (NEAR_ZERO(alength, PBC_TOL)) {
+	double len_sum = alength + b.Length();
+	if (NEAR_ZERO(len_sum, PBC_TOL)) {
 	    A[k] = 1.0;
 	} else {
-	    A[k] = (a.Length()) / (a.Length() + b.Length());
+	    A[k] = alength / len_sum;
 	}
 	T[k] = (1.0 - A[k]) * qarray[k + 1] + A[k] * qarray[k + 2];
 	T[k].Unitize();
@@ -3433,7 +3442,15 @@ interpolateLocalCubicCurve(ON_2dPointArray &Q)
 	b = 12.0 * (dP0P3 * vT0T3);
 	c = -36.0 * dP0P3.Length() * dP0P3.Length();
 
-	double alpha = (-b + sqrt(b * b - 4.0 * a * c)) / (2.0 * a);
+	double alpha = 0.0;
+	double disc = b * b - 4.0 * a * c;
+	if (NEAR_ZERO(a, PBC_TOL)) {
+	    if (!NEAR_ZERO(b, PBC_TOL)) {
+		alpha = -c / b;
+	    }
+	} else if (disc >= 0.0) {
+	    alpha = (-b + sqrt(disc)) / (2.0 * a);
+	}
 
 	ON_2dPoint P1 = P0 + (1.0 / 3.0) * alpha * T0;
 	control_points.Append(P1);
@@ -3465,8 +3482,9 @@ interpolateLocalCubicCurve(ON_2dPointArray &Q)
     for (int i = 0; i < degree; i++) {
 	c->SetKnot(i, 0.0);
     }
+    double total_u = u[num_segments];
     for (int i = 1; i < num_segments; i++) {
-	double knot_value = u[i] / u[num_segments];
+	double knot_value = NEAR_ZERO(total_u, PBC_TOL) ? 0.0 : (u[i] / total_u);
 	c->SetKnot(degree + 2 * (i - 1), knot_value);
 	c->SetKnot(degree + 2 * (i - 1) + 1, knot_value);
     }
@@ -3487,6 +3505,9 @@ ON_NurbsCurve*
 interpolateLocalCubicCurve(const ON_3dPointArray &Q)
 {
     int num_samples = Q.Count();
+    if (num_samples < 2) {
+	return NULL;
+    }
     int num_segments = Q.Count() - 1;
     int qsize = num_samples + 3;
     std::vector<ON_3dVector> qarray(qsize + 1);
@@ -3508,10 +3529,11 @@ interpolateLocalCubicCurve(const ON_3dPointArray &Q)
 	ON_3dVector avec = ON_CrossProduct(q[k - 1], q[k]);
 	ON_3dVector bvec = ON_CrossProduct(q[k + 1], q[k + 2]);
 	double alength = avec.Length();
-	if (NEAR_ZERO(alength, PBC_TOL)) {
+	double len_sum = alength + bvec.Length();
+	if (NEAR_ZERO(len_sum, PBC_TOL)) {
 	    A[k] = 1.0;
 	} else {
-	    A[k] = (avec.Length()) / (avec.Length() + bvec.Length());
+	    A[k] = alength / len_sum;
 	}
 	T[k] = (1.0 - A[k]) * q[k] + A[k] * q[k + 1];
 	T[k].Unitize();
@@ -3533,7 +3555,15 @@ interpolateLocalCubicCurve(const ON_3dPointArray &Q)
 	b = 12.0 * (dP0P3 * vT0T3);
 	c = -36.0 * dP0P3.Length() * dP0P3.Length();
 
-	double alpha = (-b + sqrt(b * b - 4.0 * a * c)) / (2.0 * a);
+	double alpha = 0.0;
+	double disc = b * b - 4.0 * a * c;
+	if (NEAR_ZERO(a, PBC_TOL)) {
+	    if (!NEAR_ZERO(b, PBC_TOL)) {
+		alpha = -c / b;
+	    }
+	} else if (disc >= 0.0) {
+	    alpha = (-b + sqrt(disc)) / (2.0 * a);
+	}
 
 	ON_3dPoint P1 = P0 + (1.0 / 3.0) * alpha * T0;
 	control_points.Append(P1);
@@ -3561,8 +3591,9 @@ interpolateLocalCubicCurve(const ON_3dPointArray &Q)
     for (int i = 0; i < degree; i++) {
 	c->SetKnot(i, 0.0);
     }
+    double total_u = u[num_segments];
     for (int i = 1; i < num_segments; i++) {
-	double knot_value = u[i] / u[num_segments];
+	double knot_value = NEAR_ZERO(total_u, PBC_TOL) ? 0.0 : (u[i] / total_u);
 	c->SetKnot(degree + 2 * (i - 1), knot_value);
 	c->SetKnot(degree + 2 * (i - 1) + 1, knot_value);
     }
@@ -3790,7 +3821,7 @@ pullback_samples(PBCData* data,
     if (degree > 1) {
 	samplesperknotinterval = 3 * degree;
     } else {
-	samplesperknotinterval = 18 * degree;
+	samplesperknotinterval = (degree > 0) ? (18 * degree) : 18;
     }
     /* Project one parameter globally, then walk away from that anchor in both
      * directions using the adjacent UV as a Newton seed.  The former code ran
@@ -4546,7 +4577,7 @@ pullback_samples_from_closed_surface(PBCData* data,
     }
 
     size_t degree = curve->Degree();
-    size_t samplesperknotinterval=18*degree;
+    size_t samplesperknotinterval = (degree > 0) ? (18 * degree) : 18;
 
     ON_2dPoint pt;
     ON_2dPoint prev_pt;
@@ -5328,7 +5359,7 @@ refit_edge(const ON_BrepEdge* edge, double UNUSED(tolerance))
     if (degree > 1) {
 	samplesperknotinterval = 3 * degree;
     } else {
-	samplesperknotinterval = 18 * degree;
+	samplesperknotinterval = (degree > 0) ? (18 * degree) : 18;
     }
     double t = 0.0;
     ON_3dPoint pointOnCurve;
