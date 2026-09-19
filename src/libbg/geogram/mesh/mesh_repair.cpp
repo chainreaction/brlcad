@@ -64,8 +64,19 @@ namespace {
      */
     bool facet_is_degenerate(const Mesh& M, index_t f) {
         index_t nb_vertices = M.facets.nb_vertices(f);
+        if(nb_vertices < 3) {
+            return true;
+        }
         if(nb_vertices != 3) {
-            index_t* vertices = (index_t*)BRLCAD_ALLOCA(nb_vertices*sizeof(index_t));
+            size_t bytes = size_t(nb_vertices) * sizeof(index_t);
+            index_t* vertices = nullptr;
+            vector<index_t> vertices_vec;
+            if(bytes > 4096) {
+                vertices_vec.resize(nb_vertices);
+                vertices = vertices_vec.data();
+            } else {
+                vertices = (index_t*)BRLCAD_ALLOCA(bytes);
+            }
             for(index_t lv=0; lv<nb_vertices; ++lv) {
                 vertices[lv] = M.facets.vertex(f,lv);
             }
@@ -120,7 +131,15 @@ namespace {
         );
 
         // Assign corner-to-vertex links
-        index_t* f_vertex = (index_t*) BRLCAD_ALLOCA(sizeof(index_t) * d);
+        size_t d_bytes = size_t(d) * sizeof(index_t);
+        index_t* f_vertex = nullptr;
+        vector<index_t> f_vertex_vec;
+        if(d_bytes > 4096) {
+            f_vertex_vec.resize(d);
+            f_vertex = f_vertex_vec.data();
+        } else {
+            f_vertex = (index_t*) BRLCAD_ALLOCA(d_bytes);
+        }
         {
             index_t c = c_min;
             for(index_t i = 0; i < d; i++) {
@@ -141,8 +160,18 @@ namespace {
         // P[i]:     from where we fetch the attributes of the i-th corner
         // P_inv[i]: where we want to put the attributes of the i-th corner
 
-        index_t* P     = (index_t*) BRLCAD_ALLOCA(sizeof(index_t) * d);
-        index_t* P_inv = (index_t*) BRLCAD_ALLOCA(sizeof(index_t) * d);
+        index_t* P     = nullptr;
+        index_t* P_inv = nullptr;
+        vector<index_t> P_vec, P_inv_vec;
+        if(d_bytes > 4096) {
+            P_vec.resize(d);
+            P_inv_vec.resize(d);
+            P = P_vec.data();
+            P_inv = P_inv_vec.data();
+        } else {
+            P = (index_t*) BRLCAD_ALLOCA(d_bytes);
+            P_inv = (index_t*) BRLCAD_ALLOCA(d_bytes);
+        }
         {
             index_t cur = c_min - c0;
             for(index_t i=0; i<d; ++i) {
@@ -460,6 +489,9 @@ namespace {
      * \param[in] M the mesh to repair
      */
     void repair_connect_facets(Mesh& M) {
+        if(M.vertices.nb() == 0 || M.facets.nb() == 0) {
+            return;
+        }
         const index_t NON_MANIFOLD=index_t(-2);
 
         // Reset all facet-facet adjacencies.
@@ -487,8 +519,10 @@ namespace {
         // Compute v2c and next_c_around_v
         for(index_t c: M.facet_corners) {
             index_t v = M.facet_corners.vertex(c);
-            next_c_around_v[c] = v2c[v];
-            v2c[v] = c;
+            if(v < M.vertices.nb()) {
+                next_c_around_v[c] = v2c[v];
+                v2c[v] = c;
+            }
         }
 
         // Compute f2c (only if M is not triangulated,
@@ -496,7 +530,9 @@ namespace {
         if(!M.facets.are_simplices()) {
             for(index_t f: M.facets) {
                 for(index_t c: M.facets.corners(f)) {
-                    c2f[c]=f;
+                    if(c < c2f.size()) {
+                        c2f[c]=f;
+                    }
                 }
             }
         }
@@ -509,34 +545,39 @@ namespace {
                     index_t v2=M.facet_corners.vertex(
                         M.facets.next_corner_around_facet(f1,c1)
                     );
+                    if(v1 >= M.vertices.nb() || v2 >= M.vertices.nb()) {
+                        continue;
+                    }
 
                     index_t c2 = v2c[v1];
 
                     // Lookup candidate adjacent edges from incident
                     // edges list.
-                    while(c2 != NO_CORNER) {
+                    while(c2 != NO_CORNER && c2 < M.facet_corners.nb()) {
                         if(c2 != c1) {
                             index_t f2 =
-                                M.facets.are_simplices() ? c2/3 : c2f[c2];
-                            index_t c3 =
-                                M.facets.prev_corner_around_facet(f2,c2);
-                            index_t v3 = M.facet_corners.vertex(c3);
-                            // Check with standard orientation.
-                            if(v3 == v2) {
-                                if(adj_corner == NO_CORNER) {
-                                    adj_corner = c3;
-                                } else {
-                                    adj_corner = NON_MANIFOLD;
-                                }
-                            } else {
-                                // Check with the other ("wrong") orientation
-                                c3 = M.facets.next_corner_around_facet(f2,c2);
-                                v3 = M.facet_corners.vertex(c3);
+                                M.facets.are_simplices() ? c2/3 : (c2 < c2f.size() ? c2f[c2] : NO_FACET);
+                            if(f2 != NO_FACET && f2 < M.facets.nb()) {
+                                index_t c3 =
+                                    M.facets.prev_corner_around_facet(f2,c2);
+                                index_t v3 = M.facet_corners.vertex(c3);
+                                // Check with standard orientation.
                                 if(v3 == v2) {
                                     if(adj_corner == NO_CORNER) {
-                                        adj_corner = c2;
+                                        adj_corner = c3;
                                     } else {
                                         adj_corner = NON_MANIFOLD;
+                                    }
+                                } else {
+                                    // Check with the other ("wrong") orientation
+                                    c3 = M.facets.next_corner_around_facet(f2,c2);
+                                    v3 = M.facet_corners.vertex(c3);
+                                    if(v3 == v2) {
+                                        if(adj_corner == NO_CORNER) {
+                                            adj_corner = c2;
+                                        } else {
+                                            adj_corner = NON_MANIFOLD;
+                                        }
                                     }
                                 }
                             }
@@ -550,7 +591,7 @@ namespace {
                         M.facet_corners.set_adjacent_facet(adj_corner,f1);
                         index_t f2 = M.facets.are_simplices() ?
                             adj_corner/3 :
-                            c2f[adj_corner] ;
+                            (adj_corner < c2f.size() ? c2f[adj_corner] : NO_FACET);
                         M.facet_corners.set_adjacent_facet(c1,f2);
                     }
                 }
@@ -644,7 +685,7 @@ namespace {
                     nb_minus++;
                     break;
                 case 0:
-                    geo_assert_not_reached;
+                    break;
                 }
             }
         }
@@ -790,7 +831,7 @@ namespace {
                     return result;
                 }
             }
-            geo_assert_not_reached;
+            return NO_INDEX;
         }
 
         /**
@@ -881,7 +922,7 @@ namespace {
                 return c;
             }
         }
-        geo_assert_not_reached;
+        return NO_CORNER;
     }
 
     /**
@@ -903,7 +944,7 @@ namespace {
                     index_t cur_c = c;
                     index_t old_v = M.facet_corners.vertex(c);
                     index_t new_v = old_v;
-                    if(v_is_used[old_v]) {
+                    if(old_v < v_is_used.size() && v_is_used[old_v]) {
                         new_v = nb_vertices;
                         nb_vertices++;
                         for(
@@ -914,7 +955,7 @@ namespace {
                                 M.vertices.point_ptr(old_v)[coord]
                             );
                         }
-                    } else {
+                    } else if(old_v < v_is_used.size()) {
                         v_is_used[old_v] = true;
                     }
 
@@ -930,8 +971,13 @@ namespace {
                             break;
                         }
                         cur_c = find_corner(M, index_t(cur_f), old_v);
+                        if(cur_c == NO_CORNER) {
+                            break;
+                        }
                         count++;
-                        geo_assert(count < 10000);
+                        if(count >= 10000) {
+                            break;
+                        }
                     }
 
                     if(cur_f == NO_FACET) {
@@ -947,20 +993,25 @@ namespace {
                                 break;
                             }
                             cur_c = find_corner(M, index_t(cur_f), old_v);
+                            if(cur_c == NO_CORNER) {
+                                break;
+                            }
                             c_is_visited[cur_c] = true;
                             // cannot use corners.set_vertex
                             // since size is not updated yet
                             // (would generate an assertion fail).
                             M.facet_corners.set_vertex_no_check(cur_c,new_v);
                             count++;
-                            geo_assert(count < 10000);
+                            if(count >= 10000) {
+                                break;
+                            }
                         }
                     }
                 }
             }
         }
 
-        if(new_vertices.size() != 0) {
+        if(new_vertices.size() != 0 && M.vertices.dimension() > 0) {
             if(verbose) {
             }
             index_t first_v = M.vertices.create_vertices(
@@ -1093,19 +1144,31 @@ namespace GEOBRL {
 
         // Replace vertex indices for edges
         for(index_t e: M.edges) {
-            M.edges.set_vertex(e, 0, old2new[M.edges.vertex(e,0)]);
-            M.edges.set_vertex(e, 1, old2new[M.edges.vertex(e,1)]);
+            index_t v0 = M.edges.vertex(e,0);
+            index_t v1 = M.edges.vertex(e,1);
+            if(v0 < old2new.size()) {
+                M.edges.set_vertex(e, 0, old2new[v0]);
+            }
+            if(v1 < old2new.size()) {
+                M.edges.set_vertex(e, 1, old2new[v1]);
+            }
         }
 
         // Replace vertex indices for facets
         for(index_t c: M.facet_corners) {
-            M.facet_corners.set_vertex(c, old2new[M.facet_corners.vertex(c)]);
+            index_t v = M.facet_corners.vertex(c);
+            if(v < old2new.size()) {
+                M.facet_corners.set_vertex(c, old2new[v]);
+            }
         }
 
         // Replace vertex indices for cells
         for(index_t ce: M.cells) {
             for(index_t c: M.cells.corners(ce)) {
-                M.cell_corners.set_vertex(c, old2new[M.cell_corners.vertex(c)]);
+                index_t v = M.cell_corners.vertex(c);
+                if(v < old2new.size()) {
+                    M.cell_corners.set_vertex(c, old2new[v]);
+                }
             }
         }
 
@@ -1145,14 +1208,19 @@ namespace GEOBRL {
             index_t b=0;
             index_t e=0;
             while(b < new_polygons.size()) {
-                while(new_polygons[e] != NO_INDEX) {
+                while(e < new_polygons.size() && new_polygons[e] != NO_INDEX) {
                     ++e;
                 }
+                if(e <= b) {
+                    break;
+                }
                 index_t new_f = M.facets.create_polygon(e-b);
-                M.facets.attributes().copy_item(
-                    new_f, old_polygons[current_old_polygon]
-                );
-                ++current_old_polygon;
+                if(current_old_polygon < old_polygons.size()) {
+                    M.facets.attributes().copy_item(
+                        new_f, old_polygons[current_old_polygon]
+                    );
+                    ++current_old_polygon;
+                }
                 // We created a new facet that we want to keep !!
                 remove_f.push_back(0);
                 for(index_t lv=0; lv<e-b; ++lv) {

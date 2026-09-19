@@ -65,6 +65,9 @@ namespace {
      *  the origin
      */
     double signed_volume(const Mesh& M, index_t f) {
+        if(M.vertices.dimension() < 3) {
+            return 0.0;
+        }
         double result = 0;
 	for(const auto& [ ng1, ng2, ng3] : M.facets.triangle_points(f)) {
 	    const vec3& p1=as_gte<3>(ng1); const vec3& p2=as_gte<3>(ng2); const vec3& p3=as_gte<3>(ng3);
@@ -83,13 +86,21 @@ namespace GEOBRL {
     void remove_small_connected_components(
         Mesh& M, double min_area, index_t min_facets
     ) {
+        if(M.facets.nb() == 0 || M.vertices.dimension() < 3) {
+            return;
+        }
         vector<index_t> component;
         index_t nb_components = get_connected_components(M, component);
+        if(nb_components == 0) {
+            return;
+        }
         vector<double> comp_area(nb_components, 0.0);
         vector<index_t> comp_facets(nb_components, 0);
         for(index_t f: M.facets) {
-            comp_area[component[f]] += Geom::mesh_facet_area(M, f, 3);
-            ++comp_facets[component[f]];
+            if(component[f] < nb_components) {
+                comp_area[component[f]] += Geom::mesh_facet_area(M, f, 3);
+                ++comp_facets[component[f]];
+            }
         }
 
         index_t nb_remove = 0;
@@ -105,11 +116,13 @@ namespace GEOBRL {
 
         vector<index_t> remove_f(M.facets.nb(), 0);
         for(index_t f: M.facets) {
-            if(
-                comp_area[component[f]] < min_area ||
-                comp_facets[component[f]] < min_facets
-            ) {
-                remove_f[f] = 1;
+            if(component[f] < nb_components) {
+                if(
+                    comp_area[component[f]] < min_area ||
+                    comp_facets[component[f]] < min_facets
+                ) {
+                    remove_f[f] = 1;
+                }
             }
         }
         M.facets.delete_elements(remove_f);
@@ -118,14 +131,22 @@ namespace GEOBRL {
     // ============== orient_normals ========================================
 
     void orient_normals(Mesh& M) {
+        if(M.facets.nb() == 0 || M.vertices.dimension() < 3) {
+            return;
+        }
         vector<index_t> component;
         index_t nb_components = get_connected_components(M, component);
+        if(nb_components == 0) {
+            return;
+        }
         vector<double> comp_signed_volume(nb_components, 0.0);
         for(index_t f: M.facets) {
-            comp_signed_volume[component[f]] += signed_volume(M, f);
+            if(component[f] < nb_components) {
+                comp_signed_volume[component[f]] += signed_volume(M, f);
+            }
         }
         for(index_t f: M.facets) {
-            if(comp_signed_volume[component[f]] < 0.0) {
+            if(component[f] < nb_components && comp_signed_volume[component[f]] < 0.0) {
                 M.facets.flip(f);
             }
         }

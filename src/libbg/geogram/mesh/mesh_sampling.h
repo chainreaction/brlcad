@@ -70,21 +70,25 @@ namespace GEOBRL {
         index_t f,
         Attribute<double>& vertex_weight
     ) {
-        geo_debug_assert(mesh.facets.are_simplices());
-        geo_debug_assert(mesh.vertices.dimension() >= DIM);
+        if(f >= mesh.facets.nb() || mesh.facets.nb_vertices(f) < 3 || mesh.vertices.dimension() < DIM) {
+            return 0.0;
+        }
 
         index_t v1 = mesh.facets.vertex(f,0);
         index_t v2 = mesh.facets.vertex(f,1);
         index_t v3 = mesh.facets.vertex(f,2);
 
         if(vertex_weight.is_bound()) {
+            double w1 = (v1 < vertex_weight.size()) ? vertex_weight[v1] : 1.0;
+            double w2 = (v2 < vertex_weight.size()) ? vertex_weight[v2] : 1.0;
+            double w3 = (v3 < vertex_weight.size()) ? vertex_weight[v3] : 1.0;
             return Geom::triangle_mass(
 		mesh.vertices.point<DIM>(v1),
 		mesh.vertices.point<DIM>(v2),
 		mesh.vertices.point<DIM>(v3),
-                vertex_weight[v1],
-                vertex_weight[v2],
-                vertex_weight[v3]
+                w1,
+                w2,
+                w3
             );
         }
         return Geom::triangle_area(
@@ -124,9 +128,10 @@ namespace GEOBRL {
         index_t facets_begin_in = NO_INDEX,
         index_t facets_end_in = NO_INDEX
     ) {
-        geo_assert(mesh.facets.are_simplices());
-        geo_assert(mesh.vertices.dimension() >= DIM);
-        geo_assert(mesh.facets.nb() > 0);
+        if(!p || nb_points == 0 || mesh.facets.nb() == 0 ||
+           !mesh.facets.are_simplices() || mesh.vertices.dimension() < DIM) {
+            return false;
+        }
 
         index_t facets_begin = 0;
         index_t facets_end = mesh.facets.nb();
@@ -135,6 +140,9 @@ namespace GEOBRL {
         }
         if(facets_end_in != NO_INDEX) {
             facets_end = facets_end_in;
+        }
+        if(facets_begin >= facets_end || facets_end > mesh.facets.nb()) {
+            return false;
         }
 
         typedef vecng<DIM, double> Point;
@@ -153,6 +161,9 @@ namespace GEOBRL {
         for(index_t t = facets_begin; t < facets_end; ++t) {
             double At = mesh_facet_mass<DIM>(mesh, t, weight);
             Atot += At;
+        }
+        if(Atot <= 0.0) {
+            return false;
         }
 
         index_t first_t = NO_INDEX;
@@ -209,7 +220,9 @@ namespace GEOBRL {
         const Mesh& mesh,
         index_t t
     ) {
-        geo_debug_assert(mesh.vertices.dimension() >= DIM);
+        if(t >= mesh.cells.nb() || mesh.cells.nb_vertices(t) < 4 || mesh.vertices.dimension() < DIM) {
+            return 0.0;
+        }
 
         double result = Geom::tetra_volume(
 	    mesh.cells.point<DIM>(t,0),
@@ -239,14 +252,16 @@ namespace GEOBRL {
     ) {
         double result = mesh_tetra_mass<DIM>(mesh, t);
 
-        if(weight.is_bound()) {
+        if(weight.is_bound() && t < mesh.cells.nb() && mesh.cells.nb_vertices(t) >= 4) {
             index_t v0 = mesh.cells.vertex(t, 0);
             index_t v1 = mesh.cells.vertex(t, 1);
             index_t v2 = mesh.cells.vertex(t, 2);
             index_t v3 = mesh.cells.vertex(t, 3);
-            result *= (
-		weight[v0] + weight[v1] + weight[v2] + weight[v3]
-	    ) / 4.0;
+            double w0 = (v0 < weight.size()) ? weight[v0] : 1.0;
+            double w1 = (v1 < weight.size()) ? weight[v1] : 1.0;
+            double w2 = (v2 < weight.size()) ? weight[v2] : 1.0;
+            double w3 = (v3 < weight.size()) ? weight[v3] : 1.0;
+            result *= (w0 + w1 + w2 + w3) / 4.0;
         }
 
         return result;
@@ -281,8 +296,9 @@ namespace GEOBRL {
         index_t tets_begin_in = NO_INDEX,
         index_t tets_end_in = NO_INDEX
     ) {
-        geo_assert(mesh.vertices.dimension() >= DIM);
-        geo_assert(mesh.cells.nb() > 0);
+        if(!p || nb_points == 0 || mesh.cells.nb() == 0 || mesh.vertices.dimension() < DIM) {
+            return false;
+        }
 
         index_t tets_begin = 0;
         index_t tets_end = mesh.cells.nb();
@@ -291,6 +307,9 @@ namespace GEOBRL {
         }
         if(tets_end_in != NO_INDEX) {
             tets_end = tets_end_in;
+        }
+        if(tets_begin >= tets_end || tets_end > mesh.cells.nb()) {
+            return false;
         }
 
         typedef vecng<DIM, double> Point;
@@ -309,6 +328,9 @@ namespace GEOBRL {
         for(index_t t = tets_begin; t < tets_end; ++t) {
             double Vt = mesh_tetra_mass<DIM>(mesh, t, vertex_weight);
             Vtot += Vt;
+        }
+        if(Vtot <= 0.0) {
+            return false;
         }
 
         index_t first_t = NO_INDEX;

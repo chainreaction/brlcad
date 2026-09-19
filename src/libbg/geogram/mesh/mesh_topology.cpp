@@ -48,6 +48,10 @@ namespace GEOBRL {
     index_t get_connected_components(
         const Mesh& M, vector<index_t>& component
     ) {
+        if(M.facets.nb() == 0) {
+            component.clear();
+            return 0;
+        }
         index_t nb_components = 0;
         component.assign(M.facets.nb(), NO_INDEX);
         for(index_t f: M.facets) {
@@ -59,7 +63,7 @@ namespace GEOBRL {
                     index_t cur_f = S.top();
                     S.pop();
                     for(index_t adj_f: M.facets.adjacent(cur_f)) {
-                        if(adj_f != NO_FACET && component[adj_f] == NO_INDEX) {
+                        if(adj_f != NO_FACET && adj_f < M.facets.nb() && component[adj_f] == NO_INDEX) {
                             S.push(index_t(adj_f));
                             component[adj_f] = nb_components;
                         }
@@ -74,6 +78,9 @@ namespace GEOBRL {
     index_t GEOBRLCAD_API get_connected_components(
         const Mesh& M, Attribute<index_t>& component
     ) {
+        if(!component.is_bound() || component.size() < M.facets.nb() || M.facets.nb() == 0) {
+            return 0;
+        }
         index_t nb_components = 0;
 	for(index_t f: M.facets) {
 	    component[f] = NO_INDEX;
@@ -87,7 +94,7 @@ namespace GEOBRL {
                     index_t cur_f = S.top();
                     S.pop();
                     for(index_t adj_f: M.facets.adjacent(cur_f)) {
-                        if(adj_f != NO_FACET && component[adj_f] == NO_INDEX) {
+                        if(adj_f != NO_FACET && adj_f < M.facets.nb() && component[adj_f] == NO_INDEX) {
                             S.push(index_t(adj_f));
                             component[adj_f] = nb_components;
                         }
@@ -97,6 +104,5 @@ namespace GEOBRL {
             }
         }
         return nb_components;
-
-}
+    }
 }

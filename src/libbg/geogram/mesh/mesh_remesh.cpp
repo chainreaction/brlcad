@@ -76,6 +76,11 @@ namespace GEOBRL {
 
         geo_argused(dim);
 
+        if(M_in.vertices.nb() == 0 || M_in.facets.nb() == 0) {
+            M_out.clear();
+            return;
+        }
+
         CentroidalVoronoiTesselation CVT(&M_in, opts);
 
         if(nb_points == 0) {
@@ -123,7 +128,12 @@ namespace GEOBRL {
     inline void get_quad_middle_segment(
         const MeshFacetsAABB& AABB, index_t f, vec3& q1, vec3& q2
     ) {
-        geo_assert(AABB.mesh()->facets.nb_vertices(f) == 4);
+        if(!AABB.mesh() || AABB.mesh()->facets.nb_vertices(f) < 4 ||
+           AABB.mesh()->vertices.dimension() < 3) {
+            q1 = vec3{0.0, 0.0, 0.0};
+            q2 = vec3{0.0, 0.0, 0.0};
+            return;
+        }
 	vec3 p1 = as_gte<3>(AABB.mesh()->facets.point(f,0));
 	vec3 p2 = as_gte<3>(AABB.mesh()->facets.point(f,1));
 	vec3 p3 = as_gte<3>(AABB.mesh()->facets.point(f,2));
@@ -149,6 +159,9 @@ namespace GEOBRL {
     ) {
         vec3 p = R1.origin;
         vec3 result = p;
+        if(!AABB.mesh() || AABB.mesh()->facets.nb() == 0) {
+            return result;
+        }
         Ray R2(R1.origin, -R1.direction);
         MeshFacetsAABB::Intersection I1;
         MeshFacetsAABB::Intersection I2;
@@ -203,6 +216,9 @@ namespace GEOBRL {
         Mesh& ribbon,
         double height
     ) {
+        if(M.vertices.dimension() < 3 || M.vertices.nb() == 0 || M.facets.nb() == 0) {
+            return;
+        }
         index_t nb_border_edges=0;
         vector<vec3> Nv(M.vertices.nb(), vec3{0.0, 0.0, 0.0});
         for(index_t f: M.facets) {
@@ -212,9 +228,11 @@ namespace GEOBRL {
                     index_t c2 = M.facets.next_corner_around_facet(f, c1);
                     index_t v1 = M.facet_corners.vertex(c1);
                     index_t v2 = M.facet_corners.vertex(c2);
-                    Nv[v1] += N;
-                    Nv[v2] += N;
-                    ++nb_border_edges;
+                    if(v1 < M.vertices.nb() && v2 < M.vertices.nb()) {
+                        Nv[v1] += N;
+                        Nv[v2] += N;
+                        ++nb_border_edges;
+                    }
                 }
             }
         }
@@ -230,11 +248,14 @@ namespace GEOBRL {
                     index_t c2 = M.facets.next_corner_around_facet(f, c1);
                     index_t v1 = M.facet_corners.vertex(c1);
                     index_t v2 = M.facet_corners.vertex(c2);
+                    if(v1 >= M.vertices.nb() || v2 >= M.vertices.nb()) {
+                        continue;
+                    }
                     const vec3& p1 = as_gte<3>(M.vertices.point(v1));
                     const vec3& p2 = as_gte<3>(M.vertices.point(v2));
 
-                    vec3 U1 = 0.5*height * normalize(Nv[v1]);
-                    vec3 U2 = 0.5*height * normalize(Nv[v2]);
+                    vec3 U1 = 0.5*height * (length2(Nv[v1]) > 0.0 ? normalize(Nv[v1]) : vec3{0.0, 0.0, 0.0});
+                    vec3 U2 = 0.5*height * (length2(Nv[v2]) > 0.0 ? normalize(Nv[v2]) : vec3{0.0, 0.0, 0.0});
 
                     vec3 q1 = p1 + U1;
                     vec3 q2 = p2 + U2;
@@ -265,6 +286,11 @@ namespace GEOBRL {
         bool project_borders,
 	double border_importance
     ) {
+        if(surface.vertices.nb() == 0 || reference.facets.nb() == 0 ||
+           surface.vertices.dimension() < 3 || reference.vertices.dimension() < 3) {
+            return;
+        }
+
         // The algorithm:
         // 1) For each surface vertex v (located at Pv) with normal Nv,
         //    we determine a "target point" Qv as the intersection between
@@ -448,6 +474,9 @@ namespace GEOBRL {
         // all vertices of the facet
         for(index_t f: surface.facets) {
             index_t d = surface.facets.nb_vertices(f);
+            if(d == 0) {
+                continue;
+            }
 
             vec3 Nf{0.0, 0.0, 0.0};
             vec3 Pf;
@@ -455,9 +484,11 @@ namespace GEOBRL {
 
             for(index_t lv=0; lv<d; ++lv) {
                 index_t v= surface.facets.vertex(f,lv);
-                Nf += Nv[v];
-                Pf += as_gte<3>(surface.vertices.point(v));
-                Lf += Lv[v];
+                if(v < surface.vertices.nb()) {
+                    Nf += Nv[v];
+                    Pf += as_gte<3>(surface.vertices.point(v));
+                    Lf += Lv[v];
+                }
             }
             Pf = (1.0 / double(d))*Pf;
             Lf = (1.0 / double(d))*Lf;
@@ -472,7 +503,9 @@ namespace GEOBRL {
                 nlBegin(NL_ROW);
                 for(index_t lv=0; lv<d; ++lv) {
                     index_t v = surface.facets.vertex(f,lv);
-                    nlCoefficient(v,Nv[v][c]/double(d));
+                    if(v < surface.vertices.nb()) {
+                        nlCoefficient(v,Nv[v][c]/double(d));
+                    }
                 }
                 nlRightHandSide(Qf[c]-Pf[c]);
                 nlEnd(NL_ROW);

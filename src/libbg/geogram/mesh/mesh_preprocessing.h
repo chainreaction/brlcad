@@ -74,7 +74,7 @@ namespace GEOBRL {
     void GEOBRLCAD_API remove_small_connected_components(
         Mesh& M,
         double min_component_area,
-        index_t min_component_facets = 0.0
+        index_t min_component_facets = 0
     );
 
     /**

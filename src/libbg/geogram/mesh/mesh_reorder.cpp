@@ -283,12 +283,17 @@ namespace {
          * \return the coordinate at the center of facet \p f
          */
         double center(index_t f) const {
+            index_t nb_v = mesh_.facets.nb_vertices(f);
+            if(nb_v == 0) {
+                return 0.0;
+            }
             double result = 0.0;
-            double s = 1.0 / double(mesh_.facets.nb_vertices(f));
+            double s = 1.0 / double(nb_v);
             for(index_t c: mesh_.facets.corners(f)) {
-                result += s*mesh_.vertices.point_ptr(
-                    mesh_.facet_corners.vertex(c)
-                )[COORD];
+                index_t v = mesh_.facet_corners.vertex(c);
+                if(v < mesh_.vertices.nb()) {
+                    result += s*mesh_.vertices.point_ptr(v)[COORD];
+                }
             }
             return result;
         }
@@ -427,10 +432,16 @@ namespace {
          */
         double center(index_t t) const {
             double result = 0.0;
-            for(index_t lv = 0; lv < 4; ++lv) {
-                result += mesh_.vertices.point_ptr(
-                    mesh_.cells.vertex(t, lv)
-                )[COORD];
+            index_t nb_v = mesh_.cells.nb_vertices(t);
+            index_t count = std::min(nb_v, index_t(4));
+            if(count == 0) {
+                return 0.0;
+            }
+            for(index_t lv = 0; lv < count; ++lv) {
+                index_t v = mesh_.cells.vertex(t, lv);
+                if(v < mesh_.vertices.nb()) {
+                    result += mesh_.vertices.point_ptr(v)[COORD];
+                }
             }
             return result;
         }
@@ -568,13 +579,18 @@ namespace {
          * \return the coordinate at the center of cell \p c
          */
         double center(index_t c) const {
-            double result = 0.0;
-            for(index_t lv = 0; lv < mesh_.cells.nb_vertices(c); ++lv) {
-                result += mesh_.vertices.point_ptr(
-                    mesh_.cells.vertex(c, lv)
-                )[COORD];
+            index_t nb_v = mesh_.cells.nb_vertices(c);
+            if(nb_v == 0) {
+                return 0.0;
             }
-            return result / double(mesh_.cells.nb_vertices(c));
+            double result = 0.0;
+            for(index_t lv = 0; lv < nb_v; ++lv) {
+                index_t v = mesh_.cells.vertex(c, lv);
+                if(v < mesh_.vertices.nb()) {
+                    result += mesh_.vertices.point_ptr(v)[COORD];
+                }
+            }
+            return result / double(nb_v);
         }
 
     private:
@@ -921,10 +937,7 @@ namespace {
         ) :
             M_(M)
             {
-                geo_debug_assert(e > b);
-
-                // If the sequence is smaller than the limit, skip it
-                if(index_t(e - b) <= limit) {
+                if(b >= e || index_t(e - b) <= limit) {
                     return;
                 }
                 sort<0, false, false>(M_, b, e);
@@ -1105,7 +1118,9 @@ namespace GEOBRL {
 
     void mesh_reorder(Mesh& M, MeshOrder order) {
 
-        geo_assert(M.vertices.dimension() >= 3);
+        if(M.vertices.dimension() < 3 || M.vertices.nb() == 0) {
+            return;
+        }
 
         // Step 1: reorder vertices
         {
@@ -1154,7 +1169,10 @@ namespace GEOBRL {
 	const Mesh& M, MeshElementsFlags elements,
 	vector<index_t>& sorted_indices, MeshOrder order
     ) {
-	geo_assert(M.vertices.dimension() >= 3);
+	if(M.vertices.dimension() < 3) {
+            sorted_indices.clear();
+            return;
+        }
 	switch(elements) {
 	case MESH_VERTICES: {
             switch(order) {
