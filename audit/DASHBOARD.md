@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-19 09:15:00 UTC
+**Last Updated:** 2026-09-19 09:30:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 397 (11.4%)
-- **Files Pending Review:** 3096
-- **Total Issues Identified:** 215
+- **Files Reviewed:** 420 (12.0%)
+- **Files Pending Review:** 3073
+- **Total Issues Identified:** 219
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
-| **3 (High)** | 21 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 147 | Possible exploit or crash under specific circumstances |
+| **3 (High)** | 22 | Likely exploit or crash potential; widespread/library exposure |
+| **2 (Medium)** | 150 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 47 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 214
+- **Fixed (Committed):** 218
 - **Pending Verification:** 1
 - **Disproven:** 0
 
@@ -84,7 +84,7 @@
 | `src/isst` | 9 | 0 | 0.0% | 0 |
 | `src/launcher` | 8 | 0 | 0.0% | 0 |
 | `src/libanalyze` | 40 | 0 | 0.0% | 0 |
-| `src/libbg` | 232 | 157 | 67.7% | 69 |
+| `src/libbg` | 232 | 180 | 77.6% | 73 |
 | `src/libbn` | 41 | 41 | 100.0% | 31 |
 | `src/libbrep` | 50 | 0 | 0.0% | 0 |
 | `src/libbu` | 176 | 176 | 100.0% | 101 |
@@ -332,3 +332,7 @@
 | `SEC-0213` | **Sev 2** | Stack Exhaustion & Unbounded Allocation | `src/libbg/geogram/points/colocate.cpp:colocate.cpp:85-150` | `FIXED` | In Colocate::find_nearest_neighbors, unbounded BRLCAD_ALLOCA was invoked per point for neighbor query arrays based on requested neighbor counts, creating risk of stack overflow on large neighbor queries. |
 | `SEC-0214` | **Sev 3** | Uninitialized Memory, Out-of-Bounds Access & Infinite Recursion | `src/libbg/geogram/points/kd_tree.cpp, src/libbg/geogram/points/kd_tree.h:kd_tree.h:110-145; kd_tree.cpp:180-260, 410-480, 520-600` | `FIXED` | In kd_tree.h, KdTree::NearestNeighbors constructor initialized loop condition with nb_neighbors (which was 0) instead of nb_neighbors_max, leaving neighbor index and distance arrays uninitialized and leaking memory to user callers via copy_to_user(). In kd_tree.cpp, AdaptiveKdTree::split_kd_node failed to clamp split point m, resulting in child nodes duplicating parent intervals [b, e) and causing infinite recursion and call stack exhaustion. KdTree::get_nearest_neighbors_leaf used fixed-size stack arrays local_idx[MAX_LEAF_SIZE] without checking e - b <= MAX_LEAF_SIZE. BalancedKdTree::get_node and AdaptiveKdTree::get_node lacked bounds checks on node index n. |
 | `SEC-0215` | **Sev 2** | Out-of-Bounds Access & Assertion Abort | `src/libbg/geogram/points/nn_search.cpp, src/libbg/geogram/points/nn_search.h:nn_search.h:70-90; nn_search.cpp:45-75` | `FIXED` | In nn_search.cpp (get_nearest_neighbors), query point index q_index was not validated against nb_points(), risking out-of-bounds point access. In nn_search.h (get_nearest_neighbor), geo_assert(result < nb_points()) triggered process abort when no neighbors were found on empty point sets instead of returning NO_INDEX. |
+| `SEC-0216` | **Sev 3** | Memory Corruption & Heap Buffer Under-Allocation | `src/libbg/geogram/numerics/multi_precision.cpp, src/libbg/geogram/numerics/multi_precision.h:multi_precision.h:115-125; multi_precision.cpp:80-145, 595-610` | `FIXED` | In multi_precision.cpp, Pools allocator used slot sizes smaller than sizeof(void*) on 64-bit platforms, causing heap corruption when casting to freelist pointers; missing null check in free; missing integer overflow guard on expansion capacity. |
+| `SEC-0217` | **Sev 2** | Out-of-Bounds Memory Access & Integer Underflow | `src/libbg/geogram/numerics/multi_precision.cpp:multi_precision.cpp:215-230, 240-275, 305-330, 680-720` | `FIXED` | In multi_precision.cpp, compress_expansion underflowed index m on lengths <= 1, causing out-of-bounds heap memory access; scale_expansion_zeroelim, fast_expansion_sum_zeroelim, fast_expansion_diff_zeroelim read out-of-bounds on zero-length expansions; assign_sq_dist and assign_dot_at underflowed dimension dim == 0 causing infinite recursion. |
+| `SEC-0218` | **Sev 2** | Assertion Failure Denial-of-Service Crashes | `src/libbg/geogram/numerics/predicates.cpp, src/libbg/geogram/numerics/PCK.h:PCK.h:170-175; predicates.cpp:445-460, 620-635, 960-975, 1130-1145, 1395-1410, 1535-1550` | `FIXED` | In predicates.cpp, exact predicate implementations aborted via SIGABRT on geo_assert(Delta_sign != ZERO) on degenerate/collinear inputs instead of gracefully returning ZERO; PCK.h SOS() asserted on invalid mode. |
+| `SEC-0219` | **Sev 2** | Mathematical Logic Flaw & Missing Pointer Validation | `src/libbg/geogram/numerics/predicates.cpp, src/libbg/geogram/numerics/predicates.h, src/libbg/geogram/numerics/PCK.cpp:PCK.cpp:25-35; predicates.h:260-275; predicates.cpp:1640-2260` | `FIXED` | In predicates.cpp (PCK::dot_3d), det_3d_filter was erroneously invoked instead of dot_3d_filter; geometric predicates lacked null pointer checks on double* coordinate inputs; percent() lacked division by zero protection. |

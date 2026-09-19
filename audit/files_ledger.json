@@ -12,10 +12,10 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 397,
-    "pending_files": 3096,
-    "last_updated": "2026-09-19T05:15:00Z",
-    "total_issues": 215
+    "reviewed_files": 420,
+    "pending_files": 3073,
+    "last_updated": "2026-09-19T05:30:00Z",
+    "total_issues": 219
   },
   "files": [
     {
@@ -14335,48 +14335,57 @@
       "path": "src/libbg/geogram/numerics/PCK.cpp",
       "subsystem": "src/libbg",
       "lines": 97,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0219"
+      ]
     },
     {
       "id": 1420,
       "path": "src/libbg/geogram/numerics/PCK.h",
       "subsystem": "src/libbg",
       "lines": 219,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0218"
+      ]
     },
     {
       "id": 1421,
       "path": "src/libbg/geogram/numerics/multi_precision.cpp",
       "subsystem": "src/libbg",
       "lines": 1314,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 2,
+      "issue_ids": [
+        "SEC-0216",
+        "SEC-0217"
+      ]
     },
     {
       "id": 1422,
       "path": "src/libbg/geogram/numerics/multi_precision.h",
       "subsystem": "src/libbg",
       "lines": 1646,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0216"
+      ]
     },
     {
       "id": 1423,
       "path": "src/libbg/geogram/numerics/optimizer.cpp",
       "subsystem": "src/libbg",
       "lines": 220,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14385,8 +14394,8 @@
       "path": "src/libbg/geogram/numerics/optimizer.h",
       "subsystem": "src/libbg",
       "lines": 261,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14395,28 +14404,33 @@
       "path": "src/libbg/geogram/numerics/predicates.cpp",
       "subsystem": "src/libbg",
       "lines": 2119,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 2,
+      "issue_ids": [
+        "SEC-0218",
+        "SEC-0219"
+      ]
     },
     {
       "id": 1426,
       "path": "src/libbg/geogram/numerics/predicates.h",
       "subsystem": "src/libbg",
       "lines": 737,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0219"
+      ]
     },
     {
       "id": 1427,
       "path": "src/libbg/geogram/numerics/predicates/aligned3d.h",
       "subsystem": "src/libbg",
       "lines": 204,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14425,8 +14439,8 @@
       "path": "src/libbg/geogram/numerics/predicates/det3d.h",
       "subsystem": "src/libbg",
       "lines": 137,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14435,8 +14449,8 @@
       "path": "src/libbg/geogram/numerics/predicates/det4d.h",
       "subsystem": "src/libbg",
       "lines": 185,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14445,8 +14459,8 @@
       "path": "src/libbg/geogram/numerics/predicates/det_compare_4d.h",
       "subsystem": "src/libbg",
       "lines": 193,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14455,8 +14469,8 @@
       "path": "src/libbg/geogram/numerics/predicates/dot3d.h",
       "subsystem": "src/libbg",
       "lines": 121,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14465,8 +14479,8 @@
       "path": "src/libbg/geogram/numerics/predicates/dot_compare_3d.h",
       "subsystem": "src/libbg",
       "lines": 125,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14475,8 +14489,8 @@
       "path": "src/libbg/geogram/numerics/predicates/orient2d.h",
       "subsystem": "src/libbg",
       "lines": 109,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14485,8 +14499,8 @@
       "path": "src/libbg/geogram/numerics/predicates/orient3d.h",
       "subsystem": "src/libbg",
       "lines": 155,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14495,8 +14509,8 @@
       "path": "src/libbg/geogram/numerics/predicates/side1.h",
       "subsystem": "src/libbg",
       "lines": 802,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14505,8 +14519,8 @@
       "path": "src/libbg/geogram/numerics/predicates/side2.h",
       "subsystem": "src/libbg",
       "lines": 1203,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14515,8 +14529,8 @@
       "path": "src/libbg/geogram/numerics/predicates/side3.h",
       "subsystem": "src/libbg",
       "lines": 2165,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14525,8 +14539,8 @@
       "path": "src/libbg/geogram/numerics/predicates/side3_2dlifted.h",
       "subsystem": "src/libbg",
       "lines": 202,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14535,8 +14549,8 @@
       "path": "src/libbg/geogram/numerics/predicates/side3h.h",
       "subsystem": "src/libbg",
       "lines": 355,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14545,8 +14559,8 @@
       "path": "src/libbg/geogram/numerics/predicates/side4.h",
       "subsystem": "src/libbg",
       "lines": 2673,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14555,8 +14569,8 @@
       "path": "src/libbg/geogram/numerics/predicates/side4h.h",
       "subsystem": "src/libbg",
       "lines": 274,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
