@@ -14999,38 +14999,45 @@
       "path": "src/libbg/geogram/voronoi/CVT.cpp",
       "subsystem": "src/libbg",
       "lines": 358,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0223"
+      ]
     },
     {
       "id": 1484,
       "path": "src/libbg/geogram/voronoi/CVT.h",
       "subsystem": "src/libbg",
       "lines": 453,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0223"
+      ]
     },
     {
       "id": 1485,
       "path": "src/libbg/geogram/voronoi/RVD.cpp",
       "subsystem": "src/libbg",
       "lines": 2645,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
+      "issues_count": 2,
+      "issue_ids": [
+        "SEC-0220",
+        "SEC-0222"
+      ]
     },
     {
       "id": 1486,
       "path": "src/libbg/geogram/voronoi/RVD.h",
       "subsystem": "src/libbg",
       "lines": 725,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -15039,18 +15046,20 @@
       "path": "src/libbg/geogram/voronoi/RVD_callback.cpp",
       "subsystem": "src/libbg",
       "lines": 981,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0222"
+      ]
     },
     {
       "id": 1488,
       "path": "src/libbg/geogram/voronoi/RVD_callback.h",
       "subsystem": "src/libbg",
       "lines": 603,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -15059,8 +15068,8 @@
       "path": "src/libbg/geogram/voronoi/RVD_mesh_builder.cpp",
       "subsystem": "src/libbg",
       "lines": 123,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -15069,8 +15078,8 @@
       "path": "src/libbg/geogram/voronoi/RVD_mesh_builder.h",
       "subsystem": "src/libbg",
       "lines": 278,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -15079,8 +15088,8 @@
       "path": "src/libbg/geogram/voronoi/generic_RVD.h",
       "subsystem": "src/libbg",
       "lines": 2499,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -15089,18 +15098,20 @@
       "path": "src/libbg/geogram/voronoi/generic_RVD_cell.cpp",
       "subsystem": "src/libbg",
       "lines": 403,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0222"
+      ]
     },
     {
       "id": 1493,
       "path": "src/libbg/geogram/voronoi/generic_RVD_cell.h",
       "subsystem": "src/libbg",
       "lines": 1415,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -15109,18 +15120,20 @@
       "path": "src/libbg/geogram/voronoi/generic_RVD_polygon.cpp",
       "subsystem": "src/libbg",
       "lines": 218,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0222"
+      ]
     },
     {
       "id": 1495,
       "path": "src/libbg/geogram/voronoi/generic_RVD_polygon.h",
       "subsystem": "src/libbg",
       "lines": 474,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -15129,28 +15142,32 @@
       "path": "src/libbg/geogram/voronoi/generic_RVD_utils.h",
       "subsystem": "src/libbg",
       "lines": 382,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0221"
+      ]
     },
     {
       "id": 1497,
       "path": "src/libbg/geogram/voronoi/generic_RVD_vertex.h",
       "subsystem": "src/libbg",
       "lines": 1060,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0221"
+      ]
     },
     {
       "id": 1498,
       "path": "src/libbg/geogram/voronoi/integration_simplex.cpp",
       "subsystem": "src/libbg",
       "lines": 71,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -15159,8 +15176,8 @@
       "path": "src/libbg/geogram/voronoi/integration_simplex.h",
       "subsystem": "src/libbg",
       "lines": 247,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T05:34:00Z",
       "issues_count": 0,
       "issue_ids": []
     },

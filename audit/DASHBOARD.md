@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-19 09:30:00 UTC
+**Last Updated:** 2026-09-19 09:35:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 420 (12.0%)
-- **Files Pending Review:** 3073
-- **Total Issues Identified:** 219
+- **Files Reviewed:** 437 (12.5%)
+- **Files Pending Review:** 3056
+- **Total Issues Identified:** 223
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
-| **3 (High)** | 22 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 150 | Possible exploit or crash under specific circumstances |
+| **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
+| **2 (Medium)** | 153 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 47 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 218
+- **Fixed (Committed):** 222
 - **Pending Verification:** 1
 - **Disproven:** 0
 
@@ -84,7 +84,7 @@
 | `src/isst` | 9 | 0 | 0.0% | 0 |
 | `src/launcher` | 8 | 0 | 0.0% | 0 |
 | `src/libanalyze` | 40 | 0 | 0.0% | 0 |
-| `src/libbg` | 232 | 180 | 77.6% | 73 |
+| `src/libbg` | 232 | 197 | 84.9% | 77 |
 | `src/libbn` | 41 | 41 | 100.0% | 31 |
 | `src/libbrep` | 50 | 0 | 0.0% | 0 |
 | `src/libbu` | 176 | 176 | 100.0% | 101 |
@@ -336,3 +336,8 @@
 | `SEC-0217` | **Sev 2** | Out-of-Bounds Memory Access & Integer Underflow | `src/libbg/geogram/numerics/multi_precision.cpp:multi_precision.cpp:215-230, 240-275, 305-330, 680-720` | `FIXED` | In multi_precision.cpp, compress_expansion underflowed index m on lengths <= 1, causing out-of-bounds heap memory access; scale_expansion_zeroelim, fast_expansion_sum_zeroelim, fast_expansion_diff_zeroelim read out-of-bounds on zero-length expansions; assign_sq_dist and assign_dot_at underflowed dimension dim == 0 causing infinite recursion. |
 | `SEC-0218` | **Sev 2** | Assertion Failure Denial-of-Service Crashes | `src/libbg/geogram/numerics/predicates.cpp, src/libbg/geogram/numerics/PCK.h:PCK.h:170-175; predicates.cpp:445-460, 620-635, 960-975, 1130-1145, 1395-1410, 1535-1550` | `FIXED` | In predicates.cpp, exact predicate implementations aborted via SIGABRT on geo_assert(Delta_sign != ZERO) on degenerate/collinear inputs instead of gracefully returning ZERO; PCK.h SOS() asserted on invalid mode. |
 | `SEC-0219` | **Sev 2** | Mathematical Logic Flaw & Missing Pointer Validation | `src/libbg/geogram/numerics/predicates.cpp, src/libbg/geogram/numerics/predicates.h, src/libbg/geogram/numerics/PCK.cpp:PCK.cpp:25-35; predicates.h:260-275; predicates.cpp:1640-2260` | `FIXED` | In predicates.cpp (PCK::dot_3d), det_3d_filter was erroneously invoked instead of dot_3d_filter; geometric predicates lacked null pointer checks on double* coordinate inputs; percent() lacked division by zero protection. |
+| `SEC-0220` | **Sev 3** | Use-After-Free / Dangling Pointer & Missing Null Validation | `src/libbg/geogram/voronoi/RVD.cpp:1754-1775, 1810-1855, 2480-2500, 2535-2587` | `FIXED` | In prepare_projection(), mesh_vertices_ held a raw pointer to a local vector<double> destroyed upon function return, causing project_points_on_surface() to read through a dangling pointer (use-after-free). In RestrictedVoronoiDiagram::create, delaunay was dereferenced prior to checking for null pointer. |
+| `SEC-0221` | **Sev 2** | Buffer Overflow, Integer Shift Overflow, Unchecked Realloc & Vector Stack Underflow | `src/libbg/geogram/voronoi/generic_RVD_utils.h, src/libbg/geogram/voronoi/generic_RVD_vertex.h:generic_RVD_utils.h:45-55, 275-290, 345-385; generic_RVD_vertex.h:175-195, 240-260, 270-300, 725-770` | `FIXED` | In generic_RVD_utils.h, VectorStack::pop() called pop_back() on empty vectors causing out-of-bounds underflow; array_capacity computed 1 << (result - 1) with 32-bit signed shift that overflowed on large capacities; and insert() directly reassigned realloc return pointers without failure validation. In generic_RVD_vertex.h, small_set appended past capacity DIM without bounds checks; PointAllocator lacked chunk allocation failure handling and bounds checks. |
+| `SEC-0222` | **Sev 2** | Denial-of-Service Assertion Aborts & Unchecked Pointer Dereferences | `src/libbg/geogram/voronoi/generic_RVD_cell.cpp, src/libbg/geogram/voronoi/generic_RVD_polygon.cpp, src/libbg/geogram/voronoi/RVD_callback.cpp, src/libbg/geogram/voronoi/RVD.cpp:generic_RVD_cell.cpp:635-645, 1020-1040; generic_RVD_polygon.cpp:520-530; RVD_callback.cpp:80-95; RVD.cpp:1620-1695, 2410-2420, 2580-2585` | `FIXED` | In side_exact, initialize_from_surface_mesh, triangulate_polygon, run_thread, and RestrictedVoronoiDiagram::create, assertions geo_assert and geo_assert_not_reached were triggered on non-simplex facets, unexpected topology, or unhandled dimensions, terminating the process via SIGABRT. |
+| `SEC-0223` | **Sev 2** | Out-of-Bounds Access, Missing Null Guards & Zero Division | `src/libbg/geogram/voronoi/CVT.cpp, src/libbg/geogram/voronoi/CVT.h:CVT.h:120-140, 195-215; CVT.cpp:60-80, 135-155, 175-195, 230-260, 310-340, 360-390` | `FIXED` | In CVT.cpp and CVT.h, constructors and member methods accepted Mesh* and double* pointers without null validation, accessed empty embedding vectors, and performed unvalidated indexing and division when dimension_ or point counts were zero. |
+
