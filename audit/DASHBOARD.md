@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-19 03:51:18 UTC
+**Last Updated:** 2026-09-19 03:55:49 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 323 (9.2%)
-- **Files Pending Review:** 3170
-- **Total Issues Identified:** 194
+- **Files Reviewed:** 340 (9.7%)
+- **Files Pending Review:** 3153
+- **Total Issues Identified:** 199
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 19 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 132 | Possible exploit or crash under specific circumstances |
-| **1 (Low)** | 43 | Localized / low-impact vulnerability |
+| **2 (Medium)** | 135 | Possible exploit or crash under specific circumstances |
+| **1 (Low)** | 45 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 193
+- **Fixed (Committed):** 198
 - **Pending Verification:** 1
 - **Disproven:** 0
 
@@ -84,7 +84,7 @@
 | `src/isst` | 9 | 0 | 0.0% | 0 |
 | `src/launcher` | 8 | 0 | 0.0% | 0 |
 | `src/libanalyze` | 40 | 0 | 0.0% | 0 |
-| `src/libbg` | 232 | 83 | 35.8% | 27 |
+| `src/libbg` | 232 | 100 | 43.1% | 37 |
 | `src/libbn` | 41 | 41 | 100.0% | 31 |
 | `src/libbrep` | 50 | 0 | 0.0% | 0 |
 | `src/libbu` | 176 | 176 | 100.0% | 101 |
@@ -311,3 +311,8 @@
 | `SEC-0192` | **Sev 2** | Out-of-Bounds Substring / Unchecked Pointer Dereference | `src/libbg/tests/tri_ray_isect.cpp:44-64, tri_tri_isect_coplanar.cpp:41-61` | `FIXED` | In read_point(), if an empty or whitespace-only argument was supplied, find_first_not_of returned std::string::npos, causing substr(sp, ep-sp+1) to throw an unhandled std::out_of_range exception. Additionally, input pointers p and arg were not validated before use, and sscanf return values in main were unchecked. |
 | `SEC-0193` | **Sev 3** | Uninitialized Stack Memory / Unchecked Input Parsing | `src/libbg/tests/tri_tri_isect.c:31-66, tri_closest_pt.c:43-53` | `FIXED` | In tri_tri_isect.c, stack variables f1 and f2 were left uninitialized in declaration float f1, f2, f3 = 0.0;, and sscanf return counts were unchecked across all coordinate arguments in tri_tri_isect.c and tri_closest_pt.c, risking calculation using uninitialized stack coordinates upon malformed input. |
 | `SEC-0194` | **Sev 3** | Null Pointer Dereference Guard / Code Quality | `src/libbg/tests/trimesh_sync.c:109-130, tri_area.c:49-53` | `FIXED` | In trimesh_sync.c, error reporting function parrays() dereferenced ff and ctrl pointers without verifying that they were non-NULL, risking null pointer dereferences during error handling. In tri_area.c, an extraneous duplicate semicolon was cleaned up. |
+| `SEC-0195` | **Sev 2** | Out-of-Bounds Memory Access / Buffer Overflow | `src/libbg/geogram/NL/nl_matrix.c:765-780` | `FIXED` | In nlSparseMatrixConstruct, the row array was allocated with capacity m (NL_NEW_ARRAY(NLRowColumn, m)), but the row initialization loop mistakenly iterated up to n (for (i=0; i<n; i++)). If the column count n exceeded the row count m, this resulted in an out-of-bounds write past the allocated row buffer; if n < m, rows from n to m-1 remained uninitialized. |
+| `SEC-0196` | **Sev 1** | Logic Error / Broken Comparator | `src/libbg/geogram/NL/nl_matrix.c:132-143` | `FIXED` | In nlCoeffCompare, the comparator callback returned (((NLCoeff*)(p2))->index < ((NLCoeff*)(p1))->index), returning only 0 or 1. It violated strict weak ordering required by qsort/bu_sort (never returning negative values when p1 < p2), risking non-deterministic sort order or sorting anomalies. |
+| `SEC-0197` | **Sev 2** | Format String / Type Mismatch & Division by Zero | `src/libbg/geogram/NL/nl_blas.c:1440-1455, 1495-1510` | `FIXED` | In host_blas_show_stats, nlBlasGFlops() returns a double, but was passed to nl_printf using %d format specifier, risking register/stack corruption on 64-bit platforms. Furthermore, nlBlasGFlops() divided by elapsed_time without checking for zero elapsed time. |
+| `SEC-0198` | **Sev 2** | Divide-by-Zero / Floating Point Exception | `src/libbg/geogram/NL/nl_api.c, src/libbg/geogram/NL/nl_preconditioners.c:nl_api.c:660-675, nl_preconditioners.c:110-130, 215-265` | `FIXED` | In nlNormalizeRow, the normalization divided by vector norm without checking if the norm was zero, leading to division by zero on degenerate rows. In Jacobi and SSOR preconditioners (nlNewJacobiPreconditioner, nlSparseMatrixMultLowerInverse, nlSparseMatrixMultUpperInverse), diagonal entries were divided without guards against zero diagonal entries. |
+| `SEC-0199` | **Sev 1** | Macro Hazard / Null Pointer Dereference Guard | `src/libbg/geogram/NL/nl_private.h, src/libbg/geogram/NL/nl_os.c, src/libbg/geogram/NL/nl_amgcl.cpp:nl_private.h:288-300, nl_os.c:55-135, nl_amgcl.cpp:178-195` | `FIXED` | NL_DELETE and NL_DELETE_ARRAY macros expanded to multiple unbracketed statements (free(x); x = NULL), creating dangerous syntax and logic errors when used inside unbraced single-line conditionals. Error reporting and assertion handlers in nl_os.c lacked NULL checks on function pointers and format arguments. AMGCL solver interface in nl_amgcl.cpp lacked NULL checks on context, matrices, and vectors. |

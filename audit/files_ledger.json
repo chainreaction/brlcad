@@ -13577,8 +13577,8 @@
       "path": "src/libbg/geogram/NL/nl.h",
       "subsystem": "src/libbg",
       "lines": 1494,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-18T23:55:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13587,8 +13587,8 @@
       "path": "src/libbg/geogram/NL/nl_64.h",
       "subsystem": "src/libbg",
       "lines": 115,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-18T23:55:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13597,18 +13597,20 @@
       "path": "src/libbg/geogram/NL/nl_amgcl.cpp",
       "subsystem": "src/libbg",
       "lines": 264,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0199"
+      ]
     },
     {
       "id": 1354,
       "path": "src/libbg/geogram/NL/nl_amgcl.h",
       "subsystem": "src/libbg",
       "lines": 51,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-18T23:55:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13617,28 +13619,32 @@
       "path": "src/libbg/geogram/NL/nl_api.c",
       "subsystem": "src/libbg",
       "lines": 994,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0198"
+      ]
     },
     {
       "id": 1356,
       "path": "src/libbg/geogram/NL/nl_blas.c",
       "subsystem": "src/libbg",
       "lines": 1564,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0197"
+      ]
     },
     {
       "id": 1357,
       "path": "src/libbg/geogram/NL/nl_blas.h",
       "subsystem": "src/libbg",
       "lines": 469,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-18T23:55:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13647,18 +13653,20 @@
       "path": "src/libbg/geogram/NL/nl_context.c",
       "subsystem": "src/libbg",
       "lines": 222,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0199"
+      ]
     },
     {
       "id": 1359,
       "path": "src/libbg/geogram/NL/nl_context.h",
       "subsystem": "src/libbg",
       "lines": 416,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-18T23:55:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13667,18 +13675,20 @@
       "path": "src/libbg/geogram/NL/nl_iterative_solvers.c",
       "subsystem": "src/libbg",
       "lines": 536,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0198"
+      ]
     },
     {
       "id": 1361,
       "path": "src/libbg/geogram/NL/nl_iterative_solvers.h",
       "subsystem": "src/libbg",
       "lines": 91,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-18T23:55:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13687,18 +13697,21 @@
       "path": "src/libbg/geogram/NL/nl_matrix.c",
       "subsystem": "src/libbg",
       "lines": 1134,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:55:00Z",
+      "issues_count": 2,
+      "issue_ids": [
+        "SEC-0195",
+        "SEC-0196"
+      ]
     },
     {
       "id": 1363,
       "path": "src/libbg/geogram/NL/nl_matrix.h",
       "subsystem": "src/libbg",
       "lines": 837,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-18T23:55:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13707,28 +13720,32 @@
       "path": "src/libbg/geogram/NL/nl_os.c",
       "subsystem": "src/libbg",
       "lines": 135,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0199"
+      ]
     },
     {
       "id": 1365,
       "path": "src/libbg/geogram/NL/nl_preconditioners.c",
       "subsystem": "src/libbg",
       "lines": 302,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0198"
+      ]
     },
     {
       "id": 1366,
       "path": "src/libbg/geogram/NL/nl_preconditioners.h",
       "subsystem": "src/libbg",
       "lines": 82,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-18T23:55:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13737,10 +13754,12 @@
       "path": "src/libbg/geogram/NL/nl_private.h",
       "subsystem": "src/libbg",
       "lines": 345,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-18T23:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0199"
+      ]
     },
     {
       "id": 1368,
