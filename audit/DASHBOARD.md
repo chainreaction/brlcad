@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-19 04:00:30 UTC
+**Last Updated:** 2026-09-19 04:10:48 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 365 (10.4%)
-- **Files Pending Review:** 3128
-- **Total Issues Identified:** 204
+- **Files Reviewed:** 376 (10.8%)
+- **Files Pending Review:** 3117
+- **Total Issues Identified:** 207
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 20 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 138 | Possible exploit or crash under specific circumstances |
-| **1 (Low)** | 46 | Localized / low-impact vulnerability |
+| **2 (Medium)** | 140 | Possible exploit or crash under specific circumstances |
+| **1 (Low)** | 47 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 203
+- **Fixed (Committed):** 206
 - **Pending Verification:** 1
 - **Disproven:** 0
 
@@ -84,7 +84,7 @@
 | `src/isst` | 9 | 0 | 0.0% | 0 |
 | `src/launcher` | 8 | 0 | 0.0% | 0 |
 | `src/libanalyze` | 40 | 0 | 0.0% | 0 |
-| `src/libbg` | 232 | 125 | 53.9% | 49 |
+| `src/libbg` | 232 | 136 | 58.6% | 57 |
 | `src/libbn` | 41 | 41 | 100.0% | 31 |
 | `src/libbrep` | 50 | 0 | 0.0% | 0 |
 | `src/libbu` | 176 | 176 | 100.0% | 101 |
@@ -321,3 +321,6 @@
 | `SEC-0202` | **Sev 2** | Memory Management Flaw / Out-of-Bounds Read & Write | `src/libbg/geogram/basic/packed_arrays.cpp, src/libbg/geogram/basic/packed_arrays.h:packed_arrays.cpp:90-185, packed_arrays.h:160-165` | `FIXED` | In PackedArrays, calloc return values were not checked for allocation failure. In resize_array, realloc(ZV_[array_index], 0) was invoked when shrinking to <= Z1_block_size_, risking platform-dependent memory leaks or undefined behavior, and the realloc return was directly assigned without failure handling. Array accessors (get_array, set_array, resize_array, array_size) lacked bounds checks on array_index in release mode. |
 | `SEC-0203` | **Sev 2** | Integer Underflow & Unbounded Stack Allocation | `src/libbg/geogram/basic/parallel.cpp, src/libbg/geogram/basic/permutation.h, src/libbg/geogram/basic/attributes.cpp:parallel.cpp:67-85, permutation.h:158-240, attributes.cpp:160-180` | `FIXED` | In parallel_for, if from >= to, unsigned integer subtraction to - from underflowed to a massive positive number (~4 billion), causing thread spawning loops with out-of-bounds tasks. In Permutation::apply and AttributeStore::swap_items, BRLCAD_ALLOCA was invoked unconditionally on element sizes, risking stack overflow on large elements. In Permutation::apply(vector<T>&, ...), mismatch between data size and permutation size was not checked, violating documented contract and causing out-of-bounds access. |
 | `SEC-0204` | **Sev 1** | Macro Precedence Hazards & Divide-by-Zero / Floating-Point Exception | `src/libbg/geogram/basic/assert.h, src/libbg/geogram/basic/memory.h, src/libbg/geogram/basic/geometry_nd.h, src/libbg/geogram/basic/rationalg.h, src/libbg/geogram/basic/vecg.h:assert.h:145-215, memory.h:390-485, geometry_nd.h:215-295, rationalg.h:540-550, vecg.h:180-195` | `FIXED` | Assertions in assert.h were defined with raw braces { ... } rather than do { ... } while(0), causing dangling-else and syntax errors in conditional contexts. geo_aligned_alloca macro parameter was unparenthesized. Memory::aligned_allocator::allocate lacked integer overflow check on size * sizeof(T). triangle_area lacked max(A2, 0.0) guard causing sqrt(negative) NaNs, and triangle_circumcenter divided by determinant without zero check. rationalg::estimate() divided by denominator without zero check. vecng initializer_list constructor lacked bounds check on iteration count. |
+| `SEC-0205` | **Sev 2** | Out-of-Bounds Memory Access & Integer Overflow | `src/libbg/geogram/mesh/index.h, src/libbg/geogram/mesh/mesh.h, src/libbg/geogram/mesh/mesh.cpp:index.h:70-130, mesh.h:200-475, mesh.cpp:115-460` | `FIXED` | In MeshCells::pop(), cell_ptr_[nb()-1] was accessed unconditionally; simplicial meshes store an empty or single-element cell_ptr_, resulting in heap out-of-bounds reads. In MeshVertices::copy, point_ptr(0) was called when rhs.nb() == 0, accessing beyond empty buffers. In Mesh::get_subelements_by_type and get_subelements_by_index, invalid queries dereferenced null pointers *(MeshSubElementsStore*)nullptr. Index classes left buffer arrays uninitialized in default constructors. create_sub_elements and reserve lacked integer multiplication overflow guards. In connect_tets and connect, corrupt facet/cell vertex indices were not validated against vertices_.nb(). |
+| `SEC-0206` | **Sev 2** | Divide-by-Zero & Out-of-Bounds Vector Access | `src/libbg/geogram/mesh/mesh_AABB.h, src/libbg/geogram/mesh/mesh_AABB.cpp:mesh_AABB.h:45-1250, mesh_AABB.cpp:35-180` | `FIXED` | In ray_triangle_intersection, 1.0 / det was calculated prior to checking whether fabs(det) >= 1e-20, causing floating-point division by zero and NaN/Inf propagation on rays coplanar to triangle planes. Querying or intersecting AABB trees built on empty meshes (nb() == 0) accessed bboxes_[1] out-of-bounds and caused infinite recursion in max_node_index. |
+| `SEC-0207` | **Sev 1** | Divide-by-Zero & Denial of Service / Process Abort | `src/libbg/geogram/mesh/mesh_geometry.h, src/libbg/geogram/mesh/mesh_geometry.cpp, src/libbg/geogram/mesh/mesh_halfedges.cpp:mesh_geometry.h:210-240, mesh_geometry.cpp:80-160, mesh_halfedges.cpp:60-145` | `FIXED` | mesh_facet_center and mesh_cell_center divided by corner/vertex counts without checking for empty facets/cells (0 count). In mesh_geometry.cpp, normalize was called on zero vectors, and bounding box functions did not validate null output pointers or zero-vertex meshes. In MeshHalfedges, border and vertex traversals on non-manifold or cyclical meshes aborted the process via geo_assert_not_reached or geo_assert(count < 10000) instead of gracefully failing. |

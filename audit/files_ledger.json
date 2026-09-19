@@ -14079,88 +14079,104 @@
       "path": "src/libbg/geogram/mesh/index.h",
       "subsystem": "src/libbg",
       "lines": 628,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0205"
+      ]
     },
     {
       "id": 1398,
       "path": "src/libbg/geogram/mesh/mesh.cpp",
       "subsystem": "src/libbg",
       "lines": 2385,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0205"
+      ]
     },
     {
       "id": 1399,
       "path": "src/libbg/geogram/mesh/mesh.h",
       "subsystem": "src/libbg",
       "lines": 3510,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0205"
+      ]
     },
     {
       "id": 1400,
       "path": "src/libbg/geogram/mesh/mesh_AABB.cpp",
       "subsystem": "src/libbg",
       "lines": 892,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0206"
+      ]
     },
     {
       "id": 1401,
       "path": "src/libbg/geogram/mesh/mesh_AABB.h",
       "subsystem": "src/libbg",
       "lines": 1269,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0206"
+      ]
     },
     {
       "id": 1402,
       "path": "src/libbg/geogram/mesh/mesh_geometry.cpp",
       "subsystem": "src/libbg",
       "lines": 165,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0207"
+      ]
     },
     {
       "id": 1403,
       "path": "src/libbg/geogram/mesh/mesh_geometry.h",
       "subsystem": "src/libbg",
       "lines": 431,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0207"
+      ]
     },
     {
       "id": 1404,
       "path": "src/libbg/geogram/mesh/mesh_halfedges.cpp",
       "subsystem": "src/libbg",
       "lines": 137,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0207"
+      ]
     },
     {
       "id": 1405,
       "path": "src/libbg/geogram/mesh/mesh_halfedges.h",
       "subsystem": "src/libbg",
       "lines": 366,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14169,8 +14185,8 @@
       "path": "src/libbg/geogram/mesh/mesh_partition.cpp",
       "subsystem": "src/libbg",
       "lines": 232,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14179,8 +14195,8 @@
       "path": "src/libbg/geogram/mesh/mesh_partition.h",
       "subsystem": "src/libbg",
       "lines": 115,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
