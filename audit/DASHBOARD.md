@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-19 03:48:07 UTC
+**Last Updated:** 2026-09-19 03:51:18 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 274 (7.8%)
-- **Files Pending Review:** 3219
-- **Total Issues Identified:** 190
+- **Files Reviewed:** 323 (9.2%)
+- **Files Pending Review:** 3170
+- **Total Issues Identified:** 194
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
-| **3 (High)** | 16 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 131 | Possible exploit or crash under specific circumstances |
+| **3 (High)** | 19 | Likely exploit or crash potential; widespread/library exposure |
+| **2 (Medium)** | 132 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 43 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 189
+- **Fixed (Committed):** 193
 - **Pending Verification:** 1
 - **Disproven:** 0
 
@@ -84,7 +84,7 @@
 | `src/isst` | 9 | 0 | 0.0% | 0 |
 | `src/launcher` | 8 | 0 | 0.0% | 0 |
 | `src/libanalyze` | 40 | 0 | 0.0% | 0 |
-| `src/libbg` | 232 | 34 | 14.7% | 27 |
+| `src/libbg` | 232 | 83 | 35.8% | 27 |
 | `src/libbn` | 41 | 41 | 100.0% | 31 |
 | `src/libbrep` | 50 | 0 | 0.0% | 0 |
 | `src/libbu` | 176 | 176 | 100.0% | 101 |
@@ -307,3 +307,7 @@
 | `SEC-0188` | **Sev 3** | Null Pointer Dereference / Logical Indexing Flaw | `src/libbg/tests/chull.c:40-70, obr.c:45-75` | `FIXED` | In plot2d_chull, plot_chull3d, and plot_obr, fopen results were passed directly to pl_color and fclose without NULL verification, risking null pointer crashes if file creation failed. Additionally, plot2d_chull indexed pnt_array[i][0] when closing the polygon loop instead of pnt_array[0][Y]. |
 | `SEC-0189` | **Sev 3** | Division by Zero / Unchecked Parsing / Missing Pointer Validation | `src/libbg/tests/plane_dist.c:35-50, lseg_pt.c:45-65, geogram_optimizer.cpp:55-80` | `FIXED` | In plane_dist.c, relative error calculation performed division by expected_return without checking for zero, resulting in division by zero (NaN/Inf). In lseg_pt.c, sscanf return counts were unchecked, allowing uninitialized stack values to be used. In geogram_optimizer.cpp, converged_optimizer was dereferenced without checking for NULL. |
 | `SEC-0190` | **Sev 3** | Resource Leak / Memory Management | `src/libbg/tests/poly2tri.c:110-180, chull.c:120-170, chull3d.c:70-130` | `FIXED` | Dynamically allocated vertex, face, hole, and output polygon arrays allocated via bu_calloc/bu_malloc in poly2tri.c, chull.c, and chull3d.c were never freed prior to test completion or return, resulting in systematic memory leaks. |
+| `SEC-0191` | **Sev 3** | Resource Leak / Null Pointer Dereference | `src/libbg/tests/polygon_triangulate.c:48-62, 134-150, 184-192, 225-237, 269-281, 298-306` | `FIXED` | Dynamically allocated face index arrays allocated by bg_poly_triangulate and bg_nested_poly_triangulate across all five test cases were never released via bu_free prior to block exit, causing memory leaks. In addition, _tess_report lacked validation guarding against NULL face and point arrays. |
+| `SEC-0192` | **Sev 2** | Out-of-Bounds Substring / Unchecked Pointer Dereference | `src/libbg/tests/tri_ray_isect.cpp:44-64, tri_tri_isect_coplanar.cpp:41-61` | `FIXED` | In read_point(), if an empty or whitespace-only argument was supplied, find_first_not_of returned std::string::npos, causing substr(sp, ep-sp+1) to throw an unhandled std::out_of_range exception. Additionally, input pointers p and arg were not validated before use, and sscanf return values in main were unchecked. |
+| `SEC-0193` | **Sev 3** | Uninitialized Stack Memory / Unchecked Input Parsing | `src/libbg/tests/tri_tri_isect.c:31-66, tri_closest_pt.c:43-53` | `FIXED` | In tri_tri_isect.c, stack variables f1 and f2 were left uninitialized in declaration float f1, f2, f3 = 0.0;, and sscanf return counts were unchecked across all coordinate arguments in tri_tri_isect.c and tri_closest_pt.c, risking calculation using uninitialized stack coordinates upon malformed input. |
+| `SEC-0194` | **Sev 3** | Null Pointer Dereference Guard / Code Quality | `src/libbg/tests/trimesh_sync.c:109-130, tri_area.c:49-53` | `FIXED` | In trimesh_sync.c, error reporting function parrays() dereferenced ff and ctrl pointers without verifying that they were non-NULL, risking null pointer dereferences during error handling. In tri_area.c, an extraneous duplicate semicolon was cleaned up. |

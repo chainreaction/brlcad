@@ -25,7 +25,7 @@ def generate_dashboard():
     issues = idata.get("issues", [])
 
     total_files = len(files)
-    reviewed_files = sum(1 for f in files if f.get("status") == "REVIEWED")
+    reviewed_files = sum(1 for f in files if f.get("status", "").startswith("REVIEWED"))
     pending_files = total_files - reviewed_files
     pct_complete = (reviewed_files / total_files * 100) if total_files > 0 else 0.0
 
@@ -53,7 +53,7 @@ def generate_dashboard():
     for f in files:
         ss = f.get("subsystem", "other")
         subsys_stats[ss]["total"] += 1
-        if f.get("status") == "REVIEWED":
+        if f.get("status", "").startswith("REVIEWED"):
             subsys_stats[ss]["reviewed"] += 1
         subsys_stats[ss]["issues"] += f.get("issues_count", 0)
 
