@@ -66,7 +66,7 @@ namespace GEOBRL {
                 return true;
             }
         }
-        geo_assert_not_reached;
+        return false;
     }
 
     bool MeshHalfedges::move_to_prev_around_vertex(Halfedge& H) const {
@@ -93,7 +93,7 @@ namespace GEOBRL {
                 return true;
             }
         }
-        geo_assert_not_reached;
+        return false;
     }
 
     void MeshHalfedges::move_to_next_around_border(Halfedge& H) const {
@@ -103,7 +103,9 @@ namespace GEOBRL {
         index_t count = 0;
         while(move_to_next_around_vertex(H)) {
             ++count;
-            geo_assert(count < 10000);
+            if(count >= 10000) {
+                break;
+            }
         }
     }
 
@@ -113,7 +115,9 @@ namespace GEOBRL {
         index_t count = 0;
         while(move_to_prev_around_vertex(H)) {
             ++count;
-            geo_assert(count < 10000);
+            if(count >= 10000) {
+                break;
+            }
         }
         move_to_prev_around_facet(H);
     }
@@ -124,7 +128,10 @@ namespace GEOBRL {
             mesh_.facets.next_corner_around_facet(H.facet, H.corner)
         );
         index_t f = mesh_.facet_corners.adjacent_facet(H.corner);
-        geo_assert(f != NO_FACET);
+        if(f == NO_FACET) {
+            H.clear();
+            return;
+        }
         for(index_t c: mesh_.facets.corners(f)) {
             if(mesh_.facet_corners.vertex(c) == v) {
                 H.facet = f;
@@ -132,6 +139,6 @@ namespace GEOBRL {
                 return;
             }
         }
-        geo_assert_not_reached;
+        H.clear();
     }
 }

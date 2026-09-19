@@ -82,6 +82,10 @@ namespace GEOBRL {
 	    index_t nb, std::function<void(BOX&, index_t)> get_bbox
 	) {
             nb_ = nb;
+            if(nb == 0) {
+                bboxes_.clear();
+                return;
+            }
             bboxes_.resize(max_node_index(1, 0, nb) + 1);
             // +1 because size == max_index + 1 !!!
             init_bboxes_recursive(1, 0, nb_, get_bbox);
@@ -506,6 +510,9 @@ namespace GEOBRL {
         void compute_facet_bbox_intersections(
             std::function<void(index_t, index_t)> action
         ) const {
+            if(!mesh_ || mesh_->facets.nb() == 0) {
+                return;
+            }
             self_intersect_recursive(
                 action,
                 1, 0, mesh_->facets.nb(),
@@ -523,6 +530,9 @@ namespace GEOBRL {
         void compute_bbox_facet_bbox_intersections(
             const Box& box_in, std::function<void(index_t)> action
         ) const {
+            if(!mesh_ || mesh_->facets.nb() == 0) {
+                return;
+            }
             bbox_intersect_recursive(
                 action, box_in, 1, 0, mesh_->facets.nb()
             );
@@ -538,6 +548,11 @@ namespace GEOBRL {
         index_t nearest_facet(
             const vec3& p, vec3& nearest_point, double& sq_dist
         ) const {
+            if(!mesh_ || mesh_->facets.nb() == 0) {
+                nearest_point = vec3{0.0, 0.0, 0.0};
+                sq_dist = Numeric::max_float64();
+                return NO_INDEX;
+            }
             index_t nearest_facet;
             get_nearest_facet_hint(p, nearest_facet, nearest_point, sq_dist);
             nearest_facet_recursive(
@@ -577,6 +592,10 @@ namespace GEOBRL {
         ) const {
             index_t nearest_facet = NO_INDEX;
 	    sq_dist = Numeric::max_float64();
+            if(!mesh_ || mesh_->facets.nb() == 0) {
+                nearest_point = vec3{0.0, 0.0, 0.0};
+                return NO_INDEX;
+            }
             nearest_facet_recursive_filtered(
                 p,
                 nearest_facet, nearest_point, sq_dist,
@@ -609,6 +628,12 @@ namespace GEOBRL {
             const vec3& p,
             index_t& nearest_facet, vec3& nearest_point, double& sq_dist
         ) const {
+            if(!mesh_ || mesh_->facets.nb() == 0) {
+                nearest_facet = NO_FACET;
+                nearest_point = vec3{0.0, 0.0, 0.0};
+                sq_dist = Numeric::max_float64();
+                return;
+            }
             if(nearest_facet == NO_FACET) {
                 get_nearest_facet_hint(
                     p, nearest_facet, nearest_point, sq_dist
@@ -929,6 +954,9 @@ namespace GEOBRL {
          *   arbitrary cells, then one may use instead containing_boxes().
          */
         index_t containing_tet(const vec3& p) const {
+            if(!mesh_ || mesh_->cells.nb() == 0) {
+                return NO_TET;
+            }
             geo_debug_assert(mesh_->cells.are_simplices());
             return containing_tet_recursive(
                 p, 1, 0, mesh_->cells.nb()
@@ -946,6 +974,9 @@ namespace GEOBRL {
             const Box& box_in,
             std::function<void(index_t)> action
         ) const {
+            if(!mesh_ || mesh_->cells.nb() == 0) {
+                return;
+            }
             bbox_intersect_recursive(
                 action, box_in, 1, 0, mesh_->cells.nb()
             );
@@ -961,6 +992,9 @@ namespace GEOBRL {
         void containing_boxes(
             const vec3& p, std::function<void(index_t)> action
         ) const {
+            if(!mesh_ || mesh_->cells.nb() == 0) {
+                return;
+            }
             containing_bboxes_recursive(
                 action, p, 1, 0, mesh_->cells.nb()
             );
@@ -976,6 +1010,9 @@ namespace GEOBRL {
         void compute_cell_bbox_intersections(
             std::function<void(index_t, index_t)> action
         ) const {
+            if(!mesh_ || mesh_->cells.nb() == 0) {
+                return;
+            }
             self_intersect_recursive(
                 action,
                 1, 0, mesh_->cells.nb(),
@@ -996,6 +1033,10 @@ namespace GEOBRL {
             MeshCellsAABB* other,
             std::function<void(index_t, index_t)> action
         ) const {
+            if(!mesh_ || !other || !other->mesh_ ||
+               mesh_->cells.nb() == 0 || other->mesh_->cells.nb() == 0) {
+                return;
+            }
             other_intersect_recursive(
                 action,
                 1, 0, mesh_->cells.nb(),
@@ -1122,6 +1163,9 @@ namespace GEOBRL {
          *   arbitrary cells, then one may use instead containing_boxes().
          */
         index_t containing_triangle(const vec2& p) const {
+            if(!mesh_ || mesh_->facets.nb() == 0) {
+                return NO_TRIANGLE;
+            }
             geo_debug_assert(mesh_->facets.are_simplices());
             return containing_triangle_recursive(
                 p, 1, 0, mesh_->facets.nb()
@@ -1139,6 +1183,9 @@ namespace GEOBRL {
             const Box2d& box_in,
             std::function<void(index_t)> action
         ) const {
+            if(!mesh_ || mesh_->facets.nb() == 0) {
+                return;
+            }
             bbox_intersect_recursive(
                 action, box_in, 1, 0, mesh_->facets.nb()
             );
@@ -1154,6 +1201,9 @@ namespace GEOBRL {
         void containing_boxes(
             const vec2& p, std::function<void(index_t)> action
         ) const {
+            if(!mesh_ || mesh_->facets.nb() == 0) {
+                return;
+            }
             containing_bboxes_recursive(
                 action, p, 1, 0, mesh_->facets.nb()
             );
@@ -1169,6 +1219,9 @@ namespace GEOBRL {
         void compute_facet_bbox_intersections(
             std::function<void(index_t, index_t)> action
         ) const {
+            if(!mesh_ || mesh_->facets.nb() == 0) {
+                return;
+            }
             self_intersect_recursive(
                 action,
                 1, 0, mesh_->facets.nb(),
@@ -1189,6 +1242,10 @@ namespace GEOBRL {
             MeshFacetsAABB2d* other,
             std::function<void(index_t, index_t)> action
         ) const {
+            if(!mesh_ || !other || !other->mesh_ ||
+               mesh_->facets.nb() == 0 || other->mesh_->facets.nb() == 0) {
+                return;
+            }
             other_intersect_recursive(
                 action,
                 1, 0, mesh_->facets.nb(),

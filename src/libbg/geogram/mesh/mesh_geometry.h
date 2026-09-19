@@ -214,7 +214,10 @@ namespace GEOBRL {
                 result += as_gte<3>(M.facet_corners.point(c));
                 count += 1.0;
             }
-            return (1.0 / count) * result;
+            if(count > 0.0) {
+                result = (1.0 / count) * result;
+            }
+            return result;
         }
 
         /**
@@ -225,11 +228,15 @@ namespace GEOBRL {
          */
         inline vec3 mesh_cell_center(const Mesh& M, index_t c) {
             vec3 result{0.0, 0.0, 0.0};
-            for(index_t lv=0; lv<M.cells.nb_vertices(c); ++lv) {
+            index_t nb_v = M.cells.nb_vertices(c);
+            if(nb_v == 0) {
+                return result;
+            }
+            for(index_t lv=0; lv<nb_v; ++lv) {
                 index_t v = M.cells.vertex(c,lv);
                 result += as_gte<3>(M.vertices.point(v));
             }
-            return (1.0 / double(M.cells.nb_vertices(c))) * result;
+            return (1.0 / double(nb_v)) * result;
         }
 
 

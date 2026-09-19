@@ -38,6 +38,7 @@
  */
 
 #include "common.h"
+#include "vmath.h"
 #include <geogram/mesh/mesh_geometry.h>
 #include <geogram/basic/attributes.h>
 #include <geogram/basic/geometry.h>
@@ -83,14 +84,24 @@ namespace GEOBRL {
             }
         }
         for(index_t i: M.vertices) {
-            Geom::mesh_vertex_normal_ref(M, i) = normalize(
-                Geom::mesh_vertex_normal(M, i)
-            );
+            vec3 n = Geom::mesh_vertex_normal(M, i);
+            if(length2(n) > 0.0) {
+                Geom::mesh_vertex_normal_ref(M, i) = normalize(n);
+            }
         }
     }
 
     void get_bbox(const Mesh& M, double* xyzmin, double* xyzmax) {
-        geo_assert(M.vertices.dimension() >= 3);
+        if(!xyzmin || !xyzmax) {
+            return;
+        }
+        if(M.vertices.nb() == 0 || M.vertices.dimension() < 3) {
+            for(index_t c = 0; c < 3; c++) {
+                xyzmin[c] = 0.0;
+                xyzmax[c] = 0.0;
+            }
+            return;
+        }
         for(index_t c = 0; c < 3; c++) {
             xyzmin[c] = Numeric::max_float64();
             xyzmax[c] = Numeric::min_float64();
@@ -104,7 +115,9 @@ namespace GEOBRL {
     }
 
     double bbox_diagonal(const Mesh& M) {
-        geo_assert(M.vertices.dimension() >= 3);
+        if(M.vertices.nb() == 0 || M.vertices.dimension() < 3) {
+            return 0.0;
+        }
         double xyzmin[3];
         double xyzmax[3];
         get_bbox(M, xyzmin, xyzmax);
@@ -119,14 +132,16 @@ namespace GEOBRL {
         if(M.vertices.dimension() < 6) {
             compute_normals(M);
         }
-        if(s == 0.0) {
+        if(ZERO(s)) {
             unset_anisotropy(M);
             return;
         }
         s *= bbox_diagonal(M);
         for(index_t i: M.vertices) {
-            Geom::mesh_vertex_normal_ref(M, i) =
-                s * normalize(Geom::mesh_vertex_normal(M, i));
+            vec3 n = Geom::mesh_vertex_normal(M, i);
+            if(length2(n) > 0.0) {
+                Geom::mesh_vertex_normal_ref(M, i) = s * normalize(n);
+            }
         }
     }
 
@@ -135,9 +150,10 @@ namespace GEOBRL {
             return;
         }
         for(index_t i: M.vertices) {
-            Geom::mesh_vertex_normal_ref(M, i) = normalize(
-                Geom::mesh_vertex_normal(M, i)
-            );
+            vec3 n = Geom::mesh_vertex_normal(M, i);
+            if(length2(n) > 0.0) {
+                Geom::mesh_vertex_normal_ref(M, i) = normalize(n);
+            }
         }
     }
 

@@ -269,6 +269,9 @@ namespace {
         vec3 E2(C-A);
         N = cross(E1,E2);
         double det = -dot(D,N);
+        if(fabs(det) < 1e-20) {
+            return false;
+        }
         double invdet = 1.0/det;
         vec3 AO = O - A;
         vec3 DAO = cross(AO,D);
@@ -276,7 +279,6 @@ namespace {
         v = -dot(E1,DAO) * invdet;
         t =  dot(AO,N)   * invdet;
         return (
-            (fabs(det) >= 1e-20) &&
             (t >= 0.0) &&
             (u >= 0.0) &&
             (v >= 0.0) &&
@@ -370,6 +372,9 @@ namespace GEOBRL {
     void MeshFacetsAABB::initialize(Mesh& M, AABBReorderMode reorder_mode) {
         mesh_ = &M;
         if(mesh_->facets.nb() == 0) {
+            reorder_.clear();
+            bboxes_.clear();
+            nb_ = 0;
             return;
         }
 	switch(reorder_mode) {
@@ -579,6 +584,9 @@ namespace GEOBRL {
     bool MeshFacetsAABB::ray_nearest_intersection(
         const Ray& R, Intersection& I
     ) const {
+        if(!mesh_ || mesh_->facets.nb() == 0) {
+            return false;
+        }
         index_t f = I.f;
         vec3 dirinv{
             1.0/R.direction[0],
@@ -598,6 +606,9 @@ namespace GEOBRL {
     bool MeshFacetsAABB::ray_intersection(
         const Ray& R, double tmax, index_t ignore_f
     ) const {
+        if(!mesh_ || mesh_->facets.nb() == 0) {
+            return false;
+        }
         vec3 dirinv{
             1.0/R.direction[0],
             1.0/R.direction[1],
@@ -612,6 +623,9 @@ namespace GEOBRL {
         const Ray& R,
         std::function<void(const Intersection&)> action
     ) const {
+        if(!mesh_ || mesh_->facets.nb() == 0) {
+            return;
+        }
         vec3 dirinv{
             1.0/R.direction[0],
             1.0/R.direction[1],
@@ -767,6 +781,12 @@ namespace GEOBRL {
 
     void MeshCellsAABB::initialize(Mesh& M, AABBReorderMode reorder_mode) {
         mesh_ = &M;
+        if(mesh_->cells.nb() == 0) {
+            reorder_.clear();
+            bboxes_.clear();
+            nb_ = 0;
+            return;
+        }
         switch(reorder_mode) {
         case AABB_NOREORDER:
             break;
@@ -832,11 +852,17 @@ namespace GEOBRL {
     }
 
     void MeshFacetsAABB2d::initialize(Mesh& M, bool reorder) {
+        mesh_ = &M;
+        if(mesh_->facets.nb() == 0) {
+            reorder_.clear();
+            bboxes_.clear();
+            nb_ = 0;
+            return;
+        }
         bool was_2d = (M.vertices.dimension() == 2);
         if(was_2d) {
             M.vertices.set_dimension(3);
         }
-        mesh_ = &M;
         if(reorder) {
             mesh_reorder(*mesh_, MESH_ORDER_MORTON);
         }

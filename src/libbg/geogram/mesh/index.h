@@ -80,9 +80,9 @@ namespace GEOBRL {
         };
 
         /**
-         * \brief Creates an uninitialized basic_bindex.
+         * \brief Creates an initialized basic_bindex with zero indices.
          */
-        basic_bindex() {
+        basic_bindex() : indices{IndexType(0), IndexType(0)} {
         }
 
         /**
@@ -253,9 +253,9 @@ namespace GEOBRL {
         };
 
         /**
-         * \brief Creates an uninitialized basic_trindex.
+         * \brief Creates an initialized basic_trindex with zero indices.
          */
-        basic_trindex() {
+        basic_trindex() : indices{IndexType(0), IndexType(0), IndexType(0)} {
         }
 
         /**
@@ -472,9 +472,9 @@ namespace GEOBRL {
         };
 
         /**
-         * \brief Constructs a new uninitialized basic_quadindex
+         * \brief Constructs a new initialized basic_quadindex with zero indices
          */
-        basic_quadindex() {
+        basic_quadindex() : indices{IndexType(0), IndexType(0), IndexType(0), IndexType(0)} {
         }
 
         /**

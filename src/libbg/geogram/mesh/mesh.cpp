@@ -290,6 +290,10 @@ namespace GEOBRL {
     ) {
         // TODO: implement steal_arg
         geo_argused(steal_arg);
+        if(dim == 0) {
+            clear();
+            return;
+        }
         index_t nb_pts = points.size()/dim;
         geo_assert(dim*nb_pts == points.size());
         assign_points(points.data(), dim, nb_pts);
@@ -304,14 +308,18 @@ namespace GEOBRL {
             set_dimension(dim);
             create_vertices(nb_pts);
         }
-        Memory::copy(
-            point_ptr(0), points, nb_pts*dim*sizeof(double)
-        );
+        if(nb_pts > 0 && points != nullptr) {
+            Memory::copy(
+                point_ptr(0), points, nb_pts*dim*sizeof(double)
+            );
+        }
     }
 
     void MeshVertices::pop() {
         geo_debug_assert(nb() != 0);
-        --nb_;
+        if(nb() != 0) {
+            --nb_;
+        }
     }
 
     /**************************************************************************/
@@ -378,7 +386,9 @@ namespace GEOBRL {
 
     void MeshEdges::pop() {
         geo_debug_assert(nb() != 0);
-        resize_store(nb()-1);
+        if(nb() != 0) {
+            resize_store(nb()-1);
+        }
     }
 
     void MeshEdges::flip(index_t e) {
@@ -663,7 +673,7 @@ namespace GEOBRL {
 
     void MeshFacets::connect(index_t f_begin, index_t f_end) {
 
-	if(f_begin == f_end) {
+	if(f_begin >= f_end) {
 	    return;
 	}
 
@@ -763,7 +773,9 @@ namespace GEOBRL {
                             index_t v3 = facet_corners_.vertex(c2);
                             index_t v4 = facet_corners_.vertex(c2_prev);
 
-                            geo_assert(v1 == v3);
+                            if(v1 != v3) {
+                                continue;
+                            }
 
                             if(
                                 v4 == v2 && (
@@ -892,6 +904,9 @@ namespace GEOBRL {
 
     void MeshFacets::pop() {
         geo_debug_assert(nb() != 0);
+        if(nb() == 0) {
+            return;
+        }
         index_t new_nb_corners =
             is_simplicial_ ? 3*(nb()-1) : facet_ptr_[nb()-1];
         resize_store(nb()-1);
@@ -1350,8 +1365,10 @@ namespace GEOBRL {
         for(index_t t = 0; t < nb(); ++t) {
             for(index_t lv = 0; lv < 4; ++lv) {
                 index_t v = vertex(t, lv);
-                next_tet_corner_around_vertex[4 * t + lv] = v2c[v];
-                v2c[v] = 4 * t + lv;
+                if(v < vertices_.nb()) {
+                    next_tet_corner_around_vertex[4 * t + lv] = v2c[v];
+                    v2c[v] = 4 * t + lv;
+                }
             }
         }
 
@@ -1360,18 +1377,20 @@ namespace GEOBRL {
             for(index_t lf1 = 0; lf1 < 4; ++lf1) {
                 if(adjacent(t1, lf1) == NO_CELL) {
                     index_t v1 = facet_vertex(t1, lf1, 0);
-                    index_t v2 = facet_vertex(t1, lf1, 1);
-                    index_t v3 = facet_vertex(t1, lf1, 2);
-                    for(
-                        index_t c2 = v2c[v1]; c2 != NO_CORNER;
-                        c2 = next_tet_corner_around_vertex[c2]
-                    ) {
-                        index_t t2 = c2/4;
-                        index_t lf2 = find_tet_facet(t2, v3, v2, v1);
-                        if(lf2 != NO_FACET) {
-                            set_adjacent(t1, lf1, t2);
-                            set_adjacent(t2, lf2, t1);
-                            break;
+                    if(v1 < v2c.size()) {
+                        index_t v2 = facet_vertex(t1, lf1, 1);
+                        index_t v3 = facet_vertex(t1, lf1, 2);
+                        for(
+                            index_t c2 = v2c[v1]; c2 != NO_CORNER;
+                            c2 = next_tet_corner_around_vertex[c2]
+                        ) {
+                            index_t t2 = c2/4;
+                            index_t lf2 = find_tet_facet(t2, v3, v2, v1);
+                            if(lf2 != NO_FACET) {
+                                set_adjacent(t1, lf1, t2);
+                                set_adjacent(t2, lf2, t1);
+                                break;
+                            }
                         }
                     }
                 }
@@ -1606,9 +1625,11 @@ namespace GEOBRL {
         for(index_t c = 0; c < nb(); ++c) {
             for(index_t lv = 0; lv < nb_vertices(c); ++lv) {
                 index_t v = vertex(c, lv);
-                next_cell_around_vertex[corners_begin(c) + lv] =
-                    v2cell[v];
-                v2cell[v] = c;
+                if(v < vertices_.nb()) {
+                    next_cell_around_vertex[corners_begin(c) + lv] =
+                        v2cell[v];
+                    v2cell[v] = c;
+                }
             }
         }
 
@@ -1624,22 +1645,28 @@ namespace GEOBRL {
                     index_t v1 = facet_vertex(c1,lf1,0);
 
                     // c2 traverses all the cells incident to v1
-                    for(
-                        index_t c2 = v2cell[v1]; c2 != NO_CELL;
-                        c2 = next_cell_around_vertex[
-                            corners_begin(c2) +
-                            find_cell_vertex(c2,v1)
-                        ]
-                    ) {
+                    if(v1 < v2cell.size()) {
+                        for(
+                            index_t c2 = v2cell[v1]; c2 != NO_CELL;
+                        ) {
+                            index_t lv = find_cell_vertex(c2,v1);
+                            if(lv == NO_VERTEX) {
+                                break;
+                            }
+                            index_t next_c2 = next_cell_around_vertex[
+                                corners_begin(c2) + lv
+                            ];
 
-                        // If we find a cell facet lf2 compatible with (c1,lf1)
-                        // in c2, then connect (c1,lf1) to c2 and
-                        // (c2,lf2) to c1.
-                        index_t lf2 = find_cell_facet(c2, c1, lf1);
-                        if(lf2 != NO_FACET) {
-                            set_adjacent(c1, lf1, c2);
-                            set_adjacent(c2, lf2, c1);
-                            break;
+                            // If we find a cell facet lf2 compatible with (c1,lf1)
+                            // in c2, then connect (c1,lf1) to c2 and
+                            // (c2,lf2) to c1.
+                            index_t lf2 = find_cell_facet(c2, c1, lf1);
+                            if(lf2 != NO_FACET) {
+                                set_adjacent(c1, lf1, c2);
+                                set_adjacent(c2, lf2, c1);
+                                break;
+                            }
+                            c2 = next_c2;
                         }
                     }
                 }
@@ -1682,29 +1709,35 @@ namespace GEOBRL {
                 matches.resize(0);
                 for(index_t lv1=0; lv1<facet_nb_vertices(c1,lf1); ++lv1) {
                     index_t v1 = facet_vertex(c1,lf1,lv1);
-                    for(
-                        index_t c2 = v2cell[v1]; c2 != NO_CELL;
-                        c2 = next_cell_around_vertex[
-                            corners_begin(c2) +
-                            find_cell_vertex(c2,v1)
-                        ]
-                    ) {
-                        geo_debug_assert(find_cell_vertex(c2,v1) != NO_VERTEX);
-                        if(c2 == c1 || type(c2) == MESH_HEX) {
-                            continue;
-                        }
-
-                        // Among all the triangular facets of c2, find the ones
-                        // that can be connected to (c1,lf1)
-                        for(index_t lf2=0; lf2<nb_facets(c2); ++lf2) {
-                            if(facet_nb_vertices(c2,lf2) != 3) {
+                    if(v1 < v2cell.size()) {
+                        for(
+                            index_t c2 = v2cell[v1]; c2 != NO_CELL;
+                        ) {
+                            index_t lv = find_cell_vertex(c2,v1);
+                            if(lv == NO_VERTEX) {
+                                break;
+                            }
+                            index_t next_c2 = next_cell_around_vertex[
+                                corners_begin(c2) + lv
+                            ];
+                            if(c2 == c1 || type(c2) == MESH_HEX) {
+                                c2 = next_c2;
                                 continue;
                             }
-                            if(triangular_facet_matches_quad_facet(
-                                   c2,lf2,c1,lf1
-                               )) {
-                                matches.push_back(std::make_pair(c2,lf2));
+
+                            // Among all the triangular facets of c2, find the ones
+                            // that can be connected to (c1,lf1)
+                            for(index_t lf2=0; lf2<nb_facets(c2); ++lf2) {
+                                if(facet_nb_vertices(c2,lf2) != 3) {
+                                    continue;
+                                }
+                                if(triangular_facet_matches_quad_facet(
+                                       c2,lf2,c1,lf1
+                                   )) {
+                                    matches.push_back(std::make_pair(c2,lf2));
+                                }
                             }
+                            c2 = next_c2;
                         }
                     }
                 }
@@ -1783,24 +1816,27 @@ namespace GEOBRL {
                 for(index_t f=0; f<nb_facets(c); ++f) {
                     if(adjacent(c,f) == NO_CELL) {
                         index_t new_f = NO_INDEX;
-                        switch(facet_nb_vertices(c,f)) {
-                        case 3:
+                        index_t n_v = facet_nb_vertices(c,f);
+                        if(n_v == 3) {
                             new_f = mesh_.facets.create_triangle(
                                 facet_vertex(c,f,0),
                                 facet_vertex(c,f,1),
                                 facet_vertex(c,f,2)
                             );
-                            break;
-                        case 4:
+                        } else if(n_v == 4) {
                             new_f = mesh_.facets.create_quad(
                                 facet_vertex(c,f,0),
                                 facet_vertex(c,f,1),
                                 facet_vertex(c,f,2),
                                 facet_vertex(c,f,3)
                             );
-                            break;
-                        default:
-                            geo_assert_not_reached;
+                        } else if(n_v > 4) {
+                            new_f = mesh_.facets.create_polygon(n_v);
+                            for(index_t k=0; k<n_v; ++k) {
+                                mesh_.facets.set_vertex(new_f, k, facet_vertex(c,f,k));
+                            }
+                        } else {
+                            continue;
                         }
                         if(facet_cell.is_bound()) {
                             facet_cell[new_f] = c;
@@ -1848,7 +1884,11 @@ namespace GEOBRL {
 
     void MeshCells::pop() {
         geo_debug_assert(nb() != 0);
-        index_t corners_facets_new_size = cell_ptr_[nb()-1];
+        if(nb() == 0) {
+            return;
+        }
+        index_t corners_facets_new_size =
+            is_simplicial_ ? 4*(nb()-1) : cell_ptr_[nb()-1];
         cell_corners_.resize_store(corners_facets_new_size);
         cell_facets_.resize_store(corners_facets_new_size);
         resize_store(nb()-1);
@@ -1970,7 +2010,7 @@ namespace GEOBRL {
         case 6:
             return cell_facets;
         default:
-            geo_assert_not_reached;
+            throw std::out_of_range("invalid subelements index");
         }
     }
 
@@ -1993,7 +2033,7 @@ namespace GEOBRL {
         case 6:
             return cell_facets;
         default:
-            geo_assert_not_reached;
+            throw std::out_of_range("invalid subelements index");
         }
     }
 
@@ -2015,12 +2055,9 @@ namespace GEOBRL {
             return cell_corners;
         case MESH_CELL_FACETS:
             return cell_facets;
-        case MESH_NONE:
-        case MESH_ALL_ELEMENTS:
-        case MESH_ALL_SUBELEMENTS:
-            geo_assert_not_reached;
+        default:
+            throw std::invalid_argument("invalid subelements type");
         }
-        return *(MeshSubElementsStore*)nullptr;
     }
 
     const MeshSubElementsStore& Mesh::get_subelements_by_type(
@@ -2041,12 +2078,9 @@ namespace GEOBRL {
             return cell_corners;
         case MESH_CELL_FACETS:
             return cell_facets;
-        case MESH_NONE:
-        case MESH_ALL_ELEMENTS:
-        case MESH_ALL_SUBELEMENTS:
-            geo_assert_not_reached;
+        default:
+            throw std::invalid_argument("invalid subelements type");
         }
-        return *(MeshSubElementsStore*)nullptr;
     }
 
     std::string Mesh::subelements_type_to_name(MeshElementsFlags what) {

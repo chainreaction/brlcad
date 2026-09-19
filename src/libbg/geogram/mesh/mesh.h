@@ -392,12 +392,19 @@ namespace GEOBRL {
      * \return the index of the first created sub-element
      */
     index_t create_sub_elements(index_t nb) {
+        if(nb > std::numeric_limits<index_t>::max() - nb_) {
+            throw std::overflow_error("mesh sub-elements capacity overflow");
+        }
         index_t result = nb_;
         if(nb_ + nb > attributes_.size()) {
             index_t new_capacity=nb_ + nb;
             if(nb < 128) {
                 new_capacity = std::max(index_t(16),attributes_.size());
                 while(new_capacity < nb_ + nb) {
+                    if(new_capacity > std::numeric_limits<index_t>::max() / 2) {
+                        new_capacity = nb_ + nb;
+                        break;
+                    }
                     new_capacity *= 2;
                 }
             }
@@ -413,11 +420,18 @@ namespace GEOBRL {
      * \return the index of the created element
      */
     index_t create_sub_element() {
+        if(nb_ == std::numeric_limits<index_t>::max()) {
+            throw std::overflow_error("mesh sub-element capacity overflow");
+        }
         index_t result = nb_;
         ++nb_;
         if(attributes_.capacity() < nb_) {
-            index_t new_capacity =
-                std::max(index_t(16),attributes_.capacity()*2);
+            index_t new_capacity = attributes_.capacity();
+            if(new_capacity > std::numeric_limits<index_t>::max() / 2) {
+                new_capacity = nb_;
+            } else {
+                new_capacity = std::max(index_t(16), new_capacity * 2);
+            }
             attributes_.reserve(new_capacity);
         }
         attributes_.resize(nb_);
@@ -591,13 +605,16 @@ namespace GEOBRL {
             // create_vertex may realloc the points coordinates vector, thus
             // invalidate point_ptr(v).
             geo_debug_assert(
+                coords == nullptr ||
                 nb() == 0 ||
                 coords < point_ptr(0) ||
                 coords >= point_ptr(0) + nb() * dimension()
             );
             index_t result = create_vertex();
-            for(index_t c=0; c<dimension(); ++c) {
-                point_ptr(result)[c] = coords[c];
+            if(coords != nullptr) {
+                for(index_t c=0; c<dimension(); ++c) {
+                    point_ptr(result)[c] = coords[c];
+                }
             }
             return result;
         }
@@ -886,7 +903,7 @@ namespace GEOBRL {
             }
             // Even if we do not copy the attributes, we need at least
             // to copy the coordinates of the points !!
-            if(!copy_attributes) {
+            if(!copy_attributes && rhs.nb() != 0) {
                 if(rhs.single_precision()) {
                     Memory::copy(
                         single_precision_point_ptr(0),
@@ -1563,6 +1580,10 @@ namespace GEOBRL {
             if(nb_vertices_per_polygon != 3) {
                 is_not_simplicial();
             }
+            if(nb_facets > 0 && nb_vertices_per_polygon > 0 &&
+               nb_facets > std::numeric_limits<index_t>::max() / nb_vertices_per_polygon) {
+                throw std::overflow_error("create_facets size overflow");
+            }
 
             index_t first_facet = nb();
             index_t co = facet_corners_.nb();
@@ -1588,6 +1609,9 @@ namespace GEOBRL {
          * \details Does not change size
          */
         void reserve(index_t nb_to_reserve) {
+            if(nb_to_reserve > std::numeric_limits<index_t>::max() / 3) {
+                return;
+            }
             facet_corners_.reserve_store(nb_to_reserve*3);
             this->reserve_store(nb_to_reserve);
         }
