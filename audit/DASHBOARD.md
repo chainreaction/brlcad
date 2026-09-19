@@ -1,23 +1,23 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-19 09:35:00 UTC
+**Last Updated:** 2026-09-19 09:40:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 437 (12.5%)
-- **Files Pending Review:** 3056
-- **Total Issues Identified:** 223
+- **Files Reviewed:** 448 (12.8%)
+- **Files Pending Review:** 3045
+- **Total Issues Identified:** 224
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 153 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 154 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 47 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 222
-- **Pending Verification:** 1
+- **Fixed (Committed):** 224
+- **Pending Verification:** 0
 - **Disproven:** 0
 
 ## Subsystem Review Progress
@@ -84,7 +84,7 @@
 | `src/isst` | 9 | 0 | 0.0% | 0 |
 | `src/launcher` | 8 | 0 | 0.0% | 0 |
 | `src/libanalyze` | 40 | 0 | 0.0% | 0 |
-| `src/libbg` | 232 | 197 | 84.9% | 77 |
+| `src/libbg` | 232 | 208 | 89.7% | 78 |
 | `src/libbn` | 41 | 41 | 100.0% | 31 |
 | `src/libbrep` | 50 | 0 | 0.0% | 0 |
 | `src/libbu` | 176 | 176 | 100.0% | 101 |
@@ -340,4 +340,5 @@
 | `SEC-0221` | **Sev 2** | Buffer Overflow, Integer Shift Overflow, Unchecked Realloc & Vector Stack Underflow | `src/libbg/geogram/voronoi/generic_RVD_utils.h, src/libbg/geogram/voronoi/generic_RVD_vertex.h:generic_RVD_utils.h:45-55, 275-290, 345-385; generic_RVD_vertex.h:175-195, 240-260, 270-300, 725-770` | `FIXED` | In generic_RVD_utils.h, VectorStack::pop() called pop_back() on empty vectors causing out-of-bounds underflow; array_capacity computed 1 << (result - 1) with 32-bit signed shift that overflowed on large capacities; and insert() directly reassigned realloc return pointers without failure validation. In generic_RVD_vertex.h, small_set appended past capacity DIM without bounds checks; PointAllocator lacked chunk allocation failure handling and bounds checks. |
 | `SEC-0222` | **Sev 2** | Denial-of-Service Assertion Aborts & Unchecked Pointer Dereferences | `src/libbg/geogram/voronoi/generic_RVD_cell.cpp, src/libbg/geogram/voronoi/generic_RVD_polygon.cpp, src/libbg/geogram/voronoi/RVD_callback.cpp, src/libbg/geogram/voronoi/RVD.cpp:generic_RVD_cell.cpp:635-645, 1020-1040; generic_RVD_polygon.cpp:520-530; RVD_callback.cpp:80-95; RVD.cpp:1620-1695, 2410-2420, 2580-2585` | `FIXED` | In side_exact, initialize_from_surface_mesh, triangulate_polygon, run_thread, and RestrictedVoronoiDiagram::create, assertions geo_assert and geo_assert_not_reached were triggered on non-simplex facets, unexpected topology, or unhandled dimensions, terminating the process via SIGABRT. |
 | `SEC-0223` | **Sev 2** | Out-of-Bounds Access, Missing Null Guards & Zero Division | `src/libbg/geogram/voronoi/CVT.cpp, src/libbg/geogram/voronoi/CVT.h:CVT.h:120-140, 195-215; CVT.cpp:60-80, 135-155, 175-195, 230-260, 310-340, 360-390` | `FIXED` | In CVT.cpp and CVT.h, constructors and member methods accepted Mesh* and double* pointers without null validation, accessed empty embedding vectors, and performed unvalidated indexing and division when dimension_ or point counts were zero. |
+| `SEC-0224` | **Sev 2** | Division by Zero, Out-of-bounds Vector Access & Dimension Validation | `src/libbg/geogram/third_party/LBFGSpp/include/LBFGS.h:LBFGS.h:170-175, 230-240; LBFGSB.h:205-215; BFGSMat.h:115-125, 270-340, 480-505; BKLDLT.h:80-95, 125-140, 160-175; Cauchy.h:120-145, 175-190; LineSearchMoreThuente.h:34-55, 71-125; LineSearchNocedalWright.h:42-50, 94-98; Param.h:210, 368; SubspaceMin.h:44-58, 134-138` | `FIXED` | In LBFGSpp optimization routines, missing zero guards on matrix determinants, Hessian eigenvalues, line search denominators, and empty input vector dimensions allowed potential divisions by zero, infinite loops, and out-of-bounds array access on degenerate or singular optimization problems. |
 

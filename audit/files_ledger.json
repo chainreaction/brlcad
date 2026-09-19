@@ -14649,110 +14649,132 @@
       "path": "src/libbg/geogram/third_party/LBFGSpp/include/LBFGS.h",
       "subsystem": "src/libbg",
       "lines": 202,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:40:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0224"
+      ]
     },
     {
       "id": 1449,
       "path": "src/libbg/geogram/third_party/LBFGSpp/include/LBFGSB.h",
       "subsystem": "src/libbg",
       "lines": 284,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:40:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0224"
+      ]
     },
     {
       "id": 1450,
       "path": "src/libbg/geogram/third_party/LBFGSpp/include/LBFGSpp/BFGSMat.h",
       "subsystem": "src/libbg",
       "lines": 622,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:40:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0224"
+      ]
     },
     {
       "id": 1451,
       "path": "src/libbg/geogram/third_party/LBFGSpp/include/LBFGSpp/BKLDLT.h",
       "subsystem": "src/libbg",
       "lines": 536,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:40:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0224"
+      ]
     },
     {
       "id": 1452,
       "path": "src/libbg/geogram/third_party/LBFGSpp/include/LBFGSpp/Cauchy.h",
       "subsystem": "src/libbg",
       "lines": 291,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:40:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0224"
+      ]
     },
     {
       "id": 1453,
       "path": "src/libbg/geogram/third_party/LBFGSpp/include/LBFGSpp/LineSearchBacktracking.h",
       "subsystem": "src/libbg",
       "lines": 126,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:40:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0224"
+      ]
     },
     {
       "id": 1454,
       "path": "src/libbg/geogram/third_party/LBFGSpp/include/LBFGSpp/LineSearchBracketing.h",
       "subsystem": "src/libbg",
       "lines": 133,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:40:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0224"
+      ]
     },
     {
       "id": 1455,
       "path": "src/libbg/geogram/third_party/LBFGSpp/include/LBFGSpp/LineSearchMoreThuente.h",
       "subsystem": "src/libbg",
       "lines": 620,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:40:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0224"
+      ]
     },
     {
       "id": 1456,
       "path": "src/libbg/geogram/third_party/LBFGSpp/include/LBFGSpp/LineSearchNocedalWright.h",
       "subsystem": "src/libbg",
       "lines": 284,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:40:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0224"
+      ]
     },
     {
       "id": 1457,
       "path": "src/libbg/geogram/third_party/LBFGSpp/include/LBFGSpp/Param.h",
       "subsystem": "src/libbg",
       "lines": 381,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:40:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0224"
+      ]
     },
     {
       "id": 1458,
       "path": "src/libbg/geogram/third_party/LBFGSpp/include/LBFGSpp/SubspaceMin.h",
       "subsystem": "src/libbg",
       "lines": 309,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:40:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0224"
+      ]
     },
     {
       "id": 1459,

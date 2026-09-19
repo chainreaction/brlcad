@@ -4011,7 +4011,25 @@
       "created_at": "2026-09-19T05:30:00Z",
       "verified_at": "2026-09-19T05:30:00Z",
       "fixed_at": "2026-09-19T05:34:00Z"
+    },
+    {
+      "id": "SEC-0224",
+      "file": "src/libbg/geogram/third_party/LBFGSpp/include/LBFGS.h",
+      "lines": "LBFGS.h:170-175, 230-240; LBFGSB.h:205-215; BFGSMat.h:115-125, 270-340, 480-505; BKLDLT.h:80-95, 125-140, 160-175; Cauchy.h:120-145, 175-190; LineSearchMoreThuente.h:34-55, 71-125; LineSearchNocedalWright.h:42-50, 94-98; Param.h:210, 368; SubspaceMin.h:44-58, 134-138",
+      "severity": 2,
+      "category": "Division by Zero, Out-of-bounds Vector Access, and Dimension Validation",
+      "description": "In LBFGSpp optimization routines, missing zero guards on matrix determinants, Hessian eigenvalues, line search denominators, and empty input vector dimensions allowed potential divisions by zero, infinite loops, and out-of-bounds array access on degenerate or singular optimization problems.",
+      "verification_status": "CONFIRMED",
+      "verification_test": "Code inspection and regression test suite.",
+      "test_result": "Added dimension validation, determinant zero guards, and bounds checks.",
+      "fix_status": "FIXED",
+      "fix_description": "Guarded divisions by zero in BFGS matrix updates, LDLT decomposition, Cauchy point calculations, and line search interpolations; validated vector dimensions and step parameters.",
+      "commit_hash": "e9958d9a74",
+      "commit_message": "libbg: guard division by zero and dimension validation in LBFGSpp optimization routines",
+      "created_at": "2026-09-19T05:39:00Z",
+      "verified_at": "2026-09-19T05:39:00Z",
+      "fixed_at": "2026-09-19T05:40:00Z"
     }
   ],
-  "last_updated": "2026-09-19T05:35:00Z"
+  "last_updated": "2026-09-19T05:40:00Z"
 }
