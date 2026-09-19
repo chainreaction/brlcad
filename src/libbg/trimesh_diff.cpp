@@ -71,6 +71,8 @@ dbl_clamp(fastf_t d, int maxdec, fastf_t tol)
     // too close to zero
     if (NEAR_ZERO(d, tol))
 	return 0.0;
+    if (maxdec < 0) maxdec = 0;
+    if (maxdec > 12) maxdec = 12;
     double m = std::pow(10, maxdec + 1);
     double r = std::round(m * d);
     return std::trunc(r) / m;
@@ -97,6 +99,9 @@ bg_trimesh_diff(
     // Trivial case - empty meshes
     if (!num_p1)
 	return 0;
+
+    if (dist_tol <= 0.0 || std::isnan(dist_tol))
+	dist_tol = VUNITIZE_TOL;
 
     // Next, compare the sorted vertices.  If they don't line up, there is no
     // possibility that we have the same mesh.
@@ -203,49 +208,64 @@ bg_trimesh_diff(
     // up) and use that to set up triangles
     std::unordered_map<size_t, size_t> ind_map_1;
     for (size_t i = 0; i < pv1.size(); i++)
-	ind_map_1[i] = pv1[i].orig_ind;
+	ind_map_1[pv1[i].orig_ind] = i;
     std::unordered_map<size_t, size_t> ind_map_2;
     for (size_t i = 0; i < pv2.size(); i++)
-	ind_map_2[i] = pv2[i].orig_ind;
+	ind_map_2[pv2[i].orig_ind] = i;
+
+    struct diff_canon_tri {
+	size_t v[3];
+	bool operator<(const diff_canon_tri &o) const {
+	    if (v[0] != o.v[0]) return v[0] < o.v[0];
+	    if (v[1] != o.v[1]) return v[1] < o.v[1];
+	    return v[2] < o.v[2];
+	}
+	bool operator!=(const diff_canon_tri &o) const {
+	    return v[0] != o.v[0] || v[1] != o.v[1] || v[2] != o.v[2];
+	}
+    };
+
+    std::vector<diff_canon_tri> tris1(num_f1);
+    for (size_t i = 0; i < num_f1; i++) {
+	int f0 = f1[3*i+0];
+	int f1_ = f1[3*i+1];
+	int f2_ = f1[3*i+2];
+	if (f0 < 0 || (size_t)f0 >= num_p1 ||
+	    f1_ < 0 || (size_t)f1_ >= num_p1 ||
+	    f2_ < 0 || (size_t)f2_ >= num_p1)
+	    return 1;
+	size_t t[3] = { ind_map_1[(size_t)f0], ind_map_1[(size_t)f1_], ind_map_1[(size_t)f2_] };
+	size_t min_idx = 0;
+	if (t[1] < t[min_idx]) min_idx = 1;
+	if (t[2] < t[min_idx]) min_idx = 2;
+	tris1[i].v[0] = t[min_idx];
+	tris1[i].v[1] = t[(min_idx + 1) % 3];
+	tris1[i].v[2] = t[(min_idx + 2) % 3];
+    }
+
+    std::vector<diff_canon_tri> tris2(num_f2);
+    for (size_t i = 0; i < num_f2; i++) {
+	int f0 = f2[3*i+0];
+	int f1_ = f2[3*i+1];
+	int f2_ = f2[3*i+2];
+	if (f0 < 0 || (size_t)f0 >= num_p2 ||
+	    f1_ < 0 || (size_t)f1_ >= num_p2 ||
+	    f2_ < 0 || (size_t)f2_ >= num_p2)
+	    return 1;
+	size_t t[3] = { ind_map_2[(size_t)f0], ind_map_2[(size_t)f1_], ind_map_2[(size_t)f2_] };
+	size_t min_idx = 0;
+	if (t[1] < t[min_idx]) min_idx = 1;
+	if (t[2] < t[min_idx]) min_idx = 2;
+	tris2[i].v[0] = t[min_idx];
+	tris2[i].v[1] = t[(min_idx + 1) % 3];
+	tris2[i].v[2] = t[(min_idx + 2) % 3];
+    }
+
+    std::sort(tris1.begin(), tris1.end());
+    std::sort(tris2.begin(), tris2.end());
 
     for (size_t i = 0; i < num_f1; i++) {
-	size_t tri_1[3];
-	tri_1[0] = ind_map_1[f1[3*i+0]];
-	tri_1[1] = ind_map_1[f1[3*i+1]];
-	tri_1[2] = ind_map_1[f1[3*i+2]];
-
-	// Tri2 also has three vertices, but if our starting index is offset
-	// the comparison logic is a pain - just repeat the first two vertices
-	// so a simple offset will let us compare all configurations.
-	size_t tri_2[5];
-	tri_2[0] = ind_map_2[f1[3*i+0]];
-	tri_2[1] = ind_map_2[f1[3*i+1]];
-	tri_2[2] = ind_map_2[f1[3*i+2]];
-	tri_2[3] = tri_2[0];
-	tri_2[4] = tri_2[1];
-
-	// Find the first vertex of tri_1 in tri_2
-	int offset = -1;
-	for (int j = 0; j < 3; j++) {
-	    if (tri_1[0] == tri_2[j]) {
-		offset = j;
-		break;
-	    }
-	}
-
-	// If we couldn't find the first vertex of tri_1 in tri_2's vertices,
-	// the faces cannot be referring to the same vertex and we have a
-	// different mesh
-	if (offset < 0) {
-	    return 1;
-	}
-
-	// We have a match at offset, check that the next two are also equal.
-	// If neither matches, we don't have a matching triangle and we are
-	// different.
-	if (tri_1[1] != tri_2[offset+1])
-	    return 1;
-	if (tri_1[2] != tri_2[offset+2])
+	if (tris1[i] != tris2[i])
 	    return 1;
     }
 
@@ -269,6 +289,9 @@ bg_trimesh_hash(
     if (!f || !p || !num_p)
 	return 0;
 
+    if (dist_tol <= 0.0 || std::isnan(dist_tol))
+	dist_tol = VUNITIZE_TOL;
+
     // OK, we have something to hash
     struct bu_data_hash_state *s = bu_data_hash_create();
 
@@ -286,6 +309,8 @@ bg_trimesh_hash(
 
     // Truncate the vertices using dist_tol.
     int maxdec = std::fabs(std::log10(dist_tol));
+    if (maxdec < 0) maxdec = 0;
+    if (maxdec > 12) maxdec = 12;
     for (size_t i = 0; i < pv.size(); i++) {
 	pv[i].x = dbl_clamp(pv[i].x, maxdec, dist_tol);
 	pv[i].y = dbl_clamp(pv[i].y, maxdec, dist_tol);
@@ -312,34 +337,42 @@ bg_trimesh_hash(
     // up) and use that to set up triangles
     std::unordered_map<size_t, size_t> ind_map;
     for (size_t i = 0; i < pv.size(); i++)
-	ind_map[i] = pv[i].orig_ind;
+	ind_map[pv[i].orig_ind] = i;
+
+    struct hash_canon_tri {
+	size_t v[3];
+	bool operator<(const hash_canon_tri &o) const {
+	    if (v[0] != o.v[0]) return v[0] < o.v[0];
+	    if (v[1] != o.v[1]) return v[1] < o.v[1];
+	    return v[2] < o.v[2];
+	}
+    };
+
+    std::vector<hash_canon_tri> tris(num_f);
+    for (size_t i = 0; i < num_f; i++) {
+	int f0 = f[3*i+0];
+	int f1_ = f[3*i+1];
+	int f2_ = f[3*i+2];
+	if (f0 < 0 || (size_t)f0 >= num_p ||
+	    f1_ < 0 || (size_t)f1_ >= num_p ||
+	    f2_ < 0 || (size_t)f2_ >= num_p) {
+	    bu_data_hash_destroy(s);
+	    return 0;
+	}
+	size_t t[3] = { ind_map[(size_t)f0], ind_map[(size_t)f1_], ind_map[(size_t)f2_] };
+	size_t min_idx = 0;
+	if (t[1] < t[min_idx]) min_idx = 1;
+	if (t[2] < t[min_idx]) min_idx = 2;
+	tris[i].v[0] = t[min_idx];
+	tris[i].v[1] = t[(min_idx + 1) % 3];
+	tris[i].v[2] = t[(min_idx + 2) % 3];
+    }
+    std::sort(tris.begin(), tris.end());
 
     for (size_t i = 0; i < num_f; i++) {
-	// A triangle has three vertices, but the same triangle
-	// may be stored with different starting indices. Store
-	// the first two indices again for simplicity.
-	size_t tri[5];
-	tri[0] = ind_map[f[3*i+0]];
-	tri[1] = ind_map[f[3*i+1]];
-	tri[2] = ind_map[f[3*i+2]];
-	tri[3] = tri[0];
-	tri[4] = tri[1];
-
-	// For stability, find the lowest numerical index and use
-	// that as our starting point for the hash.
-	size_t offset = 0;
-	size_t tri_lowest = tri[0];
-	for (int j = 1; j < 3; j++) {
-	    if (tri[j] < tri_lowest) {
-		offset = j;
-		break;
-	    }
-	}
-
-	// Hash the three indices
-	for (size_t j = offset; j < offset+3; j++) {
-	    bu_data_hash_update(s, &tri[j], sizeof(size_t));
-	}
+	bu_data_hash_update(s, &tris[i].v[0], sizeof(size_t));
+	bu_data_hash_update(s, &tris[i].v[1], sizeof(size_t));
+	bu_data_hash_update(s, &tris[i].v[2], sizeof(size_t));
     }
 
     unsigned long long ret = bu_data_hash_val(s);

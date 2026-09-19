@@ -52,12 +52,16 @@
 static void
 plot_faces(const char *fname, std::set<int> *faces, int *f, point_t *v)
 {
-    std::set<int>::iterator f_it;
+    if (!fname || !faces || !f || !v)
+	return;
     FILE* plot_file = fopen(fname, "wb");
+    if (!plot_file)
+	return;
     int r = int(256*drand48() + 100.0);
     int g = int(256*drand48() + 100.0);
     int b = int(256*drand48() + 100.0);
     pl_color(plot_file, r, g, b);
+    std::set<int>::iterator f_it;
     for (f_it = faces->begin(); f_it != faces->end(); f_it++) {
 	point_t p1, p2, p3;
 	VMOVE(p1, v[f[(*f_it)*3+0]]);
@@ -89,9 +93,17 @@ bg_trimesh_isect(
     int *faces_1, int num_faces_1, point_t *vertices_1, int num_vertices_1,
     int *faces_2, int num_faces_2, point_t *vertices_2, int num_vertices_2)
 {
-    int ret = 0;
-    if (!faces_1 || !num_faces_1 || !vertices_1 || !num_vertices_1) return 0;
-    if (!faces_2 || !num_faces_2 || !vertices_2 || !num_vertices_2) return 0;
+    if (num_faces_inside_1) (*num_faces_inside_1) = 0;
+    if (num_faces_inside_2) (*num_faces_inside_2) = 0;
+    if (num_faces_isect_1) (*num_faces_isect_1) = 0;
+    if (num_faces_isect_2) (*num_faces_isect_2) = 0;
+    if (faces_inside_1) (*faces_inside_1) = NULL;
+    if (faces_inside_2) (*faces_inside_2) = NULL;
+    if (faces_isect_1) (*faces_isect_1) = NULL;
+    if (faces_isect_2) (*faces_isect_2) = NULL;
+
+    if (!faces_1 || num_faces_1 <= 0 || !vertices_1 || num_vertices_1 <= 0) return 0;
+    if (!faces_2 || num_faces_2 <= 0 || !vertices_2 || num_vertices_2 <= 0) return 0;
 
     /* TODO - check solidity.  If these aren't both valid/solid, this test
      * won't (currently) handle it */
@@ -123,21 +135,8 @@ bg_trimesh_isect(
 	) ? 1 : 0;
 
     if (!isect) {
-	if (num_faces_inside_1) (*num_faces_inside_1) = 0;
-	if (num_faces_inside_2) (*num_faces_inside_2) = 0;
-	if (num_faces_isect_1) (*num_faces_isect_1) = 0;
-	if (num_faces_isect_2) (*num_faces_isect_2) = 0;
-	if (faces_inside_1) (*faces_inside_1) = NULL;
-	if (faces_inside_2) (*faces_inside_2) = NULL;
-	if (faces_isect_1) (*faces_isect_1) = NULL;
-	if (faces_isect_2) (*faces_isect_2) = NULL;
 	return 0;
     }
-
-    /*if (!isect) {
-      bu_log("in bbox1.s rpp %f %f %f %f %f %f\n", bb1min[0], bb1max[0], bb1min[1], bb1max[1], bb1min[2], bb1max[2]);
-      bu_log("in bbox2.s rpp %f %f %f %f %f %f\n", bb2min[0], bb2max[0], bb2min[1], bb2max[1], bb2min[2], bb2max[2]);
-      }*/
 
     /* If the bboxes overlap, build the sets of faces with at least one vertex in the
      * other mesh's bounding box.  Those are the only ones we need to worry about */
@@ -145,41 +144,37 @@ bg_trimesh_isect(
     std::vector<int> m2_working_faces;
 
     for (int i = 0; i < num_faces_1; i++) {
-
-	if (V3PNT_IN_RPP(vertices_1[faces_1[3*i]], bb2min, bb2max)) {
-	    m1_working_faces.push_back(i);
-	    continue;
+	int v0 = faces_1[3*i+0];
+	int v1 = faces_1[3*i+1];
+	int v2 = faces_1[3*i+2];
+	if (v0 < 0 || v0 >= num_vertices_1 ||
+	    v1 < 0 || v1 >= num_vertices_1 ||
+	    v2 < 0 || v2 >= num_vertices_1) {
+	    return 0;
 	}
 
-	if (V3PNT_IN_RPP(vertices_1[faces_1[3*i+1]], bb2min, bb2max)) {
+	if (V3PNT_IN_RPP(vertices_1[v0], bb2min, bb2max) ||
+	    V3PNT_IN_RPP(vertices_1[v1], bb2min, bb2max) ||
+	    V3PNT_IN_RPP(vertices_1[v2], bb2min, bb2max)) {
 	    m1_working_faces.push_back(i);
-	    continue;
 	}
-
-	if (V3PNT_IN_RPP(vertices_1[faces_1[3*i+2]], bb2min, bb2max)) {
-	    m1_working_faces.push_back(i);
-	    continue;
-	}
-
     }
 
     for (int i = 0; i < num_faces_2; i++) {
-
-	if (V3PNT_IN_RPP(vertices_2[faces_2[3*i]], bb1min, bb1max)) {
-	    m2_working_faces.push_back(i);
-	    continue;
+	int v0 = faces_2[3*i+0];
+	int v1 = faces_2[3*i+1];
+	int v2 = faces_2[3*i+2];
+	if (v0 < 0 || v0 >= num_vertices_2 ||
+	    v1 < 0 || v1 >= num_vertices_2 ||
+	    v2 < 0 || v2 >= num_vertices_2) {
+	    return 0;
 	}
 
-	if (V3PNT_IN_RPP(vertices_2[faces_2[3*i+1]], bb1min, bb1max)) {
+	if (V3PNT_IN_RPP(vertices_2[v0], bb1min, bb1max) ||
+	    V3PNT_IN_RPP(vertices_2[v1], bb1min, bb1max) ||
+	    V3PNT_IN_RPP(vertices_2[v2], bb1min, bb1max)) {
 	    m2_working_faces.push_back(i);
-	    continue;
 	}
-
-	if (V3PNT_IN_RPP(vertices_2[faces_2[3*i+2]], bb1min, bb1max)) {
-	    m2_working_faces.push_back(i);
-	    continue;
-	}
-
     }
 
     bu_log("m1_working_faces size: %zd\n", m1_working_faces.size());
@@ -187,12 +182,7 @@ bg_trimesh_isect(
 
     /* For each "working" face in faces_1, check it against "working" faces in
      * face_2 for intersections.  IFF it intersects, add it and the other face
-     * to their intersects set.
-     *
-     * TODO - this is the naive NxM implementation - it can undoubtedly be improved
-     * upon with one form or another of acceleration structure - but for now
-     * we're after simple and working.  Once this is established to be a
-     * performance bottleneck we can dig deeper into it. */
+     * to their intersects set. */
     std::set<int> m1_intersecting_faces;
     std::set<int> m2_intersecting_faces;
     for (size_t i = 0; i < m1_working_faces.size(); i++) {
@@ -214,34 +204,32 @@ bg_trimesh_isect(
     }
 
     bu_log("m1_intersecting_faces size: %zd\n", m1_intersecting_faces.size());
-
     plot_faces("m1.plot3", &m1_intersecting_faces, faces_1, vertices_1);
-
     bu_log("m2_intersecting_faces size: %zd\n", m2_intersecting_faces.size());
-
     plot_faces("m2.plot3", &m2_intersecting_faces, faces_2, vertices_2);
 
+    if (faces_isect_1 && num_faces_isect_1) {
+	*num_faces_isect_1 = (int)m1_intersecting_faces.size();
+	if (*num_faces_isect_1 > 0) {
+	    *faces_isect_1 = (int *)bu_calloc((size_t)*num_faces_isect_1, sizeof(int), "isect faces 1");
+	    int idx = 0;
+	    for (auto fit = m1_intersecting_faces.begin(); fit != m1_intersecting_faces.end(); ++fit) {
+		(*faces_isect_1)[idx++] = *fit;
+	    }
+	}
+    }
+    if (faces_isect_2 && num_faces_isect_2) {
+	*num_faces_isect_2 = (int)m2_intersecting_faces.size();
+	if (*num_faces_isect_2 > 0) {
+	    *faces_isect_2 = (int *)bu_calloc((size_t)*num_faces_isect_2, sizeof(int), "isect faces 2");
+	    int idx = 0;
+	    for (auto fit = m2_intersecting_faces.begin(); fit != m2_intersecting_faces.end(); ++fit) {
+		(*faces_isect_2)[idx++] = *fit;
+	    }
+	}
+    }
 
-#if 0
-
-    /* From the set of intersecting faces in each face, characterize the vertices
-     * of the face as inside or outside the other faces via the face normals (we
-     * are assuming CCW meshes with correct outward facing normals.)  Based on those
-     * vertex characterizations, look up other faces associated with those vertices.
-     * If those faces are not intersecting faces and are in the working_faces set,
-     * characterize them according to the vertex status and pull the other faces
-     * associated with that faces vertices that are not intersecting faces for
-     * processing.  In essence, we "walk" the mesh until all triangles are
-     * accounted for as either intersecting, inside the other mesh, or outside
-     * the mesh.
-     *
-     * This will work ONLY on valid solid meshes.  Anything else will need
-     * https://github.com/sideeffects/WindingNumber for an inside/outside
-     * determination... */
-    std::set<int> m1_inside_m2_faces;
-    std::set<int> m2_inside_m1_faces;
-#endif
-
+    int ret = (m1_intersecting_faces.size() > 0 || m2_intersecting_faces.size() > 0) ? 1 : 0;
     return ret;
 }
 

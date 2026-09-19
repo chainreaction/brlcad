@@ -65,135 +65,153 @@ bg_trimesh_remesh(
     if (!opts)
 	opts = &default_opts;
 
-    /* Determine target point count */
-    GEOBRL::index_t nb_pts;
-    if (opts->target_count > 0) {
-	nb_pts = (GEOBRL::index_t)opts->target_count;
-    } else {
-	fastf_t mult = (opts->count_multiplier > 0.0) ? opts->count_multiplier : 10.0;
-	nb_pts = (GEOBRL::index_t)(n_ipnts * mult);
-    }
-    if (nb_pts == 0)
-	nb_pts = (GEOBRL::index_t)n_ipnts;
+    if (n_ifaces > INT_MAX / 3 || n_ipnts > INT_MAX / 3)
+	return -1;
 
-    /* Build the Geogram input mesh */
-    GEOBRL::Mesh gm;
-    gm.vertices.assign_points((double *)ipnts, 3, (GEOBRL::index_t)n_ipnts);
+    /* Validate vertex indices in ifaces */
     for (int i = 0; i < n_ifaces; i++) {
-	GEOBRL::index_t f = gm.facets.create_polygon(3);
-	gm.facets.set_vertex(f, 0, (GEOBRL::index_t)ifaces[3*i+0]);
-	gm.facets.set_vertex(f, 1, (GEOBRL::index_t)ifaces[3*i+1]);
-	gm.facets.set_vertex(f, 2, (GEOBRL::index_t)ifaces[3*i+2]);
+	if (ifaces[3*i+0] < 0 || ifaces[3*i+0] >= n_ipnts ||
+	    ifaces[3*i+1] < 0 || ifaces[3*i+1] >= n_ipnts ||
+	    ifaces[3*i+2] < 0 || ifaces[3*i+2] >= n_ipnts) {
+	    return -1;
+	}
     }
 
-    // Make sure we are CCW
-    {
-	GEOBRL::compute_normals(gm);
-	fastf_t sarea = GEOBRL::Geom::mesh_area(gm);
-	if (sarea < 0) {
-	    for (GEOBRL::index_t f = 0; f < gm.facets.nb(); ++f) {
-		// Geogram supports arbitrary polygons, so ensure it's a triangle
-		if (gm.facets.nb_vertices(f) == 3) {
-		    // Get the current vertex indices at local positions 0 and 2
-		    GEOBRL::index_t v0 = gm.facets.vertex(f, 0);
-		    GEOBRL::index_t v2 = gm.facets.vertex(f, 2);
+    try {
+	/* Determine target point count */
+	GEOBRL::index_t nb_pts;
+	if (opts->target_count > 0) {
+	    nb_pts = (GEOBRL::index_t)opts->target_count;
+	} else {
+	    fastf_t mult = (opts->count_multiplier > 0.0) ? opts->count_multiplier : 10.0;
+	    nb_pts = (GEOBRL::index_t)(n_ipnts * mult);
+	}
+	if (nb_pts == 0)
+	    nb_pts = (GEOBRL::index_t)n_ipnts;
 
-		    // Swap them to reverse the winding order (CW <-> CCW)
-		    gm.facets.set_vertex(f, 0, v2);
-		    gm.facets.set_vertex(f, 2, v0);
-		}
-	    }
+	/* Build the Geogram input mesh */
+	GEOBRL::Mesh gm;
+	gm.vertices.assign_points((double *)ipnts, 3, (GEOBRL::index_t)n_ipnts);
+	for (int i = 0; i < n_ifaces; i++) {
+	    GEOBRL::index_t f = gm.facets.create_polygon(3);
+	    gm.facets.set_vertex(f, 0, (GEOBRL::index_t)ifaces[3*i+0]);
+	    gm.facets.set_vertex(f, 1, (GEOBRL::index_t)ifaces[3*i+1]);
+	    gm.facets.set_vertex(f, 2, (GEOBRL::index_t)ifaces[3*i+2]);
+	}
+
+	// Make sure we are CCW
+	{
 	    GEOBRL::compute_normals(gm);
-	}
-    }
+	    fastf_t sarea = GEOBRL::Geom::mesh_area(gm);
+	    if (sarea < 0) {
+		for (GEOBRL::index_t f = 0; f < gm.facets.nb(); ++f) {
+		    // Geogram supports arbitrary polygons, so ensure it's a triangle
+		    if (gm.facets.nb_vertices(f) == 3) {
+			// Get the current vertex indices at local positions 0 and 2
+			GEOBRL::index_t v0 = gm.facets.vertex(f, 0);
+			GEOBRL::index_t v2 = gm.facets.vertex(f, 2);
 
-    /* Geogram options – enable multi-nerve support for complex topology */
-    GEOBRL::GeoOptions geo_opts;
-    geo_opts.remesh_multi_nerve = true;
-
-    /* Pre-repair: colocate near-duplicate vertices, remove degenerate faces */
-    {
-	double bbox_diag = GEOBRL::bbox_diagonal(gm);
-	double epsilon = (bbox_diag > 0.0) ? 1e-6 * (0.01 * bbox_diag) : 0.0;
-	GEOBRL::mesh_repair(gm,
-			    GEOBRL::MeshRepairMode(GEOBRL::MESH_REPAIR_DEFAULT),
-			    epsilon,
-			    geo_opts);
-    }
-
-    if (gm.facets.nb() == 0)
-	return -1;
-
-    /* Anisotropic remesh: add normal-direction channels to the mesh point
-     * storage so that the CVT solver weights the normal direction according
-     * to the caller-supplied anisotropy factor.  A factor of 0.0 skips this
-     * step and produces an isotropic remesh. */
-    if (opts->anisotropy > 0.0) {
-	GEOBRL::compute_normals(gm);
-	GEOBRL::set_anisotropy(gm, (double)opts->anisotropy);
-    }
-
-    /* Remesh – dim=0 lets Geogram pick the working dimension automatically
-     * (3 for isotropic, 6 for anisotropic after set_anisotropy). */
-    GEOBRL::Mesh remesh;
-    GEOBRL::remesh_smooth(
-	gm, remesh, nb_pts, geo_opts,
-	/* dim        */ 0,
-	/* lloyd_iter */ (GEOBRL::index_t)((opts->lloyd_iters  >= 0) ? opts->lloyd_iters  : 5),
-	/* newton_iter*/ (GEOBRL::index_t)((opts->newton_iters >= 0) ? opts->newton_iters : 30));
-
-    if (remesh.vertices.nb() == 0 || remesh.facets.nb() == 0)
-	return -1;
-
-
-    // Make sure we are CCW
-    {
-	GEOBRL::compute_normals(remesh);
-	fastf_t sarea = GEOBRL::Geom::mesh_area(remesh);
-	if (sarea < 0) {
-	    for (GEOBRL::index_t f = 0; f < remesh.facets.nb(); ++f) {
-		// Geogram supports arbitrary polygons, so ensure it's a triangle
-		if (remesh.facets.nb_vertices(f) == 3) {
-		    // Get the current vertex indices at local positions 0 and 2
-		    GEOBRL::index_t v0 = remesh.facets.vertex(f, 0);
-		    GEOBRL::index_t v2 = remesh.facets.vertex(f, 2);
-
-		    // Swap them to reverse the winding order (CW <-> CCW)
-		    remesh.facets.set_vertex(f, 0, v2);
-		    remesh.facets.set_vertex(f, 2, v0);
+			// Swap them to reverse the winding order (CW <-> CCW)
+			gm.facets.set_vertex(f, 0, v2);
+			gm.facets.set_vertex(f, 2, v0);
+		    }
 		}
+		GEOBRL::compute_normals(gm);
 	    }
-	    GEOBRL::compute_normals(remesh);
 	}
+
+	/* Geogram options – enable multi-nerve support for complex topology */
+	GEOBRL::GeoOptions geo_opts;
+	geo_opts.remesh_multi_nerve = true;
+
+	/* Pre-repair: colocate near-duplicate vertices, remove degenerate faces */
+	{
+	    double bbox_diag = GEOBRL::bbox_diagonal(gm);
+	    double epsilon = (bbox_diag > 0.0) ? 1e-6 * (0.01 * bbox_diag) : 0.0;
+	    GEOBRL::mesh_repair(gm,
+				GEOBRL::MeshRepairMode(GEOBRL::MESH_REPAIR_DEFAULT),
+				epsilon,
+				geo_opts);
+	}
+
+	if (gm.facets.nb() == 0)
+	    return -1;
+
+	/* Anisotropic remesh: add normal-direction channels to the mesh point
+	 * storage so that the CVT solver weights the normal direction according
+	 * to the caller-supplied anisotropy factor.  A factor of 0.0 skips this
+	 * step and produces an isotropic remesh. */
+	if (opts->anisotropy > 0.0) {
+	    GEOBRL::compute_normals(gm);
+	    GEOBRL::set_anisotropy(gm, (double)opts->anisotropy);
+	}
+
+	/* Remesh – dim=0 lets Geogram pick the working dimension automatically
+	 * (3 for isotropic, 6 for anisotropic after set_anisotropy). */
+	GEOBRL::Mesh remesh;
+	GEOBRL::remesh_smooth(
+	    gm, remesh, nb_pts, geo_opts,
+	    /* dim        */ 0,
+	    /* lloyd_iter */ (GEOBRL::index_t)((opts->lloyd_iters  >= 0) ? opts->lloyd_iters  : 5),
+	    /* newton_iter*/ (GEOBRL::index_t)((opts->newton_iters >= 0) ? opts->newton_iters : 30));
+
+	if (remesh.vertices.nb() == 0 || remesh.facets.nb() == 0)
+	    return -1;
+
+
+	// Make sure we are CCW
+	{
+	    GEOBRL::compute_normals(remesh);
+	    fastf_t sarea = GEOBRL::Geom::mesh_area(remesh);
+	    if (sarea < 0) {
+		for (GEOBRL::index_t f = 0; f < remesh.facets.nb(); ++f) {
+		    // Geogram supports arbitrary polygons, so ensure it's a triangle
+		    if (remesh.facets.nb_vertices(f) == 3) {
+			// Get the current vertex indices at local positions 0 and 2
+			GEOBRL::index_t v0 = remesh.facets.vertex(f, 0);
+			GEOBRL::index_t v2 = remesh.facets.vertex(f, 2);
+
+			// Swap them to reverse the winding order (CW <-> CCW)
+			remesh.facets.set_vertex(f, 0, v2);
+			remesh.facets.set_vertex(f, 2, v0);
+		    }
+		}
+		GEOBRL::compute_normals(remesh);
+	    }
+	}
+
+	/* Convert Geogram output mesh back to caller-owned arrays */
+	int nv = (int)remesh.vertices.nb();
+	int nf = (int)remesh.facets.nb();
+	if (nv <= 0 || nf <= 0 || (size_t)nv > SIZE_MAX / sizeof(point_t) || (size_t)nf > SIZE_MAX / (3 * sizeof(int)))
+	    return -1;
+
+	point_t *out_pts = (point_t *)bu_calloc((size_t)nv, sizeof(point_t),
+						"bg_trimesh_remesh verts");
+	int *out_faces   = (int *)bu_calloc((size_t)nf * 3, sizeof(int),
+					    "bg_trimesh_remesh faces");
+
+	for (int i = 0; i < nv; i++) {
+	    const double *p = remesh.vertices.point_ptr((GEOBRL::index_t)i);
+	    out_pts[i][X] = p[0];
+	    out_pts[i][Y] = p[1];
+	    out_pts[i][Z] = p[2];
+	}
+	for (int i = 0; i < nf; i++) {
+	    out_faces[3*i+0] = (int)remesh.facets.vertex((GEOBRL::index_t)i, 0);
+	    out_faces[3*i+1] = (int)remesh.facets.vertex((GEOBRL::index_t)i, 2);
+	    out_faces[3*i+2] = (int)remesh.facets.vertex((GEOBRL::index_t)i, 1);
+	}
+
+	*opnts   = out_pts;
+	*n_opnts = nv;
+	*ofaces   = out_faces;
+	*n_ofaces = nf;
+
+	return 0;
+    } catch (...) {
+	return -1;
     }
-
-    /* Convert Geogram output mesh back to caller-owned arrays */
-    int nv = (int)remesh.vertices.nb();
-    int nf = (int)remesh.facets.nb();
-
-    point_t *out_pts = (point_t *)bu_calloc((size_t)nv, sizeof(point_t),
-					    "bg_trimesh_remesh verts");
-    int *out_faces   = (int *)bu_calloc((size_t)nf * 3, sizeof(int),
-					"bg_trimesh_remesh faces");
-
-    for (int i = 0; i < nv; i++) {
-	const double *p = remesh.vertices.point_ptr((GEOBRL::index_t)i);
-	out_pts[i][X] = p[0];
-	out_pts[i][Y] = p[1];
-	out_pts[i][Z] = p[2];
-    }
-    for (int i = 0; i < nf; i++) {
-	out_faces[3*i+0] = (int)remesh.facets.vertex((GEOBRL::index_t)i, 0);
-	out_faces[3*i+1] = (int)remesh.facets.vertex((GEOBRL::index_t)i, 2);
-	out_faces[3*i+2] = (int)remesh.facets.vertex((GEOBRL::index_t)i, 1);
-    }
-
-    *opnts   = out_pts;
-    *n_opnts = nv;
-    *ofaces   = out_faces;
-    *n_ofaces = nf;
-
-    return 0;
 }
 
 

@@ -363,18 +363,23 @@ bg_trimesh_solid(int vcnt, int fcnt, fastf_t *v, int *f, int **bedges)
 
 	bedge_cnt = bg_trimesh_solid2(vcnt, fcnt, v, f, &errors);
 
-	*bedges = (int *)bu_calloc(bedge_cnt * 2, sizeof(int), "bad edges");
-
-	if (!errors.unmatched.edges || !errors.unmatched.count)
-	    return 0;
-
-	memcpy(*bedges, errors.unmatched.edges, errors.unmatched.count * 2 * sizeof(int));
-	copy_cnt += errors.unmatched.count * 2;
-
-	memcpy(*bedges + copy_cnt, errors.misoriented.edges, errors.misoriented.count * 2 * sizeof(int));
-	copy_cnt += errors.misoriented.count * 2;
-
-	memcpy(*bedges + copy_cnt, errors.excess.edges, errors.excess.count * 2 * sizeof(int));
+	if (bedge_cnt > 0) {
+	    *bedges = (int *)bu_calloc((size_t)bedge_cnt * 2, sizeof(int), "bad edges");
+	    if (errors.unmatched.edges && errors.unmatched.count > 0) {
+		memcpy(*bedges + copy_cnt, errors.unmatched.edges, (size_t)errors.unmatched.count * 2 * sizeof(int));
+		copy_cnt += errors.unmatched.count * 2;
+	    }
+	    if (errors.misoriented.edges && errors.misoriented.count > 0) {
+		memcpy(*bedges + copy_cnt, errors.misoriented.edges, (size_t)errors.misoriented.count * 2 * sizeof(int));
+		copy_cnt += errors.misoriented.count * 2;
+	    }
+	    if (errors.excess.edges && errors.excess.count > 0) {
+		memcpy(*bedges + copy_cnt, errors.excess.edges, (size_t)errors.excess.count * 2 * sizeof(int));
+		copy_cnt += errors.excess.count * 2;
+	    }
+	} else {
+	    *bedges = NULL;
+	}
 
 	bg_free_trimesh_solid_errors(&errors);
     } else {
@@ -443,7 +448,7 @@ static struct bg_trimesh_edges *
 get_unmatched_edges(int num_faces, int *faces)
 {
     int count;
-    int num_edges = 3 * num_faces;
+    int num_edges;
     struct bg_trimesh_edges *unmatched = NULL;
     struct bg_trimesh_halfedge *edge_list = NULL;
 
@@ -451,16 +456,24 @@ get_unmatched_edges(int num_faces, int *faces)
 	return NULL;
     }
 
+    num_edges = 3 * num_faces;
+
     /* find open edges */
     edge_list = bg_trimesh_generate_edge_list(num_faces, faces);
+    if (!edge_list) {
+	return NULL;
+    }
+
     count = bg_trimesh_unmatched_edges(num_edges, edge_list, bg_trimesh_edge_continue, NULL);
 
     if (count > 0) {
-	BU_GET(unmatched, struct bg_trimesh_edges);
-	unmatched->edges = (int *)bu_calloc(unmatched->count * 2, sizeof(int), "unmatched edges");
-	unmatched->count = bg_trimesh_unmatched_edges(num_edges, edge_list, bg_trimesh_edge_gather, &unmatched);
+	BU_ALLOC(unmatched, struct bg_trimesh_edges);
+	unmatched->count = 0;
+	unmatched->edges = (int *)bu_calloc((size_t)count * 2, sizeof(int), "unmatched edges");
+	bg_trimesh_unmatched_edges(num_edges, edge_list, bg_trimesh_edge_gather, unmatched);
     }
 
+    bu_free(edge_list, "edge_list");
     return unmatched;
 }
 
@@ -785,14 +798,17 @@ int bg_trimesh_hanging_nodes(int num_vertices, int num_faces, fastf_t *vertices,
 	int num_edges = nunmatched->count;
 
 	errors->unmatched.count = num_edges;
-	errors->unmatched.edges = (int *)bu_calloc(num_edges * 2, sizeof(int), "unmatched edges");
-	memcpy(errors->unmatched.edges, nunmatched->edges, num_edges * 2);
+	errors->unmatched.edges = (int *)bu_calloc((size_t)num_edges * 2, sizeof(int), "unmatched edges");
+	memcpy(errors->unmatched.edges, nunmatched->edges, (size_t)num_edges * 2 * sizeof(int));
 
 	bg_free_trimesh_edges(nunmatched);
 	BU_PUT(nunmatched, struct bg_trimesh_edges);
     }
 
     bu_list_free(&unclosed_edges);
+
+    bg_free_trimesh_edges(unmatched);
+    BU_PUT(unmatched, struct bg_trimesh_edges);
 
     return hanging_nodes;
 }
@@ -808,8 +824,12 @@ bg_trimesh_area(const int *faces, size_t num_faces, const point_t *p, size_t num
     fastf_t area = 0.0;
     for (size_t i = 0; i < num_faces; i++) {
         point_t pt[3];
-	for (size_t j = 0; j < 3; j++)
-	    VMOVE(pt[j], p[faces[i*3+j]]);
+	for (size_t j = 0; j < 3; j++) {
+	    int vidx = faces[i*3+j];
+	    if (vidx < 0 || (size_t)vidx >= num_pnts)
+		return -1.0;
+	    VMOVE(pt[j], p[vidx]);
+	}
 
         area += bg_area_of_triangle((const fastf_t *)&pt[0], (const fastf_t *)&pt[1], (const fastf_t *)&pt[2]);
     }
@@ -837,9 +857,17 @@ bg_trimesh_volume(const int *faces, size_t num_faces, const point_t *p, size_t n
      */
     double signed_vol = 0.0;
     for (size_t i = 0; i < num_faces; i++) {
-	const point_t *v0 = &p[faces[i*3+0]];
-	const point_t *v1 = &p[faces[i*3+1]];
-	const point_t *v2 = &p[faces[i*3+2]];
+	int idx0 = faces[i*3+0];
+	int idx1 = faces[i*3+1];
+	int idx2 = faces[i*3+2];
+	if (idx0 < 0 || (size_t)idx0 >= num_pnts ||
+	    idx1 < 0 || (size_t)idx1 >= num_pnts ||
+	    idx2 < 0 || (size_t)idx2 >= num_pnts)
+	    return -1.0;
+
+	const point_t *v0 = &p[idx0];
+	const point_t *v1 = &p[idx1];
+	const point_t *v2 = &p[idx2];
 
 	/* scalar triple product: v0 . (v1 x v2) */
 	vect_t cross;
@@ -873,9 +901,18 @@ bg_trimesh_aabb(point_t *min, point_t *max, const int *faces, size_t num_faces, 
      * mark vertices in a bit-vector that are referenced by a face. */
     struct bu_bitv *visit_vert = bu_bitv_new(num_pnts);
     for (size_t tri_index = 0; tri_index < num_faces; tri_index++) {
-	BU_BITSET(visit_vert, faces[tri_index*3 + X]);
-	BU_BITSET(visit_vert, faces[tri_index*3 + Y]);
-	BU_BITSET(visit_vert, faces[tri_index*3 + Z]);
+	int v0 = faces[tri_index*3 + X];
+	int v1 = faces[tri_index*3 + Y];
+	int v2 = faces[tri_index*3 + Z];
+	if (v0 < 0 || (size_t)v0 >= num_pnts ||
+	    v1 < 0 || (size_t)v1 >= num_pnts ||
+	    v2 < 0 || (size_t)v2 >= num_pnts) {
+	    bu_bitv_free(visit_vert);
+	    return -1;
+	}
+	BU_BITSET(visit_vert, v0);
+	BU_BITSET(visit_vert, v1);
+	BU_BITSET(visit_vert, v2);
     }
 
     /* Second Pass: check max and min of vertices marked */

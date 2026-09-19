@@ -50,7 +50,7 @@ template<typename Real, unsigned int Dim>
 struct PtStream : public Reconstructor::InputOrientedSampleStream<Real, Dim>
 {
     PtStream(const point_t *ipnts, const vect_t *inorms, int cnt)
-	: _size(cnt), _current(0), _input_pnts(ipnts), _input_nrmls(inorms) {}
+	: _size((cnt > 0) ? (unsigned int)cnt : 0), _current(0), _input_pnts(ipnts), _input_nrmls(inorms) {}
     void reset(void) { _current = 0; }
     bool read(Point<Real, Dim> &p, Point<Real, Dim> &n)
     {
@@ -107,74 +107,105 @@ bg_3d_spsr(int **faces, int *num_faces, point_t **points, int *num_pnts,
 	const point_t *input_points_3d, const vect_t *input_normals_3d,
 	int num_input_pnts, struct bg_3d_spsr_opts *spsr_opts)
 {
-    using Real = fastf_t;
-    static const unsigned int FEMSig = FEMDegreeAndBType<Reconstructor::Poisson::DefaultFEMDegree, Reconstructor::Poisson::DefaultFEMBoundary>::Signature;
-    using FEMSigs = IsotropicUIntPack<3, FEMSig>;
+    if (faces) *faces = NULL;
+    if (num_faces) *num_faces = 0;
+    if (points) *points = NULL;
+    if (num_pnts) *num_pnts = 0;
 
-    // Set up multithreading
-    PoissonRecon::ThreadPool::ParallelizationType = PoissonRecon::ThreadPool::ASYNC;
-
-    // Solver and extraction parameters
-    Reconstructor::Poisson::SolutionParameters<Real> solverParams;
-    solverParams.verbose = false;
-    solverParams.depth = (spsr_opts) ? spsr_opts->depth : 8;
-    solverParams.fullDepth = (spsr_opts) ? spsr_opts->full_depth : 11;
-    solverParams.samplesPerNode = (spsr_opts) ? spsr_opts->samples_per_node : 1.5;
-    solverParams.exactInterpolation = true;
-
-    Reconstructor::LevelSetExtractionParameters extractionParams;
-    extractionParams.forceManifold = true;
-    extractionParams.linearFit = false;
-    extractionParams.polygonMesh = false;
-    extractionParams.verbose = false;
-
-    PtStream<Real, 3> vstream(input_points_3d, input_normals_3d, num_input_pnts);
-
-    using Implicit = Reconstructor::Implicit<Real, 3, FEMSigs>;
-    using Solver = Reconstructor::Poisson::Solver<Real, 3, FEMSigs>;
-    Implicit *implicit = Solver::Solve(vstream, solverParams);
-
-    if (!implicit) {
-	bu_log("PoissonRecon: Solver::Solve failed\n");
+    if (!faces || !num_faces || !points || !num_pnts ||
+	!input_points_3d || !input_normals_3d || num_input_pnts < 3) {
 	return -1;
     }
 
-    std::vector<std::vector<int>> polygons;
-    std::vector<Real> vCoordinates;
-    PolygonStream<int> pStream(polygons);
-    VertexStream<Real, 3> vStream(vCoordinates);
+    using Real = fastf_t;
+    static const unsigned int FEMSig = FEMDegreeAndBType<Reconstructor::Poisson::DefaultFEMDegree, Reconstructor::Poisson::DefaultFEMBoundary>::Signature;
+    using FEMSigs = IsotropicUIntPack<3, FEMSig>;
+    using Implicit = Reconstructor::Implicit<Real, 3, FEMSigs>;
+    using Solver = Reconstructor::Poisson::Solver<Real, 3, FEMSigs>;
 
-    implicit->extractLevelSet(vStream, pStream, extractionParams);
+    Implicit *implicit = NULL;
 
-    *num_faces = (int)(polygons.size());
-    *num_pnts = (int)(vCoordinates.size() / 3);
-    bu_log("Point cnt: %d\n", *num_pnts);
-    bu_log("Face cnt: %d\n", *num_faces);
+    try {
+	// Set up multithreading
+	PoissonRecon::ThreadPool::ParallelizationType = PoissonRecon::ThreadPool::ASYNC;
 
-    // Allocate output arrays
-    (*faces) = (int *)bu_calloc(*num_faces * 3, sizeof(int), "faces array");
-    (*points) = (point_t *)bu_calloc(*num_pnts, sizeof(point_t), "points array");
+	// Solver and extraction parameters
+	Reconstructor::Poisson::SolutionParameters<Real> solverParams;
+	solverParams.verbose = false;
+	solverParams.depth = (spsr_opts) ? spsr_opts->depth : 8;
+	solverParams.fullDepth = (spsr_opts) ? spsr_opts->full_depth : 11;
+	solverParams.samplesPerNode = (spsr_opts) ? spsr_opts->samples_per_node : 1.5;
+	solverParams.exactInterpolation = true;
 
-    // Copy faces (triangulated output expected)
-    for (int i = 0; i < *num_faces; i++) {
-	if (polygons[i].size() != 3) {
-	    bu_log("Warning: polygon %d is not a triangle (has %zu vertices)\n", i, polygons[i].size());
-	    // TODO - triangulate if we don't have a triangle.
-	    continue;
+	Reconstructor::LevelSetExtractionParameters extractionParams;
+	extractionParams.forceManifold = true;
+	extractionParams.linearFit = false;
+	extractionParams.polygonMesh = false;
+	extractionParams.verbose = false;
+
+	PtStream<Real, 3> vstream(input_points_3d, input_normals_3d, num_input_pnts);
+
+	implicit = Solver::Solve(vstream, solverParams);
+
+	if (!implicit) {
+	    bu_log("PoissonRecon: Solver::Solve failed\n");
+	    return -1;
 	}
-	(*faces)[3*i+0] = polygons[i][0];
-	(*faces)[3*i+1] = polygons[i][1];
-	(*faces)[3*i+2] = polygons[i][2];
-    }
-    // Copy points
-    for (int i = 0; i < *num_pnts; i++) {
-	(*points)[i][X] = vCoordinates[3*i+0];
-	(*points)[i][Y] = vCoordinates[3*i+1];
-	(*points)[i][Z] = vCoordinates[3*i+2];
-    }
 
-    delete implicit;
-    return 0;
+	std::vector<std::vector<int>> polygons;
+	std::vector<Real> vCoordinates;
+	PolygonStream<int> pStream(polygons);
+	VertexStream<Real, 3> vStream(vCoordinates);
+
+	implicit->extractLevelSet(vStream, pStream, extractionParams);
+
+	delete implicit;
+	implicit = NULL;
+
+	int nf = (int)(polygons.size());
+	int np = (int)(vCoordinates.size() / 3);
+	if (nf <= 0 || np <= 0 || (size_t)nf > SIZE_MAX / (3 * sizeof(int)) || (size_t)np > SIZE_MAX / sizeof(point_t)) {
+	    return -1;
+	}
+
+	bu_log("Point cnt: %d\n", np);
+	bu_log("Face cnt: %d\n", nf);
+
+	// Allocate output arrays
+	int *out_faces = (int *)bu_calloc((size_t)nf * 3, sizeof(int), "faces array");
+	point_t *out_points = (point_t *)bu_calloc((size_t)np, sizeof(point_t), "points array");
+
+	// Copy faces (triangulated output expected)
+	for (int i = 0; i < nf; i++) {
+	    if (polygons[i].size() != 3) {
+		bu_log("Warning: polygon %d is not a triangle (has %zu vertices)\n", i, polygons[i].size());
+		// TODO - triangulate if we don't have a triangle.
+		continue;
+	    }
+	    out_faces[3*i+0] = polygons[i][0];
+	    out_faces[3*i+1] = polygons[i][1];
+	    out_faces[3*i+2] = polygons[i][2];
+	}
+	// Copy points
+	for (int i = 0; i < np; i++) {
+	    out_points[i][X] = vCoordinates[3*i+0];
+	    out_points[i][Y] = vCoordinates[3*i+1];
+	    out_points[i][Z] = vCoordinates[3*i+2];
+	}
+
+	*faces = out_faces;
+	*points = out_points;
+	*num_faces = nf;
+	*num_pnts = np;
+
+	return 0;
+    } catch (...) {
+	if (implicit) {
+	    delete implicit;
+	}
+	bu_log("PoissonRecon: exception caught during reconstruction\n");
+	return -1;
+    }
 }
 
 

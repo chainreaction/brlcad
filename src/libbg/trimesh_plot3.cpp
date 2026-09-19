@@ -79,7 +79,7 @@ int
 pntset_2d_plot3(const char *fname, std::unordered_set<int> &pinds, const point2d_t *p, struct bu_color *c)
 {
     /* If inputs are insufficient, we can't plot */
-    if (!fname || !p | !c)
+    if (!fname || !p)
 	return BRLCAD_ERROR;
 
     /* Note - deliberately assuming we may be adding to an existing plot file */
@@ -167,6 +167,10 @@ tri_edges_2d_plot3(const char *fname, const int *faces, size_t num_faces, const 
 	point_t tc = VINIT_ZERO;
 	for (int j = 0; j < 3; j++) {
 	    int pind = faces[i*3+j];
+	    if (pind < 0) {
+		fclose(plot_file);
+		return BRLCAD_ERROR;
+	    }
 	    VSET(tp[j], p[pind][X], p[pind][Y], 0);
 	    tc[X] += tp[j][X];
 	    tc[Y] += tp[j][Y];
@@ -210,6 +214,10 @@ tri_interior_2d_plot3(const char *fname, const int *faces, size_t num_faces, con
 	point_t tc = VINIT_ZERO;
 	for (int j = 0; j < 3; j++) {
 	    int pind = faces[i*3+j];
+	    if (pind < 0) {
+		fclose(plot_file);
+		return BRLCAD_ERROR;
+	    }
 	    VSET(tp[j], p[pind][X], p[pind][Y], 0);
 	    tc[X] += tp[j][X];
 	    tc[Y] += tp[j][Y];
@@ -251,6 +259,10 @@ tri_normals_2d_plot3(const char *fname, const int *faces, size_t num_faces, cons
 	point_t tc = VINIT_ZERO;
 	for (int j = 0; j < 3; j++) {
 	    int pind = faces[i*3+j];
+	    if (pind < 0) {
+		fclose(plot_file);
+		return BRLCAD_ERROR;
+	    }
 	    VSET(tp[j], p[pind][X], p[pind][Y], 0);
 	    tc[X] += tp[j][X];
 	    tc[Y] += tp[j][Y];
@@ -348,7 +360,7 @@ int
 polyline_2d_plot3(const char *fname, std::vector<std::pair<int64_t, int64_t>> &xy, fastf_t scale, struct bu_color *c)
 {
     /* If inputs are insufficient, we can't plot */
-    if (!fname || !xy.size() || scale < 0)
+    if (!fname || xy.empty() || scale <= 0.0 || ZERO(scale))
 	return BRLCAD_ERROR;
 
     FILE *plot_file = fopen (fname, "a");
@@ -363,7 +375,7 @@ polyline_2d_plot3(const char *fname, std::vector<std::pair<int64_t, int64_t>> &x
     VSET(p, xy[0].first / scale,  xy[0].second / scale, 0);
     pdv_3move(plot_file, p);
 
-    for (size_t i = 1; i < xy.size() - 1; i++) {
+    for (size_t i = 1; i < xy.size(); i++) {
 	VSET(p, xy[i].first / scale,  xy[i].second / scale, 0);
 	pdv_3cont(plot_file, p);
     }

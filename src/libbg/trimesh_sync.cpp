@@ -119,13 +119,14 @@ class tm_sync_sface {
 extern "C" int
 bg_trimesh_sync(int *of, int *f, int fcnt)
 {
-    if (!of || !f || fcnt < 0)
+    if (!of || !f || fcnt < 0 || fcnt > INT_MAX / 3)
 	return -1;
 
-    std::vector<tm_sync_oedge> ordered_edges;
-    std::map<tm_sync_uedge, std::vector<size_t>> ue_emap;
-    std::map<tm_sync_uedge, std::vector<size_t>> ue_fmap;
-    std::vector<tm_sync_sface> synced_faces;
+    try {
+	std::vector<tm_sync_oedge> ordered_edges;
+	std::map<tm_sync_uedge, std::vector<size_t>> ue_emap;
+	std::map<tm_sync_uedge, std::vector<size_t>> ue_fmap;
+	std::vector<tm_sync_sface> synced_faces;
 
     for (int i = 0; i < fcnt; ++i) {
 	tm_sync_sface nface;
@@ -262,6 +263,9 @@ bg_trimesh_sync(int *of, int *f, int fcnt)
     }
 
     return flip_cnt;
+    } catch (...) {
+	return -1;
+    }
 }
 
 // Local Variables:

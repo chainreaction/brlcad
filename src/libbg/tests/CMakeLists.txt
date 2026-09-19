@@ -445,8 +445,7 @@ brlcad_addexec(bg_tri_area tri_area.c "${BG_TEST_LIBS}" TEST)
 #BRLCAD_ADD_TEST(NAME bg_tri_area  COMMAND bg_tri_area)
 
 brlcad_addexec(bg_trimesh_area trimesh_area.c "${BG_TEST_LIBS}" TEST)
-
-#BRLCAD_ADD_TEST(NAME bg_trimesh_area  COMMAND bg_trimesh_area)
+brlcad_add_test(NAME bg_trimesh_area COMMAND bg_trimesh_area)
 
 #  ************ trimesh_repair tests ***********
 

@@ -109,6 +109,18 @@ bg_trimesh_repair(
     if (!opts)
 	opts = &default_opts;
 
+    if (n_ifaces > INT_MAX / 3 || n_ipnts > INT_MAX / 3)
+	return -1;
+
+    /* Validate vertex indices in ifaces */
+    for (int i = 0; i < n_ifaces; i++) {
+	if (ifaces[3*i+0] < 0 || ifaces[3*i+0] >= n_ipnts ||
+	    ifaces[3*i+1] < 0 || ifaces[3*i+1] >= n_ipnts ||
+	    ifaces[3*i+2] < 0 || ifaces[3*i+2] >= n_ipnts) {
+	    return -1;
+	}
+    }
+
     /* Quick check: is the mesh already solid?  Return 1 if so. */
     int not_solid = bg_trimesh_solid2(n_ipnts, n_ifaces,
 				      (fastf_t *)ipnts, (int *)ifaces,
@@ -116,19 +128,20 @@ bg_trimesh_repair(
     if (!not_solid)
 	return 1;
 
-    /* Convert input arrays to GTE types. */
-    std::vector<gte::Vector3<double>> verts((size_t)n_ipnts);
-    for (int i = 0; i < n_ipnts; i++) {
-	verts[i][0] = ipnts[i][X];
-	verts[i][1] = ipnts[i][Y];
-	verts[i][2] = ipnts[i][Z];
-    }
-    std::vector<std::array<int32_t, 3>> tris((size_t)n_ifaces);
-    for (int i = 0; i < n_ifaces; i++) {
-	tris[i][0] = ifaces[3*i+0];
-	tris[i][1] = ifaces[3*i+1];
-	tris[i][2] = ifaces[3*i+2];
-    }
+    try {
+	/* Convert input arrays to GTE types. */
+	std::vector<gte::Vector3<double>> verts((size_t)n_ipnts);
+	for (int i = 0; i < n_ipnts; i++) {
+	    verts[i][0] = ipnts[i][X];
+	    verts[i][1] = ipnts[i][Y];
+	    verts[i][2] = ipnts[i][Z];
+	}
+	std::vector<std::array<int32_t, 3>> tris((size_t)n_ifaces);
+	for (int i = 0; i < n_ifaces; i++) {
+	    tris[i][0] = ifaces[3*i+0];
+	    tris[i][1] = ifaces[3*i+1];
+	    tris[i][2] = ifaces[3*i+2];
+	}
 
     /* --- Pass 1: initial colocate + degenerate removal ------------------- */
     {
@@ -232,6 +245,8 @@ bg_trimesh_repair(
     /* --- Build output arrays --------------------------------------------- */
     int nv = (int)verts.size();
     int nf = (int)tris.size();
+    if (nv <= 0 || nf <= 0 || (size_t)nv > SIZE_MAX / sizeof(point_t) || (size_t)nf > SIZE_MAX / (3 * sizeof(int)))
+	return -1;
 
     point_t *out_pts = (point_t *)bu_calloc((size_t)nv, sizeof(point_t),
 					    "bg_trimesh_repair verts");
@@ -255,6 +270,9 @@ bg_trimesh_repair(
     *n_ofaces = nf;
 
     return 0;
+    } catch (...) {
+	return -1;
+    }
 }
 
 
