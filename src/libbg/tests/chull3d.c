@@ -67,9 +67,17 @@ main(int UNUSED(argc), const char **argv)
 	for(i = 0; i < fc; i++) {
 	    bu_log("      face %d: %d, %d, %d\n", i, faces[i*3], faces[i*3+1], faces[i*3+2]);
 	}
-	if (retval != 3) {return -1;} else {bu_log("Cube Test Passed!\n");}
+	bu_free(faces, "faces");
+	bu_free(vert_array, "vert_array");
+	if (retval != 3) {
+	    bu_free(input_verts, "vertex array");
+	    return -1;
+	} else {
+	    bu_log("Cube Test Passed!\n");
+	}
 
 	retval = bg_3d_chull2(&ifaces, &ifc, &iverts, &ivc, (const point_t *)input_verts, 8);
+	bu_free(input_verts, "vertex array");
 	bu_log("Test #001-2:  Cube (index output):\n");
 	if (retval != 3) {bu_log("Cube Index Test Failed: retval=%d\n", retval); return -1;}
 	if (ifc != fc) {bu_log("Cube Index Test Failed: ifc=%d fc=%d\n", ifc, fc); return -1;}
@@ -139,6 +147,9 @@ main(int UNUSED(argc), const char **argv)
 	for(i = 0; i < fc; i++) {
 	    bu_log("      face %d: %d, %d, %d\n", i, faces[i*3], faces[i*3+1], faces[i*3+2]);
 	}
+	bu_free(faces, "faces");
+	bu_free(vert_array, "vert_array");
+	bu_free(input_verts, "vertex array");
 	if (retval != 3) {return -1;} else {bu_log("Cube With Center Point Test Passed!\n");}
     }
 
@@ -165,6 +176,9 @@ main(int UNUSED(argc), const char **argv)
 	    VMOVE(p1,vert_array[i]);
 	    bu_log("      actual[%d]: %f, %f, %f\n", i, p1[0], p1[1], p1[2]);
 	}
+	bu_free(faces, "faces");
+	bu_free(vert_array, "vert_array");
+	bu_free(input_verts, "vertex array");
 	/* For near-collinear point sets, quickhull may report either 2D or 3D dimensionality. */
 	if (retval != 2 && retval != 3) {return -1;} else {bu_log("Flat Triangles Passed!\n");}
     }

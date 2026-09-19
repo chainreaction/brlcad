@@ -35,7 +35,7 @@ namespace {
     void rosenbrock(
         GEOBRL::index_t n, double* x, double& function_value, double* gradient
     ) {
-        if(n != 2) {
+        if(!x || !gradient || n != 2) {
             function_value = 0.0;
             return;
         }
@@ -51,6 +51,10 @@ namespace {
         GEOBRL::index_t n, const double* x, double function_value,
         const double* gradient, double gradient_norm
     ) {
+        if(!x || !gradient) {
+            callback_values_are_finite = false;
+            return;
+        }
         callback_values_are_finite = callback_values_are_finite && n == 2 &&
             std::isfinite(x[0]) && std::isfinite(x[1]) &&
             std::isfinite(function_value) &&
@@ -117,6 +121,10 @@ int main(int UNUSED(argc), const char* argv[])
     callback_values_are_finite = true;
     double converged_x[2] = {-1.2, 1.0};
     GEOBRL::Optimizer_var converged_optimizer = make_optimizer(200, 1e-8);
+    if(!converged_optimizer) {
+        bu_log("FAIL unable to create converged optimizer\n");
+        return 1;
+    }
     converged_optimizer->optimize(converged_x);
     if(
         std::fabs(converged_x[0] - 1.0) > 1e-5 ||

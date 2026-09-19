@@ -55,6 +55,12 @@ _bg_polygon_diff(struct bg_polygon *p1, struct bg_polygon *p2)
 	if (c1->num_points != c2->num_points) {
 	    return 1;
 	}
+	if (c1->num_points == 0) {
+	    continue;
+	}
+	if (!c1->point || !c2->point) {
+	    return 1;
+	}
 
 	// Clipper may return the points with a different starting point.
 	// To handle this, make an initial pass through the points to
@@ -71,9 +77,9 @@ _bg_polygon_diff(struct bg_polygon *p1, struct bg_polygon *p2)
 	    }
 	}
 
-	// Have alignment, check the points
+	// Have alignment, check the points using safe circular indexing
 	for (size_t j = 0; j < c1->num_points; j++) {
-	    size_t p2_ind = ((offset + j) >= c1->num_points) ? (j - offset) : (offset + j);
+	    size_t p2_ind = (offset + j) % c1->num_points;
 	    if (DIST_PNT_PNT_SQ(c1->point[j], c2->point[p2_ind]) > VUNITIZE_TOL) {
 		return 1;
 	    }
@@ -255,16 +261,32 @@ main(int argc, const char **argv)
 
     /* Calculate difference and compare it with the expected result */
     struct bg_polygon *dcr = bg_clip_polygon(bg_Difference, &p3, &p4, 1.0, NULL);
-    if (plot_files) {
+    if (plot_files && dcr && dcr->contour && dcr->num_contours >= 2) {
 	bg_polygon_plot("dcr_1.plot3", (const point_t *)dcr->contour[0].point, dcr->contour[0].num_points, 0, 0, 255);
-	bg_polygon_plot("dcr_2.plot3", (const point_t *)dcr->contour[1].point, dcr->contour[0].num_points, 0, 0, 255);
+	bg_polygon_plot("dcr_2.plot3", (const point_t *)dcr->contour[1].point, dcr->contour[1].num_points, 0, 0, 255);
     }
     ret += _bg_polygon_diff(dcr, &de2);
 
     /* Calculate difference the opposite way - this should be a null return, as
      * p4 is inside p3 so subtracting p3 from it leaves no geometry */
     struct bg_polygon *dcr2 = bg_clip_polygon(bg_Difference, &p4, &p3, 1.0, NULL);
-    ret += (dcr2->num_contours) ? 1 : 0;
+    ret += (dcr2 && dcr2->num_contours) ? 1 : 0;
+
+    bg_polygon_free(&p1);
+    bg_polygon_free(&p2);
+    bg_polygon_free(&union_expected);
+    bg_polygon_free(&difference_expected);
+    bg_polygon_free(&intersection_expected);
+    bg_polygon_free(&p3);
+    bg_polygon_free(&p4);
+    bg_polygon_free(&de2);
+    if (ur) { bg_polygon_free(ur); bu_free(ur, "ur"); }
+    if (dr) { bg_polygon_free(dr); bu_free(dr, "dr"); }
+    if (ir) { bg_polygon_free(ir); bu_free(ir, "ir"); }
+    if (ucr) { bg_polygon_free(ucr); bu_free(ucr, "ucr"); }
+    if (icr) { bg_polygon_free(icr); bu_free(icr, "icr"); }
+    if (dcr) { bg_polygon_free(dcr); bu_free(dcr, "dcr"); }
+    if (dcr2) { bg_polygon_free(dcr2); bu_free(dcr2, "dcr2"); }
 
     return ret;
 }

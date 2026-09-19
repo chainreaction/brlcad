@@ -128,11 +128,14 @@ main(int argc, const char **argv)
 	}
 
 	ret = bg_poly2tri_test(&faces, &num_faces, NULL, NULL, verts_ind, 44, NULL, NULL, 0, NULL, 0, (const point2d_t *)points);
+	bu_free(verts_ind, "vert indices");
 	if (ret) {
 	    bu_log("test 1 ear clipping failure!\n");
+	    bu_free(faces, "faces");
 	    return 1;
 	} else {
 	    _tess_report(faces, num_faces, (const point2d_t *)points, 1, 1);
+	    bu_free(faces, "faces");
 	}
     }
 
@@ -178,12 +181,18 @@ main(int argc, const char **argv)
 	point2d_t *opnts = NULL;
 	int noutpnts = 0;
 	ret = bg_poly2tri_test(&faces, &num_faces, &opnts, &noutpnts, (const int *)outer, 4, (const int **)hole_array, (const size_t *)hcnts, hole_cnt, NULL, 0, (const point2d_t *)points);
+	bu_free(hcnts, "hole_cnt_array");
+	bu_free(hole_array, "hole_array");
 	if (ret) {
 	    bu_log("multiple hole splitting failure!\n");
+	    if (opnts) bu_free(opnts, "opnts");
+	    if (faces) bu_free(faces, "faces");
 	    return 1;
 	} else {
 	    bg_trimesh_2d_plot3("poly2tri_new_pnts.plot3", faces, num_faces, (const point2d_t *)opnts, noutpnts);
 	    _tess_report(faces, num_faces, (const point2d_t *)opnts, 1, 1);
+	    if (opnts) bu_free(opnts, "opnts");
+	    if (faces) bu_free(faces, "faces");
 	}
     }
 
@@ -227,9 +236,11 @@ main(int argc, const char **argv)
 	bu_free(hole_array, "free hole array");
 	if (ret) {
 	    bu_log("Nested clipping 1 fail\n");
+	    if (faces) bu_free(faces, "faces");
 	    return 1;
 	} else {
 	    _tess_report(faces, num_faces, (const point2d_t *)points, 3, 1);
+	    if (faces) bu_free(faces, "faces");
 	}
     }
 
@@ -269,9 +280,11 @@ main(int argc, const char **argv)
 	bu_free(hole_array, "free hole array");
 	if (ret) {
 	    bu_log("Nested clipping 2 fail\n");
+	    if (faces) bu_free(faces, "faces");
 	    return 1;
 	} else {
 	    _tess_report(faces, num_faces, (const point2d_t *)points, 4, 1);
+	    if (faces) bu_free(faces, "faces");
 	}
     }
 
@@ -296,9 +309,11 @@ main(int argc, const char **argv)
 	ret = bg_poly_triangulate(&faces, &num_faces, NULL, NULL, NULL, 0, (const point2d_t *)points, num_points, TRI_EAR_CLIPPING);
 	if (ret) {
 	    bu_log("4 point triangle failure!\n");
+	    if (faces) bu_free(faces, "faces");
 	    return 1;
 	} else {
 	    _tess_report(faces, num_faces, (const point2d_t *)points, 5, 1);
+	    if (faces) bu_free(faces, "faces");
 	}
     }
 

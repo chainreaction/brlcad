@@ -44,6 +44,8 @@
 
 #define USAGE "Usage: bgtester [-l test_case_line_number] [-f function_number] -i input_file [-o output_file]\n"
 
+#define BGTESTER_MAX_PARAMS 50
+
 int
 parse_case(char *buf_p, int *i, long *l, fastf_t *d, unsigned long *u, char *fmt_str, unsigned long line_num, FILE *stream)
 {
@@ -73,6 +75,10 @@ parse_case(char *buf_p, int *i, long *l, fastf_t *d, unsigned long *u, char *fmt
 	errno = 0;
 	switch (fmt_str[idx]) {
 	    case 'd' : /* double */
+		if (d_idx >= BGTESTER_MAX_PARAMS) {
+		    fprintf(stream, "ERROR: Too many double parameters (max %d) on line %lu\n", BGTESTER_MAX_PARAMS, line_num);
+		    return EXIT_FAILURE;
+		}
 		d[d_idx] = strtod(buf_p, &endp);
 		if (errno) {
 		    fprintf(stream, "Convert to double failed, function %lu test case on line %lu parameter %lu error msg: '%s' string '%s'\n",
@@ -87,6 +93,10 @@ parse_case(char *buf_p, int *i, long *l, fastf_t *d, unsigned long *u, char *fmt
 		d_idx++;
 		break;
 	    case 'l' : /* long int */
+		if (l_idx >= BGTESTER_MAX_PARAMS) {
+		    fprintf(stream, "ERROR: Too many long parameters (max %d) on line %lu\n", BGTESTER_MAX_PARAMS, line_num);
+		    return EXIT_FAILURE;
+		}
 		l[l_idx] = strtol(buf_p, &endp, 10);
 		if (errno) {
 		    fprintf(stream, "Convert to long int failed, function %lu test case on line %lu parameter %lu error msg: '%s' string '%s'\n",
@@ -101,6 +111,10 @@ parse_case(char *buf_p, int *i, long *l, fastf_t *d, unsigned long *u, char *fmt
 		l_idx++;
 		break;
 	    case 'i' : /* int */
+		if (i_idx >= BGTESTER_MAX_PARAMS) {
+		    fprintf(stream, "ERROR: Too many int parameters (max %d) on line %lu\n", BGTESTER_MAX_PARAMS, line_num);
+		    return EXIT_FAILURE;
+		}
 		l_tmp = strtol(buf_p, &endp, 10);
 		if (errno) {
 		    fprintf(stream, "Convert to int failed, function %lu test case on line %lu parameter %lu error msg: '%s' string '%s'\n",
@@ -121,6 +135,10 @@ parse_case(char *buf_p, int *i, long *l, fastf_t *d, unsigned long *u, char *fmt
 		i_idx++;
 		break;
 	    case 'u' : /* unsigned long */
+		if (u_idx >= BGTESTER_MAX_PARAMS) {
+		    fprintf(stream, "ERROR: Too many ulong parameters (max %d) on line %lu\n", BGTESTER_MAX_PARAMS, line_num);
+		    return EXIT_FAILURE;
+		}
 		u[u_idx] = strtoul(buf_p, &endp, 10);
 		if (errno) {
 		    fprintf(stream, "Convert to unsigned long int failed, function %lu test case on line %lu parameter %lu error msg: '%s' string '%s'\n",
@@ -357,7 +375,9 @@ main(int argc, char **argv)
 	     */
 	    if ((buf[0] != '#') && (buf[0] != '\n')) {
 		buf_p1 = strtok(buf, "\n");
+		if (!buf_p1) continue;
 		buf_p = strtok(buf_p1, ", ");
+		if (!buf_p) continue;
 
 		/* The 1st parameter of the test case is always an unsigned
 		 * long int which represents the function number. This logic

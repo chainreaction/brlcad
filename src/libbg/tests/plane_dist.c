@@ -295,7 +295,11 @@ test_bg_dist_pnt3_pnt3(int argc, char **argv)
     bu_log("return: %.30lf\n", actual_return);
     bu_log("er: %.30lf\n", expected_return);
     bu_log("retval: %d\n", NEAR_EQUAL(expected_return, actual_return, BN_TOL_DIST));
-    bu_log("error: %f\n", fabs(expected_return-actual_return)/expected_return);
+    if (!ZERO(expected_return)) {
+	bu_log("error: %f\n", fabs(expected_return-actual_return)/expected_return);
+    } else {
+	bu_log("error: %f\n", fabs(expected_return-actual_return));
+    }
 
     return !NEAR_EQUAL(expected_return, actual_return, BN_TOL_DIST);
 }

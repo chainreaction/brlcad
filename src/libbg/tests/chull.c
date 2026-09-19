@@ -36,9 +36,14 @@ void plot_chull(int test_num, const point_t *pnt_array, int pnt_cnt)
     int i = 0;
     struct bu_vls name;
     FILE *plot_file = NULL;
+    if (!pnt_array || pnt_cnt <= 0) return;
     bu_vls_init(&name);
     bu_vls_printf(&name, "chull_test_%.3d.plot3", test_num);
     plot_file = fopen(bu_vls_addr(&name), "wb");
+    if (!plot_file) {
+	bu_vls_free(&name);
+	return;
+    }
     pl_color(plot_file, 0, 255, 0);
     for (i = 0; i < pnt_cnt; i++) {
 	pdv_3move(plot_file, pnt_array[i]);
@@ -59,9 +64,14 @@ void plot2d_chull(int test_num, const point2d_t *pnt_array, int pnt_cnt)
     struct bu_vls name;
     FILE *plot_file = NULL;
     point_t p3d;
+    if (!pnt_array || pnt_cnt <= 0) return;
     bu_vls_init(&name);
     bu_vls_printf(&name, "chull_test_%.3d.plot3", test_num);
     plot_file = fopen(bu_vls_addr(&name), "wb");
+    if (!plot_file) {
+	bu_vls_free(&name);
+	return;
+    }
     pl_color(plot_file, 0, 255, 0);
     for (i = 0; i < pnt_cnt; i++) {
 	VSET(p3d, pnt_array[i][X], pnt_array[i][Y], 0);
@@ -70,7 +80,7 @@ void plot2d_chull(int test_num, const point2d_t *pnt_array, int pnt_cnt)
 	    VSET(p3d, pnt_array[i+1][X], pnt_array[i+1][Y], 0);
 	    pdv_3cont(plot_file, p3d);
 	} else {
-	    VSET(p3d, pnt_array[0][X], pnt_array[i][0], 0);
+	    VSET(p3d, pnt_array[0][X], pnt_array[0][Y], 0);
 	    pdv_3cont(plot_file, p3d);
 	}
     }
@@ -84,9 +94,14 @@ void plot_chull2(int test_num, int *hull, int pnt_cnt, const point_t *pnt_array)
     int i = 0;
     struct bu_vls name;
     FILE *plot_file = NULL;
+    if (!hull || !pnt_array || pnt_cnt <= 0) return;
     bu_vls_init(&name);
     bu_vls_printf(&name, "chull2_test_%.3d.plot3", test_num);
     plot_file = fopen(bu_vls_addr(&name), "wb");
+    if (!plot_file) {
+	bu_vls_free(&name);
+	return;
+    }
     pl_color(plot_file, 0, 255, 0);
     for (i = 0; i < pnt_cnt; i++) {
 	pdv_3move(plot_file, pnt_array[hull[i]]);
@@ -107,9 +122,14 @@ void plot2d_chull2(int test_num, int *hull, int pnt_cnt, const point2d_t *pnt_ar
     struct bu_vls name;
     FILE *plot_file = NULL;
     point_t p3d;
+    if (!hull || !pnt_array || pnt_cnt <= 0) return;
     bu_vls_init(&name);
     bu_vls_printf(&name, "chull2_test_%.3d.plot3", test_num);
     plot_file = fopen(bu_vls_addr(&name), "wb");
+    if (!plot_file) {
+	bu_vls_free(&name);
+	return;
+    }
     pl_color(plot_file, 0, 255, 0);
     for (i = 0; i < pnt_cnt; i++) {
 	VSET(p3d, pnt_array[hull[i]][X], pnt_array[hull[i]][Y], 0);
@@ -193,10 +213,15 @@ main(int argc, const char **argv)
 	if (do_plotting) {
 	    plot2d_chull2(1, hull, hcnt, (const point2d_t *)test1_points);
 	}
+	bu_free(polyline, "polyline");
+	bu_free(hull, "hull");
 	if (!retval) {return -1;} else {bu_log("Test #001-1 Passed!\n");}
 
 	retval = bg_2d_chull(&hull_pnts, (const point2d_t *)test1_points, n);
-	if (!retval) return -1;
+	if (!retval) {
+	    bu_free(hull_polyline, "hull_polyline");
+	    return -1;
+	}
 	bu_log("Test #002:  2d_hull - 4 point test:\n");
 	for (i = 0; i < retval; i++) {
 	    bu_log("    expected[%d]: (%f, %f)\n", i, V2ARGS(test1_results[i]));
@@ -206,7 +231,13 @@ main(int argc, const char **argv)
 		retval = 0;
 	    }
 	}
-	if (!retval) {return -1;} else {bu_log("Test #002 Passed!\n");}
+	if (!retval) {
+	    bu_free(hull_polyline, "hull_polyline");
+	    bu_free(hull_pnts, "hull_pnts");
+	    return -1;
+	} else {
+	    bu_log("Test #002 Passed!\n");
+	}
 	if (do_plotting) {
 	    plot2d_chull(1, (const point2d_t *)hull_pnts, retval);
 	}
@@ -224,6 +255,9 @@ main(int argc, const char **argv)
 	if (do_plotting) {
 	    plot2d_chull2(1, hull, hcnt, (const point2d_t *)test1_points);
 	}
+	bu_free(hull_polyline, "hull_polyline");
+	bu_free(hull_pnts, "hull_pnts");
+	bu_free(hull, "hull");
 	if (!retval) {return -1;} else {bu_log("Test #002-1 Passed!\n");}
 
 
@@ -271,6 +305,8 @@ main(int argc, const char **argv)
 		retval = 0;
 	    }
 	}
+	bu_free(hull_pnts, "hull_pnts");
+	bu_free(hull, "hull");
 	if (!retval) {return -1;} else {bu_log("Test #002-2 Passed!\n");}
 
     }
@@ -315,7 +351,8 @@ main(int argc, const char **argv)
 	    plot_chull(3, const_test3_hull_pnts, retval);
 	    plot_chull2(3, hull, hcnt, (const point_t *)test3_points);
 	}
-
+	bu_free(test3_hull_pnts, "test3_hull_pnts");
+	bu_free(hull, "hull");
 
     }
 
@@ -359,6 +396,8 @@ main(int argc, const char **argv)
 	    plot_chull(4, const_test4_hull_pnts, retval);
 	    plot_chull2(4, hull, hcnt, (const point_t *)test4_points);
 	}
+	bu_free(test4_hull_pnts, "test4_hull_pnts");
+	bu_free(hull, "hull");
     }
 
     {
@@ -392,6 +431,8 @@ main(int argc, const char **argv)
 	    plot_chull(5, const_test5_hull_pnts, retval);
 	    plot_chull2(5, hull, hcnt, (const point_t *)test5_points);
 	}
+	bu_free(test5_hull_pnts, "test5_hull_pnts");
+	bu_free(hull, "hull");
 
     }
 

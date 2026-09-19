@@ -32,19 +32,26 @@
 int
 main(int argc, char **argv)
 {
-    point_t P0, P1, Q, E, C;
-    double edist, cdist;
+    point_t P0 = VINIT_ZERO;
+    point_t P1 = VINIT_ZERO;
+    point_t Q = VINIT_ZERO;
+    point_t E = VINIT_ZERO;
+    point_t C = VINIT_ZERO;
+    double edist = 0.0;
+    double cdist = 0.0;
 
     bu_setprogname(argv[0]);
 
     if (argc != 6)
 	bu_exit(1, "ERROR: [%s] input format is: P0x,P0y,P0z P1x,P1y,P1z Qx,Qy,Qz Ex,Ey,Ez expected_dist \n", argv[0]);
 
-    sscanf(argv[1], "%lf,%lf,%lf", &P0[X], &P0[Y], &P0[Z]);
-    sscanf(argv[2], "%lf,%lf,%lf", &P1[X], &P1[Y], &P1[Z]);
-    sscanf(argv[3], "%lf,%lf,%lf", &Q[X], &Q[Y], &Q[Z]);
-    sscanf(argv[4], "%lf,%lf,%lf", &E[X], &E[Y], &E[Z]);
-    sscanf(argv[5], "%lf", &edist);
+    if (sscanf(argv[1], "%lf,%lf,%lf", &P0[X], &P0[Y], &P0[Z]) != 3 ||
+	sscanf(argv[2], "%lf,%lf,%lf", &P1[X], &P1[Y], &P1[Z]) != 3 ||
+	sscanf(argv[3], "%lf,%lf,%lf", &Q[X], &Q[Y], &Q[Z]) != 3 ||
+	sscanf(argv[4], "%lf,%lf,%lf", &E[X], &E[Y], &E[Z]) != 3 ||
+	sscanf(argv[5], "%lf", &edist) != 1) {
+	bu_exit(1, "ERROR: failed to parse coordinates from arguments\n");
+    }
 
     cdist = sqrt(bg_distsq_lseg3_pt(&C, P0, P1, Q));
 
