@@ -3,20 +3,20 @@
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 448 (12.8%)
-- **Files Pending Review:** 3045
-- **Total Issues Identified:** 224
+- **Files Reviewed:** 472 (13.5%)
+- **Files Pending Review:** 3021
+- **Total Issues Identified:** 225
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 154 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 155 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 47 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 224
+- **Fixed (Committed):** 225
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -84,7 +84,7 @@
 | `src/isst` | 9 | 0 | 0.0% | 0 |
 | `src/launcher` | 8 | 0 | 0.0% | 0 |
 | `src/libanalyze` | 40 | 0 | 0.0% | 0 |
-| `src/libbg` | 232 | 208 | 89.7% | 78 |
+| `src/libbg` | 232 | 232 | 100.0% | 79 |
 | `src/libbn` | 41 | 41 | 100.0% | 31 |
 | `src/libbrep` | 50 | 0 | 0.0% | 0 |
 | `src/libbu` | 176 | 176 | 100.0% | 101 |
@@ -341,4 +341,6 @@
 | `SEC-0222` | **Sev 2** | Denial-of-Service Assertion Aborts & Unchecked Pointer Dereferences | `src/libbg/geogram/voronoi/generic_RVD_cell.cpp, src/libbg/geogram/voronoi/generic_RVD_polygon.cpp, src/libbg/geogram/voronoi/RVD_callback.cpp, src/libbg/geogram/voronoi/RVD.cpp:generic_RVD_cell.cpp:635-645, 1020-1040; generic_RVD_polygon.cpp:520-530; RVD_callback.cpp:80-95; RVD.cpp:1620-1695, 2410-2420, 2580-2585` | `FIXED` | In side_exact, initialize_from_surface_mesh, triangulate_polygon, run_thread, and RestrictedVoronoiDiagram::create, assertions geo_assert and geo_assert_not_reached were triggered on non-simplex facets, unexpected topology, or unhandled dimensions, terminating the process via SIGABRT. |
 | `SEC-0223` | **Sev 2** | Out-of-Bounds Access, Missing Null Guards & Zero Division | `src/libbg/geogram/voronoi/CVT.cpp, src/libbg/geogram/voronoi/CVT.h:CVT.h:120-140, 195-215; CVT.cpp:60-80, 135-155, 175-195, 230-260, 310-340, 360-390` | `FIXED` | In CVT.cpp and CVT.h, constructors and member methods accepted Mesh* and double* pointers without null validation, accessed empty embedding vectors, and performed unvalidated indexing and division when dimension_ or point counts were zero. |
 | `SEC-0224` | **Sev 2** | Division by Zero, Out-of-bounds Vector Access & Dimension Validation | `src/libbg/geogram/third_party/LBFGSpp/include/LBFGS.h:LBFGS.h:170-175, 230-240; LBFGSB.h:205-215; BFGSMat.h:115-125, 270-340, 480-505; BKLDLT.h:80-95, 125-140, 160-175; Cauchy.h:120-145, 175-190; LineSearchMoreThuente.h:34-55, 71-125; LineSearchNocedalWright.h:42-50, 94-98; Param.h:210, 368; SubspaceMin.h:44-58, 134-138` | `FIXED` | In LBFGSpp optimization routines, missing zero guards on matrix determinants, Hessian eigenvalues, line search denominators, and empty input vector dimensions allowed potential divisions by zero, infinite loops, and out-of-bounds array access on degenerate or singular optimization problems. |
+| `SEC-0225` | **Sev 2** | Out-of-bounds Array Access, Null Dereference, Division by Zero & Traversal Flaw | `src/libbg/geogram/third_party/amgcl/amgcl/adapter/zero_copy.hpp, src/libbg/geogram/third_party/amgcl/amgcl/amg.hpp, src/libbg/geogram/third_party/amgcl/amgcl/backend/builtin.hpp, src/libbg/geogram/third_party/amgcl/amgcl/backend/detail/matrix_ops.hpp, src/libbg/geogram/third_party/amgcl/amgcl/backend/interface.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/detail/galerkin.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/plain_aggregates.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/pointwise_aggregates.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/smoothed_aggr_emin.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/smoothed_aggregation.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/tentative_prolongation.hpp, src/libbg/geogram/third_party/amgcl/amgcl/detail/inverse.hpp, src/libbg/geogram/third_party/amgcl/amgcl/detail/qr.hpp, src/libbg/geogram/third_party/amgcl/amgcl/detail/sort_row.hpp, src/libbg/geogram/third_party/amgcl/amgcl/detail/spgemm.hpp, src/libbg/geogram/third_party/amgcl/amgcl/make_solver.hpp, src/libbg/geogram/third_party/amgcl/amgcl/preconditioner/dummy.hpp, src/libbg/geogram/third_party/amgcl/amgcl/relaxation/spai0.hpp, src/libbg/geogram/third_party/amgcl/amgcl/reorder/cuthill_mckee.hpp, src/libbg/geogram/third_party/amgcl/amgcl/solver/cg.hpp, src/libbg/geogram/third_party/amgcl/amgcl/solver/skyline_lu.hpp, src/libbg/geogram/third_party/amgcl/amgcl/util.hpp, src/libbg/geogram/third_party/amgcl/amgcl/value_type/interface.hpp` | `FIXED` | In AMGCL solver and preconditioner routines, missing bounds checks on row/column indices and negative aggregate IDs allowed out-of-bounds array reads and writes. Missing checks for singular pivots, zero denominators, and zero spectral radius allowed divisions by zero. Unchecked matrix and vector pointers allowed null pointer dereferences. A loop condition logic error in Cuthill-McKee reordering skipped node 0 during graph level set traversal. |
+
 

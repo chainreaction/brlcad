@@ -4029,6 +4029,24 @@
       "created_at": "2026-09-19T05:39:00Z",
       "verified_at": "2026-09-19T05:39:00Z",
       "fixed_at": "2026-09-19T05:40:00Z"
+    },
+    {
+      "id": "SEC-0225",
+      "file": "src/libbg/geogram/third_party/amgcl/amgcl/adapter/zero_copy.hpp, src/libbg/geogram/third_party/amgcl/amgcl/amg.hpp, src/libbg/geogram/third_party/amgcl/amgcl/backend/builtin.hpp, src/libbg/geogram/third_party/amgcl/amgcl/backend/detail/matrix_ops.hpp, src/libbg/geogram/third_party/amgcl/amgcl/backend/interface.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/detail/galerkin.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/plain_aggregates.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/pointwise_aggregates.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/smoothed_aggr_emin.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/smoothed_aggregation.hpp, src/libbg/geogram/third_party/amgcl/amgcl/coarsening/tentative_prolongation.hpp, src/libbg/geogram/third_party/amgcl/amgcl/detail/inverse.hpp, src/libbg/geogram/third_party/amgcl/amgcl/detail/qr.hpp, src/libbg/geogram/third_party/amgcl/amgcl/detail/sort_row.hpp, src/libbg/geogram/third_party/amgcl/amgcl/detail/spgemm.hpp, src/libbg/geogram/third_party/amgcl/amgcl/make_solver.hpp, src/libbg/geogram/third_party/amgcl/amgcl/preconditioner/dummy.hpp, src/libbg/geogram/third_party/amgcl/amgcl/relaxation/spai0.hpp, src/libbg/geogram/third_party/amgcl/amgcl/reorder/cuthill_mckee.hpp, src/libbg/geogram/third_party/amgcl/amgcl/solver/cg.hpp, src/libbg/geogram/third_party/amgcl/amgcl/solver/skyline_lu.hpp, src/libbg/geogram/third_party/amgcl/amgcl/util.hpp, src/libbg/geogram/third_party/amgcl/amgcl/value_type/interface.hpp",
+      "lines": "zero_copy.hpp:95-105; amg.hpp:145-180, 205-220; builtin.hpp:170-195, 410-440, 520-565; matrix_ops.hpp:75-95; interface.hpp:85-95; galerkin.hpp:60-70; plain_aggregates.hpp:115-130, 160-198; pointwise_aggregates.hpp:80-140, 150-178; smoothed_aggr_emin.hpp:90-100, 170-220, 255-345; smoothed_aggregation.hpp:120-165, 190-220; tentative_prolongation.hpp:50-60, 95-175; inverse.hpp:45-75; qr.hpp:155-205, 385-405, 580-600; sort_row.hpp:35-45; spgemm.hpp:70-125, 425-460; make_solver.hpp:88-100; dummy.hpp:80-105; spai0.hpp:75-115; cuthill_mckee.hpp:80-165; cg.hpp:145-205; skyline_lu.hpp:100-175, 185-255; util.hpp:205-225; interface.hpp:145-155",
+      "severity": 2,
+      "category": "Out-of-bounds Array Access, Null Dereference, Division by Zero, and Traversal Flaw",
+      "description": "In AMGCL solver and preconditioner routines, missing bounds checks on row/column indices and negative aggregate IDs allowed out-of-bounds array reads and writes. Missing checks for singular pivots, zero denominators, and zero spectral radius allowed divisions by zero. Unchecked matrix and vector pointers allowed null pointer dereferences. A loop condition logic error in Cuthill-McKee reordering skipped node 0 during graph level set traversal.",
+      "verification_status": "CONFIRMED",
+      "verification_test": "Code inspection, unit tests, and regression test suite.",
+      "test_result": "Added bounds checks, null pointer guards, division by zero guards, and fixed graph traversal logic.",
+      "fix_status": "FIXED",
+      "fix_description": "Guarded array indexing by checking row/col bounds and non-negative aggregate IDs; checked for null matrix/vector pointers; protected against zero denominators in solver breakdown, inverses, and relaxation; fixed Cuthill-McKee traversal condition from node > 0 to node >= 0.",
+      "commit_hash": "05830e7ad5",
+      "commit_message": "libbg: fix out-of-bounds array access, null dereferences, and division by zero in AMGCL solver",
+      "created_at": "2026-09-19T05:49:00Z",
+      "verified_at": "2026-09-19T05:49:00Z",
+      "fixed_at": "2026-09-19T05:49:17Z"
     }
   ],
   "last_updated": "2026-09-19T05:40:00Z"
