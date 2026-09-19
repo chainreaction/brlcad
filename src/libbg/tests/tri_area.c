@@ -49,7 +49,7 @@ main(int UNUSED(argc), char **argv)
     base = VUNITIZE_TOL;
     area = 1.0;
     while (area > 0) {
-	base = base * 0.5;;
+	base = base * 0.5;
 	VSET(v[0], 10,     10, 0.0);
 	VSET(v[1], 10+base,   10, 0.0);
 	VSET(v[2], 10+0.5*base, 10, 5.0);

@@ -41,15 +41,21 @@ str_to_dbl(std::string s)
 static void
 read_point(point_t *p, const char *arg)
 {
+    if (!p || !arg) {
+	bu_exit(1, "ERROR: invalid null argument to read_point\n");
+    }
     std::string pstr(arg);
     size_t sp = pstr.find_first_not_of(" \"\t\n\v\f\r");
+    if (sp == std::string::npos) {
+	bu_exit(1, "ERROR: empty point string \"%s\"\n", arg);
+    }
     size_t ep = pstr.find_last_not_of(" \"\t\n\v\f\r");
     pstr = pstr.substr(sp, ep-sp+1);
     int i = 0;
     while (i < 2) {
 	size_t cp = pstr.find_first_of(",");
 	if (cp == std::string::npos) {
-	    bu_exit(1, "ERROR: failure while parsing point string \"%s\"", arg);
+	    bu_exit(1, "ERROR: failure while parsing point string \"%s\"\n", arg);
 	}
 	std::string dstr = pstr.substr(0, cp);
 	pstr.erase(0, cp+1);
@@ -84,8 +90,10 @@ main(int argc, char *argv[])
     read_point(&U1, argv[5]);
     read_point(&U2, argv[6]);
 
-    sscanf(argv[7], "%d", &area_flag);
-    sscanf(argv[8], "%d", &expected_result);
+    if (sscanf(argv[7], "%d", &area_flag) != 1)
+	bu_exit(1, "ERROR: failed to parse area_flag\n");
+    if (sscanf(argv[8], "%d", &expected_result) != 1)
+	bu_exit(1, "ERROR: failed to parse expected_result\n");
 
     actual_result = bg_tri_tri_isect_coplanar(V0, V1, V2, U0, U1, U2, area_flag);
 

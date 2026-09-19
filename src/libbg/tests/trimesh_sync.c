@@ -111,6 +111,8 @@ parrays(int *ff, int *ctrl)
 {
     int j = 0;
     struct bu_vls faces = BU_VLS_INIT_ZERO;
+    if (!ff || !ctrl)
+	return;
     while (ctrl[j] != INT_MAX) {
 	bu_vls_printf(&faces, "%d,", ctrl[j]);
 	if ((j+1) % 3 == 0)

@@ -48,6 +48,8 @@ static int plot_files;
 static void
 _tess_report(int *faces, int num_faces, const point2d_t *points, int test_num, int method_num)
 {
+    if (!faces || num_faces <= 0 || !points)
+	return;
     bu_log("Test %d, method %d: generated %d faces: \n", test_num, method_num, num_faces);
     for (int i = 0; i < num_faces; i++) {
 	bu_log("%d: %d -> %d -> %d\n", i, faces[3*i], faces[3*i+1], faces[3*i+2]);
@@ -138,6 +140,8 @@ main(int argc, const char **argv)
 	} else {
 	    _tess_report(faces, num_faces, (const point2d_t *)points, 1, 1);
 	}
+	bu_free(faces, "faces");
+	faces = NULL;
 
 	ret = bg_poly_triangulate(&faces2, &num_faces2, NULL, NULL, NULL, 0, (const point2d_t *)points, num_points, TRI_CONSTRAINED_DELAUNAY);
 	if (ret) {
@@ -146,6 +150,8 @@ main(int argc, const char **argv)
 	} else {
 	    _tess_report(faces2, num_faces2, (const point2d_t *)points, 1, 2);
 	}
+	bu_free(faces2, "faces2");
+	faces2 = NULL;
 
 
     }
@@ -182,6 +188,8 @@ main(int argc, const char **argv)
 	} else {
 	    _tess_report(faces, num_faces, (const point2d_t *)points, 2, 1);
 	}
+	bu_free(faces, "faces");
+	faces = NULL;
     }
 
     /* Nested test case 1 */
@@ -228,6 +236,8 @@ main(int argc, const char **argv)
 	} else {
 	    _tess_report(faces, num_faces, (const point2d_t *)points, 3, 1);
 	}
+	bu_free(faces, "faces");
+	faces = NULL;
     }
 
     /* Nested test case 2 */
@@ -270,6 +280,8 @@ main(int argc, const char **argv)
 	} else {
 	    _tess_report(faces, num_faces, (const point2d_t *)points, 4, 1);
 	}
+	bu_free(faces, "faces");
+	faces = NULL;
     }
 
     /* Four point triangle */
@@ -297,6 +309,8 @@ main(int argc, const char **argv)
 	} else {
 	    _tess_report(faces, num_faces, (const point2d_t *)points, 5, 1);
 	}
+	bu_free(faces, "faces");
+	faces = NULL;
     }
 
     {

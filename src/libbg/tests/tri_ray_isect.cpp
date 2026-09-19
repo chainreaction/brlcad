@@ -44,15 +44,21 @@ str_to_dbl(std::string s)
 static void
 read_point(point_t *p, const char *arg)
 {
+    if (!p || !arg) {
+	bu_exit(1, "ERROR: invalid null argument to read_point\n");
+    }
     std::string pstr(arg);
     size_t sp = pstr.find_first_not_of(" \"\t\n\v\f\r");
+    if (sp == std::string::npos) {
+	bu_exit(1, "ERROR: empty point string \"%s\"\n", arg);
+    }
     size_t ep = pstr.find_last_not_of(" \"\t\n\v\f\r");
     pstr = pstr.substr(sp, ep-sp+1);
     int i = 0;
     while (i < 2) {
 	size_t cp = pstr.find_first_of(",");
 	if (cp == std::string::npos) {
-	    bu_exit(1, "ERROR: failure while parsing point string \"%s\"", arg);
+	    bu_exit(1, "ERROR: failure while parsing point string \"%s\"\n", arg);
 	}
 	std::string dstr = pstr.substr(0, cp);
 	pstr.erase(0, cp+1);
@@ -204,7 +210,9 @@ main(int argc, char **argv)
     read_point(&O,  argv[4]);
     read_point(&D,  argv[5]);
 
-    sscanf(argv[6], "%d", &expected_result);
+    if (sscanf(argv[6], "%d", &expected_result) != 1) {
+	bu_exit(1, "ERROR: failed to parse expected_result \"%s\"\n", argv[6]);
+    }
 
     actual_result = bg_isect_tri_ray(O, D, V0, V1, V2, NULL);
 

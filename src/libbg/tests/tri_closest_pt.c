@@ -43,12 +43,14 @@ main(int argc, char **argv)
     if (argc != 7)
 	bu_exit(1, "ERROR: [%s] input format is TPx,TPy,TPz V0x,V0y,V0z V1x,V1y,V1z V2x,V2y,V2z expected_dist closest_x,closest_y,closest_z\n", argv[0]);
 
-    sscanf(argv[1], "%lf,%lf,%lf", &TP[X], &TP[Y], &TP[Z]);
-    sscanf(argv[2], "%lf,%lf,%lf", &V0[X], &V0[Y], &V0[Z]);
-    sscanf(argv[3], "%lf,%lf,%lf", &V1[X], &V1[Y], &V1[Z]);
-    sscanf(argv[4], "%lf,%lf,%lf", &V2[X], &V2[Y], &V2[Z]);
-    sscanf(argv[5], "%lf", &expected_dist);
-    sscanf(argv[6], "%lf,%lf,%lf", &expected_closest[X], &expected_closest[Y], &expected_closest[Z]);
+    if (sscanf(argv[1], "%lf,%lf,%lf", &TP[X], &TP[Y], &TP[Z]) != 3 ||
+	sscanf(argv[2], "%lf,%lf,%lf", &V0[X], &V0[Y], &V0[Z]) != 3 ||
+	sscanf(argv[3], "%lf,%lf,%lf", &V1[X], &V1[Y], &V1[Z]) != 3 ||
+	sscanf(argv[4], "%lf,%lf,%lf", &V2[X], &V2[Y], &V2[Z]) != 3 ||
+	sscanf(argv[5], "%lf", &expected_dist) != 1 ||
+	sscanf(argv[6], "%lf,%lf,%lf", &expected_closest[X], &expected_closest[Y], &expected_closest[Z]) != 3) {
+	bu_exit(1, "ERROR: [%s] failed to parse input arguments\n", argv[0]);
+    }
 
     actual_dist = bg_tri_closest_pt(&actual_closest, TP, V0, V1, V2);
 
