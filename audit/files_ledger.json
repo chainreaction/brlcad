@@ -13766,8 +13766,8 @@
       "path": "src/libbg/geogram/basic/algorithm.cpp",
       "subsystem": "src/libbg",
       "lines": 49,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13776,8 +13776,8 @@
       "path": "src/libbg/geogram/basic/algorithm.h",
       "subsystem": "src/libbg",
       "lines": 186,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13786,8 +13786,8 @@
       "path": "src/libbg/geogram/basic/argused.h",
       "subsystem": "src/libbg",
       "lines": 64,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13796,8 +13796,8 @@
       "path": "src/libbg/geogram/basic/assert.cpp",
       "subsystem": "src/libbg",
       "lines": 143,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13806,28 +13806,33 @@
       "path": "src/libbg/geogram/basic/assert.h",
       "subsystem": "src/libbg",
       "lines": 219,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0204"
+      ]
     },
     {
       "id": 1373,
       "path": "src/libbg/geogram/basic/attributes.cpp",
       "subsystem": "src/libbg",
       "lines": 596,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 2,
+      "issue_ids": [
+        "SEC-0200",
+        "SEC-0203"
+      ]
     },
     {
       "id": 1374,
       "path": "src/libbg/geogram/basic/attributes.h",
       "subsystem": "src/libbg",
       "lines": 2164,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13836,8 +13841,8 @@
       "path": "src/libbg/geogram/basic/geogram_common.h",
       "subsystem": "src/libbg",
       "lines": 274,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13846,8 +13851,8 @@
       "path": "src/libbg/geogram/basic/geogram_options.cpp",
       "subsystem": "src/libbg",
       "lines": 43,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13856,8 +13861,8 @@
       "path": "src/libbg/geogram/basic/geogram_options.h",
       "subsystem": "src/libbg",
       "lines": 113,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13866,8 +13871,8 @@
       "path": "src/libbg/geogram/basic/geometry.cpp",
       "subsystem": "src/libbg",
       "lines": 78,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13876,8 +13881,8 @@
       "path": "src/libbg/geogram/basic/geometry.h",
       "subsystem": "src/libbg",
       "lines": 1054,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13886,28 +13891,32 @@
       "path": "src/libbg/geogram/basic/geometry_nd.h",
       "subsystem": "src/libbg",
       "lines": 836,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0204"
+      ]
     },
     {
       "id": 1381,
       "path": "src/libbg/geogram/basic/memory.h",
       "subsystem": "src/libbg",
       "lines": 829,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0204"
+      ]
     },
     {
       "id": 1382,
       "path": "src/libbg/geogram/basic/numeric.cpp",
       "subsystem": "src/libbg",
       "lines": 77,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13916,8 +13925,8 @@
       "path": "src/libbg/geogram/basic/numeric.h",
       "subsystem": "src/libbg",
       "lines": 384,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -13926,78 +13935,92 @@
       "path": "src/libbg/geogram/basic/packed_arrays.cpp",
       "subsystem": "src/libbg",
       "lines": 186,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0202"
+      ]
     },
     {
       "id": 1385,
       "path": "src/libbg/geogram/basic/packed_arrays.h",
       "subsystem": "src/libbg",
       "lines": 357,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0202"
+      ]
     },
     {
       "id": 1386,
       "path": "src/libbg/geogram/basic/parallel.cpp",
       "subsystem": "src/libbg",
       "lines": 166,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0203"
+      ]
     },
     {
       "id": 1387,
       "path": "src/libbg/geogram/basic/permutation.h",
       "subsystem": "src/libbg",
       "lines": 302,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0203"
+      ]
     },
     {
       "id": 1388,
       "path": "src/libbg/geogram/basic/rationalg.h",
       "subsystem": "src/libbg",
       "lines": 749,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0204"
+      ]
     },
     {
       "id": 1389,
       "path": "src/libbg/geogram/basic/thread_sync.h",
       "subsystem": "src/libbg",
       "lines": 444,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0201"
+      ]
     },
     {
       "id": 1390,
       "path": "src/libbg/geogram/basic/vecg.h",
       "subsystem": "src/libbg",
       "lines": 1341,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0204"
+      ]
     },
     {
       "id": 1391,
       "path": "src/libbg/geogram/basic/vechg.h",
       "subsystem": "src/libbg",
       "lines": 422,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14006,8 +14029,8 @@
       "path": "src/libbg/geogram/basic/vector_attribute.h",
       "subsystem": "src/libbg",
       "lines": 167,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },

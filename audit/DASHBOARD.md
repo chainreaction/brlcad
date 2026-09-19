@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-19 03:55:49 UTC
+**Last Updated:** 2026-09-19 04:00:30 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 340 (9.7%)
-- **Files Pending Review:** 3153
-- **Total Issues Identified:** 199
+- **Files Reviewed:** 365 (10.4%)
+- **Files Pending Review:** 3128
+- **Total Issues Identified:** 204
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
-| **3 (High)** | 19 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 135 | Possible exploit or crash under specific circumstances |
-| **1 (Low)** | 45 | Localized / low-impact vulnerability |
+| **3 (High)** | 20 | Likely exploit or crash potential; widespread/library exposure |
+| **2 (Medium)** | 138 | Possible exploit or crash under specific circumstances |
+| **1 (Low)** | 46 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 198
+- **Fixed (Committed):** 203
 - **Pending Verification:** 1
 - **Disproven:** 0
 
@@ -84,7 +84,7 @@
 | `src/isst` | 9 | 0 | 0.0% | 0 |
 | `src/launcher` | 8 | 0 | 0.0% | 0 |
 | `src/libanalyze` | 40 | 0 | 0.0% | 0 |
-| `src/libbg` | 232 | 100 | 43.1% | 37 |
+| `src/libbg` | 232 | 125 | 53.9% | 49 |
 | `src/libbn` | 41 | 41 | 100.0% | 31 |
 | `src/libbrep` | 50 | 0 | 0.0% | 0 |
 | `src/libbu` | 176 | 176 | 100.0% | 101 |
@@ -316,3 +316,8 @@
 | `SEC-0197` | **Sev 2** | Format String / Type Mismatch & Division by Zero | `src/libbg/geogram/NL/nl_blas.c:1440-1455, 1495-1510` | `FIXED` | In host_blas_show_stats, nlBlasGFlops() returns a double, but was passed to nl_printf using %d format specifier, risking register/stack corruption on 64-bit platforms. Furthermore, nlBlasGFlops() divided by elapsed_time without checking for zero elapsed time. |
 | `SEC-0198` | **Sev 2** | Divide-by-Zero / Floating Point Exception | `src/libbg/geogram/NL/nl_api.c, src/libbg/geogram/NL/nl_preconditioners.c:nl_api.c:660-675, nl_preconditioners.c:110-130, 215-265` | `FIXED` | In nlNormalizeRow, the normalization divided by vector norm without checking if the norm was zero, leading to division by zero on degenerate rows. In Jacobi and SSOR preconditioners (nlNewJacobiPreconditioner, nlSparseMatrixMultLowerInverse, nlSparseMatrixMultUpperInverse), diagonal entries were divided without guards against zero diagonal entries. |
 | `SEC-0199` | **Sev 1** | Macro Hazard / Null Pointer Dereference Guard | `src/libbg/geogram/NL/nl_private.h, src/libbg/geogram/NL/nl_os.c, src/libbg/geogram/NL/nl_amgcl.cpp:nl_private.h:288-300, nl_os.c:55-135, nl_amgcl.cpp:178-195` | `FIXED` | NL_DELETE and NL_DELETE_ARRAY macros expanded to multiple unbracketed statements (free(x); x = NULL), creating dangerous syntax and logic errors when used inside unbraced single-line conditionals. Error reporting and assertion handlers in nl_os.c lacked NULL checks on function pointers and format arguments. AMGCL solver interface in nl_amgcl.cpp lacked NULL checks on context, matrices, and vectors. |
+| `SEC-0200` | **Sev 3** | Buffer Overflow / Logic Error in Dimension Check | `src/libbg/geogram/basic/attributes.cpp:390-405` | `FIXED` | In AttributesManager::copy_attribute, the compatibility check between existing attribute and destination attribute tested if ((store->size() != new_store->size()) && (store->dimension() != new_store->dimension()) && (store->element_size() != new_store->element_size())) using logical AND (&&) instead of logical OR (||). If the attributes had matching dimensions but differing element counts, the condition evaluated to false, allowing memcpy to copy an oversized source buffer into an undersized destination buffer, causing a critical heap buffer overflow. |
+| `SEC-0201` | **Sev 2** | Memory Leak / Missing Destructor & Dangling Pointer | `src/libbg/geogram/basic/thread_sync.h:150-227` | `FIXED` | BasicSpinLockArray allocated heap memory via new spinlock[size_in], but lacked a destructor (~BasicSpinLockArray()), causing all allocated spinlock arrays to be leaked upon destruction. Furthermore, BasicSpinLockArray::clear() deleted the array without resetting size_ to 0 or spinlocks_ to nullptr, and CompactSpinLockArray::clear() did not reset spinlocks_ to nullptr, leaving dangling pointers. |
+| `SEC-0202` | **Sev 2** | Memory Management Flaw / Out-of-Bounds Read & Write | `src/libbg/geogram/basic/packed_arrays.cpp, src/libbg/geogram/basic/packed_arrays.h:packed_arrays.cpp:90-185, packed_arrays.h:160-165` | `FIXED` | In PackedArrays, calloc return values were not checked for allocation failure. In resize_array, realloc(ZV_[array_index], 0) was invoked when shrinking to <= Z1_block_size_, risking platform-dependent memory leaks or undefined behavior, and the realloc return was directly assigned without failure handling. Array accessors (get_array, set_array, resize_array, array_size) lacked bounds checks on array_index in release mode. |
+| `SEC-0203` | **Sev 2** | Integer Underflow & Unbounded Stack Allocation | `src/libbg/geogram/basic/parallel.cpp, src/libbg/geogram/basic/permutation.h, src/libbg/geogram/basic/attributes.cpp:parallel.cpp:67-85, permutation.h:158-240, attributes.cpp:160-180` | `FIXED` | In parallel_for, if from >= to, unsigned integer subtraction to - from underflowed to a massive positive number (~4 billion), causing thread spawning loops with out-of-bounds tasks. In Permutation::apply and AttributeStore::swap_items, BRLCAD_ALLOCA was invoked unconditionally on element sizes, risking stack overflow on large elements. In Permutation::apply(vector<T>&, ...), mismatch between data size and permutation size was not checked, violating documented contract and causing out-of-bounds access. |
+| `SEC-0204` | **Sev 1** | Macro Precedence Hazards & Divide-by-Zero / Floating-Point Exception | `src/libbg/geogram/basic/assert.h, src/libbg/geogram/basic/memory.h, src/libbg/geogram/basic/geometry_nd.h, src/libbg/geogram/basic/rationalg.h, src/libbg/geogram/basic/vecg.h:assert.h:145-215, memory.h:390-485, geometry_nd.h:215-295, rationalg.h:540-550, vecg.h:180-195` | `FIXED` | Assertions in assert.h were defined with raw braces { ... } rather than do { ... } while(0), causing dangling-else and syntax errors in conditional contexts. geo_aligned_alloca macro parameter was unparenthesized. Memory::aligned_allocator::allocate lacked integer overflow check on size * sizeof(T). triangle_area lacked max(A2, 0.0) guard causing sqrt(negative) NaNs, and triangle_circumcenter divided by determinant without zero check. rationalg::estimate() divided by denominator without zero check. vecng initializer_list constructor lacked bounds check on iteration count. |
