@@ -555,6 +555,18 @@ bool brep_surface_remove(ON_Brep *brep, int surface_id)
 
 int brep_edge_create(ON_Brep *brep, int from, int to, int curve)
 {
+    if (from < 0 || from >= brep->m_V.Count()) {
+	bu_log("from vertex index is out of range\n");
+	return -1;
+    }
+    if (to < 0 || to >= brep->m_V.Count()) {
+	bu_log("to vertex index is out of range\n");
+	return -1;
+    }
+    if (curve < 0 || curve >= brep->m_C3.Count()) {
+	bu_log("curve index is out of range\n");
+	return -1;
+    }
     ON_BrepVertex& v0 = brep->m_V[from];
     ON_BrepVertex& v1 = brep->m_V[to];
     ON_BrepEdge& edge = brep->NewEdge(v0, v1, curve);
@@ -677,7 +689,8 @@ std::vector<ON_3dVector> calculateTangentVectors(const std::vector<ON_3dPoint> &
     /// calculate ak
     double *ak = (double *)bu_calloc(n + 1, sizeof(double), "ak");
     for (int i = 0; i < n + 1; ++i) {
-	ak[i] = tk[i] / (tk[i] + tk[i + 2]);
+	double denom = tk[i] + tk[i + 2];
+	ak[i] = NEAR_ZERO(denom, SMALL_FASTF) ? 0.5 : tk[i] / denom;
     }
     bu_free(tk, "tk");
 
@@ -698,6 +711,13 @@ std::vector<ON_3dVector> calculateTangentVectors(const std::vector<ON_3dPoint> &
 
 double getPosRoot(const double a, const double b,const double c)
 {
+    if (NEAR_ZERO(a, SMALL_FASTF)) {
+	/* degenerate to linear: bx + c = 0 */
+	if (NEAR_ZERO(b, SMALL_FASTF))
+	    return -1;
+	double x = -c / b;
+	return (x > 0) ? x : -1;
+    }
     double delta = b * b - 4 * a * c;
     if (delta < 0) {
 	return -1;
@@ -829,7 +849,12 @@ void bsplineBasisFuns(int i, double u, int p, std::vector<double> U,  std::vecto
 	saved = 0.0;
 
 	for (r = 0; r < j; r++) {
-	    temp = N[r] / (right[r + 1] + left[j - r]);
+	    double denom = right[r + 1] + left[j - r];
+	    if (NEAR_ZERO(denom, SMALL_FASTF)) {
+		temp = 0.0;
+	    } else {
+		temp = N[r] / denom;
+	    }
 	    N[r] = saved + right[r + 1] * temp;
 	    saved = left[j - r] * temp;
 	}
@@ -857,6 +882,9 @@ int solveTridiagonalint(int n, std::vector<ON_3dPoint> Q, std::vector<double> U,
     bsplineBasisFuns(4, U[4], 3, U, abc);
     den = abc[1];
 
+    if (NEAR_ZERO(den, SMALL_FASTF))
+	return 0;
+
     /* P[2] */
     P[2] = (Q[1] - abc[0] * P[1]) / den;
 
@@ -865,6 +893,8 @@ int solveTridiagonalint(int n, std::vector<ON_3dPoint> Q, std::vector<double> U,
 
 	bsplineBasisFuns(i + 2, U[i + 2], 3, U, abc);
 	den = abc[1] - abc[0] * dd[i];
+	if (NEAR_ZERO(den, SMALL_FASTF))
+	    return 0;
 	P[i] = (R[i] - abc[0] * P[i - 1]) / den;
     }
 
@@ -872,6 +902,9 @@ int solveTridiagonalint(int n, std::vector<ON_3dPoint> Q, std::vector<double> U,
 
     bsplineBasisFuns(n + 2, U[n + 2], 3, U, abc);
     den = abc[1] - abc[0] * dd[n];
+
+    if (NEAR_ZERO(den, SMALL_FASTF))
+	return 0;
 
     P[n] = (Q[n - 1] - abc[2] * P[n + 1] - abc[0] * P[n - 1]) / den;
 

@@ -36,13 +36,17 @@ int
 ON_PX_EVENT::Compare(const ON_PX_EVENT* a, const ON_PX_EVENT* b)
 {
     if (!a) {
-	return b ? 1 : 0;
+	return b ? -1 : 0;
     }
 
     if (!b)
-	return -1;
+	return 1;
 
-    return a->m_Mid < b->m_Mid;
+    if (a->m_Mid < b->m_Mid)
+	return -1;
+    if (b->m_Mid < a->m_Mid)
+	return 1;
+    return 0;
 }
 
 

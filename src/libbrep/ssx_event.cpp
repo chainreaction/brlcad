@@ -84,17 +84,29 @@ DumpSSXEvent(ON_SSX_EVENT &x, ON_TextLog &text_log)
 	case ON_SSX_EVENT::ssx_overlap:
 	    text_log.Print("SurfaceA:\n");
 	    text_log.PushIndent();
-	    x.m_curveA->Dump(text_log);
+	    if (x.m_curveA) {
+		x.m_curveA->Dump(text_log);
+	    } else {
+		text_log.Print("NULL\n");
+	    }
 	    text_log.PopIndent();
 
 	    text_log.Print("SurfaceB:\n");
 	    text_log.PushIndent();
-	    x.m_curveB->Dump(text_log);
+	    if (x.m_curveB) {
+		x.m_curveB->Dump(text_log);
+	    } else {
+		text_log.Print("NULL\n");
+	    }
 	    text_log.PopIndent();
 
 	    text_log.Print("3D curves:\n");
 	    text_log.PushIndent();
-	    x.m_curve3d->Dump(text_log);
+	    if (x.m_curve3d) {
+		x.m_curve3d->Dump(text_log);
+	    } else {
+		text_log.Print("NULL\n");
+	    }
 	    text_log.PopIndent();
 	    break;
 

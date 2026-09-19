@@ -138,6 +138,11 @@ write_plot_to_file(
     const unsigned char *lcolor = color;
     unsigned char clr[] = {255, 0, 0};
 
+    if (!fp) {
+	bu_log("write_plot_to_file: unable to open %s for writing\n", filename);
+	return;
+    }
+
     if (!lcolor) {
 	lcolor = clr;
     }

@@ -67,7 +67,7 @@ bbox_overlap(const ON_BoundingBox &a, const ON_BoundingBox &b, double tol)
 static bool
 bbox_contains(const ON_BoundingBox &bb, const ON_3dPoint &p, double tol)
 {
-    return bb.IsValid() &&
+    return bb.IsValid() && p.IsValid() &&
 	p.x >= bb.m_min.x - tol && p.x <= bb.m_max.x + tol &&
 	p.y >= bb.m_min.y - tol && p.y <= bb.m_max.y + tol &&
 	p.z >= bb.m_min.z - tol && p.z <= bb.m_max.z + tol;
@@ -219,7 +219,8 @@ ON_Brep_Quality_Check(const ON_Brep *brep, struct bu_vls *msgs, const struct bre
 
     for (int i = 0; i < brep->m_E.Count(); ++i) {
 	const ON_BrepEdge &edge = brep->m_E[i];
-	if (edge.m_vi[0] < 0 || edge.m_vi[1] < 0)
+	if (edge.m_vi[0] < 0 || edge.m_vi[1] < 0 ||
+	    edge.m_vi[0] >= brep->m_V.Count() || edge.m_vi[1] >= brep->m_V.Count())
 	    continue;
 
 	const double edist = point_dist(brep->m_V[edge.m_vi[0]].Point(), brep->m_V[edge.m_vi[1]].Point());
@@ -230,7 +231,8 @@ ON_Brep_Quality_Check(const ON_Brep *brep, struct bu_vls *msgs, const struct bre
 	if (edge.m_ti.Count() != 2) {
 	    quality_msg(msgs, "error", "edge %d has %d trims; solid BREP quality requires two mated trims", i, edge.m_ti.Count());
 	    ++errors;
-	} else {
+	} else if (edge.m_ti[0] >= 0 && edge.m_ti[0] < brep->m_T.Count() &&
+		   edge.m_ti[1] >= 0 && edge.m_ti[1] < brep->m_T.Count()) {
 	    const ON_BrepTrim &ta = brep->m_T[edge.m_ti[0]];
 	    const ON_BrepTrim &tb = brep->m_T[edge.m_ti[1]];
 	    if (ta.m_bRev3d == tb.m_bRev3d) {
