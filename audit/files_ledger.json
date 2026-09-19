@@ -12,10 +12,10 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 472,
-    "pending_files": 3021,
-    "last_updated": "2026-09-19T05:50:00Z",
-    "total_issues": 225
+    "reviewed_files": 482,
+    "pending_files": 3011,
+    "last_updated": "2026-09-19T05:58:22Z",
+    "total_issues": 226
   },
   "files": [
     {
@@ -16338,100 +16338,126 @@
       "path": "src/libbrep/BBNode.cpp",
       "subsystem": "src/libbrep",
       "lines": 605,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:58:22Z",
+      "issues_count": 1,
+      "issue_ids": [],
+      "issues": [
+        "SEC-0226"
+      ]
     },
     {
       "id": 1599,
       "path": "src/libbrep/BRNode.cpp",
       "subsystem": "src/libbrep",
       "lines": 580,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:58:22Z",
+      "issues_count": 1,
+      "issue_ids": [],
+      "issues": [
+        "SEC-0226"
+      ]
     },
     {
       "id": 1600,
       "path": "src/libbrep/PullbackCurve.cpp",
       "subsystem": "src/libbrep",
       "lines": 6950,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:58:22Z",
+      "issues_count": 1,
+      "issue_ids": [],
+      "issues": [
+        "SEC-0226"
+      ]
     },
     {
       "id": 1601,
       "path": "src/libbrep/PullbackCurve.h",
       "subsystem": "src/libbrep",
       "lines": 109,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:58:22Z",
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issues": []
     },
     {
       "id": 1602,
       "path": "src/libbrep/Subcurve.cpp",
       "subsystem": "src/libbrep",
       "lines": 144,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:58:22Z",
+      "issues_count": 1,
+      "issue_ids": [],
+      "issues": [
+        "SEC-0226"
+      ]
     },
     {
       "id": 1603,
       "path": "src/libbrep/Subsurface.cpp",
       "subsystem": "src/libbrep",
       "lines": 198,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:58:22Z",
+      "issues_count": 1,
+      "issue_ids": [],
+      "issues": [
+        "SEC-0226"
+      ]
     },
     {
       "id": 1604,
       "path": "src/libbrep/assembly.cpp",
       "subsystem": "src/libbrep",
       "lines": 718,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:58:22Z",
+      "issues_count": 1,
+      "issue_ids": [],
+      "issues": [
+        "SEC-0226"
+      ]
     },
     {
       "id": 1605,
       "path": "src/libbrep/boolean.cpp",
       "subsystem": "src/libbrep",
       "lines": 4114,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:58:22Z",
+      "issues_count": 1,
+      "issue_ids": [],
+      "issues": [
+        "SEC-0226"
+      ]
     },
     {
       "id": 1606,
       "path": "src/libbrep/brep_defines.h",
       "subsystem": "src/libbrep",
       "lines": 76,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:58:22Z",
+      "issues_count": 1,
+      "issue_ids": [],
+      "issues": [
+        "SEC-0226"
+      ]
     },
     {
       "id": 1607,
       "path": "src/libbrep/brep_except.h",
       "subsystem": "src/libbrep",
       "lines": 82,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "RESOLVED",
+      "reviewed_at": "2026-09-19T05:58:22Z",
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issues": []
     },
     {
       "id": 1608,

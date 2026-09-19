@@ -4047,7 +4047,25 @@
       "created_at": "2026-09-19T05:49:00Z",
       "verified_at": "2026-09-19T05:49:00Z",
       "fixed_at": "2026-09-19T05:49:17Z"
+    },
+    {
+      "id": "SEC-0226",
+      "file": "src/libbrep/BBNode.cpp, src/libbrep/BRNode.cpp, src/libbrep/PullbackCurve.cpp, src/libbrep/Subcurve.cpp, src/libbrep/Subsurface.cpp, src/libbrep/assembly.cpp, src/libbrep/boolean.cpp, src/libbrep/brep_defines.h",
+      "lines": "BBNode.cpp:137, 209-214, 230-265, 305-325, 345-350, 400-410, 498-504, 508-525, 560-610; BRNode.cpp:60-65, 105-110, 260-295, 360-400, 412-420, 514-520; PullbackCurve.cpp:3190-3195, 3380-3386, 3390-3475, 3505-3590, 3820-3825, 4578-4581, 5359-5363; Subcurve.cpp:49, 69-93; Subsurface.cpp:50, 72-118; assembly.cpp:58-75, 353-402, 456-458; boolean.cpp:98, 142-225, 3356-3395; brep_defines.h:64",
+      "severity": 2,
+      "category": "Null Pointer Dereference, Division by Zero, Out-of-bounds Array Access",
+      "description": "In libbrep core evaluation, trimming, assembly, and pullback routines, missing null checks on curve, surface, face, and child pointers could result in null pointer dereferences. Missing checks against zero denominators in cubic curve interpolation, knot intervals, Newton solver steps, and basis control ratio calculations could cause division by zero. Edge index parameters in edge merging routines lacked array bounds checks before indexing brep edge tables.",
+      "verification_status": "CONFIRMED",
+      "verification_test": "Code inspection, unit tests, and regression test suite.",
+      "test_result": "Added null pointer guards, division by zero guards, edge index bounds validation, and macro expression parenthesization.",
+      "fix_status": "FIXED",
+      "fix_description": "Added null checks for curve, surface, face, and child node pointers across BBNode, BRNode, Subcurve, Subsurface, and LinkedCurve; guarded knot intervals, cubic curve interpolation, and Newton step divisions against zero denominators; checked bounds for edge indices before access in assembly routines; parenthesized ANGLE_TOL macro.",
+      "commit_hash": "cdc87d5ef5",
+      "commit_message": "libbrep: address null dereference and division by zero risks in core brep routines",
+      "created_at": "2026-09-19T05:58:00Z",
+      "verified_at": "2026-09-19T05:58:00Z",
+      "fixed_at": "2026-09-19T05:58:22Z"
     }
   ],
-  "last_updated": "2026-09-19T05:40:00Z"
+  "last_updated": "2026-09-19T05:58:22Z"
 }
