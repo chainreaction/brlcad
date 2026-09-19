@@ -283,9 +283,9 @@ namespace GEOBRL {
         // --> capa+1 to have an additional 'sentry' at the end
         // because fast_expansion_sum_zeroelim() may access
         // an entry past the end (without using it).
-        return
-            sizeof(expansion) - 2 * sizeof(double) +
-            std::max(capa + 1, index_t(2)) * sizeof(double);
+        size_t c = size_t(capa);
+        size_t count = std::max(c + 1, size_t(2));
+        return (sizeof(expansion) - 2 * sizeof(double)) + count * sizeof(double);
     }
 
     /**

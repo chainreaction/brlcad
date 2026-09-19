@@ -48,7 +48,7 @@ namespace {
 
 #ifdef PCK_STATS
     inline double percent(Numeric::int64 a, Numeric::int64 b) {
-        return 100.0 * double(a) / double(b);
+        return (b == 0) ? 0.0 : (100.0 * double(a) / double(b));
     }
 #endif
 

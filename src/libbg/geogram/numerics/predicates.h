@@ -710,6 +710,9 @@ namespace GEOBRL {
             const double* p0, const double* p1,
             const double* p2, const double* p3
         ) {
+            if(!p0 || !p1 || !p2 || !p3) {
+                return ZERO;
+            }
             double a11 = p1[0] - p0[0] ;
             double a12 = p1[1] - p0[1] ;
             double a13 = p1[2] - p0[2] ;

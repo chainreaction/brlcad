@@ -210,7 +210,7 @@ namespace GEOBRL {
                     }
                 }
             }
-            geo_assert_not_reached;
+            return ZERO;
         }
 
     }

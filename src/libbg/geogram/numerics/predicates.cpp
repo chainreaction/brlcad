@@ -103,6 +103,9 @@ namespace {
          * \retval false otherwise.
          */
         bool operator()(const double* x, const double* y) const {
+            if(dim_ == 0 || x == nullptr || y == nullptr) {
+                return false;
+            }
             for(index_t i=0; i<dim_-1; ++i) {
                 if(x[i] < y[i]) {
                     return true;
@@ -125,6 +128,9 @@ namespace {
      * \retval false otherwise.
      */
     bool lexico_compare_3d(const double* x, const double* y) {
+        if(x == nullptr || y == nullptr) {
+            return false;
+        }
         if(x[0] < y[0]) {
             return true;
         }
@@ -153,7 +159,10 @@ namespace {
     void GEOBRLCAD_API SOS_sort(
         const double** begin, const double** end, index_t dim
     ) {
-        if(SOS_mode_ == PCK::SOS_ADDRESS) {
+        if(begin == nullptr || end == nullptr || begin >= end) {
+            return;
+        }
+        if(SOS_mode_ == PCK::SOS_ADDRESS || dim == 0) {
             std::sort(begin, end);
         } else {
             if(dim == 3) {
@@ -328,6 +337,9 @@ namespace {
         const double* q0,
         coord_index_t dim
     ) {
+        if(!p0 || !p1 || !q0 || dim == 0) {
+            return ZERO;
+        }
         stats_side1.log_exact();
         expansion& l = expansion_sq_dist(p0, p1, dim);
         expansion& a = expansion_dot_at(p1, q0, p0, dim).scale_fast(2.0);
@@ -336,7 +348,11 @@ namespace {
         // Symbolic perturbation, Simulation of Simplicity
         if(r_sign == ZERO) {
             stats_side1.log_SOS();
-            return (p0 < p1) ? POSITIVE : NEGATIVE;
+            const double* p_sort[2];
+            p_sort[0] = p0;
+            p_sort[1] = p1;
+            SOS_sort(p_sort, p_sort + 2, dim);
+            return (p_sort[0] == p0) ? POSITIVE : NEGATIVE;
         }
         return r_sign;
     }
@@ -347,6 +363,9 @@ namespace {
     Sign side1_3d_SOS(
         const double* p0, const double* p1, const double* q0
     ) {
+        if(!p0 || !p1 || !q0) {
+            return ZERO;
+        }
         Sign result = Sign(side1_3d_filter(p0, p1, q0));
         if(result == ZERO) {
             result = side1_exact_SOS(p0, p1, q0, 3);
@@ -360,6 +379,9 @@ namespace {
     Sign side1_4d_SOS(
         const double* p0, const double* p1, const double* q0
     ) {
+        if(!p0 || !p1 || !q0) {
+            return ZERO;
+        }
         Sign result = Sign(side1_4d_filter(p0, p1, q0));
         if(result == ZERO) {
             result = side1_exact_SOS(p0, p1, q0, 4);
@@ -373,6 +395,9 @@ namespace {
     Sign side1_6d_SOS(
         const double* p0, const double* p1, const double* q0
     ) {
+        if(!p0 || !p1 || !q0) {
+            return ZERO;
+        }
         Sign result = Sign(side1_6d_filter(p0, p1, q0));
         if(result == ZERO) {
             result = side1_exact_SOS(p0, p1, q0, 6);
@@ -386,6 +411,9 @@ namespace {
     Sign side1_7d_SOS(
         const double* p0, const double* p1, const double* q0
     ) {
+        if(!p0 || !p1 || !q0) {
+            return ZERO;
+        }
         Sign result = Sign(side1_7d_filter(p0, p1, q0));
         if(result == ZERO) {
             result = side1_exact_SOS(p0, p1, q0, 7);
@@ -399,6 +427,9 @@ namespace {
     Sign side1_8d_SOS(
         const double* p0, const double* p1, const double* q0
     ) {
+        if(!p0 || !p1 || !q0) {
+            return ZERO;
+        }
         Sign result = Sign(side1_8d_filter(p0, p1, q0));
         if(result == ZERO) {
             result = side1_exact_SOS(p0, p1, q0, 8);
@@ -417,6 +448,9 @@ namespace {
         const double* q0, const double* q1,
         coord_index_t dim
     ) {
+        if(!p0 || !p1 || !p2 || !q0 || !q1 || dim == 0) {
+            return ZERO;
+        }
         stats_side2.log_exact();
 
         const expansion& l1 = expansion_sq_dist(p1, p0, dim);
@@ -430,9 +464,9 @@ namespace {
         const expansion& Delta = expansion_diff(a11, a10);
 
         Sign Delta_sign = Delta.sign();
-        // Should not occur with symbolic
-        // perturbation done at previous steps.
-        geo_assert(Delta_sign != ZERO);
+        if(Delta_sign == ZERO) {
+            return ZERO;
+        }
 
         //       [ Lambda0 ]   [ -1 ]        [  a11 ]
         // Delta [         ] = [    ] * l1 + [      ]
@@ -481,7 +515,7 @@ namespace {
                     return NEGATIVE;
                 }
             }
-            geo_assert_not_reached;
+            return ZERO;
         }
 
         return Sign(Delta_sign * r_sign);
@@ -494,6 +528,9 @@ namespace {
         const double* p0, const double* p1, const double* p2,
         const double* q0, const double* q1
     ) {
+        if(!p0 || !p1 || !p2 || !q0 || !q1) {
+            return ZERO;
+        }
         Sign result = Sign(side2_3d_filter(p0, p1, p2, q0, q1));
         if(result == ZERO) {
             result = side2_exact_SOS(p0, p1, p2, q0, q1, 3);
@@ -508,6 +545,9 @@ namespace {
         const double* p0, const double* p1, const double* p2,
         const double* q0, const double* q1
     ) {
+        if(!p0 || !p1 || !p2 || !q0 || !q1) {
+            return ZERO;
+        }
         Sign result = Sign(side2_4d_filter(p0, p1, p2, q0, q1));
         if(result == ZERO) {
             result = side2_exact_SOS(p0, p1, p2, q0, q1, 4);
@@ -522,6 +562,9 @@ namespace {
         const double* p0, const double* p1, const double* p2,
         const double* q0, const double* q1
     ) {
+        if(!p0 || !p1 || !p2 || !q0 || !q1) {
+            return ZERO;
+        }
         Sign result = Sign(side2_6d_filter(p0, p1, p2, q0, q1));
         if(result == ZERO) {
             result = side2_exact_SOS(p0, p1, p2, q0, q1, 6);
@@ -536,6 +579,9 @@ namespace {
         const double* p0, const double* p1, const double* p2,
         const double* q0, const double* q1
     ) {
+        if(!p0 || !p1 || !p2 || !q0 || !q1) {
+            return ZERO;
+        }
         Sign result = Sign(side2_7d_filter(p0, p1, p2, q0, q1));
         if(result == ZERO) {
             result = side2_exact_SOS(p0, p1, p2, q0, q1, 7);
@@ -550,6 +596,9 @@ namespace {
         const double* p0, const double* p1, const double* p2,
         const double* q0, const double* q1
     ) {
+        if(!p0 || !p1 || !p2 || !q0 || !q1) {
+            return ZERO;
+        }
         Sign result = Sign(side2_8d_filter(p0, p1, p2, q0, q1));
         if(result == ZERO) {
             result = side2_exact_SOS(p0, p1, p2, q0, q1, 8);
@@ -568,6 +617,9 @@ namespace {
         const double* q0, const double* q1, const double* q2,
         coord_index_t dim
     ) {
+        if(!p0 || !p1 || !p2 || !p3 || !q0 || !q1 || !q2 || dim == 0) {
+            return ZERO;
+        }
         stats_side3.log_exact();
 
         const expansion& l1 = expansion_sq_dist(p1, p0, dim);
@@ -601,9 +653,9 @@ namespace {
 
         const expansion& Delta = expansion_sum3(b00, b10, b20);
         Sign Delta_sign = Delta.sign();
-        // Should not occur with symbolic
-        // perturbation done at previous steps.
-        geo_assert(Delta_sign != ZERO);
+        if(Delta_sign == ZERO) {
+            return ZERO;
+        }
 
         //       [ Lambda0 ]   [ b01 b02 ]   [ l1 ]   [ b00 ]
         // Delta [ Lambda1 ] = [ b11 b12 ] * [    ] + [ b10 ]
@@ -675,7 +727,7 @@ namespace {
                     return NEGATIVE;
                 }
             }
-            geo_assert_not_reached;
+            return ZERO;
         }
         return Sign(Delta_sign * r_sign);
     }
@@ -690,6 +742,9 @@ namespace {
         double h0, double h1, double h2, double h3,
         const double* q0, const double* q1, const double* q2
     ) {
+        if(!p0 || !p1 || !p2 || !p3 || !q0 || !q1 || !q2) {
+            return ZERO;
+        }
         stats_side3h.log_exact();
 
         const expansion& l1 = expansion_diff(h1,h0);
@@ -723,9 +778,9 @@ namespace {
 
         const expansion& Delta = expansion_sum3(b00, b10, b20);
         Sign Delta_sign = Delta.sign();
-        // Should not occur with symbolic
-        // perturbation done at previous steps.
-        geo_assert(Delta_sign != ZERO);
+        if(Delta_sign == ZERO) {
+            return ZERO;
+        }
 
         //       [ Lambda0 ]   [ b01 b02 ]   [ l1 ]   [ b00 ]
         // Delta [ Lambda1 ] = [ b11 b12 ] * [    ] + [ b10 ]
@@ -798,7 +853,7 @@ namespace {
                     return NEGATIVE;
                 }
             }
-            geo_assert_not_reached;
+            return ZERO;
         }
         return Sign(Delta_sign * r_sign);
     }
@@ -811,6 +866,9 @@ namespace {
         const double* p0, const double* p1, const double* p2, const double* p3,
         const double* q0, const double* q1, const double* q2
     ) {
+        if(!p0 || !p1 || !p2 || !p3 || !q0 || !q1 || !q2) {
+            return ZERO;
+        }
         Sign result = Sign(side3_3d_filter(p0, p1, p2, p3, q0, q1, q2));
         if(result == ZERO) {
             result = side3_exact_SOS(p0, p1, p2, p3, q0, q1, q2, 3);
@@ -826,6 +884,9 @@ namespace {
         const double* p0, const double* p1, const double* p2, const double* p3,
         const double* q0, const double* q1, const double* q2
     ) {
+        if(!p0 || !p1 || !p2 || !p3 || !q0 || !q1 || !q2) {
+            return ZERO;
+        }
         Sign result = Sign(side3_4d_filter(p0, p1, p2, p3, q0, q1, q2));
         if(result == ZERO) {
             result = side3_exact_SOS(p0, p1, p2, p3, q0, q1, q2, 4);
@@ -840,6 +901,9 @@ namespace {
         const double* p0, const double* p1, const double* p2, const double* p3,
         const double* q0, const double* q1, const double* q2
     ) {
+        if(!p0 || !p1 || !p2 || !p3 || !q0 || !q1 || !q2) {
+            return ZERO;
+        }
         Sign result = Sign(side3_6d_filter(p0, p1, p2, p3, q0, q1, q2));
         if(result == ZERO) {
             result = side3_exact_SOS(p0, p1, p2, p3, q0, q1, q2, 6);
@@ -854,6 +918,9 @@ namespace {
         const double* p0, const double* p1, const double* p2, const double* p3,
         const double* q0, const double* q1, const double* q2
     ) {
+        if(!p0 || !p1 || !p2 || !p3 || !q0 || !q1 || !q2) {
+            return ZERO;
+        }
         Sign result = Sign(side3_7d_filter(p0, p1, p2, p3, q0, q1, q2));
         if(result == ZERO) {
             result = side3_exact_SOS(p0, p1, p2, p3, q0, q1, q2, 7);
@@ -868,6 +935,9 @@ namespace {
         const double* p0, const double* p1, const double* p2, const double* p3,
         const double* q0, const double* q1, const double* q2
     ) {
+        if(!p0 || !p1 || !p2 || !p3 || !q0 || !q1 || !q2) {
+            return ZERO;
+        }
         Sign result = Sign(side3_8d_filter(p0, p1, p2, p3, q0, q1, q2));
         if(result == ZERO) {
             result = side3_exact_SOS(p0, p1, p2, p3, q0, q1, q2, 8);
@@ -887,6 +957,9 @@ namespace {
         const double* p0, const double* p1, const double* p2, const double* p3,
         const double* p4, bool sos = true
     ) {
+        if(!p0 || !p1 || !p2 || !p3 || !p4) {
+            return ZERO;
+        }
         stats_side4.log_exact();
 
         const expansion& a11 = expansion_diff(p1[0], p0[0]);
@@ -966,7 +1039,9 @@ namespace {
 
 
         Sign Delta4_sign = Delta4.sign();
-        geo_assert(Delta4_sign != ZERO);
+        if(Delta4_sign == ZERO) {
+            return ZERO;
+        }
 
         const expansion& r_1 = expansion_product(Delta1, a14);
         const expansion& r_2 = expansion_product(Delta2, a24).negate();
@@ -1028,6 +1103,9 @@ namespace {
         const double* q0, const double* q1, const double* q2, const double* q3,
         coord_index_t dim
     ) {
+        if(!p0 || !p1 || !p2 || !p3 || !p4 || !q0 || !q1 || !q2 || !q3 || dim == 0) {
+            return ZERO;
+        }
         stats_side4.log_exact();
 
         const expansion& l1 = expansion_sq_dist(p1, p0, dim);
@@ -1086,7 +1164,9 @@ namespace {
 
         const expansion& Delta = expansion_sum4(b00, b10, b20, b30);
         Sign Delta_sign = Delta.sign();
-        geo_assert(Delta_sign != ZERO);
+        if(Delta_sign == ZERO) {
+            return ZERO;
+        }
 
         //       [ Lambda0 ]   [ b01 b02 b03 ]   [ l1 ]   [ b00 ]
         //       [ Lambda1 ]   [ b11 b12 b13 ]   [ l2 ]   [ b10 ]
@@ -1190,7 +1270,7 @@ namespace {
                     return NEGATIVE;
                 }
             }
-            geo_assert_not_reached;
+            return ZERO;
         }
         return Sign(r_sign * Delta_sign);
     }
@@ -1203,6 +1283,9 @@ namespace {
         const double* p1, const double* p2, const double* p3, const double* p4,
         const double* q0, const double* q1, const double* q2, const double* q3
     ) {
+        if(!p0 || !p1 || !p2 || !p3 || !p4 || !q0 || !q1 || !q2 || !q3) {
+            return ZERO;
+        }
         Sign result = Sign(side4_4d_filter(p0, p1, p2, p3, p4, q0, q1, q2, q3));
         if(result == ZERO) {
             result = side4_exact_SOS(p0, p1, p2, p3, p4, q0, q1, q2, q3, 4);
@@ -1218,6 +1301,9 @@ namespace {
         const double* p1, const double* p2, const double* p3, const double* p4,
         const double* q0, const double* q1, const double* q2, const double* q3
     ) {
+        if(!p0 || !p1 || !p2 || !p3 || !p4 || !q0 || !q1 || !q2 || !q3) {
+            return ZERO;
+        }
         Sign result = Sign(side4_6d_filter(p0, p1, p2, p3, p4, q0, q1, q2, q3));
         if(result == ZERO) {
             result = side4_exact_SOS(p0, p1, p2, p3, p4, q0, q1, q2, q3, 6);
@@ -1233,6 +1319,9 @@ namespace {
         const double* p1, const double* p2, const double* p3, const double* p4,
         const double* q0, const double* q1, const double* q2, const double* q3
     ) {
+        if(!p0 || !p1 || !p2 || !p3 || !p4 || !q0 || !q1 || !q2 || !q3) {
+            return ZERO;
+        }
         Sign result = Sign(side4_7d_filter(p0, p1, p2, p3, p4, q0, q1, q2, q3));
         if(result == ZERO) {
             result = side4_exact_SOS(p0, p1, p2, p3, p4, q0, q1, q2, q3, 7);
@@ -1248,6 +1337,9 @@ namespace {
         const double* p1, const double* p2, const double* p3, const double* p4,
         const double* q0, const double* q1, const double* q2, const double* q3
     ) {
+        if(!p0 || !p1 || !p2 || !p3 || !p4 || !q0 || !q1 || !q2 || !q3) {
+            return ZERO;
+        }
         Sign result = Sign(side4_8d_filter(p0, p1, p2, p3, p4, q0, q1, q2, q3));
         if(result == ZERO) {
             result = side4_exact_SOS(p0, p1, p2, p3, p4, q0, q1, q2, q3, 8);
@@ -1260,6 +1352,9 @@ namespace {
     Sign orient_2d_exact(
         const double* p0, const double* p1, const double* p2
     ) {
+        if(!p0 || !p1 || !p2) {
+            return ZERO;
+        }
         stats_orient2d.log_exact();
 
         const expansion& a11 = expansion_diff(p1[0], p0[0]);
@@ -1282,6 +1377,9 @@ namespace {
         const double* p0, const double* p1,
         const double* p2, const double* p3
     ) {
+        if(!p0 || !p1 || !p2 || !p3) {
+            return ZERO;
+        }
         stats_orient3d.log_exact();
 
         const expansion& a11 = expansion_diff(p1[0], p0[0]);
@@ -1309,6 +1407,9 @@ namespace {
         double h0, double h1, double h2, double h3, double h4,
         bool sos = true
     ) {
+        if(!p0 || !p1 || !p2 || !p3 || !p4) {
+            return ZERO;
+        }
         stats_orient3dh.log_exact();
 
         const expansion& a11 = expansion_diff(p1[0], p0[0]);
@@ -1356,7 +1457,9 @@ namespace {
         );
 
         Sign Delta4_sign = Delta4.sign();
-        geo_assert(Delta4_sign != ZERO);
+        if(Delta4_sign == ZERO) {
+            return ZERO;
+        }
 
         const expansion& r_1 = expansion_product(Delta1, a14);
         const expansion& r_2 = expansion_product(Delta2, a24).negate();
@@ -1416,6 +1519,9 @@ namespace {
         double h0, double h1, double h2, double h3,
         bool sos = true
     ) {
+        if(!p0 || !p1 || !p2 || !p3) {
+            return ZERO;
+        }
 
         const expansion& a11 = expansion_diff(p1[0], p0[0]);
         const expansion& a12 = expansion_diff(p1[1], p0[1]);
@@ -1443,7 +1549,9 @@ namespace {
         );
 
         Sign Delta3_sign = Delta3.sign();
-        geo_assert(Delta3_sign != ZERO);
+        if(Delta3_sign == ZERO) {
+            return ZERO;
+        }
 
         const expansion& r_1 = expansion_product(Delta1, a13);
         const expansion& r_2 = expansion_product(Delta2, a23).negate();
@@ -1482,6 +1590,7 @@ namespace {
                     return NEGATIVE;
                 }
             }
+            return ZERO;
         }
         return Sign(Delta3_sign * r_sign);
     }
@@ -1498,6 +1607,9 @@ namespace {
     Sign det_3d_exact(
         const double* p0, const double* p1, const double* p2
     ) {
+        if(!p0 || !p1 || !p2) {
+            return ZERO;
+        }
         stats_det3d.log_exact();
 
         const expansion& p0_0 = expansion_create(p0[0]);
@@ -1532,6 +1644,9 @@ namespace {
     bool aligned_3d_exact(
         const double* p0, const double* p1, const double* p2
     ) {
+        if(!p0 || !p1 || !p2) {
+            return false;
+        }
         const expansion& U_0 = expansion_diff(p1[0],p0[0]);
         const expansion& U_1 = expansion_diff(p1[1],p0[1]);
         const expansion& U_2 = expansion_diff(p1[2],p0[2]);
@@ -1561,6 +1676,9 @@ namespace {
     Sign dot_3d_exact(
         const double* p0, const double* p1, const double* p2
     ) {
+        if(!p0 || !p1 || !p2) {
+            return ZERO;
+        }
         const expansion& U_0 = expansion_diff(p1[0],p0[0]);
         const expansion& U_1 = expansion_diff(p1[1],p0[1]);
         const expansion& U_2 = expansion_diff(p1[2],p0[2]);
@@ -1586,6 +1704,9 @@ namespace {
     Sign dot_compare_3d_exact(
         const double* v0, const double* v1, const double* v2
     ) {
+        if(!v0 || !v1 || !v2) {
+            return ZERO;
+        }
         const expansion& d01_0 = expansion_product(v0[0], v1[0]);
         const expansion& d01_1 = expansion_product(v0[1], v1[1]);
         const expansion& d01_2 = expansion_product(v0[2], v1[2]);
@@ -1624,6 +1745,9 @@ namespace GEOBRL {
             const double* q0,
             coord_index_t DIM
         ) {
+            if(!p0 || !p1 || !q0) {
+                return ZERO;
+            }
             stats_side1.log_invoke();
             switch(DIM) {
             case 3:
@@ -1636,8 +1760,9 @@ namespace GEOBRL {
                 return side1_7d_SOS(p0, p1, q0);
             case 8:
                 return side1_8d_SOS(p0, p1, q0);
+            default:
+                return ZERO;
             }
-            geo_assert_not_reached;
         }
 
         Sign side2_SOS(
@@ -1645,6 +1770,9 @@ namespace GEOBRL {
             const double* q0, const double* q1,
             coord_index_t DIM
         ) {
+            if(!p0 || !p1 || !p2 || !q0 || !q1) {
+                return ZERO;
+            }
             stats_side2.log_invoke();
             switch(DIM) {
             case 3:
@@ -1657,8 +1785,9 @@ namespace GEOBRL {
                 return side2_7d_SOS(p0, p1, p2, q0, q1);
             case 8:
                 return side2_8d_SOS(p0, p1, p2, q0, q1);
+            default:
+                return ZERO;
             }
-            geo_assert_not_reached;
         }
 
         Sign side3_SOS(
@@ -1667,6 +1796,9 @@ namespace GEOBRL {
             const double* q0, const double* q1, const double* q2,
             coord_index_t DIM
         ) {
+            if(!p0 || !p1 || !p2 || !p3 || !q0 || !q1 || !q2) {
+                return ZERO;
+            }
             stats_side3.log_invoke();
             switch(DIM) {
             case 3:
@@ -1679,8 +1811,9 @@ namespace GEOBRL {
                 return side3_7d_SOS(p0, p1, p2, p3, q0, q1, q2);
             case 8:
                 return side3_8d_SOS(p0, p1, p2, p3, q0, q1, q2);
+            default:
+                return ZERO;
             }
-            geo_assert_not_reached;
         }
 
 
@@ -1691,6 +1824,9 @@ namespace GEOBRL {
             const double* q0, const double* q1, const double* q2,
             bool SOS
         ) {
+            if(!p0 || !p1 || !p2 || !p3 || !q0 || !q1 || !q2) {
+                return ZERO;
+            }
             Sign result = Sign(
                 side3h_3d_filter(p0, p1, p2, p3, h0, h1, h2, h3, q0, q1, q2)
             );
@@ -1710,6 +1846,9 @@ namespace GEOBRL {
             const double* q2, const double* q3,
             coord_index_t DIM
         ) {
+            if(!p0 || !p1 || !p2 || !p3 || !p4) {
+                return ZERO;
+            }
             switch(DIM) {
             case 3:
                 // 3d is a special case for side4()
@@ -1720,19 +1859,24 @@ namespace GEOBRL {
                 // incremented in side4_3d_SOS().
                 return side4_3d_SOS(p0, p1, p2, p3, p4);
             case 4:
+                if(!q0 || !q1 || !q2 || !q3) return ZERO;
                 stats_side4.log_invoke();
                 return side4_4d_SOS(p0, p1, p2, p3, p4, q0, q1, q2, q3);
             case 6:
+                if(!q0 || !q1 || !q2 || !q3) return ZERO;
                 stats_side4.log_invoke();
                 return side4_6d_SOS(p0, p1, p2, p3, p4, q0, q1, q2, q3);
             case 7:
+                if(!q0 || !q1 || !q2 || !q3) return ZERO;
                 stats_side4.log_invoke();
                 return side4_7d_SOS(p0, p1, p2, p3, p4, q0, q1, q2, q3);
             case 8:
+                if(!q0 || !q1 || !q2 || !q3) return ZERO;
                 stats_side4.log_invoke();
                 return side4_8d_SOS(p0, p1, p2, p3, p4, q0, q1, q2, q3);
+            default:
+                return ZERO;
             }
-            geo_assert_not_reached;
         }
 
 
@@ -1740,6 +1884,7 @@ namespace GEOBRL {
             const double* p0, const double* p1, const double* p2,
             const double* p3, const double* p4
         ) {
+            if(!p0 || !p1 || !p2 || !p3 || !p4) return ZERO;
             stats_side4.log_invoke();
             Sign result = Sign(side4_3d_filter(p0, p1, p2, p3, p4));
             if(result == 0) {
@@ -1754,6 +1899,7 @@ namespace GEOBRL {
             const double* p2, const double* p3,
             const double* p4
         ) {
+            if(!p0 || !p1 || !p2 || !p3 || !p4) return ZERO;
             stats_side4.log_invoke();
             Sign result = Sign(side4_3d_filter(p0, p1, p2, p3, p4));
             if(result == 0) {
@@ -1768,6 +1914,7 @@ namespace GEOBRL {
             const double* p2, const double* p3,
             const double* p4
         ) {
+            if(!p0 || !p1 || !p2 || !p3 || !p4) return ZERO;
             // in_sphere_3d is simply implemented using side4_3d.
             // Both predicates are equivalent through duality as can
             // be easily seen:
@@ -1797,6 +1944,7 @@ namespace GEOBRL {
             const double* p0, const double* p1, const double* p2,
             const double* p3
         ) {
+            if(!p0 || !p1 || !p2 || !p3) return ZERO;
             // in_circle_2d is simply implemented using side3_2d.
             // Both predicates are equivalent through duality as can
             // be easily seen:
@@ -1823,6 +1971,7 @@ namespace GEOBRL {
             const double* p0, const double* p1, const double* p2,
             const double* p3
         ) {
+            if(!p0 || !p1 || !p2 || !p3) return ZERO;
             // in_circle_3d is simply implemented using side3_3d.
             // Both predicates are equivalent through duality as can
             // be easily seen:
@@ -1844,6 +1993,7 @@ namespace GEOBRL {
             double h0, double h1, double h2, double h3,
             bool SOS
         ) {
+            if(!p0 || !p1 || !p2 || !p3) return ZERO;
             // in_circle_3dlifted is simply implemented using side3_3dlifted.
             // Both predicates are equivalent through duality
             // (see comment in in_circle_3d_SOS(), the same
@@ -1857,6 +2007,7 @@ namespace GEOBRL {
         Sign orient_2d(
             const double* p0, const double* p1, const double* p2
         ) {
+            if(!p0 || !p1 || !p2) return ZERO;
             stats_orient2d.log_invoke();
             Sign result = Sign(orient_2d_filter(p0, p1, p2));
             if(result == 0) {
@@ -1870,6 +2021,7 @@ namespace GEOBRL {
             const double* p2, const double* p3,
             double h0, double h1, double h2, double h3
         ) {
+            if(!p0 || !p1 || !p2 || !p3) return ZERO;
             Sign result = Sign(
                 side3_2dlifted_2d_filter(
                     p0, p1, p2, p3, h0, h1, h2, h3
@@ -1890,6 +2042,7 @@ namespace GEOBRL {
             const double* p0, const double* p1,
             const double* p2, const double* p3
         ) {
+            if(!p0 || !p1 || !p2 || !p3) return ZERO;
             stats_orient3d.log_invoke();
             Sign result = Sign(orient_3d_filter(p0, p1, p2, p3));
             if(result == 0) {
@@ -1904,6 +2057,7 @@ namespace GEOBRL {
             const double* p2, const double* p3, const double* p4,
             double h0, double h1, double h2, double h3, double h4
         ) {
+            if(!p0 || !p1 || !p2 || !p3 || !p4) return ZERO;
             stats_orient3dh.log_invoke();
             Sign result = Sign(
                 side4h_3d_filter(
@@ -1926,6 +2080,7 @@ namespace GEOBRL {
             const double* p2, const double* p3, const double* p4,
             double h0, double h1, double h2, double h3, double h4
         ) {
+            if(!p0 || !p1 || !p2 || !p3 || !p4) return ZERO;
             stats_orient3dh.log_invoke();
             Sign result = Sign(
                 side4h_3d_filter(
@@ -1945,6 +2100,7 @@ namespace GEOBRL {
         Sign det_3d(
             const double* p0, const double* p1, const double* p2
         ) {
+            if(!p0 || !p1 || !p2) return ZERO;
             stats_det3d.log_invoke();
             Sign result = Sign(
                 det_3d_filter(p0, p1, p2)
@@ -1960,6 +2116,7 @@ namespace GEOBRL {
             const double* p0, const double* p1,
             const double* p2, const double* p3
         ) {
+            if(!p0 || !p1 || !p2 || !p3) return ZERO;
             stats_det4d.log_invoke();
             Sign result = Sign(
                 det_4d_filter(p0, p1, p2, p3)
@@ -2004,6 +2161,7 @@ namespace GEOBRL {
             const double* p2, const double* p3,
             const double* p4
         ) {
+            if(!p0 || !p1 || !p2 || !p3 || !p4) return ZERO;
             Sign result = Sign(
                 det_compare_4d_filter(p0, p1, p2, p3, p4)
             );
@@ -2042,6 +2200,7 @@ namespace GEOBRL {
         bool aligned_3d(
             const double* p0, const double* p1, const double* p2
         ) {
+            if(!p0 || !p1 || !p2) return false;
             /*
               Sign result = Sign(
               aligned_3d_filter(p0,p1,p2)
@@ -2056,7 +2215,8 @@ namespace GEOBRL {
         Sign dot_3d(
             const double* p0, const double* p1, const double* p2
         ) {
-            Sign result = Sign(det_3d_filter(p0, p1, p2));
+            if(!p0 || !p1 || !p2) return ZERO;
+            Sign result = Sign(dot_3d_filter(p0, p1, p2));
             if(result == 0) {
                 result = dot_3d_exact(p0, p1, p2);
             }
@@ -2066,6 +2226,7 @@ namespace GEOBRL {
         Sign dot_compare_3d(
             const double* v0, const double* v1, const double* v2
         ) {
+            if(!v0 || !v1 || !v2) return ZERO;
             Sign result = Sign(dot_compare_3d_filter(v0, v1, v2));
             if(result == 0) {
                 result = dot_compare_3d_exact(v0, v1, v2);
@@ -2078,6 +2239,7 @@ namespace GEOBRL {
             const double* p1,
             const double* p2
         ) {
+            if(!p1 || !p2) return false;
             return
                 (p1[0] == p2[0]) &&
                 (p1[1] == p2[1])
@@ -2088,6 +2250,7 @@ namespace GEOBRL {
             const double* p1,
             const double* p2
         ) {
+            if(!p1 || !p2) return false;
             return
                 (p1[0] == p2[0]) &&
                 (p1[1] == p2[1]) &&
@@ -2100,6 +2263,7 @@ namespace GEOBRL {
             const double* p2,
             const double* p3
         ) {
+            if(!p1 || !p2 || !p3) return false;
             // Colinearity is tested by using four coplanarity
             // tests with four points that are not coplanar.
             // TODO: use PCK::aligned_3d() instead (to be tested)

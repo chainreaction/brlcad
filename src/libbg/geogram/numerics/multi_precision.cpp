@@ -97,6 +97,9 @@ namespace {
          *  with fast_free()
          */
         void* malloc(size_t size) {
+            if(size < sizeof(Memory::pointer)) {
+                size = sizeof(Memory::pointer);
+            }
             if(size >= pools_.size()) {
                 return ::malloc(size);
             }
@@ -104,7 +107,9 @@ namespace {
                 new_chunk(size);
             }
             Memory::pointer result = pools_[size];
-            pools_[size] = next(pools_[size]);
+            if(result != nullptr) {
+                pools_[size] = next(pools_[size]);
+            }
             return result;
         }
 
@@ -115,6 +120,12 @@ namespace {
          *   in the call to fast_malloc() that allocated it
          */
         void free(void* ptr, size_t size) {
+            if(ptr == nullptr) {
+                return;
+            }
+            if(size < sizeof(Memory::pointer)) {
+                size = sizeof(Memory::pointer);
+            }
             if(size >= pools_.size()) {
                 ::free(ptr);
                 return;
@@ -138,9 +149,19 @@ namespace {
          * \param[in] item_size size of the elements to be allocated.
          */
         void new_chunk(size_t item_size) {
+            if(item_size < sizeof(Memory::pointer)) {
+                item_size = sizeof(Memory::pointer);
+            }
             // Allocate chunk
-            Memory::pointer chunk =
-                new Memory::byte[item_size * NB_ITEMS_PER_CHUNK];
+            Memory::pointer chunk = nullptr;
+            try {
+                chunk = new Memory::byte[item_size * NB_ITEMS_PER_CHUNK];
+            } catch(...) {
+                return;
+            }
+            if(chunk == nullptr) {
+                return;
+            }
             // Chain items in chunk
             for(index_t i=0; i<NB_ITEMS_PER_CHUNK-1; ++i) {
                 Memory::pointer cur_item  = item(chunk, item_size, i);
@@ -464,6 +485,9 @@ namespace {
      * \param[in,out] e a reference to the expansion to be compressed
      */
     void compress_expansion(expansion& e) {
+        if(e.length() <= 1) {
+            return;
+        }
         expansion& h = e;
 
         index_t m = e.length();
@@ -543,6 +567,10 @@ namespace GEOBRL {
         double bhi, blo;
 #endif
         index_t elen = e.length();
+        if(elen == 0) {
+            h.set_length(0);
+            return;
+        }
 
         // Sanity check: e and h cannot be the same.
         geo_debug_assert(&e != &h);
@@ -594,6 +622,15 @@ namespace GEOBRL {
         // sanity check: h cannot be e or f
         geo_debug_assert(&h != &e);
         geo_debug_assert(&h != &f);
+
+        if(elen == 0) {
+            h.assign(f);
+            return;
+        }
+        if(flen == 0) {
+            h.assign(e);
+            return;
+        }
 
         enow = e[0];
         fnow = f[0];
@@ -668,6 +705,16 @@ namespace GEOBRL {
         // sanity check: h cannot be e or f
         geo_debug_assert(&h != &e);
         geo_debug_assert(&h != &f);
+
+        if(flen == 0) {
+            h.assign(e);
+            return;
+        }
+        if(elen == 0) {
+            h.assign(f);
+            h.negate();
+            return;
+        }
 
         enow = e[0];
         fnow = -f[0];
@@ -770,6 +817,7 @@ namespace GEOBRL {
     static Process::spinlock expansions_lock = GEOBRLCAD_SPINLOCK_INIT;
 
     expansion* expansion::new_expansion_on_heap(index_t capa) {
+        size_t b = expansion::bytes(capa);
         Process::acquire_spinlock(expansions_lock);
 #ifdef PCK_STATS
         if(capa >= expansion_length_histo_.size()) {
@@ -778,14 +826,20 @@ namespace GEOBRL {
         expansion_length_histo_[capa]++;
 #endif
         Memory::pointer addr = Memory::pointer(
-            pools_.malloc(expansion::bytes(capa))
+            pools_.malloc(b)
         );
         Process::release_spinlock(expansions_lock);
+        if(addr == nullptr) {
+            return nullptr;
+        }
         expansion* result = new(addr)expansion(capa);
         return result;
     }
 
     void expansion::delete_expansion_on_heap(expansion* e) {
+        if(e == nullptr) {
+            return;
+        }
         Process::acquire_spinlock(expansions_lock);
         pools_.free(e, expansion::bytes(e->capacity()));
         Process::release_spinlock(expansions_lock);
@@ -1067,6 +1121,9 @@ namespace GEOBRL {
     expansion& expansion::assign_sq_dist(
         const double* p1, const double* p2, coord_index_t dim
     ) {
+        if(p1 == nullptr || p2 == nullptr || dim == 0) {
+            return this->assign(0.0);
+        }
         geo_debug_assert(capacity() >= sq_dist_capacity(dim));
         geo_debug_assert(dim > 0);
         if(dim == 1) {
@@ -1092,6 +1149,9 @@ namespace GEOBRL {
         const double* p1, const double* p2, const double* p0,
         coord_index_t dim
     ) {
+        if(p1 == nullptr || p2 == nullptr || p0 == nullptr || dim == 0) {
+            return this->assign(0.0);
+        }
         geo_debug_assert(capacity() >= dot_at_capacity(dim));
         if(dim == 1) {
 
