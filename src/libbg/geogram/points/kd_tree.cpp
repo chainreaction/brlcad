@@ -124,7 +124,13 @@ namespace GEOBRL {
     ) {
         nb_points_ = nb_points;
         points_ = points;
-        stride_ = stride;
+        stride_ = (stride == 0) ? dimension() : stride;
+
+        if(nb_points == 0 || points == nullptr) {
+            point_index_.clear();
+            root_ = NO_INDEX;
+            return;
+        }
 
         point_index_.resize(nb_points);
         for(index_t i = 0; i < nb_points; i++) {
@@ -160,28 +166,53 @@ namespace GEOBRL {
         index_t* neighbors,
         double* neighbors_sq_dist
     ) const {
+        if(nb_neighbors == 0 || neighbors == nullptr || neighbors_sq_dist == nullptr) {
+            return;
+        }
+        if(nb_points() == 0 || query_point == nullptr || root_ == NO_INDEX) {
+            for(index_t i = 0; i < nb_neighbors; ++i) {
+                neighbors[i] = NO_INDEX;
+                neighbors_sq_dist[i] = Numeric::max_float64();
+            }
+            return;
+        }
 
-        geo_debug_assert(nb_neighbors <= nb_points());
-
-        // Compute distance between query point and global bounding box
-        // and copy global bounding box to local variables (bbox_min, bbox_max),
-        // allocated on the stack. bbox_min and bbox_max are updated during the
-        // traversal of the BalancedKdTree (see
-        // get_nearest_neighbors_recursive()). They are necessary to
-        // compute the distance between the query point and the
-        // bbox of the current node.
         double box_dist = 0.0;
-        double* bbox_min = (double*) (BRLCAD_ALLOCA(dimension() * sizeof(double)));
-        double* bbox_max = (double*) (BRLCAD_ALLOCA(dimension() * sizeof(double)));
+        double stack_bbox_min[64];
+        double stack_bbox_max[64];
+        double* bbox_min = stack_bbox_min;
+        double* bbox_max = stack_bbox_max;
+        vector<double> heap_bbox_min;
+        vector<double> heap_bbox_max;
+        if(dimension() > 64) {
+            heap_bbox_min.resize(dimension());
+            heap_bbox_max.resize(dimension());
+            bbox_min = heap_bbox_min.data();
+            bbox_max = heap_bbox_max.data();
+        }
         init_bbox_and_bbox_dist_for_traversal(
             bbox_min, bbox_max, box_dist, query_point
         );
+
+        index_t stack_work_neighbors[513];
+        double stack_work_sq_dist[513];
+        index_t* work_neighbors = stack_work_neighbors;
+        double* work_sq_dist = stack_work_sq_dist;
+        vector<index_t> heap_work_neighbors;
+        vector<double> heap_work_sq_dist;
+        if(nb_neighbors >= 512) {
+            heap_work_neighbors.resize(nb_neighbors + 1);
+            heap_work_sq_dist.resize(nb_neighbors + 1);
+            work_neighbors = heap_work_neighbors.data();
+            work_sq_dist = heap_work_sq_dist.data();
+        }
+
         NearestNeighbors NN(
             nb_neighbors,
             neighbors,
             neighbors_sq_dist,
-            (index_t*)BRLCAD_ALLOCA(sizeof(index_t) * (nb_neighbors+1)),
-            (double*)BRLCAD_ALLOCA(sizeof(double) * (nb_neighbors+1))
+            work_neighbors,
+            work_sq_dist
         );
         get_nearest_neighbors_recursive(
             root_, 0, nb_points(), bbox_min, bbox_max, box_dist, query_point, NN
@@ -196,27 +227,54 @@ namespace GEOBRL {
         double* neighbors_sq_dist,
         KeepInitialValues KV
     ) const {
-        geo_debug_assert(nb_neighbors <= nb_points());
         geo_argused(KV);
-        // Compute distance between query point and global bounding box
-        // and copy global bounding box to local variables (bbox_min, bbox_max),
-        // allocated on the stack. bbox_min and bbox_max are updated during the
-        // traversal of the BalancedKdTree
-        // (see get_nearest_neighbors_recursive()). They
-        // are necessary to compute the distance between the query point and the
-        // bbox of the current node.
+        if(nb_neighbors == 0 || neighbors == nullptr || neighbors_sq_dist == nullptr) {
+            return;
+        }
+        if(nb_points() == 0 || query_point == nullptr || root_ == NO_INDEX) {
+            for(index_t i = 0; i < nb_neighbors; ++i) {
+                neighbors[i] = NO_INDEX;
+                neighbors_sq_dist[i] = Numeric::max_float64();
+            }
+            return;
+        }
+
         double box_dist = 0.0;
-        double* bbox_min = (double*) (BRLCAD_ALLOCA(dimension() * sizeof(double)));
-        double* bbox_max = (double*) (BRLCAD_ALLOCA(dimension() * sizeof(double)));
+        double stack_bbox_min[64];
+        double stack_bbox_max[64];
+        double* bbox_min = stack_bbox_min;
+        double* bbox_max = stack_bbox_max;
+        vector<double> heap_bbox_min;
+        vector<double> heap_bbox_max;
+        if(dimension() > 64) {
+            heap_bbox_min.resize(dimension());
+            heap_bbox_max.resize(dimension());
+            bbox_min = heap_bbox_min.data();
+            bbox_max = heap_bbox_max.data();
+        }
         init_bbox_and_bbox_dist_for_traversal(
             bbox_min, bbox_max, box_dist, query_point
         );
+
+        index_t stack_work_neighbors[513];
+        double stack_work_sq_dist[513];
+        index_t* work_neighbors = stack_work_neighbors;
+        double* work_sq_dist = stack_work_sq_dist;
+        vector<index_t> heap_work_neighbors;
+        vector<double> heap_work_sq_dist;
+        if(nb_neighbors >= 512) {
+            heap_work_neighbors.resize(nb_neighbors + 1);
+            heap_work_sq_dist.resize(nb_neighbors + 1);
+            work_neighbors = heap_work_neighbors.data();
+            work_sq_dist = heap_work_sq_dist.data();
+        }
+
         NearestNeighbors NN(
             nb_neighbors,
             neighbors,
             neighbors_sq_dist,
-            (index_t*)BRLCAD_ALLOCA(sizeof(index_t) * (nb_neighbors+1)),
-            (double*)BRLCAD_ALLOCA(sizeof(double) * (nb_neighbors+1))
+            work_neighbors,
+            work_sq_dist
         );
         NN.copy_from_user();
         get_nearest_neighbors_recursive(
@@ -231,11 +289,15 @@ namespace GEOBRL {
         index_t* neighbors,
         double* neighbors_sq_dist
     ) const {
-        // TODO: optimized version that uses the fact that
-        // we know that query_point is in the search data
-        // structure already.
-        // (I tried something already, see in the Attic,
-        //  but it did not give any significant speedup).
+        if(q_index >= nb_points()) {
+            if(neighbors && neighbors_sq_dist) {
+                for(index_t i = 0; i < nb_neighbors; ++i) {
+                    neighbors[i] = NO_INDEX;
+                    neighbors_sq_dist[i] = Numeric::max_float64();
+                }
+            }
+            return;
+        }
         get_nearest_neighbors(
             nb_neighbors, point_ptr(q_index),
             neighbors, neighbors_sq_dist
@@ -347,41 +409,25 @@ namespace GEOBRL {
         NearestNeighbors& NN
     ) const {
         geo_argused(node_index);
-        NN.nb_visited += (e-b);
+        if(b >= e || b >= point_index_.size() || query_point == nullptr) {
+            return;
+        }
+        index_t nb = std::min(e - b, index_t(point_index_.size() - b));
+        NN.nb_visited += nb;
         double R = NN.furthest_neighbor_sq_dist();
-        index_t nb = e-b;
         const index_t* geo_restrict idx = &point_index_[b];
 
-        // TODO: check generated ASM (I'd like to have AVX here).
-        // We may need to dispatch according to dimension.
-
-        index_t local_idx[MAX_LEAF_SIZE];
-        double  local_sq_dist[MAX_LEAF_SIZE];
-
-        // Cache indices and computed distances in local
-        // array. I guess AVX likes that (to be checked).
-        // Not sure, because access to p is indirect, maybe
-        // I should copy the points to local memory before
-        // computing the distances (or having another copy
-        // of the points array that I pre-reorder so that
-        // leaf's points are in a contiguous chunk of memory),
-        // to be tested...
-        for(index_t ii=0; ii<nb; ++ii) {
+        for(index_t ii = 0; ii < nb; ++ii) {
             index_t i = idx[ii];
+            if(i >= nb_points()) {
+                continue;
+            }
             const double* geo_restrict p = point_ptr(i);
             double sq_dist = Geom::distance2(
                 query_point, p, dimension()
             );
-            local_idx[ii] = i;
-            local_sq_dist[ii] = sq_dist;
-        }
-
-        // Now insert the points that are nearer to query
-        // point than NN's bounding ball.
-        for(index_t ii=0; ii<nb; ++ii) {
-            double sq_dist = local_sq_dist[ii];
             if(sq_dist <= R) {
-                NN.insert(local_idx[ii],sq_dist);
+                NN.insert(i, sq_dist);
                 R = NN.furthest_neighbor_sq_dist();
             }
         }
@@ -428,6 +474,9 @@ namespace GEOBRL {
     }
 
     index_t BalancedKdTree::build_tree() {
+        if(nb_points() == 0) {
+            return NO_INDEX;
+        }
         index_t sz = max_node_index(1, 0, nb_points()) + 1;
         splitting_coord_.resize(sz);
         splitting_val_.resize(sz);
@@ -485,10 +534,14 @@ namespace GEOBRL {
     index_t BalancedKdTree::split_kd_node(
         index_t node_index, index_t b, index_t e
     ) {
-
-        geo_debug_assert(e > b);
+        if(b >= e || e > nb_points()) {
+            return b;
+        }
         // Do not split leafs
         if(b + 1 == e) {
+            return b;
+        }
+        if(node_index >= splitting_coord_.size()) {
             return b;
         }
 
@@ -547,8 +600,13 @@ namespace GEOBRL {
     ) const {
         left_child = 2*n;
         right_child = 2*n+1;
-        splitting_coord = splitting_coord_[n];
         m = b + (e - b) / 2;
+        if(n >= splitting_coord_.size()) {
+            splitting_coord = 0;
+            splitting_val = 0.0;
+            return;
+        }
+        splitting_coord = splitting_coord_[n];
         splitting_val = splitting_val_[n];
     }
 
@@ -704,6 +762,11 @@ namespace GEOBRL {
         } else if(br2 < m0) {
             m = br2;
         }
+        if(e > b + 1) {
+            m = std::max(b + 1, std::min(e - 1, m));
+        } else {
+            m = b;
+        }
     }
 
     void AdaptiveKdTree::plane_split(
@@ -718,7 +781,7 @@ namespace GEOBRL {
             while(l < e && point_coord(l,coord) < val) {
                 ++l;
             }
-            while(r >= 0 && point_coord(r,coord) >= val) {
+            while(r >= b && point_coord(r,coord) >= val) {
                 --r;
             }
             if(l > r) {
@@ -754,10 +817,16 @@ namespace GEOBRL {
         index_t& m,
         double& splitting_val
     ) const {
-        geo_debug_assert(n < nb_nodes());
         geo_argused(b);
         geo_argused(e);
         left_child = n+1;
+        if(n >= nb_nodes()) {
+            right_child = NO_INDEX;
+            splitting_coord = 0;
+            m = b;
+            splitting_val = 0.0;
+            return;
+        }
         right_child = node_right_child_[n];
         splitting_coord = splitting_coord_[n];
         m = node_m_[n];

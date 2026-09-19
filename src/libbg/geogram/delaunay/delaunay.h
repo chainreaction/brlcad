@@ -367,8 +367,9 @@ namespace GEOBRL {
          * \return the index of the lv-th vertex of cell c.
          */
         index_t cell_vertex(index_t c, index_t lv) const {
-            geo_debug_assert(c < nb_cells());
-            geo_debug_assert(lv < cell_size());
+            if(c >= nb_cells() || lv >= cell_size() || cell_to_v_ == nullptr) {
+                return NO_INDEX;
+            }
             return cell_to_v_[c * cell_v_stride_ + lv];
         }
 
@@ -381,8 +382,9 @@ namespace GEOBRL {
          *  facet \p lf if it exists, or -1 if on border
          */
         index_t cell_adjacent(index_t c, index_t lf) const {
-            geo_debug_assert(c < nb_cells());
-            geo_debug_assert(lf < cell_size());
+            if(c >= nb_cells() || lf >= cell_size() || cell_to_cell_ == nullptr) {
+                return NO_INDEX;
+            }
             return cell_to_cell_[c * cell_neigh_stride_ + lf];
         }
 
@@ -413,14 +415,15 @@ namespace GEOBRL {
          * \pre cell \p c is incident to vertex \p v
          */
         index_t index(index_t c, index_t v) const {
-            geo_debug_assert(c < nb_cells());
-            geo_debug_assert(v == NO_INDEX || v < nb_vertices());
+            if(c >= nb_cells()) {
+                return NO_INDEX;
+            }
             for(index_t iv = 0; iv < cell_size(); iv++) {
                 if(cell_vertex(c, iv) == v) {
                     return iv;
                 }
             }
-            geo_assert_not_reached;
+            return NO_INDEX;
         }
 
         /**
@@ -433,14 +436,15 @@ namespace GEOBRL {
          * \pre cell \p c1 and cell \p c2 are adjacent
          */
         index_t adjacent_index(index_t c1, index_t c2) const {
-            geo_debug_assert(c1 < nb_cells());
-            geo_debug_assert(c2 < nb_cells());
+            if(c1 >= nb_cells() || c2 >= nb_cells()) {
+                return NO_INDEX;
+            }
             for(index_t f = 0; f < cell_size(); f++) {
                 if(cell_adjacent(c1, f) == c2) {
                     return f;
                 }
             }
-            geo_assert_not_reached;
+            return NO_INDEX;
         }
 
         /**
@@ -451,8 +455,9 @@ namespace GEOBRL {
          * \see stores_cicl(), set_store_cicl()
          */
         index_t vertex_cell(index_t v) const {
-            geo_debug_assert(v < nb_vertices());
-            geo_debug_assert(v < v_to_cell_.size());
+            if(v >= nb_vertices() || v >= v_to_cell_.size()) {
+                return NO_INDEX;
+            }
             return v_to_cell_[v];
         }
 
@@ -467,9 +472,14 @@ namespace GEOBRL {
          * \see stores_cicl(), set_store_cicl()
          */
         index_t next_around_vertex(index_t c, index_t lv) const {
-            geo_debug_assert(c < nb_cells());
-            geo_debug_assert(lv < cell_size());
-            return cicl_[cell_size() * c + lv];
+            if(c >= nb_cells() || lv >= cell_size()) {
+                return NO_INDEX;
+            }
+            index_t offset = cell_size() * c + lv;
+            if(offset >= cicl_.size()) {
+                return NO_INDEX;
+            }
+            return cicl_[offset];
         }
 
         /**
@@ -697,10 +707,13 @@ namespace GEOBRL {
         void set_next_around_vertex(
             index_t c1, index_t lv, index_t c2
         ) {
-            geo_debug_assert(c1 < nb_cells());
-            geo_debug_assert(c2 < nb_cells());
-            geo_debug_assert(lv < cell_size());
-            cicl_[cell_size() * c1 + lv] = c2;
+            if(c1 >= nb_cells() || c2 >= nb_cells() || lv >= cell_size()) {
+                return;
+            }
+            index_t offset = cell_size() * c1 + lv;
+            if(offset < cicl_.size()) {
+                cicl_[offset] = c2;
+            }
         }
 
     public:

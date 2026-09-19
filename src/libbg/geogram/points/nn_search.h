@@ -198,10 +198,12 @@ namespace GEOBRL {
          * \return the index of the nearest neighbor from \p query_point
          */
         index_t get_nearest_neighbor(const double* query_point) const {
-            index_t result;
-            double sq_dist;
+            if(nb_points() == 0 || query_point == nullptr) {
+                return NO_INDEX;
+            }
+            index_t result = NO_INDEX;
+            double sq_dist = 0.0;
             get_nearest_neighbors(1, query_point, &result, &sq_dist);
-	    geo_assert(result < nb_points());
             return result;
         }
 
@@ -227,7 +229,9 @@ namespace GEOBRL {
          * \return a const pointer to the coordinates of the point
          */
         const double* point_ptr(index_t i) const {
-            geo_debug_assert(i < nb_points());
+            if(i >= nb_points() || points_ == nullptr) {
+                return nullptr;
+            }
             return points_ + i * stride_;
         }
 

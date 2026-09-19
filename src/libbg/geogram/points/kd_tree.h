@@ -142,11 +142,12 @@ namespace GEOBRL {
                 user_neighbors_sq_dist(user_neighbors_sq_dist_in),
                 nb_visited(0)
                 {
-                    // Yes, '<=' because we got space for n+1 neigbors
-                    // in the work arrays.
-                    for(index_t i = 0; i <= nb_neighbors; ++i) {
-                        neighbors[i] = NO_INDEX;
-                        neighbors_sq_dist[i] = Numeric::max_float64();
+                    // Space for nb_neighbors_max + 1 neighbors in work arrays
+                    if(neighbors && neighbors_sq_dist) {
+                        for(index_t i = 0; i <= nb_neighbors_max; ++i) {
+                            neighbors[i] = NO_INDEX;
+                            neighbors_sq_dist[i] = Numeric::max_float64();
+                        }
                     }
                 }
 
@@ -174,12 +175,15 @@ namespace GEOBRL {
             void insert(
                 index_t neighbor, double sq_dist
             ) {
+                if(nb_neighbors_max == 0 || neighbors == nullptr || neighbors_sq_dist == nullptr) {
+                    return;
+                }
                 geo_debug_assert(
                     sq_dist <= furthest_neighbor_sq_dist()
                 );
 
-                int i;
-                for(i=int(nb_neighbors); i>0; --i) {
+                signed_index_t i;
+                for(i=signed_index_t(nb_neighbors); i>0; --i) {
                     if(neighbors_sq_dist[i - 1] < sq_dist) {
                         break;
                     }
@@ -203,9 +207,12 @@ namespace GEOBRL {
              *  from user-provided initial guess.
              */
             void copy_from_user() {
+                if(!neighbors || !neighbors_sq_dist) {
+                    return;
+                }
                 for(index_t i=0; i<nb_neighbors_max; ++i) {
-                    neighbors[i] = user_neighbors[i];
-                    neighbors_sq_dist[i] = user_neighbors_sq_dist[i];
+                    neighbors[i] = user_neighbors ? user_neighbors[i] : NO_INDEX;
+                    neighbors_sq_dist[i] = user_neighbors_sq_dist ? user_neighbors_sq_dist[i] : Numeric::max_float64();
                 }
                 neighbors[nb_neighbors_max] = NO_INDEX;
                 neighbors_sq_dist[nb_neighbors_max] = Numeric::max_float64();
@@ -219,9 +226,16 @@ namespace GEOBRL {
              *  after traversal of the tree.
              */
             void copy_to_user() {
+                if(!neighbors || !neighbors_sq_dist) {
+                    return;
+                }
                 for(index_t i=0; i<nb_neighbors_max; ++i) {
-                    user_neighbors[i] = neighbors[i];
-                    user_neighbors_sq_dist[i] = neighbors_sq_dist[i];
+                    if(user_neighbors) {
+                        user_neighbors[i] = neighbors[i];
+                    }
+                    if(user_neighbors_sq_dist) {
+                        user_neighbors_sq_dist[i] = neighbors_sq_dist[i];
+                    }
                 }
             }
 
@@ -469,7 +483,7 @@ namespace GEOBRL {
         static index_t max_node_index(
             index_t node_id, index_t b, index_t e
         ) {
-            if(e - b <= MAX_LEAF_SIZE) {
+            if(e <= b || e - b <= MAX_LEAF_SIZE) {
                 return node_id;
             }
             index_t m = b + (e - b) / 2;
@@ -498,12 +512,14 @@ namespace GEOBRL {
         void create_kd_tree_recursive(
             index_t node_index, index_t b, index_t e
         ) {
-            if(e - b <= MAX_LEAF_SIZE) {
+            if(e <= b || e - b <= MAX_LEAF_SIZE) {
                 return;
             }
             index_t m = split_kd_node(node_index, b, e);
-            create_kd_tree_recursive(2 * node_index, b, m);
-            create_kd_tree_recursive(2 * node_index + 1, m, e);
+            if(m > b && m < e) {
+                create_kd_tree_recursive(2 * node_index, b, m);
+                create_kd_tree_recursive(2 * node_index + 1, m, e);
+            }
         }
 
         /**
@@ -652,11 +668,13 @@ namespace GEOBRL {
          * \return the coordinate of the point, after re-numerotation.
          */
         double point_coord(int index, coord_index_t coord) {
-            geo_debug_assert(index >= 0);
-            geo_debug_assert(index_t(index) < nb_points());
-            geo_debug_assert(coord < dimension());
+            if(index < 0 || index_t(index) >= point_index_.size() || points_ == nullptr || coord >= dimension()) {
+                return 0.0;
+            }
             index_t direct_index = point_index_[index_t(index)];
-            geo_debug_assert(direct_index < nb_points());
+            if(direct_index >= nb_points()) {
+                return 0.0;
+            }
             return (points_ + direct_index * stride_)[coord];
         }
 

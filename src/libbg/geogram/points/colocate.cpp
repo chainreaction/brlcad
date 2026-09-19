@@ -87,11 +87,23 @@ namespace {
          *    tolerance have been found, false otherwise.
          */
         bool find_nearest_neighbors(index_t i, index_t nb) {
-            // allocated on the stack, more multithread-friendly
-            // and no need to deallocate (and VC++ does not support
-            // int neighbors[nb] where nb is a variable)
-            index_t* neighbors = (index_t*) BRLCAD_ALLOCA(sizeof(index_t) * nb);
-            double* dist = (double*) BRLCAD_ALLOCA(sizeof(double) * nb);
+            if(i >= nb_points() || nb == 0) {
+                return true;
+            }
+            index_t* neighbors = nullptr;
+            double* dist = nullptr;
+            vector<index_t> neighbors_vec;
+            vector<double> dist_vec;
+
+            if(nb <= 512) {
+                neighbors = (index_t*) BRLCAD_ALLOCA(sizeof(index_t) * nb);
+                dist = (double*) BRLCAD_ALLOCA(sizeof(double) * nb);
+            } else {
+                neighbors_vec.resize(nb);
+                dist_vec.resize(nb);
+                neighbors = neighbors_vec.data();
+                dist = dist_vec.data();
+            }
 
             NN_->get_nearest_neighbors(
                 nb, NN_->point_ptr(i), neighbors, dist
@@ -116,12 +128,12 @@ namespace {
          * \param[in] i index of the query point
          */
         void do_it(index_t i) {
-            index_t nb = std::min(index_t(6),nb_points());
+            index_t nb = std::min(index_t(6), nb_points());
             while(!find_nearest_neighbors(i, nb) && nb < nb_points()) {
                 if(nb == nb_points()) {
                     break;
                 }
-                nb += nb / 2;
+                nb += std::max(index_t(1), nb / 2);
                 nb = std::min(nb, nb_points());
             }
         }
@@ -223,7 +235,8 @@ namespace GEOBRL {
             const std::string& nn_algo,
             const GeoOptions& opts
         ) {
-            if(nb_points == 0) {
+            if(nb_points == 0 || points == nullptr) {
+                old2new.clear();
                 return 0;
             }
 
@@ -250,14 +263,18 @@ namespace GEOBRL {
             }
             index_t result = 0;
             for(index_t i = 0; i < old2new.size(); i++) {
-                geo_assert(
-                    signed_index_t(old2new[i]) >= 0 &&
-                    old2new[i] < nb_points
-                );
+                if(old2new[i] >= nb_points) {
+                    old2new[i] = i;
+                }
                 index_t j = i;
+                index_t step = 0;
                 // colocate clusters of identical vertices onto smallest index
-                while(old2new[j] != j) {
+                while(old2new[j] != j && step < nb_points) {
+                    if(old2new[j] >= nb_points) {
+                        break;
+                    }
                     j = old2new[j];
+                    step++;
                 }
                 old2new[i] = j;
                 if(old2new[i] == i) {
@@ -275,8 +292,13 @@ namespace GEOBRL {
             index_t stride,
             const GeoOptions& opts
         ) {
-            if(nb_points == 0) {
+            if(nb_points == 0 || points == nullptr) {
+                old2new.clear();
                 return 0;
+            }
+
+            if(stride == 0) {
+                stride = dim;
             }
 
             ComparePoints compare_points(points, dim, stride);

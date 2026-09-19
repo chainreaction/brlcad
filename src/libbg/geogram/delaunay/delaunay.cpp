@@ -180,7 +180,9 @@ namespace GEOBRL {
     index_t Delaunay::nearest_vertex(const double* p) const {
         // Unefficient implementation (but at least it works).
         // Derived classes are supposed to overload.
-        geo_assert(nb_vertices() > 0);
+        if(nb_vertices() == 0 || vertices_ == nullptr || p == nullptr) {
+            return NO_INDEX;
+        }
         index_t result = 0;
         double d = Geom::distance2(vertex_ptr(0), p, dimension());
         for(index_t i = 1; i < nb_vertices(); i++) {
@@ -216,22 +218,34 @@ namespace GEOBRL {
         // Step 1: traverse the incident cells list, and insert
         // all neighbors (may be duplicated)
         neighbors.resize(0);
+        if(v >= v_to_cell_.size()) {
+            return;
+        }
         index_t vt = v_to_cell_[v];
-        if(vt != NO_INDEX) { // Happens when there are duplicated vertices.
+        if(vt != NO_INDEX && vt < nb_cells()) { // Happens when there are duplicated vertices.
             index_t t = vt;
+            index_t count = 0;
             do {
                 index_t lvit = index(t, v);
+                if(lvit == NO_INDEX || lvit >= cell_size()) {
+                    break;
+                }
                 // In the current cell, test all edges incident
                 // to current vertex 'it'
                 for(index_t lv = 0; lv < cell_size(); lv++) {
                     if(lvit != lv) {
                         index_t neigh = cell_vertex(t, lv);
-                        geo_debug_assert(neigh != NO_INDEX);
-                        neighbors.push_back(neigh);
+                        if(neigh != NO_INDEX && neigh < nb_vertices()) {
+                            neighbors.push_back(neigh);
+                        }
                     }
                 }
-                t = next_around_vertex(t, index(t, v));
-            } while(t != vt);
+                t = next_around_vertex(t, lvit);
+                if(t >= nb_cells() || t == NO_INDEX) {
+                    break;
+                }
+                count++;
+            } while(t != vt && count < nb_cells());
         }
 
         // Step 2: Sort the neighbors and remove all duplicates
@@ -263,14 +277,19 @@ namespace GEOBRL {
                     if(v == NO_INDEX) {
                         v = nb_vertices();
                     }
-                    v_to_cell_[v] = c;
+                    if(v < v_to_cell_.size()) {
+                        v_to_cell_[v] = c;
+                    }
                 }
             }
         } else {
             v_to_cell_.assign(nb_vertices(), NO_INDEX);
             for(index_t c = 0; c < nb_cells(); c++) {
                 for(index_t lv = 0; lv < cell_size(); lv++) {
-                    v_to_cell_[cell_vertex(c, lv)] = c;
+                    index_t v = cell_vertex(c, lv);
+                    if(v < v_to_cell_.size()) {
+                        v_to_cell_[v] = c;
+                    }
                 }
             }
         }
@@ -283,21 +302,27 @@ namespace GEOBRL {
         cicl_.resize(cell_size() * nb_cells());
 
         for(index_t v = 0; v < nb_vertices(); ++v) {
-            index_t t = v_to_cell_[v];
-            if(t != NO_INDEX) {
-                index_t lv = index(t, v);
-                set_next_around_vertex(t, lv, t);
+            if(v < v_to_cell_.size()) {
+                index_t t = v_to_cell_[v];
+                if(t != NO_INDEX && t < nb_cells()) {
+                    index_t lv = index(t, v);
+                    if(lv != NO_INDEX && lv < cell_size()) {
+                        set_next_around_vertex(t, lv, t);
+                    }
+                }
             }
         }
 
         if(keeps_infinite()) {
 
-            {
+            if(nb_vertices() < v_to_cell_.size()) {
                 // Process the infinite vertex at index nb_vertices().
                 index_t t = v_to_cell_[nb_vertices()];
-                if(t != NO_INDEX) {
+                if(t != NO_INDEX && t < nb_cells()) {
                     index_t lv = index(t, NO_INDEX);
-                    set_next_around_vertex(t, lv, t);
+                    if(lv != NO_INDEX && lv < cell_size()) {
+                        set_next_around_vertex(t, lv, t);
+                    }
                 }
             }
 
@@ -305,12 +330,18 @@ namespace GEOBRL {
                 for(index_t lv = 0; lv < cell_size(); ++lv) {
                     index_t v = cell_vertex(t, lv);
                     index_t vv = (v == NO_INDEX) ? nb_vertices() : v;
-                    if(v_to_cell_[vv] != t) {
+                    if(vv < v_to_cell_.size() && v_to_cell_[vv] != t && v_to_cell_[vv] != NO_INDEX) {
                         index_t t1 = v_to_cell_[vv];
-                        index_t lv1 = index(t1, v);
-                        index_t t2 = next_around_vertex(t1, lv1);
-                        set_next_around_vertex(t1, lv1, t);
-                        set_next_around_vertex(t, lv, t2);
+                        if(t1 < nb_cells()) {
+                            index_t lv1 = index(t1, v);
+                            if(lv1 != NO_INDEX && lv1 < cell_size()) {
+                                index_t t2 = next_around_vertex(t1, lv1);
+                                if(t2 < nb_cells()) {
+                                    set_next_around_vertex(t1, lv1, t);
+                                    set_next_around_vertex(t, lv, t2);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -320,12 +351,18 @@ namespace GEOBRL {
             for(index_t t = 0; t < nb_cells(); ++t) {
                 for(index_t lv = 0; lv < cell_size(); ++lv) {
                     index_t v = cell_vertex(t, lv);
-                    if(v_to_cell_[v] != t) {
+                    if(v < v_to_cell_.size() && v_to_cell_[v] != t && v_to_cell_[v] != NO_INDEX) {
                         index_t t1 = v_to_cell_[v];
-                        index_t lv1 = index(t1, v);
-                        index_t t2 = next_around_vertex(t1, lv1);
-                        set_next_around_vertex(t1, lv1, t);
-                        set_next_around_vertex(t, lv, t2);
+                        if(t1 < nb_cells()) {
+                            index_t lv1 = index(t1, v);
+                            if(lv1 != NO_INDEX && lv1 < cell_size()) {
+                                index_t t2 = next_around_vertex(t1, lv1);
+                                if(t2 < nb_cells()) {
+                                    set_next_around_vertex(t1, lv1, t);
+                                    set_next_around_vertex(t, lv, t2);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -338,8 +375,8 @@ namespace GEOBRL {
         vector<index_t> histogram;
         for(index_t v = 0; v < nb_vertices(); v++) {
             index_t N = neighbors_.array_size(v);
-            if(histogram.size() < N) {
-                histogram.resize(N + 1);
+            if(histogram.size() <= N) {
+                histogram.resize(N + 1, 0);
             }
             histogram[N]++;
         }

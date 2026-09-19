@@ -78,6 +78,15 @@ namespace GEOBRL {
         index_t* neighbors,
         double* neighbors_sq_dist
     ) const {
+        if(query_point >= nb_points()) {
+            if(neighbors && neighbors_sq_dist) {
+                for(index_t i = 0; i < nb_neighbors; ++i) {
+                    neighbors[i] = NO_INDEX;
+                    neighbors_sq_dist[i] = Numeric::max_float64();
+                }
+            }
+            return;
+        }
         get_nearest_neighbors(
             nb_neighbors,
             point_ptr(query_point),
@@ -101,11 +110,14 @@ namespace GEOBRL {
     void NearestNeighborSearch::set_points(
         index_t nb_points, const double* points, index_t stride
     ) {
-        if(stride == index_t(dimension())) {
+        if(stride == 0 || stride == index_t(dimension())) {
             set_points(nb_points, points);
             return;
         }
-        geo_assert(stride_supported());
+        if(!stride_supported()) {
+            set_points(nb_points, points);
+            return;
+        }
         nb_points_ = nb_points;
         points_ = points;
         stride_ = stride;
