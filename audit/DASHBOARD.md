@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-19 04:10:48 UTC
+**Last Updated:** 2026-09-19 09:05:06 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 376 (10.8%)
-- **Files Pending Review:** 3117
-- **Total Issues Identified:** 207
+- **Files Reviewed:** 387 (11.1%)
+- **Files Pending Review:** 3106
+- **Total Issues Identified:** 210
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 20 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 140 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 143 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 47 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 206
+- **Fixed (Committed):** 209
 - **Pending Verification:** 1
 - **Disproven:** 0
 
@@ -84,7 +84,7 @@
 | `src/isst` | 9 | 0 | 0.0% | 0 |
 | `src/launcher` | 8 | 0 | 0.0% | 0 |
 | `src/libanalyze` | 40 | 0 | 0.0% | 0 |
-| `src/libbg` | 232 | 136 | 58.6% | 57 |
+| `src/libbg` | 232 | 147 | 63.4% | 64 |
 | `src/libbn` | 41 | 41 | 100.0% | 31 |
 | `src/libbrep` | 50 | 0 | 0.0% | 0 |
 | `src/libbu` | 176 | 176 | 100.0% | 101 |
@@ -324,3 +324,6 @@
 | `SEC-0205` | **Sev 2** | Out-of-Bounds Memory Access & Integer Overflow | `src/libbg/geogram/mesh/index.h, src/libbg/geogram/mesh/mesh.h, src/libbg/geogram/mesh/mesh.cpp:index.h:70-130, mesh.h:200-475, mesh.cpp:115-460` | `FIXED` | In MeshCells::pop(), cell_ptr_[nb()-1] was accessed unconditionally; simplicial meshes store an empty or single-element cell_ptr_, resulting in heap out-of-bounds reads. In MeshVertices::copy, point_ptr(0) was called when rhs.nb() == 0, accessing beyond empty buffers. In Mesh::get_subelements_by_type and get_subelements_by_index, invalid queries dereferenced null pointers *(MeshSubElementsStore*)nullptr. Index classes left buffer arrays uninitialized in default constructors. create_sub_elements and reserve lacked integer multiplication overflow guards. In connect_tets and connect, corrupt facet/cell vertex indices were not validated against vertices_.nb(). |
 | `SEC-0206` | **Sev 2** | Divide-by-Zero & Out-of-Bounds Vector Access | `src/libbg/geogram/mesh/mesh_AABB.h, src/libbg/geogram/mesh/mesh_AABB.cpp:mesh_AABB.h:45-1250, mesh_AABB.cpp:35-180` | `FIXED` | In ray_triangle_intersection, 1.0 / det was calculated prior to checking whether fabs(det) >= 1e-20, causing floating-point division by zero and NaN/Inf propagation on rays coplanar to triangle planes. Querying or intersecting AABB trees built on empty meshes (nb() == 0) accessed bboxes_[1] out-of-bounds and caused infinite recursion in max_node_index. |
 | `SEC-0207` | **Sev 1** | Divide-by-Zero & Denial of Service / Process Abort | `src/libbg/geogram/mesh/mesh_geometry.h, src/libbg/geogram/mesh/mesh_geometry.cpp, src/libbg/geogram/mesh/mesh_halfedges.cpp:mesh_geometry.h:210-240, mesh_geometry.cpp:80-160, mesh_halfedges.cpp:60-145` | `FIXED` | mesh_facet_center and mesh_cell_center divided by corner/vertex counts without checking for empty facets/cells (0 count). In mesh_geometry.cpp, normalize was called on zero vectors, and bounding box functions did not validate null output pointers or zero-vertex meshes. In MeshHalfedges, border and vertex traversals on non-manifold or cyclical meshes aborted the process via geo_assert_not_reached or geo_assert(count < 10000) instead of gracefully failing. |
+| `SEC-0208` | **Sev 2** | Out-of-Bounds Memory Access, Stack Exhaustion & Process Abort | `src/libbg/geogram/mesh/mesh_repair.cpp, src/libbg/geogram/mesh/mesh_preprocessing.h, src/libbg/geogram/mesh/mesh_preprocessing.cpp, src/libbg/geogram/mesh/mesh_topology.cpp:mesh_repair.cpp:65-175, 490-590, 665-685, 820-840, 920-1010, 1145-1215; mesh_preprocessing.h:77; mesh_preprocessing.cpp:65-135; mesh_topology.cpp:48-105` | `FIXED` | In repair_connect_facets, v2c[v1], c2f[c2], and next_c_around_v[c] were indexed without validating vertex/corner indices against mesh element counts, causing out-of-bounds array reads. facet_is_degenerate and normalize_facet_vertices_order performed unbounded BRLCAD_ALLOCA stack allocations for vertex arrays on arbitrary polygonal facets without heap fallback, causing stack overflow vulnerabilities. find_corner, repair_propagate_orientation, and SimplePriorityQueue::pop aborted the process on malformed topological meshes via geo_assert_not_reached. mesh_colocate_vertices_no_check indexed old2new without bounds checks. In mesh_preprocessing.cpp and mesh_topology.cpp, empty meshes or unbound attributes resulted in out-of-bounds indexing in component traversal and signed volume calculation. |
+| `SEC-0209` | **Sev 2** | Divide-by-Zero & Out-of-Bounds Buffer Indexing | `src/libbg/geogram/mesh/mesh_reorder.cpp, src/libbg/geogram/mesh/mesh_remesh.cpp:mesh_reorder.cpp:280-295, 430-445, 570-585, 935-945, 1115-1175; mesh_remesh.cpp:75-80, 125-140, 150-165, 205-255, 285-295, 470-505` | `FIXED` | In mesh_reorder.cpp, Base_fcmp::center and Base_ccmp::center computed 1.0 / double(nb_vertices) without checking nb_vertices == 0, causing floating-point division by zero; Base_tcmp accessed 4 cell vertices without validating vertex count. In mesh_remesh.cpp, remesh_smooth and mesh_adjust_surface crashed or had undefined behavior on empty meshes or meshes with dimension < 3; mesh_adjust_surface divided by double(d) on facets with 0 vertices; create_ribbon_on_border called normalize on zero-length normal vectors, causing NaNs. |
+| `SEC-0210` | **Sev 2** | Divide-by-Zero & Buffer Overflow | `src/libbg/geogram/mesh/mesh_sampling.h:mesh_sampling.h:68-95, 120-165, 215-265, 285-335` | `FIXED` | In mesh_generate_random_samples_on_surface and mesh_generate_random_samples_in_volume, division by total area (Atot) and total volume (Vtot) occurred without checking Atot <= 0.0 or Vtot <= 0.0, resulting in division by zero and NaN sample coordinates on degenerate meshes. mesh_facet_mass and mesh_tetra_mass lacked bounds checking on facet/cell vertex counts and attribute arrays, potentially reading out of bounds. |

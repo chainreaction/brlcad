@@ -14205,38 +14205,44 @@
       "path": "src/libbg/geogram/mesh/mesh_preprocessing.cpp",
       "subsystem": "src/libbg",
       "lines": 160,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0208"
+      ]
     },
     {
       "id": 1409,
       "path": "src/libbg/geogram/mesh/mesh_preprocessing.h",
       "subsystem": "src/libbg",
       "lines": 119,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0208"
+      ]
     },
     {
       "id": 1410,
       "path": "src/libbg/geogram/mesh/mesh_remesh.cpp",
       "subsystem": "src/libbg",
       "lines": 553,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0209"
+      ]
     },
     {
       "id": 1411,
       "path": "src/libbg/geogram/mesh/mesh_remesh.h",
       "subsystem": "src/libbg",
       "lines": 134,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14245,18 +14251,20 @@
       "path": "src/libbg/geogram/mesh/mesh_reorder.cpp",
       "subsystem": "src/libbg",
       "lines": 1204,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0209"
+      ]
     },
     {
       "id": 1413,
       "path": "src/libbg/geogram/mesh/mesh_reorder.h",
       "subsystem": "src/libbg",
       "lines": 170,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14265,18 +14273,20 @@
       "path": "src/libbg/geogram/mesh/mesh_repair.cpp",
       "subsystem": "src/libbg",
       "lines": 1173,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0208"
+      ]
     },
     {
       "id": 1415,
       "path": "src/libbg/geogram/mesh/mesh_repair.h",
       "subsystem": "src/libbg",
       "lines": 227,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -14285,28 +14295,32 @@
       "path": "src/libbg/geogram/mesh/mesh_sampling.h",
       "subsystem": "src/libbg",
       "lines": 359,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0210"
+      ]
     },
     {
       "id": 1417,
       "path": "src/libbg/geogram/mesh/mesh_topology.cpp",
       "subsystem": "src/libbg",
       "lines": 102,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-19T00:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0208"
+      ]
     },
     {
       "id": 1418,
       "path": "src/libbg/geogram/mesh/mesh_topology.h",
       "subsystem": "src/libbg",
       "lines": 132,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-19T00:00:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
