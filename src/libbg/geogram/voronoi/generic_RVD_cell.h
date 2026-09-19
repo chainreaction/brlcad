@@ -847,11 +847,16 @@ namespace GEOBRLGen {
         index_t t0, index_t t1, index_t t2
     ) {
         index_t t = create_triangle(v0, v1, v2, t0, t1, t2);
-        double* np = intersections_.new_item();
-        for(coord_index_t c = 0; c < dimension(); ++c) {
-            np[c] = p[c];
+        if(!p) {
+            return t;
         }
-        triangle_dual(t).set_point(np);
+        double* np = intersections_.new_item();
+        if(np) {
+            for(coord_index_t c = 0; c < dimension(); ++c) {
+                np[c] = p[c];
+            }
+            triangle_dual(t).set_point(np);
+        }
         return t;
     }
 
@@ -890,6 +895,15 @@ namespace GEOBRLGen {
         index_t t1, index_t t1ebord,
         index_t v_in
     ) {
+        if(!delaunay) {
+            return index_t(-1);
+        }
+        const double* pi = delaunay->vertex_ptr(i);
+        const double* pj = delaunay->vertex_ptr(j);
+        if(!pi || !pj) {
+            return index_t(-1);
+        }
+
         index_t t = t1;
         index_t e = t1ebord;
         index_t t_adj = triangle_adjacent(t,e);
@@ -901,7 +915,13 @@ namespace GEOBRLGen {
         index_t new_t_first = index_t(-1);
         index_t new_t_prev  = index_t(-1);
 
+        index_t step_count = 0;
+        index_t max_steps = max_t() + 3;
+
         do {
+            if(++step_count > max_steps) {
+                break;
+            }
 
             index_t v1 = triangle_vertex(t, plus1mod3(e));
             index_t v2 = triangle_vertex(t, minus1mod3(e));
@@ -913,7 +933,7 @@ namespace GEOBRLGen {
                 intersections_,
                 triangle_dual(t),
                 triangle_dual(triangle_adjacent(t, e)),
-                delaunay->vertex_ptr(i), delaunay->vertex_ptr(j)
+                pi, pj
             );
 
             if(symbolic) {
@@ -1075,8 +1095,14 @@ namespace GEOBRLGen {
     static double signed_bisector_distance(
         const Delaunay* delaunay, index_t i, index_t j, const double* q
     ) {
+        if(!delaunay || !q) {
+            return 0.0;
+        }
         const double* pi = delaunay->vertex_ptr(i);
         const double* pj = delaunay->vertex_ptr(j);
+        if(!pi || !pj) {
+            return 0.0;
+        }
         double result = 0;
         for(coord_index_t c = 0; c < DIM; ++c) {
             result += GEOBRL::geo_sqr(q[c] - pj[c]);

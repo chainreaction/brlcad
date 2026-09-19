@@ -211,6 +211,9 @@ namespace GEOBRL {
          */
         const double* point(index_t i) const {
             geo_debug_assert(i < nb_points_);
+            if(!points_ || i >= nb_points_) {
+                return nullptr;
+            }
             return points_ + i * points_stride_;
         }
 
@@ -222,6 +225,9 @@ namespace GEOBRL {
          */
         const double* frame(index_t i) const {
             geo_debug_assert(i < nb_frames_);
+            if(!frames_ || i >= nb_frames_) {
+                return nullptr;
+            }
             return frames_ + i * nb_comp_per_frame_;
         }
 

@@ -82,7 +82,9 @@ namespace GEOBRLGen {
          * \pre !empty()
          */
         void pop() {
-            rep_.pop_back();
+            if(!rep_.empty()) {
+                rep_.pop_back();
+            }
         }
 
         /**
@@ -281,13 +283,16 @@ namespace GEOBRLGen {
          * \pre array < nb_arrays()
          */
         index_t array_capacity(index_t array) const {
+            if(array >= nb_arrays()) {
+                return 0;
+            }
             index_t size = array_size(array);
             if(size == 0) {
                 return 0;
             }
             index_t result = 1;
             index_t mask = 1;
-            for(index_t i = 0; i < 32; i++) {
+            for(index_t i = 0; i < 31; i++) {
                 mask = mask << 1;
                 if((size & mask) != 0) {
                     result = mask;
@@ -307,7 +312,13 @@ namespace GEOBRLGen {
          * \return the index of \p key in \p array or NO_INDEX if not found
          */
         index_t find_index(index_t array, index_t key) const {
+            if(array >= nb_arrays()) {
+                return NO_INDEX;
+            }
             index_t* K = keys_[array];
+            if(!K) {
+                return NO_INDEX;
+            }
             for(index_t i = 0; i < array_size(array); ++i) {
                 if(K[i] == key) {
                     return i;
@@ -325,6 +336,9 @@ namespace GEOBRLGen {
          *  or NO_INDEX if not found.
          */
         index_t find_value(index_t array, index_t key) const {
+            if(array >= nb_arrays() || !values_[array]) {
+                return NO_INDEX;
+            }
             index_t i = find_index(array, key);
             if(i == NO_INDEX) {
                 return NO_INDEX;
@@ -339,6 +353,9 @@ namespace GEOBRLGen {
          * \param[in] value the value to be associated with \p key
          */
         void insert(index_t array, index_t key, index_t value) {
+            if(array >= nb_arrays()) {
+                return;
+            }
             index_t i = find_index(array, key);
             if(i == NO_INDEX) {
                 // If not found, append at the end of array
@@ -349,17 +366,28 @@ namespace GEOBRLGen {
                     if(new_nb == 0) {
                         new_nb = 1;
                     }
-                    keys_[array] = reinterpret_cast<index_t*>(
+                    index_t* new_keys = reinterpret_cast<index_t*>(
                         realloc(keys_[array], sizeof(index_t) * new_nb)
                     );
-                    values_[array] = reinterpret_cast<index_t*>(
+                    if(!new_keys) {
+                        return;
+                    }
+                    keys_[array] = new_keys;
+
+                    index_t* new_values = reinterpret_cast<index_t*>(
                         realloc(values_[array], sizeof(index_t) * new_nb)
                     );
+                    if(!new_values) {
+                        return;
+                    }
+                    values_[array] = new_values;
                 }
                 size_[array] = i + 1;
             }
-            keys_[array][i] = key;
-            values_[array][i] = value;
+            if(keys_[array] && values_[array]) {
+                keys_[array][i] = key;
+                values_[array][i] = value;
+            }
         }
 
     private:

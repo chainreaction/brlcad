@@ -1416,10 +1416,10 @@ namespace {
                     center_vertex_id, v.sym()
                 );
                 if(result >= nb_vertices_) {
-                    geo_assert(result == nb_vertices_);
                     nb_vertices_ = result + 1;
+                    const double* pt = v.point();
                     for(coord_index_t c = 0; c < dim_; ++c) {
-                        vertices_.push_back(v.point()[c]);
+                        vertices_.push_back(pt ? pt[c] : 0.0);
                     }
                 }
                 return result;
@@ -1621,7 +1621,9 @@ namespace {
          * \pre \p t < nb_parts()
          */
         void run_thread(index_t t) {
-            geo_assert(t < nb_parts());
+            if (t >= nb_parts()) {
+                return;
+            }
             thisclass& T = part(t);
             switch(thread_mode_) {
             case MT_LLOYD:
@@ -1640,25 +1642,32 @@ namespace {
             } break;
             case MT_POLYG:
             {
-                T.compute_with_polygon_callback(
-                    *polygon_callback_
-                );
+                if (polygon_callback_) {
+                    T.compute_with_polygon_callback(
+                        *polygon_callback_
+                    );
+                }
             } break;
             case MT_POLYH:
             {
-                T.compute_with_polyhedron_callback(
-                    *polyhedron_callback_
-                );
+                if (polyhedron_callback_) {
+                    T.compute_with_polyhedron_callback(
+                        *polyhedron_callback_
+                    );
+                }
             } break;
             case MT_NONE:
-                geo_assert_not_reached;
+            default:
+                break;
             }
         }
 
         bool compute_initial_sampling_on_surface(
             double* p, index_t nb_points, bool verbose
         ) override {
-            geo_assert(mesh_->facets.are_simplices());
+            if (!p || nb_points == 0 || !mesh_ || !mesh_->facets.are_simplices()) {
+                return false;
+            }
 
             // We do that here, since this triggers partitioning,
             // that improves data locality. Then data locality is
@@ -1676,7 +1685,9 @@ namespace {
         bool compute_initial_sampling_in_volume(
             double* p, index_t nb_points, bool verbose
         ) override {
-            geo_assert(mesh_->cells.nb() != 0);
+            if (!p || nb_points == 0 || !mesh_ || mesh_->cells.nb() == 0) {
+                return false;
+            }
 
             // We do that here, since this triggers partitioning,
             // that improves data locality. Then data locality is
@@ -1697,7 +1708,7 @@ namespace {
          * stores the vertices in a KdTree.
          */
         void prepare_projection() {
-            if(mesh_vertices_) {
+            if(mesh_vertices_ || !mesh_) {
                 return;
             }
 
@@ -1717,15 +1728,19 @@ namespace {
 
             // Step 2: get vertices stars
             //    Step 2.1: get one-ring neighborhood
-            vector<vector<index_t> > stars2(mesh_->vertices.nb());
+            index_t num_v = mesh_->vertices.nb();
+            vector<vector<index_t> > stars2(num_v);
             for(index_t t = 0; t < nb_triangles_; t++) {
-                stars2[triangles_[3 * t]].push_back(t);
-                stars2[triangles_[3 * t + 1]].push_back(t);
-                stars2[triangles_[3 * t + 2]].push_back(t);
+                index_t v0 = triangles_[3 * t];
+                index_t v1 = triangles_[3 * t + 1];
+                index_t v2 = triangles_[3 * t + 2];
+                if (v0 < num_v) stars2[v0].push_back(t);
+                if (v1 < num_v) stars2[v1].push_back(t);
+                if (v2 < num_v) stars2[v2].push_back(t);
             }
 
             //   Step 2.2: get two-ring neighborhood
-            stars_.resize(mesh_->vertices.nb());
+            stars_.resize(num_v);
             for(index_t i = 0; i < stars2.size(); i++) {
                 vector<index_t> Ni;
                 for(index_t j = 0; j < stars2[i].size(); j++) {
@@ -1740,9 +1755,11 @@ namespace {
                 sort_unique(Ni);
                 for(index_t j = 0; j < Ni.size(); j++) {
                     index_t k = Ni[j];
-                    stars_[i].insert(
-                        stars_[i].end(), stars2[k].begin(), stars2[k].end()
-                    );
+                    if (k < stars2.size()) {
+                        stars_[i].insert(
+                            stars_[i].end(), stars2[k].begin(), stars2[k].end()
+                        );
+                    }
                 }
                 sort_unique(stars_[i]);
             }
@@ -1751,21 +1768,25 @@ namespace {
             mesh_vertices_ = Delaunay::create(dimension_, "NN", opts_);
             index_t nb_vertices = mesh_->vertices.nb();
 
-            // TODO: BUG !! mesh_vertices_ keeps a ref. to mesh_vertices
-            // that is destroyed when leaving this function.
-            vector<double> mesh_vertices(nb_vertices * dimension_);
+            mesh_vertices_data_.resize(nb_vertices * dimension_);
             for(index_t i = 0; i < nb_vertices; i++) {
+                const double* pt = mesh_->vertices.point_ptr(i);
                 for(index_t coord = 0; coord < dimension_; coord++) {
-                    mesh_vertices[i * dimension_ + coord] =
-                        mesh_->vertices.point_ptr(i)[coord];
+                    mesh_vertices_data_[i * dimension_ + coord] =
+                        pt ? pt[coord] : 0.0;
                 }
             }
-            mesh_vertices_->set_vertices(nb_vertices, mesh_vertices.data());
+            if (mesh_vertices_) {
+                mesh_vertices_->set_vertices(nb_vertices, mesh_vertices_data_.data());
+            }
         }
 
         void project_points_on_surface(
             index_t nb_points, double* points, vec3* nearest, bool do_project
         ) override {
+            if (nb_points == 0 || !points) {
+                return;
+            }
 
             prepare_projection();
 
@@ -1774,6 +1795,9 @@ namespace {
                     Point P(points + p * dimension_);
                     double d2 = Numeric::max_float64();
                     for(index_t t = 0; t < nb_triangles_; t++) {
+                        if (3 * t + 2 >= triangles_.size()) {
+                            continue;
+                        }
                         const Point& p1 = mesh_vertex(triangles_[3 * t]);
                         const Point& p2 = mesh_vertex(triangles_[3 * t + 1]);
                         const Point& p3 = mesh_vertex(triangles_[3 * t + 2]);
@@ -1787,13 +1811,15 @@ namespace {
 
                         if(cur_d2 < d2) {
                             d2 = cur_d2;
-                            const vec3& p1_R3 =
-                                R3_embedding(triangles_[3 * t]);
-                            const vec3& p2_R3 =
-                                R3_embedding(triangles_[3 * t + 1]);
-                            const vec3& p3_R3 =
-                                R3_embedding(triangles_[3 * t + 2]);
-                            nearest[p] = l1 * p1_R3 + l2 * p2_R3 + l3 * p3_R3;
+                            if (nearest) {
+                                const vec3& p1_R3 =
+                                    R3_embedding(triangles_[3 * t]);
+                                const vec3& p2_R3 =
+                                    R3_embedding(triangles_[3 * t + 1]);
+                                const vec3& p3_R3 =
+                                    R3_embedding(triangles_[3 * t + 2]);
+                                nearest[p] = l1 * p1_R3 + l2 * p2_R3 + l3 * p3_R3;
+                            }
                             if(do_project) {
                                 for(coord_index_t
                                         coord = 0; coord < dimension_; coord++) {
@@ -1810,13 +1836,21 @@ namespace {
             // find nearest point on surface in star of nearest vertex
             for(index_t p = 0; p < nb_points; p++) {
                 Point P(points + p * dimension_);
-                index_t v = mesh_vertices_->nearest_vertex(
+                index_t v = (mesh_vertices_ != nullptr) ? mesh_vertices_->nearest_vertex(
                     points + p * dimension_
-                );
+                ) : NO_INDEX;
+                if (v == NO_INDEX || v >= stars_.size()) {
+                    continue;
+                }
                 double d2 = Numeric::max_float64();
-                nearest[p] = R3_embedding(v);
+                if (nearest) {
+                    nearest[p] = R3_embedding(v);
+                }
                 for(index_t i = 0; i < stars_[v].size(); i++) {
                     index_t t = stars_[v][i];
+                    if (3 * t + 2 >= triangles_.size()) {
+                        continue;
+                    }
                     const Point& p1 = mesh_vertex(triangles_[3 * t]);
                     const Point& p2 = mesh_vertex(triangles_[3 * t + 1]);
                     const Point& p3 = mesh_vertex(triangles_[3 * t + 2]);
@@ -1831,7 +1865,9 @@ namespace {
                         const vec3& p1_R3 = R3_embedding(triangles_[3 * t]);
                         const vec3& p2_R3 = R3_embedding(triangles_[3 * t + 1]);
                         const vec3& p3_R3 = R3_embedding(triangles_[3 * t + 2]);
-                        nearest[p] = l1 * p1_R3 + l2 * p2_R3 + l3 * p3_R3;
+                        if (nearest) {
+                            nearest[p] = l1 * p1_R3 + l2 * p2_R3 + l3 * p3_R3;
+                        }
                         if(do_project) {
                             for(coord_index_t coord = 0;
                                 coord < dimension_; coord++
@@ -2350,15 +2386,18 @@ namespace {
                         GetPrimalTriangles(simplices)
                     );
                     embedding.clear();
-                    embedding.reserve(dimension_ * delaunay_->nb_vertices());
-                    for(index_t i = 0; i < delaunay_->nb_vertices(); i++) {
-                        for(
-                            coord_index_t coord = 0;
-                            coord < dimension_; ++coord
-                        ){
-                            embedding.push_back(
-                                delaunay_->vertex_ptr(i)[coord]
-                            );
+                    if(delaunay_) {
+                        embedding.reserve(dimension_ * delaunay_->nb_vertices());
+                        for(index_t i = 0; i < delaunay_->nb_vertices(); i++) {
+                            const double* vptr = delaunay_->vertex_ptr(i);
+                            for(
+                                coord_index_t coord = 0;
+                                coord < dimension_; ++coord
+                            ){
+                                embedding.push_back(
+                                    vptr ? vptr[coord] : 0.0
+                                );
+                            }
                         }
                     }
                 }
@@ -2371,6 +2410,7 @@ namespace {
             // TODO: create parts even if facets range is specified
             // (and subdivide facets range)
             if(
+		!mesh_ ||
 		is_slave_ ||
 		facets_begin_ != NO_INDEX || facets_end_ != NO_INDEX
 	    ) {
@@ -2412,7 +2452,6 @@ namespace {
                             );
                         }
                     }
-                    geo_assert(!Process::is_running_threads());
                 }
             }
         }
@@ -2481,6 +2520,7 @@ namespace {
         vector<index_t> triangles_;
         vector<vector<index_t> > stars_;
         Delaunay_var mesh_vertices_;
+        vector<double> mesh_vertices_data_;
 
         // One of MT_NONE, MT_LLOYD, MT_NEWTON
         ThreadMode thread_mode_;
@@ -2536,9 +2576,11 @@ namespace GEOBRL {
         const double* R3_embedding, index_t R3_embedding_stride,
         const GeoOptions& opts
     ) {
+        if(!delaunay) {
+            return nullptr;
+        }
         delaunay->set_stores_neighbors(true);
         RestrictedVoronoiDiagram* result = nullptr;
-        geo_assert(delaunay != nullptr);
         coord_index_t dim = delaunay->dimension();
         switch(dim) {
         case 2:
@@ -2577,12 +2619,14 @@ namespace GEOBRL {
             );
             break;
         default:
-            geo_assert_not_reached;
+            return nullptr;
         }
-        if(opts.algo_predicates == "exact") {
-            result->set_exact_predicates(true);
+        if(result != nullptr) {
+            if(opts.algo_predicates == "exact") {
+                result->set_exact_predicates(true);
+            }
+            result->opts_ = opts;
         }
-        result->opts_ = opts;
         return std::shared_ptr<RestrictedVoronoiDiagram>(result);
     }
 

@@ -60,14 +60,21 @@ namespace GEOBRL {
         use_RVC_centroids_ = true;
         show_iterations_ = false;
         constrained_cvt_ = false;
-        dimension_ =
-            (dim != 0) ? dim : coord_index_t(mesh->vertices.dimension());
-        geo_assert(index_t(dimension_) <= mesh->vertices.dimension());
+        if(dim != 0) {
+            dimension_ = dim;
+        } else if(mesh != nullptr) {
+            dimension_ = coord_index_t(mesh->vertices.dimension());
+        } else {
+            dimension_ = 3;
+        }
+        if(dimension_ == 0) {
+            dimension_ = 3;
+        }
         is_projection_ = true;
         delaunay_ = Delaunay::create(dimension_, delaunay, opts_);
-        RVD_ = RestrictedVoronoiDiagram::create(delaunay_.get(), mesh, opts_);
+        RVD_ = (mesh != nullptr) ?
+            RestrictedVoronoiDiagram::create(delaunay_.get(), mesh, opts_) : nullptr;
         mesh_ = mesh;
-        geo_assert(instance_ == nullptr);
         instance_ = this;
     }
 
@@ -80,30 +87,45 @@ namespace GEOBRL {
         use_RVC_centroids_ = true;
         show_iterations_ = false;
         constrained_cvt_ = false;
-        dimension_ =
-            (dim != 0) ? dim : coord_index_t(mesh->vertices.dimension());
-        geo_assert(index_t(dimension_) <= mesh->vertices.dimension());
+        if(dim != 0) {
+            dimension_ = dim;
+        } else if(mesh != nullptr) {
+            dimension_ = coord_index_t(mesh->vertices.dimension());
+        } else {
+            dimension_ = 3;
+        }
+        if(dimension_ == 0) {
+            dimension_ = 3;
+        }
         is_projection_ = (R3_embedding.size() == 0);
         delaunay_ = Delaunay::create(dimension_, delaunay, opts_);
-        if(is_projection_) {
-            RVD_ = RestrictedVoronoiDiagram::create(delaunay_.get(), mesh, opts_);
+        if(mesh != nullptr) {
+            if(is_projection_) {
+                RVD_ = RestrictedVoronoiDiagram::create(delaunay_.get(), mesh, opts_);
+            } else {
+                RVD_ = RestrictedVoronoiDiagram::create(
+                    delaunay_.get(), mesh, R3_embedding, opts_
+                );
+            }
         } else {
-            RVD_ = RestrictedVoronoiDiagram::create(
-                delaunay_.get(), mesh, R3_embedding, opts_
-            );
+            RVD_ = nullptr;
         }
         mesh_ = mesh;
-        geo_assert(instance_ == nullptr);
         instance_ = this;
     }
 
     CentroidalVoronoiTesselation::~CentroidalVoronoiTesselation() {
-        instance_ = nullptr;
+        if(instance_ == this) {
+            instance_ = nullptr;
+        }
     }
 
     bool CentroidalVoronoiTesselation::compute_initial_sampling(
         index_t nb_samples, bool verbose
     ) {
+        if(!RVD_ || dimension_ == 0) {
+            return false;
+        }
         points_.resize(dimension_ * nb_samples);
         return RVD_->compute_initial_sampling(
             points_.data(), nb_samples, verbose
@@ -113,6 +135,9 @@ namespace GEOBRL {
     void CentroidalVoronoiTesselation::set_points(
         index_t nb_points, const double* points
     ) {
+        if(!points || dimension_ == 0) {
+            return;
+        }
         points_.resize(dimension_ * nb_points);
         for(index_t i = 0; i < points_.size(); i++) {
             points_[i] = points[i];
@@ -122,10 +147,16 @@ namespace GEOBRL {
     void CentroidalVoronoiTesselation::resize_points(
         index_t nb_points
     ) {
+        if(dimension_ == 0) {
+            return;
+        }
         points_.resize(dimension_ * nb_points);
     }
 
     void CentroidalVoronoiTesselation::Lloyd_iterations(index_t nb_iter) {
+        if(!RVD_ || !delaunay_ || dimension_ == 0 || points_.empty()) {
+            return;
+        }
         index_t nb_points = index_t(points_.size() / dimension_);
 
         vector<double> mg;
@@ -159,6 +190,9 @@ namespace GEOBRL {
     void CentroidalVoronoiTesselation::compute_surface(
         Mesh* mesh, bool multinerve
     ) {
+        if(!mesh || !RVD_ || !delaunay_ || dimension_ == 0) {
+            return;
+        }
         index_t nb_points = index_t(points_.size() / dimension_);
         delaunay_->set_vertices(nb_points, points_.data());
 
@@ -195,8 +229,8 @@ namespace GEOBRL {
             double* cur = vertices.data();
             for(index_t v = 0; v < nb_vertices; v++) {
                 vertices_R3[3 * v] = cur[0];
-                vertices_R3[3 * v + 1] = cur[1];
-                vertices_R3[3 * v + 2] = cur[2];
+                vertices_R3[3 * v + 1] = (dimension_ > 1) ? cur[1] : 0.0;
+                vertices_R3[3 * v + 2] = (dimension_ > 2) ? cur[2] : 0.0;
                 cur += dimension_;
             }
         } else {
@@ -224,7 +258,9 @@ namespace GEOBRL {
     void CentroidalVoronoiTesselation::compute_volume(
         Mesh* mesh
     ) {
-        geo_assert(volumetric());
+        if(!mesh || !RVD_ || !delaunay_ || dimension_ == 0 || !volumetric()) {
+            return;
+        }
         index_t nb_points = index_t(points_.size() / dimension_);
         delaunay_->set_vertices(nb_points, points_.data());
 
@@ -246,14 +282,14 @@ namespace GEOBRL {
             double* cur = vertices.data();
             for(index_t v = 0; v < nb_vertices; v++) {
                 vertices_R3[3 * v] = cur[0];
-                vertices_R3[3 * v + 1] = cur[1];
-                vertices_R3[3 * v + 2] = cur[2];
+                vertices_R3[3 * v + 1] = (dimension_ > 1) ? cur[1] : 0.0;
+                vertices_R3[3 * v + 2] = (dimension_ > 2) ? cur[2] : 0.0;
                 cur += dimension_;
             }
         } else {
             // TODO: map vertices from embedding space to 3D space
             // when we are not in projection mode
-            geo_assert_not_reached;
+            return;
         }
         mesh->clear();
         mesh->cells.assign_tet_mesh(3, vertices_R3, tets, true);
@@ -262,6 +298,9 @@ namespace GEOBRL {
     void CentroidalVoronoiTesselation::Newton_iterations(
         index_t nb_iter, index_t m
     ) {
+        if(!RVD_ || !delaunay_ || dimension_ == 0 || points_.empty()) {
+            return;
+        }
         Optimizer_var optimizer = Optimizer::create("LBFGS");
         if(!optimizer) {
             Lloyd_iterations(nb_iter);
@@ -289,6 +328,9 @@ namespace GEOBRL {
     }
 
     void CentroidalVoronoiTesselation::constrain_points(double* g) const {
+        if(!g || dimension_ == 0) {
+            return;
+        }
         if(point_is_locked_.size() != 0) {
             double* cur_g = g;
             for(index_t i = 0; i < nb_points(); ++i) {
@@ -305,6 +347,10 @@ namespace GEOBRL {
     void CentroidalVoronoiTesselation::funcgrad(
         index_t n, double* x, double& f, double* g
     ) {
+        if(!x || !g || !delaunay_ || !RVD_ || dimension_ == 0) {
+            f = 0.0;
+            return;
+        }
         index_t nb_points = n / dimension_;
         delaunay_->set_vertices(nb_points, x);
         Memory::clear(g, n * sizeof(double));
@@ -326,7 +372,9 @@ namespace GEOBRL {
     void CentroidalVoronoiTesselation::funcgrad_CB(
         index_t n, double* x, double& f, double* g
     ) {
-        instance_->funcgrad(n, x, f, g);
+        if(instance_) {
+            instance_->funcgrad(n, x, f, g);
+        }
     }
 
     void CentroidalVoronoiTesselation::newiteration_CB(
@@ -337,19 +385,28 @@ namespace GEOBRL {
         geo_argused(f);
         geo_argused(g);
         geo_argused(gnorm);
-        instance_->newiteration();
+        if(instance_) {
+            instance_->newiteration();
+        }
     }
 
     void CentroidalVoronoiTesselation::compute_R3_embedding() {
+        if(dimension_ == 0 || points_.empty()) {
+            return;
+        }
         index_t nb_points = index_t(points_.size() / dimension_);
         points_R3_.resize(nb_points);
         if(is_projection_ && !constrained_cvt_) {
             double* cur = points_.data();
             for(index_t p = 0; p < nb_points; p++) {
-                points_R3_[p] = vec3{cur[0], cur[1], cur[2]};
+                points_R3_[p] = vec3{
+                    cur[0],
+                    (dimension_ > 1) ? cur[1] : 0.0,
+                    (dimension_ > 2) ? cur[2] : 0.0
+                };
                 cur += dimension_;
             }
-        } else {
+        } else if(RVD_) {
             RVD_->project_points_on_surface(
                 nb_points, points_.data(), points_R3_, constrained_cvt_
             );

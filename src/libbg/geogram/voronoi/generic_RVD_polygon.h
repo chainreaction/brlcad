@@ -245,13 +245,16 @@ namespace GEOBRLGen {
             bool symbolic
         ) const {
             target.clear();
-            if(nb_vertices() == 0) {
+            if(nb_vertices() == 0 || !delaunay) {
                 return;
             }
 
             const double* geo_restrict pi = delaunay->vertex_ptr(i);
-            geo_assume_aligned(pi, geo_dim_alignment(DIM));
             const double* geo_restrict pj = delaunay->vertex_ptr(j);
+            if(!pi || !pj) {
+                return;
+            }
+            geo_assume_aligned(pi, geo_dim_alignment(DIM));
             geo_assume_aligned(pj, geo_dim_alignment(DIM));
 
             // Compute d = n . m, where n is the
@@ -267,6 +270,9 @@ namespace GEOBRLGen {
             index_t prev_k = nb_vertices() - 1;
             const Vertex* prev_vk = &(vertex(prev_k));
             const double* geo_restrict prev_pk = prev_vk->point();
+            if(!prev_pk) {
+                return;
+            }
             geo_assume_aligned(prev_pk, geo_dim_alignment(DIM));
 
             // We compute:
@@ -284,6 +290,9 @@ namespace GEOBRLGen {
             for(index_t k = 0; k < nb_vertices(); k++) {
                 const Vertex* vk = &(vertex(k));
                 const double* pk = vk->point();
+                if(!pk) {
+                    continue;
+                }
 
                 // We compute: l = vk . n
                 geo_decl_aligned(double l);
@@ -301,58 +310,60 @@ namespace GEOBRLGen {
                 if(status != prev_status && (prev_status != 0)) {
                     Vertex I;
                     double* Ipoint = target_intersections.new_item();
-                    I.set_point(Ipoint);
-                    if(symbolic) {
-                        if(
-                            !I.sym().intersect_symbolic(
-                                prev_vk->sym(), vk->sym(), j
-                            )
-                        ) {
-                            // We encountered a problem. As a workaround,
-                            // we copy prev_vk into the result.
-                            I = *prev_vk;
+                    if(Ipoint) {
+                        I.set_point(Ipoint);
+                        if(symbolic) {
+                            if(
+                                !I.sym().intersect_symbolic(
+                                    prev_vk->sym(), vk->sym(), j
+                                )
+                            ) {
+                                // We encountered a problem. As a workaround,
+                                // we copy prev_vk into the result.
+                                I = *prev_vk;
+                            }
                         }
-                    }
 
-                    // Compute lambda1 and lambda2, the
-                    // barycentric coordinates of the intersection I
-                    // in the segment [prev_vk vk]
-                    // Note that d and l (used for the predicates)
-                    // are reused here.
-                    double denom = 2.0 * (prev_l - l);
-                    double lambda1, lambda2;
+                        // Compute lambda1 and lambda2, the
+                        // barycentric coordinates of the intersection I
+                        // in the segment [prev_vk vk]
+                        // Note that d and l (used for the predicates)
+                        // are reused here.
+                        double denom = 2.0 * (prev_l - l);
+                        double lambda1, lambda2;
 
-                    // Shit happens ! [Forrest Gump]
-                    if(::fabs(denom) < 1e-20) {
-                        lambda1 = 0.5;
-                        lambda2 = 0.5;
-                    } else {
-                        lambda1 = (d - 2.0 * l) / denom;
-                        // Note: lambda2 is also given
-                        // by (2.0*l2-d)/denom
-                        // (but 1.0 - lambda1 is a bit
-                        //  faster to compute...)
-                        lambda2 = 1.0 - lambda1;
+                        // Shit happens ! [Forrest Gump]
+                        if(::fabs(denom) < 1e-20) {
+                            lambda1 = 0.5;
+                            lambda2 = 0.5;
+                        } else {
+                            lambda1 = (d - 2.0 * l) / denom;
+                            // Note: lambda2 is also given
+                            // by (2.0*l2-d)/denom
+                            // (but 1.0 - lambda1 is a bit
+                            //  faster to compute...)
+                            lambda2 = 1.0 - lambda1;
+                        }
+                        // Compute intersection I by weighting
+                        // the edge extremities with the barycentric
+                        // coordinates lambda1 and lambda2
+                        for(coord_index_t c = 0; c < DIM; ++c) {
+                            Ipoint[c] =
+                                lambda1 * prev_pk[c] +
+                                lambda2 * pk[c];
+                        }
+                        I.set_weight(
+                            lambda1 * prev_vk->weight() + lambda2 * vk->weight()
+                        );
+                        if(status > 0) {
+                            I.copy_edge_from(*prev_vk);
+                            I.set_adjacent_seed(signed_index_t(j));
+                        } else {
+                            I.set_flag(INTERSECT);
+                            I.set_adjacent_seed(vk->adjacent_seed());
+                        }
+                        target.add_vertex(I);
                     }
-                    // Compute intersection I by weighting
-                    // the edge extremities with the barycentric
-                    // coordinates lambda1 and lambda2
-                    for(coord_index_t c = 0; c < DIM; ++c) {
-                        Ipoint[c] =
-                            lambda1 * prev_pk[c] +
-                            lambda2 * pk[c];
-                    }
-                    I.set_weight(
-                        lambda1 * prev_vk->weight() + lambda2 * vk->weight()
-                    );
-                    if(status > 0) {
-                        I.copy_edge_from(*prev_vk);
-                        I.set_adjacent_seed(signed_index_t(j));
-                    } else {
-                        I.set_flag(INTERSECT);
-                        I.set_adjacent_seed(vk->adjacent_seed());
-                    }
-                    target.add_vertex(I);
                 }
                 if(status > 0) {
                     target.add_vertex(*vk);
@@ -388,12 +399,15 @@ namespace GEOBRLGen {
             index_t i, index_t j
         ) {
             target.clear();
-            if(nb_vertices() == 0) {
+            if(nb_vertices() == 0 || !delaunay) {
                 return;
             }
 
             const double* pi = delaunay->vertex_ptr(i);
             const double* pj = delaunay->vertex_ptr(j);
+            if(!pi || !pj) {
+                return;
+            }
 
             // The predecessor of the first vertex is the last vertex
             index_t prev_k = nb_vertices() - 1;

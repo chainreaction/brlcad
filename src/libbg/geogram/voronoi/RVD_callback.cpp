@@ -400,7 +400,9 @@ namespace {
     ) {
         triangles.resize(0);
         index_t n = pts.size();
-        geo_assert(n >= 3);
+        if(n < 3) {
+            return false;
+        }
 
         if (n == 3) {
             FOR(v, 3) {
@@ -443,7 +445,9 @@ namespace {
                     minv = val;
                     mink = k;
                 }
-                geo_assert(mink!=index_t(-1));
+                if(mink == index_t(-1)) {
+                    return false;
+                }
                 table[i*n + j] = minv;
                 tri[i*n + j] = mink;
             }
@@ -457,7 +461,9 @@ namespace {
             index_t k = tri[idx];
             index_t j = idx % n;
 
-            geo_assert(i!=index_t(-1) && k != index_t(-1) && j!=index_t(-1));
+            if(i == index_t(-1) || k == index_t(-1) || j == index_t(-1)) {
+                return false;
+            }
 
             triangles.push_back(i);
             triangles.push_back(k);

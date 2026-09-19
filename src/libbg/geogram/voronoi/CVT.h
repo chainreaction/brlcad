@@ -237,7 +237,6 @@ namespace GEOBRL {
      * \pre There is no current CentroidalVoronoiTesselation.
      */
     void make_current() {
-        geo_assert(instance_ == nullptr);
         instance_ = this;
     }
 
@@ -251,8 +250,9 @@ namespace GEOBRL {
      * \pre This CentroidalVoronoiTesselation is the current one.
      */
     void done_current() {
-        geo_assert(instance_ == this);
-        instance_ = nullptr;
+        if (instance_ == this) {
+            instance_ = nullptr;
+        }
     }
 
     public:
@@ -293,7 +293,7 @@ namespace GEOBRL {
      * \brief Gets the number of points to be optimized.
      */
     index_t nb_points() const {
-        return index_t(points_.size() / dimension_);
+        return (dimension_ > 0) ? index_t(points_.size() / dimension_) : 0;
     }
 
     /**
@@ -314,6 +314,9 @@ namespace GEOBRL {
      */
     double* embedding(index_t p) {
         geo_debug_assert(p < nb_points());
+        if(points_.empty() || p >= nb_points()) {
+            return nullptr;
+        }
         return &(points_[0]) + dimension_ * p;
     }
 
@@ -341,10 +344,10 @@ namespace GEOBRL {
      * \pre i < nb_points()
      */
     bool point_is_locked(index_t i) const {
-        geo_debug_assert(
-            point_is_locked_.size() == 0 || i < point_is_locked_.size()
-        );
-        return point_is_locked_.size() != 0 && point_is_locked_[i];
+        if(i >= point_is_locked_.size()) {
+            return false;
+        }
+        return point_is_locked_[i];
     }
 
     /**
@@ -355,7 +358,9 @@ namespace GEOBRL {
      * \pre i < nb_points()
      */
     void lock_point(index_t i) {
-        geo_debug_assert(i < nb_points());
+        if(i >= nb_points()) {
+            return;
+        }
         if(point_is_locked_.size() != nb_points()) {
             point_is_locked_.resize(nb_points(), false);
         }
@@ -370,7 +375,9 @@ namespace GEOBRL {
      * \pre i < nb_points()
      */
     void unlock_point(index_t i) {
-        geo_debug_assert(i < nb_points());
+        if(i >= nb_points()) {
+            return;
+        }
         if(
             point_is_locked_.size() != nb_points()
         ) {

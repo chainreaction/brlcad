@@ -49,6 +49,9 @@ namespace GEOBRLGen {
         const GEOBRL::Attribute<double>& vertex_weight
     ) {
         clear();
+        if(!mesh || facet >= mesh->facets.nb()) {
+            return;
+        }
         if(symbolic) {
             // Copy facet
             for(index_t c = mesh->facets.corners_begin(facet);
@@ -155,14 +158,14 @@ namespace GEOBRLGen {
         const Mesh* mesh, const Delaunay* delaunay,
         const Vertex& q, const double* pi, const double* pj, coord_index_t dim
     ) {
+        if(!mesh || !delaunay || !pi || !pj) {
+            return GEOBRL::ZERO;
+        }
 
         switch(q.sym().nb_boundary_facets()) {
         case 0:
-            // All the points that we manipulate are supposed to
-            // belong to the restricted Voronoi diagram, therefore
-            // they belong to the surface, and are at least on one
-            // facet of the surface.
-            geo_assert_not_reached;
+            // Points outside the surface boundary return ZERO
+            return GEOBRL::ZERO;
 
         case 1:
         {
@@ -172,6 +175,12 @@ namespace GEOBRLGen {
             index_t b0 = q.sym().bisector(0);
             index_t b1 = q.sym().bisector(1);
             index_t f = q.sym().boundary_facet(0);
+
+            if(f >= mesh->facets.nb() ||
+               b0 >= delaunay->nb_vertices() ||
+               b1 >= delaunay->nb_vertices()) {
+                return GEOBRL::ZERO;
+            }
 
             index_t if0 = mesh->facets.vertex(f,0);
             index_t if1 = mesh->facets.vertex(f,1);
@@ -195,6 +204,11 @@ namespace GEOBRLGen {
             index_t b0 = q.sym().bisector(0);
             index_t e0, e1;
             q.sym().get_boundary_edge(e0, e1);
+            if(b0 >= delaunay->nb_vertices() ||
+               e0 >= mesh->vertices.nb() ||
+               e1 >= mesh->vertices.nb()) {
+                return GEOBRL::ZERO;
+            }
             return GEOBRL::PCK::side2_SOS(
                 pi, delaunay->vertex_ptr(b0), pj,
                 mesh->vertices.point_ptr(e0),
@@ -208,11 +222,15 @@ namespace GEOBRLGen {
             //   three facets of the surface
             //   (i.e. a vertex v0 of the surface).
             index_t v0 = q.sym().get_boundary_vertex();
+            if(v0 >= mesh->vertices.nb()) {
+                return GEOBRL::ZERO;
+            }
             return GEOBRL::PCK::side1_SOS(
                 pi, pj, mesh->vertices.point_ptr(v0), dim
             );
         }
+        default:
+            return GEOBRL::ZERO;
         }
-        geo_assert_not_reached;
     }
 }

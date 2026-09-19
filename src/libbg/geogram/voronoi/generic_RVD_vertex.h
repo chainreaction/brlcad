@@ -179,6 +179,9 @@ namespace GEOBRLGen {
          * \note Throws an assertion failure if maximum capacity is reached
          */
         iterator insert(const T& x, iterator where) {
+            if(size_ >= DIM) {
+                return end();
+            }
             if(where == end()) {
                 *where = x;
                 grow();
@@ -244,6 +247,9 @@ namespace GEOBRLGen {
          * \pre \p x is greater than all the stored elements
          */
         void push_back(const T& x) {
+            if(size_ >= DIM) {
+                return;
+            }
 #ifdef GEOBRL_DEBUG
             for(iterator i = begin(); i != end(); ++i) {
                 geo_debug_assert(*i < x);
@@ -272,6 +278,10 @@ namespace GEOBRLGen {
         T& operator[] (signed_index_t i) {
             geo_debug_assert(i >= 0);
             geo_debug_assert(begin() + i < end());
+            if(i < 0 || begin() + i >= end()) {
+                static T dummy{};
+                return dummy;
+            }
             return begin()[i];
         }
 
@@ -283,6 +293,10 @@ namespace GEOBRLGen {
         const T& operator[] (signed_index_t i) const {
             geo_debug_assert(i >= 0);
             geo_debug_assert(begin() + i < end());
+            if(i < 0 || begin() + i >= end()) {
+                static const T dummy{};
+                return dummy;
+            }
             return begin()[i];
         }
 
@@ -293,7 +307,9 @@ namespace GEOBRLGen {
          */
         void grow() {
             geo_debug_assert(end() != end_of_storage());
-            size_++;
+            if(size_ < DIM) {
+                size_++;
+            }
         }
 
         // Note: maybe we should start from end() instead of begin()
@@ -685,6 +701,9 @@ namespace GEOBRLGen {
         double* new_item() {
             if(size_ == capacity_) {
                 grow();
+                if(size_ == capacity_) {
+                    return nullptr;
+                }
             }
             size_++;
             return item(size_ - 1);
@@ -729,14 +748,15 @@ namespace GEOBRLGen {
          * \brief Allocates a new chunk of memory.
          */
         void grow() {
-            chunks_.push_back(
-                reinterpret_cast<double*>(
-                    GEOBRL::Memory::aligned_malloc(
-                        index_t(CHUNK_SIZE) * dimension_ * sizeof(double)
-                    )
+            double* chunk = reinterpret_cast<double*>(
+                GEOBRL::Memory::aligned_malloc(
+                    index_t(CHUNK_SIZE) * dimension_ * sizeof(double)
                 )
             );
-            capacity_ += CHUNK_SIZE;
+            if(chunk) {
+                chunks_.push_back(chunk);
+                capacity_ += CHUNK_SIZE;
+            }
         }
 
         /**
@@ -746,7 +766,11 @@ namespace GEOBRLGen {
          */
         double* item(index_t i) {
             geo_debug_assert(i < size_);
-            return &(chunks_[i >> CHUNK_SHIFT][(i & CHUNK_MASK) * dimension_]);
+            index_t chunk_idx = i >> CHUNK_SHIFT;
+            if(chunk_idx >= chunks_.size() || !chunks_[chunk_idx]) {
+                return nullptr;
+            }
+            return &(chunks_[chunk_idx][(i & CHUNK_MASK) * dimension_]);
         }
 
     private:
@@ -981,7 +1005,13 @@ namespace GEOBRLGen {
         ) {
             const double* q1 = vq1.point();
             const double* q2 = vq2.point();
+            if(!q1 || !q2 || !p1 || !p2) {
+                return;
+            }
             double* Ipoint = target_intersections.new_item();
+            if(!Ipoint) {
+                return;
+            }
             set_point(Ipoint);
             double d = 0.0, l1 = 0.0, l2 = 0.0;
             for(coord_index_t c = 0; c < DIM; ++c) {
@@ -1021,6 +1051,9 @@ namespace GEOBRLGen {
         Sign side_fast(
             const double* p1, const double* p2
         ) const {
+            if(!p1 || !p2 || !point()) {
+                return GEOBRL::ZERO;
+            }
             double r = 0.0;
             for(index_t c = 0; c < DIM; ++c) {
                 r += GEOBRL::geo_sqr(p2[c] - point()[c]);

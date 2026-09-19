@@ -108,6 +108,9 @@ namespace GEOBRL {
         case 0:
         {
             index_t bv = sym.get_boundary_vertex();
+            if(bv == NO_INDEX) {
+                return new_vertex();
+            }
             if(bv >= bv_to_id_.size()) {
                 bv_to_id_.resize(bv + 1, -1);
             }
@@ -117,7 +120,7 @@ namespace GEOBRL {
             return index_t(bv_to_id_[bv]);
         }
         default:
-            geo_assert_not_reached;
+            return new_vertex();
         }
     }
 }

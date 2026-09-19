@@ -78,6 +78,9 @@ namespace GEOBRLGen {
         coord_index_t dim,
         bool symbolic_is_surface
     ) const {
+        if(!mesh || !delaunay || !pi || !pj) {
+            return GEOBRL::ZERO;
+        }
 
         switch(q.sym().nb_boundary_facets()) {
         case 0:
@@ -89,6 +92,12 @@ namespace GEOBRLGen {
             index_t b0 = q.sym().bisector(0);
             index_t b1 = q.sym().bisector(1);
             index_t b2 = q.sym().bisector(2);
+
+            if(b0 >= delaunay->nb_vertices() ||
+               b1 >= delaunay->nb_vertices() ||
+               b2 >= delaunay->nb_vertices()) {
+                return GEOBRL::ZERO;
+            }
 
             if(dim == 3) {
                 // 3d is a special case for side4()
@@ -102,7 +111,9 @@ namespace GEOBRLGen {
                     pj
                 );
             } else {
-                geo_debug_assert(cell_id() >= 0);
+                if(cell_id() < 0 || index_t(cell_id()) >= mesh->cells.nb()) {
+                    return GEOBRL::ZERO;
+                }
                 index_t t = index_t(cell_id());
                 return GEOBRL::PCK::side4_SOS(
                     pi,
@@ -129,8 +140,19 @@ namespace GEOBRLGen {
             index_t b1 = q.sym().bisector(1);
             index_t f = q.sym().boundary_facet(0);
 
+            if(b0 >= delaunay->nb_vertices() ||
+               b1 >= delaunay->nb_vertices()) {
+                return GEOBRL::ZERO;
+            }
+
             if(symbolic_is_surface) {
+                if(f >= mesh->facets.nb()) {
+                    return GEOBRL::ZERO;
+                }
                 index_t c = mesh->facets.corners_begin(f);
+                if(c + 2 >= mesh->facets.corners_end(f)) {
+                    return GEOBRL::ZERO;
+                }
                 const double* q0 = mesh->vertices.point_ptr(
                     mesh->facet_corners.vertex(c)
                 );
@@ -152,6 +174,9 @@ namespace GEOBRLGen {
             } else {
                 index_t t = f / 4;
                 index_t lf = f % 4;
+                if(t >= mesh->cells.nb()) {
+                    return GEOBRL::ZERO;
+                }
                 index_t j0 = mesh->cells.tet_vertex(
                     t, GEOBRL::MeshCells::local_tet_facet_vertex_index(lf, 0)
                 );
@@ -184,6 +209,11 @@ namespace GEOBRLGen {
             index_t b0 = q.sym().bisector(0);
             index_t e0, e1;
             q.sym().get_boundary_edge(e0, e1);
+            if(b0 >= delaunay->nb_vertices() ||
+               e0 >= mesh->vertices.nb() ||
+               e1 >= mesh->vertices.nb()) {
+                return GEOBRL::ZERO;
+            }
             return GEOBRL::PCK::side2_SOS(
                 pi, delaunay->vertex_ptr(b0), pj,
                 mesh->vertices.point_ptr(e0),
@@ -198,12 +228,16 @@ namespace GEOBRLGen {
             //   three facets of the surface
             //   (i.e. a vertex v0 of the surface).
             index_t v0 = q.sym().get_boundary_vertex();
+            if(v0 >= mesh->vertices.nb()) {
+                return GEOBRL::ZERO;
+            }
             return GEOBRL::PCK::side1_SOS(
                 pi, pj, mesh->vertices.point_ptr(v0), dim
             );
         }
+        default:
+            return GEOBRL::ZERO;
         }
-        geo_assert_not_reached;
     }
 
     void ConvexCell::initialize_from_mesh_tetrahedron(
@@ -211,6 +245,9 @@ namespace GEOBRLGen {
         const GEOBRL::Attribute<double>& vertex_weight
     ) {
         clear();
+        if(!mesh || t >= mesh->cells.nb()) {
+            return;
+        }
 
         index_t v0 = mesh->cells.tet_vertex(t, 0);
         index_t v1 = mesh->cells.tet_vertex(t, 1);
@@ -284,6 +321,9 @@ namespace GEOBRLGen {
         Mesh* mesh, bool symbolic
     ) {
         clear();
+        if(!mesh) {
+            return;
+        }
 
         for(index_t f = 0; f < mesh->facets.nb(); ++f) {
             index_t v = create_vertex();
@@ -310,14 +350,18 @@ namespace GEOBRLGen {
                 //   All the vertices of the input mesh should be
                 // incident to three facets exactly (this is because
                 // the ConvexCell is represented in dual form).
-                geo_assert(cur < 3);
+                if(cur >= 3) {
+                    break;
+                }
                 fi[cur] = H.facet;
                 index_t ca = mesh->facets.next_corner_around_facet(
                     H.facet, H.corner
                 );
                 va[cur] = mesh->facet_corners.vertex(ca);
                 bool ok = MH.move_to_prev_around_vertex(H);
-                geo_assert(ok);
+                if(!ok) {
+                    break;
+                }
                 ++cur;
             } while(H != v2h[v]);
 
@@ -346,6 +390,9 @@ namespace GEOBRLGen {
 
 
     void ConvexCell::convert_to_mesh(Mesh* mesh, bool copy_symbolic_info) {
+        if(!mesh) {
+            return;
+        }
         GEOBRL::vector<index_t> tri_to_v(max_t());
         mesh->clear();
         mesh->vertices.set_dimension(3);

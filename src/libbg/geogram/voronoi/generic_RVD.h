@@ -1317,12 +1317,17 @@ namespace GEOBRLGen {
          */
         template <class ACTION>
         inline void compute_surfacic_with_seeds_priority(const ACTION& action) {
-            if(
-                facets_begin_ == UNSPECIFIED_RANGE &&
-                facets_end_ == UNSPECIFIED_RANGE
-            ) {
+            if(!mesh_ || !delaunay_) {
+                return;
+            }
+            if(facets_begin_ == UNSPECIFIED_RANGE) {
                 facets_begin_ = 0;
+            }
+            if(facets_end_ == UNSPECIFIED_RANGE) {
                 facets_end_ = mesh_->facets.nb();
+            }
+            if(facets_end_ < facets_begin_) {
+                return;
             }
             current_polygon_ = nullptr;
             GEOBRL::vector<index_t> seed_stamp(
@@ -1463,16 +1468,18 @@ namespace GEOBRLGen {
          */
         template <class ACTION>
         inline void compute_volumetric_with_seeds_priority(const ACTION& action){
-            if(
-                tets_begin_ == UNSPECIFIED_RANGE &&
-                tets_end_ == UNSPECIFIED_RANGE
-            ) {
+            if(!mesh_ || !delaunay_) {
+                return;
+            }
+            if(tets_begin_ == UNSPECIFIED_RANGE) {
                 tets_begin_ = 0;
+            }
+            if(tets_end_ == UNSPECIFIED_RANGE) {
                 tets_end_ = mesh_->cells.nb();
             }
-
-            geo_assert(tets_begin_ != UNSPECIFIED_RANGE);
-            geo_assert(tets_end_ != UNSPECIFIED_RANGE);
+            if(tets_end_ < tets_begin_) {
+                return;
+            }
 
             GEOBRL::vector<index_t> seed_stamp(
                 delaunay_->nb_vertices(), index_t(-1)
@@ -1620,17 +1627,18 @@ namespace GEOBRLGen {
         inline void compute_volumetric_with_cnx_priority(
             const ACTION& action
         ) {
-
-            if(
-                tets_begin_ == UNSPECIFIED_RANGE &&
-                tets_end_ == UNSPECIFIED_RANGE
-            ) {
+            if(!mesh_ || !delaunay_) {
+                return;
+            }
+            if(tets_begin_ == UNSPECIFIED_RANGE) {
                 tets_begin_ = 0;
+            }
+            if(tets_end_ == UNSPECIFIED_RANGE) {
                 tets_end_ = mesh_->cells.nb();
             }
-
-            geo_assert(tets_begin_ != UNSPECIFIED_RANGE);
-            geo_assert(tets_end_ != UNSPECIFIED_RANGE);
+            if(tets_end_ < tets_begin_) {
+                return;
+            }
 
             current_polyhedron_ = nullptr;
             init_get_neighbors();
@@ -1798,7 +1806,9 @@ namespace GEOBRLGen {
          * \param[in] s index of the seed
          */
         bool facet_seed_is_visited(index_t f, index_t s) const {
-            geo_debug_assert(facet_seed_marking_ != nullptr);
+            if(!facet_seed_marking_) {
+                return false;
+            }
             return facet_seed_marking_->is_marked(FacetSeed(f, s));
         }
 
@@ -1811,7 +1821,9 @@ namespace GEOBRLGen {
          *  (\p f, \p s) couple was not visited already
          */
         index_t get_facet_seed_connected_component(index_t f, index_t s) const {
-            geo_debug_assert(facet_seed_marking_ != nullptr);
+            if(!facet_seed_marking_) {
+                return index_t(-1);
+            }
             return facet_seed_marking_->get_connected_component(
                 FacetSeed(f, s)
             );
@@ -1856,13 +1868,17 @@ namespace GEOBRLGen {
         inline void compute_surfacic_with_cnx_priority(
             const ACTION& action
         ) {
-
-            if(
-                facets_begin_ == UNSPECIFIED_RANGE &&
-                facets_end_ == UNSPECIFIED_RANGE
-            ) {
+            if(!mesh_ || !delaunay_) {
+                return;
+            }
+            if(facets_begin_ == UNSPECIFIED_RANGE) {
                 facets_begin_ = 0;
+            }
+            if(facets_end_ == UNSPECIFIED_RANGE) {
                 facets_end_ = mesh_->facets.nb();
+            }
+            if(facets_end_ < facets_begin_) {
+                return;
             }
 
             current_polygon_ = nullptr;

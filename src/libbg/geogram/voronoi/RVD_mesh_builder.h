@@ -169,7 +169,8 @@ namespace GEOBRL {
             target_(target),
             nb_vertices_(0)
             {
-                dim_ = coord_index_t(reference->vertices.dimension());
+                dim_ = (reference != nullptr) ?
+                    coord_index_t(reference->vertices.dimension()) : 3;
                 current_seed_ = max_index_t();
             }
 
@@ -177,6 +178,9 @@ namespace GEOBRL {
          * \brief Starts to build a new surface.
          */
         void begin_surface() {
+            if(!target_) {
+                return;
+            }
             target_->clear();
             target_->vertices.set_dimension(dim_);
             facet_region_.bind(target_->facets.attributes(),"region");
@@ -211,6 +215,9 @@ namespace GEOBRL {
         void add_vertex_to_facet(
             const double* point, const SymbolicVertex& sym
         ) {
+            if(!target_ || !point) {
+                return;
+            }
             index_t id = vertex_map_.find_or_create_vertex(
                 current_seed_, sym
             );
@@ -230,11 +237,16 @@ namespace GEOBRL {
          *  not used by this implementation.
          */
         void end_facet() {
+            if(!target_) {
+                return;
+            }
             index_t f = target_->facets.create_polygon(facet_vertices_.size());
             for(index_t lv=0; lv<facet_vertices_.size(); ++lv) {
                 target_->facets.set_vertex(f,lv,facet_vertices_[lv]);
             }
-            facet_region_[f] = current_seed_;
+            if(facet_region_.is_bound()) {
+                facet_region_[f] = current_seed_;
+            }
         }
 
         /**
@@ -248,6 +260,9 @@ namespace GEOBRL {
          * \brief Terminates the current surface.
          */
         void end_surface() {
+            if(!target_) {
+                return;
+            }
             target_->facets.connect();
             facet_region_.unbind();
         }

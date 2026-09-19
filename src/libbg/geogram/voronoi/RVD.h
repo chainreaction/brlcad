@@ -128,7 +128,11 @@ namespace GEOBRL {
             const vector<vec3>& R3_embedding,
             const GeoOptions& opts
         ) {
-            return create(delaunay, mesh, &R3_embedding[0][0], 3, opts);
+            return create(
+                delaunay, mesh,
+                R3_embedding.empty() ? nullptr : &R3_embedding[0][0],
+                3, opts
+            );
         }
 
         /**
