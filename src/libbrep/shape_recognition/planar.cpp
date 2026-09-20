@@ -201,7 +201,7 @@ triangulate_array_with_holes(ON_2dPointArray &on2dpts, int *verts_map, int loop_
 	    std::vector<int> vert_map;
 	    for (unsigned int j = array_start; j < array_end ; j++) vert_map.push_back(verts_map[j]);
 	    std::reverse(vert_map.begin(), vert_map.end());
-	    for (unsigned int j = 0; j <= array_end - array_start; j++) verts_map[array_start + j] = vert_map[j];
+	    for (unsigned int j = 0; j < array_end - array_start; j++) verts_map[array_start + j] = vert_map[j];
 
 	    //bu_log("flip inner loop\n");
 	}
@@ -209,11 +209,15 @@ triangulate_array_with_holes(ON_2dPointArray &on2dpts, int *verts_map, int loop_
 	holes_npts.push_back(nhole_pts);
     }
 
-    int **h_arrays = (int **)bu_calloc(holes_arrays.size(), sizeof(int *), "holes array");
-    size_t *h_npts = (size_t *)bu_calloc(holes_npts.size(), sizeof(size_t), "hole size array");
-    for (unsigned int i = 0; i < holes_arrays.size(); i++) {
-	h_arrays[i] = holes_arrays[i];
-	h_npts[i] = holes_npts[i];
+    int **h_arrays = NULL;
+    size_t *h_npts = NULL;
+    if (holes_arrays.size() > 0) {
+	h_arrays = (int **)bu_calloc(holes_arrays.size(), sizeof(int *), "holes array");
+	h_npts = (size_t *)bu_calloc(holes_npts.size(), sizeof(size_t), "hole size array");
+	for (unsigned int i = 0; i < holes_arrays.size(); i++) {
+	    h_arrays[i] = holes_arrays[i];
+	    h_npts[i] = holes_npts[i];
+	}
     }
 
     bg_nested_poly_triangulate(ffaces, &num_faces, NULL, NULL, outer_pt_ind, outer_npts, (const int **)h_arrays, h_npts, nholes, NULL, 0, (const point2d_t *)verts2d, on2dpts.Count(), TRI_EAR_CLIPPING);
@@ -224,6 +228,12 @@ triangulate_array_with_holes(ON_2dPointArray &on2dpts, int *verts_map, int loop_
 	(*ffaces)[i] = verts_map[old_ind];
     }
 
+    bu_free(outer_pt_ind, "free outer_pt_ind");
+    for (unsigned int i = 0; i < holes_arrays.size(); i++) {
+	bu_free(holes_arrays[i], "free hole array");
+    }
+    if (h_arrays) bu_free(h_arrays, "free h_arrays");
+    if (h_npts) bu_free(h_npts, "free h_npts");
     bu_free(verts2d, "free verts2d");
 
     return num_faces;
@@ -287,6 +297,7 @@ subbrep_polygon_tri(struct bu_vls *UNUSED(msgs), struct subbrep_island_data *dat
 	}
 
 	num_faces = triangulate_array(on2dpts, vert_map, ffaces, loop_dir, rev_status);
+	bu_free(vert_map, "vertex map");
 
     } else {
 
@@ -314,7 +325,7 @@ subbrep_polygon_tri(struct bu_vls *UNUSED(msgs), struct subbrep_island_data *dat
 		if (trim->m_bRev3d) {
 		    vert_ind = edge->Vertex(0)->m_vertex_index;
 		} else {
-		    vert_ind = edge->Vertex(1)->m_vertex_index;
+			vert_ind = edge->Vertex(1)->m_vertex_index;
 		}
 		if (ignored_verts.find(vert_ind) == ignored_verts.end()) {
 		    const ON_Curve *trim_curve = trim->TrimCurveOf();
@@ -329,7 +340,10 @@ subbrep_polygon_tri(struct bu_vls *UNUSED(msgs), struct subbrep_island_data *dat
 	}
 
 	// Degenerate - no triangulation
-	if (vert_array.empty()) return 0;
+	if (vert_array.empty()) {
+	    bu_free(loop_starts, "start of loop indices");
+	    return 0;
+	}
 
 	int *vert_map = (int *)bu_calloc(vert_array.size(), sizeof(int), "vertex map");
 	for (unsigned int i = 0; i < vert_array.size(); i++) {
@@ -337,6 +351,8 @@ subbrep_polygon_tri(struct bu_vls *UNUSED(msgs), struct subbrep_island_data *dat
 	}
 
 	num_faces = triangulate_array_with_holes(on2dpts, vert_map, loop_cnt, loop_starts, ffaces, brep);
+	bu_free(loop_starts, "start of loop indices");
+	bu_free(vert_map, "vertex map");
     }
     return num_faces;
 }
@@ -487,7 +503,7 @@ shoal_polygon_tri(struct bu_vls *UNUSED(msgs), struct subbrep_shoal_data *data, 
     }
 
     num_faces = triangulate_array(on2dpts, vert_map, ffaces, 0, NULL);
-
+    bu_free(vert_map, "vertex map");
 
     return num_faces;
 }
@@ -515,6 +531,10 @@ shoal_polygon_tri(struct bu_vls *UNUSED(msgs), struct subbrep_shoal_data *data, 
 int
 negative_polygon(struct bu_vls *UNUSED(msgs), struct csg_object_params *data)
 {
+    if (!data || data->csg_vert_cnt <= 0 || !data->csg_verts || data->csg_face_cnt <= 0 || !data->csg_faces) return 0;
+    if (data->csg_faces[0] < 0 || data->csg_faces[0] >= data->csg_vert_cnt ||
+	data->csg_faces[1] < 0 || data->csg_faces[1] >= data->csg_vert_cnt ||
+	data->csg_faces[2] < 0 || data->csg_faces[2] >= data->csg_vert_cnt) return 0;
 
     /* Get bounding box from the vertices */
     ON_BoundingBox vert_bbox;
@@ -729,6 +749,7 @@ island_nucleus(struct bu_vls *msgs, struct subbrep_island_data *data)
 	set_to_array(&f_loops, &f_lcnt, &active_loops);
 	int *faces;
 	int face_cnt = subbrep_polygon_tri(msgs, data, f_loops, f_lcnt, &loop_rev, &faces);
+	if (f_loops) bu_free(f_loops, "f_loops");
 	if (loop_rev) negative_nucleus++;
 	// If the face is flipped, flip the triangles and the plane so their normals are correct
 	if ((face->m_bRev && !loop_rev) || (!face->m_bRev && loop_rev)) {
@@ -795,7 +816,9 @@ island_nucleus(struct bu_vls *msgs, struct subbrep_island_data *data)
 	int fc = face_cnts[i];
 	for (int j = 0; j < fc*3; j++) all_used_verts.insert(fa[j]);
 	for (int j = 0; j < fc*3; j++) all_faces.push_back(fa[j]);
+	bu_free(fa, "face_arrays element");
     }
+    face_arrays.clear();
 
     // Allocate and initialize nucleus
     BU_GET(data->nucleus, struct subbrep_shoal_data);
@@ -826,7 +849,10 @@ island_nucleus(struct bu_vls *msgs, struct subbrep_island_data *data)
 	curr_vert++;
     }
     for (unsigned int i = 0; i < all_faces.size(); i++) {
-	data->nucleus->params->csg_faces[i] = vert_map.find(all_faces[i])->second;
+	std::map<int, int>::iterator v_it = vert_map.find(all_faces[i]);
+	if (v_it != vert_map.end()) {
+	    data->nucleus->params->csg_faces[i] = v_it->second;
+	}
     }
 
 
@@ -934,6 +960,19 @@ island_nucleus(struct bu_vls *msgs, struct subbrep_island_data *data)
     return 1;
 
 degenerate:
+    for (unsigned int i = 0; i < face_arrays.size(); i++) {
+	bu_free(face_arrays[i], "face_arrays");
+    }
+    face_arrays.clear();
+
+    if (data->nucleus) {
+	subbrep_shoal_free(data->nucleus);
+	BU_PUT(data->nucleus, struct subbrep_shoal_data);
+	data->nucleus = NULL;
+    }
+
+    if (BU_PTBL_LEN(data->island_children) == 0) return 0;
+
     // If the polyhedron nucleus is degenerate, one of the shoals is the nucleus.
     //
     // First, check whether the shoal negative/positive flags are the same.
@@ -949,7 +988,6 @@ degenerate:
 	// negative shape status of the shoal.  The island's children
 	// will be unioned.
 	//bu_log("shoal negative status is uniform\n");
-	subbrep_shoal_free(data->nucleus);
 	data->nucleus = cn;
 	bu_ptbl_rm(data->island_children, (long *)cn);
     } else {
@@ -977,7 +1015,6 @@ degenerate:
 	    struct subbrep_shoal_data *smaller = (r1 < r2) ? s1 : s2;
 	    struct subbrep_shoal_data *larger = (r1 > r2) ? s1 : s2;
 	    cn = (larger->params->half_cyl != 1) ? larger : smaller;
-	    subbrep_shoal_free(data->nucleus);
 	    data->nucleus = cn;
 	    bu_ptbl_rm(data->island_children, (long *)cn);
 	    return 1;

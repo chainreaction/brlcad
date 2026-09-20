@@ -36,12 +36,15 @@
 int
 subbrep_is_torus(struct subbrep_object_data *data, fastf_t torus_tol)
 {
+    if (!data || !data->brep || data->faces_cnt <= 0 || !data->faces) return 0;
+
     std::set<int>::iterator f_it;
     std::set<int> toridal_surfaces;
     // First, check surfaces.  If a surface is anything other than a sphere,
     // the verdict is no.
     for (int i = 0; i < data->faces_cnt; i++) {
 	int f_ind = data->faces[i];
+	if (f_ind < 0 || f_ind >= data->brep->m_F.Count()) return 0;
         int surface_type = (int)GetSurfaceType(data->brep->m_F[f_ind].SurfaceOf(), NULL);
         switch (surface_type) {
             case SURFACE_TORUS:
@@ -53,15 +56,23 @@ subbrep_is_torus(struct subbrep_object_data *data, fastf_t torus_tol)
         }
     }
 
+    if (toridal_surfaces.empty()) return 0;
+
     // Second, check if all toridal surfaces share the same parameters.
     ON_Torus torus;
-    ON_Surface *cs = data->brep->m_F[*toridal_surfaces.begin()].SurfaceOf()->Duplicate();
+    const ON_Surface *s0 = data->brep->m_F[*toridal_surfaces.begin()].SurfaceOf();
+    if (!s0) return 0;
+    ON_Surface *cs = s0->Duplicate();
+    if (!cs) return 0;
     cs->IsTorus(&torus, torus_tol);
     ON_3dPoint n_pt = torus.Center() + torus.plane.Normal();
     delete cs;
     for (f_it = toridal_surfaces.begin(); f_it != toridal_surfaces.end(); f_it++) {
 	ON_Torus f_torus;
-	ON_Surface *fcs = data->brep->m_F[(*f_it)].SurfaceOf()->Duplicate();
+	const ON_Surface *sf = data->brep->m_F[(*f_it)].SurfaceOf();
+	if (!sf) return 0;
+	ON_Surface *fcs = sf->Duplicate();
+	if (!fcs) return 0;
 	fcs->IsTorus(&f_torus, torus_tol);
 	delete fcs;
 	if (f_torus.Center().DistanceTo(torus.Center()) > torus_tol) return 0;
@@ -81,9 +92,12 @@ subbrep_is_torus(struct subbrep_object_data *data, fastf_t torus_tol)
  * 1 if it is positive, and 0 if there is some other problem */
 int
 negative_torus(struct subbrep_object_data *data, int face_index, double torus_tol) {
+    if (!data || !data->brep || face_index < 0 || face_index >= data->brep->m_F.Count()) return 0;
     const ON_Surface *surf = data->brep->m_F[face_index].SurfaceOf();
+    if (!surf) return 0;
     ON_Torus torus;
     ON_Surface *cs = surf->Duplicate();
+    if (!cs) return 0;
     cs->IsTorus(&torus, torus_tol);
     delete cs;
     return -1;
@@ -93,12 +107,15 @@ negative_torus(struct subbrep_object_data *data, int face_index, double torus_to
 int
 torus_csg(struct subbrep_object_data *data, fastf_t torus_tol)
 {
+    if (!data || !data->brep || !data->params || data->faces_cnt <= 0 || !data->faces) return 0;
+
     std::set<int> planar_surfaces;
     std::set<int> toridal_surfaces;
     std::set<int>::iterator f_it;
     //std::cout << "processing toridal surface: \n";
     for (int i = 0; i < data->faces_cnt; i++) {
 	int f_ind = data->faces[i];
+	if (f_ind < 0 || f_ind >= data->brep->m_F.Count()) return 0;
         int surface_type = (int)GetSurfaceType(data->brep->m_F[f_ind].SurfaceOf(), NULL);
         switch (surface_type) {
             case SURFACE_PLANE:
@@ -117,15 +134,23 @@ torus_csg(struct subbrep_object_data *data, fastf_t torus_tol)
     }
     data->params->bool_op = 'u'; // Initialize to union
 
+    if (toridal_surfaces.empty()) return 0;
+
     // Check for multiple tori.
     ON_Torus torus;
-    ON_Surface *cs = data->brep->m_F[*toridal_surfaces.begin()].SurfaceOf()->Duplicate();
+    const ON_Surface *s0 = data->brep->m_F[*toridal_surfaces.begin()].SurfaceOf();
+    if (!s0) return 0;
+    ON_Surface *cs = s0->Duplicate();
+    if (!cs) return 0;
     cs->IsTorus(&torus, torus_tol);
     ON_3dPoint n_pt = torus.Center() + torus.plane.Normal();
     delete cs;
     for (f_it = toridal_surfaces.begin(); f_it != toridal_surfaces.end(); f_it++) {
 	ON_Torus f_torus;
-	ON_Surface *fcs = data->brep->m_F[(*f_it)].SurfaceOf()->Duplicate();
+	const ON_Surface *sf = data->brep->m_F[(*f_it)].SurfaceOf();
+	if (!sf) return 0;
+	ON_Surface *fcs = sf->Duplicate();
+	if (!fcs) return 0;
 	fcs->IsTorus(&f_torus, torus_tol);
 	delete fcs;
 	if (f_torus.Center().DistanceTo(torus.Center()) > torus_tol) return 0;
@@ -143,13 +168,16 @@ torus_csg(struct subbrep_object_data *data, fastf_t torus_tol)
     ON_3dVector torus_normal = torus.plane.Normal();
     for (int i = 0; i < data->edges_cnt; i++) {
 	int ei = data->edges[i];
+	if (ei < 0 || ei >= data->brep->m_E.Count()) return 0;
 	const ON_BrepEdge *edge = &(data->brep->m_E[ei]);
+	if (!edge || !edge->EdgeCurveOf()) return 0;
 	ON_Curve *ecv = edge->EdgeCurveOf()->Duplicate();
+	if (!ecv) return 0;
 	ON_Arc arc;
 	if (ecv->IsArc(NULL, &arc, torus_tol)) {
 	    int categorized = 0;
 	    ON_Plane edge_plane(arc.StartPoint(), arc.MidPoint(), arc.EndPoint());
-	    ON_3dVector ep_normal = torus.plane.Normal();
+	    ON_3dVector ep_normal = edge_plane.Normal();
 	    // TODO - define a sensible constant for this...
 	    if (ep_normal.IsParallelTo(torus_normal, 0.01)) {
 		//std::cout << "major edge: " << ei << "\n";
@@ -162,6 +190,7 @@ torus_csg(struct subbrep_object_data *data, fastf_t torus_tol)
 		minor_circle_edges.insert(ei);
 		categorized = 1;
 	    }
+	    delete ecv;
 	    if (!categorized) {
 		//std::cout << "Edge " << ei << " is neither parallel nor perpendicular to torus - can't handle yet\n";
 		return 0;

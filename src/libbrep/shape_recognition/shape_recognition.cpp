@@ -163,7 +163,9 @@ find_hierarchy(struct bu_vls *UNUSED(msgs), struct bu_ptbl *islands)
     for (unsigned int i = 0; i < BU_PTBL_LEN(islands); i++) {
 	struct subbrep_island_data *id = (struct subbrep_island_data *)BU_PTBL_GET(islands, i);
 	for (int j = 0; j < id->fil_cnt; j++) {
-	    struct subbrep_island_data *sid = (struct subbrep_island_data *)fol_to_i.find(id->fil[j])->second;
+	    std::map<int, long*>::iterator f_it = fol_to_i.find(id->fil[j]);
+	    if (f_it == fol_to_i.end()) continue;
+	    struct subbrep_island_data *sid = (struct subbrep_island_data *)f_it->second;
 	    p2c.insert(std::make_pair(sid, id));
 	    c2p.insert(std::make_pair(id, sid));
 	}
@@ -345,6 +347,8 @@ subbrep_split(struct bu_vls *msgs, struct subbrep_island_data *data)
 		    }
 		    bu_ptbl_ins(data->island_children, (long *)sh);
 		} else {
+		    subbrep_shoal_free(sh);
+		    BU_PUT(sh, struct subbrep_shoal_data);
 		    csg_fail++;
 		}
 	    }
@@ -406,8 +410,11 @@ brep_to_csg(struct bu_vls *msgs, const ON_Brep *brep)
     int obj_cnt = 0;
     /* Container to hold island data structures */
     struct bu_ptbl *subbreps;
+    struct subbrep_island_data *sb = NULL;
     std::set<struct subbrep_island_data *> islands;
     std::set<struct subbrep_island_data *>::iterator is_it;
+
+    if (!brep || brep->m_F.Count() == 0 || brep->m_L.Count() == 0) return NULL;
 
     // Before we get started, check the B-Rep trims.  If we have boundary
     // trims in the B-Rep, that means something isn't closed and we probably
@@ -441,7 +448,6 @@ brep_to_csg(struct bu_vls *msgs, const ON_Brep *brep)
 	std::queue<int> todo;
 
 	/* For each iteration, we have a new island */
-	struct subbrep_island_data *sb = NULL;
 	BU_GET(sb, struct subbrep_island_data);
 	subbrep_island_init(sb, brep);
 
@@ -521,6 +527,7 @@ brep_to_csg(struct bu_vls *msgs, const ON_Brep *brep)
 	    sb->local_brep_bool_op = (bool_flag == -1) ? '-' : 'u';
 	    if (bool_flag == -1) sb->local_brep->Flip();
 	    bu_ptbl_ins(subbreps, (long *)sb);
+	    sb = NULL;
 	    continue;
 	}
 
@@ -546,6 +553,7 @@ brep_to_csg(struct bu_vls *msgs, const ON_Brep *brep)
 	}
 
 	bu_ptbl_ins(subbreps, (long *)sb);
+	sb = NULL;
     }
 
     /* If we didn't do anything to simplify the shape, we're stuck with the original */
@@ -570,9 +578,19 @@ brep_to_csg(struct bu_vls *msgs, const ON_Brep *brep)
     //bu_log("Characterize subtractions...\n");
     find_hierarchy(msgs, subbreps);
 
+    if (face_surface_types) bu_free(face_surface_types, "surface type array");
+    for (unsigned int i = 0; i < BU_PTBL_LEN(subbreps); i++) {
+	struct subbrep_island_data *island = (struct subbrep_island_data *)BU_PTBL_GET(subbreps, i);
+	island->face_surface_types = NULL;
+    }
+
     return subbreps;
 
 bail:
+    if (sb) {
+	subbrep_island_free(sb);
+	BU_PUT(sb, struct subbrep_island_data);
+    }
     // Free memory
     for (unsigned int i = 0; i < BU_PTBL_LEN(subbreps); i++) {
 	struct subbrep_island_data *obj = (struct subbrep_island_data *)BU_PTBL_GET(subbreps, i);
@@ -581,6 +599,7 @@ bail:
     }
     bu_ptbl_free(subbreps);
     BU_PUT(subbreps, struct bu_ptbl);
+    if (face_surface_types) bu_free(face_surface_types, "surface type array");
     return NULL;
 }
 

@@ -35,13 +35,20 @@
 int
 sph_validate_face(const ON_BrepFace *forig, const ON_BrepFace *fcand)
 {
+    if (!forig || !fcand) return 0;
+    const ON_Surface *so = forig->SurfaceOf();
+    const ON_Surface *sc = fcand->SurfaceOf();
+    if (!so || !sc) return 0;
+
     ON_Sphere sorig;
-    ON_Surface *ssorig = forig->SurfaceOf()->Duplicate();
+    ON_Surface *ssorig = so->Duplicate();
+    if (!ssorig) return 0;
     ssorig->IsSphere(&sorig, BREP_SPHERICAL_TOL);
     delete ssorig;
 
     ON_Sphere scand;
-    ON_Surface *sscand = fcand->SurfaceOf()->Duplicate();
+    ON_Surface *sscand = sc->Duplicate();
+    if (!sscand) return 0;
     sscand->IsSphere(&scand, BREP_SPHERICAL_TOL);
     delete sscand;
 
@@ -62,10 +69,13 @@ sph_validate_face(const ON_BrepFace *forig, const ON_BrepFace *fcand)
 int
 negative_sphere(const ON_Brep *brep, int face_index, double sph_tol)
 {
+    if (!brep || face_index < 0 || face_index >= brep->m_F.Count()) return 0;
     int ret = 0;
     const ON_Surface *surf = brep->m_F[face_index].SurfaceOf();
+    if (!surf) return 0;
     ON_Sphere sph;
     ON_Surface *cs = surf->Duplicate();
+    if (!cs) return 0;
     cs->IsSphere(&sph, sph_tol);
     delete cs;
 
@@ -91,6 +101,7 @@ sph_implicit_plane(const ON_Brep *brep, int ec, int *edges, ON_SimpleArray<ON_Pl
     // We need to find vertices that are connected to two edges that are not on
     // the same circle.
 
+    if (!brep || ec <= 0 || !edges || !sph_planes) return -1;
     if ((*sph_planes).Count() != 3) return -1;
 
 
@@ -99,6 +110,7 @@ sph_implicit_plane(const ON_Brep *brep, int ec, int *edges, ON_SimpleArray<ON_Pl
     std::set<int>::iterator v_it;
     std::set<int> edge_set;
     for (int i = 0; i < ec; i++) {
+	if (edges[i] < 0 || edges[i] >= brep->m_E.Count()) return -1;
 	const ON_BrepEdge *edge = &(brep->m_E[edges[i]]);
 	edge_set.insert(edges[i]);
 	verts.insert(edge->Vertex(0)->m_vertex_index);
@@ -126,12 +138,28 @@ sph_implicit_plane(const ON_Brep *brep, int ec, int *edges, ON_SimpleArray<ON_Pl
 	}
 	// Check the arcs
 	if (ind == 1) {
+	    if (e_ind[0] < 0 || e_ind[0] >= brep->m_E.Count() ||
+		e_ind[1] < 0 || e_ind[1] >= brep->m_E.Count()) {
+		return -1;
+	    }
 	    const ON_BrepEdge *e1 = &(brep->m_E[e_ind[0]]);
-	    ON_Curve *c1 = e1->EdgeCurveOf()->Duplicate();
 	    const ON_BrepEdge *e2 = &(brep->m_E[e_ind[1]]);
+	    if (!e1->EdgeCurveOf() || !e2->EdgeCurveOf()) {
+		return -1;
+	    }
+	    ON_Curve *c1 = e1->EdgeCurveOf()->Duplicate();
 	    ON_Curve *c2 = e2->EdgeCurveOf()->Duplicate();
+	    if (!c1 || !c2) {
+		delete c1;
+		delete c2;
+		return -1;
+	    }
 	    ON_Arc a1, a2;
-	    if (c1->IsArc(NULL, &a1, BREP_SPHERICAL_TOL) && c2->IsArc(NULL, &a1, BREP_SPHERICAL_TOL)) {
+	    bool is_arc1 = c1->IsArc(NULL, &a1, BREP_SPHERICAL_TOL);
+	    bool is_arc2 = c2->IsArc(NULL, &a2, BREP_SPHERICAL_TOL);
+	    delete c1;
+	    delete c2;
+	    if (is_arc1 && is_arc2) {
 		ON_Circle circ1(a1.StartPoint(), a1.MidPoint(), a1.EndPoint());
 		ON_Circle circ2(a2.StartPoint(), a2.MidPoint(), a2.EndPoint());
 		if ((circ1.Center().DistanceTo(circ2.Center()) > VUNITIZE_TOL) || (!NEAR_ZERO(circ1.Radius() - circ2.Radius(), BREP_SPHERICAL_TOL))) {
@@ -159,8 +187,15 @@ sph_implicit_plane(const ON_Brep *brep, int ec, int *edges, ON_SimpleArray<ON_Pl
 int
 sph_implicit_params(struct subbrep_shoal_data *data, ON_SimpleArray<ON_Plane> *sph_planes, int shoal_nonplanar_face)
 {
+    if (!data || !data->i || !data->i->brep || !data->params || !sph_planes) return -1;
+    if (data->shoal_loops_cnt <= 0 || !data->shoal_loops) return -1;
+    int l0 = data->shoal_loops[0];
+    if (l0 < 0 || l0 >= data->i->brep->m_L.Count()) return -1;
+    const ON_BrepFace *face = data->i->brep->m_L[l0].Face();
+    if (!face || !face->SurfaceOf()) return -1;
     ON_Sphere sph;
-    ON_Surface *cs = data->i->brep->m_L[data->shoal_loops[0]].Face()->SurfaceOf()->Duplicate();
+    ON_Surface *cs = face->SurfaceOf()->Duplicate();
+    if (!cs) return -1;
     cs->IsSphere(&sph, BREP_SPHERICAL_TOL);
     delete cs;
 

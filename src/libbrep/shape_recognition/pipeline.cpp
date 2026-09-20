@@ -40,6 +40,7 @@
 int
 shoal_csg(struct bu_vls *msgs, surface_t surface_type, struct subbrep_shoal_data *data)
 {
+    if (!data || !data->i || !data->i->brep || !data->params) return 0;
     //bu_log("shoal processing %s\n", bu_vls_addr(data->i->key));
     int nonlinear_edge = -1;
     int implicit_plane_ind = -1;
@@ -73,14 +74,17 @@ shoal_csg(struct bu_vls *msgs, surface_t surface_type, struct subbrep_shoal_data
     ON_SimpleArray<ON_3dPoint> edge_midpnts;
     std::set<int> edges;
     for (int i = 0; i < data->shoal_loops_cnt; i++) {
+	if (data->shoal_loops[i] < 0 || data->shoal_loops[i] >= brep->m_L.Count()) continue;
 	const ON_BrepLoop *loop = &(brep->m_L[data->shoal_loops[i]]);
+	if (!loop || !loop->Face()) continue;
 	nonplanar_surfaces.insert(loop->Face()->m_face_index);
 	for (int ti = 0; ti < loop->m_ti.Count(); ti++) {
+	    if (loop->m_ti[ti] < 0 || loop->m_ti[ti] >= brep->m_T.Count()) continue;
 	    const ON_BrepTrim *trim = &(brep->m_T[loop->m_ti[ti]]);
-	    if (trim->m_ei == -1)
+	    if (trim->m_ei == -1 || trim->m_ei < 0 || trim->m_ei >= brep->m_E.Count())
 		continue;
 	    const ON_BrepEdge *edge = &(brep->m_E[trim->m_ei]);
-	    if (edge && edge->TrimCount() > 0) {
+	    if (edge && edge->TrimCount() > 0 && edge->EdgeCurveOf()) {
 		edges.insert(trim->m_ei);
 		ON_3dPoint midpt = edge->EdgeCurveOf()->PointAt(edge->EdgeCurveOf()->Domain().Mid());
 		edge_midpnts.Append(midpt);
@@ -94,12 +98,17 @@ shoal_csg(struct bu_vls *msgs, surface_t surface_type, struct subbrep_shoal_data
     std::set<int> nondegen_edges;
     std::set<int> degen_edges;
     for (c_it = edges.begin(); c_it != edges.end(); c_it++) {
+	if (*c_it < 0 || *c_it >= brep->m_E.Count()) continue;
 	const ON_BrepEdge *edge = &(brep->m_E[*c_it]);
 	int face_cnt = 0;
 	for (int i = 0; i < edge->m_ti.Count(); i++) {
+	    if (edge->m_ti[i] < 0 || edge->m_ti[i] >= brep->m_T.Count()) continue;
 	    const ON_BrepTrim *trim = &(brep->m_T[edge->m_ti[i]]);
-	    if (((surface_t *)data->i->face_surface_types)[trim->Face()->m_face_index] == SURFACE_PLANE) continue;
-	    if (nonplanar_surfaces.find(trim->Face()->m_face_index) != nonplanar_surfaces.end())
+	    if (!trim || !trim->Face()) continue;
+	    int f_idx = trim->Face()->m_face_index;
+	    if (f_idx < 0 || f_idx >= brep->m_F.Count()) continue;
+	    if (((surface_t *)data->i->face_surface_types)[f_idx] == SURFACE_PLANE) continue;
+	    if (nonplanar_surfaces.find(f_idx) != nonplanar_surfaces.end())
 		face_cnt++;
 	}
 	if (face_cnt == 2) {
@@ -116,10 +125,13 @@ shoal_csg(struct bu_vls *msgs, surface_t surface_type, struct subbrep_shoal_data
     array_to_set(&nullv, data->i->null_verts, data->i->null_vert_cnt);
     array_to_set(&nulle, data->i->null_edges, data->i->null_edge_cnt);
     for (c_it = degen_edges.begin(); c_it != degen_edges.end(); c_it++) {
+	if (*c_it < 0 || *c_it >= brep->m_E.Count()) continue;
 	const ON_BrepEdge *edge = &(brep->m_E[*c_it]);
-	nullv.insert(edge->Vertex(0)->m_vertex_index);
-	nullv.insert(edge->Vertex(1)->m_vertex_index);
-	nulle.insert(*c_it);
+	if (edge && edge->Vertex(0) && edge->Vertex(1)) {
+	    nullv.insert(edge->Vertex(0)->m_vertex_index);
+	    nullv.insert(edge->Vertex(1)->m_vertex_index);
+	    nulle.insert(*c_it);
+	}
     }
     set_to_array(&(data->i->null_verts), &(data->i->null_vert_cnt), &nullv);
     set_to_array(&(data->i->null_edges), &(data->i->null_edge_cnt), &nulle);
@@ -134,8 +146,11 @@ shoal_csg(struct bu_vls *msgs, surface_t surface_type, struct subbrep_shoal_data
     std::set<int> linear_edges;
     std::set<int> nonlinear_edges;
     for (c_it = nondegen_edges.begin(); c_it != nondegen_edges.end(); c_it++) {
+	if (*c_it < 0 || *c_it >= brep->m_E.Count()) continue;
 	const ON_BrepEdge *edge = &(brep->m_E[*c_it]);
+	if (!edge || !edge->EdgeCurveOf()) continue;
 	ON_Curve *ecv = edge->EdgeCurveOf()->Duplicate();
+	if (!ecv) continue;
 	if (!ecv->IsLinear()) {
 	    if (nonlinear_edge == -1) nonlinear_edge = edge->m_edge_index;
 	    ON_Plane eplane;
@@ -143,10 +158,13 @@ shoal_csg(struct bu_vls *msgs, surface_t surface_type, struct subbrep_shoal_data
 	    // First, see if the edge has a real planar face associated with it.  If it does,
 	    // go with that plane.
 	    for (int ti = 0; ti < edge->m_ti.Count(); ti++) {
+		if (edge->m_ti[ti] < 0 || edge->m_ti[ti] >= brep->m_T.Count()) continue;
 		const ON_BrepTrim *t = &(brep->m_T[edge->m_ti[ti]]);
+		if (!t) continue;
 		const ON_BrepFace *f = t->Face();
+		if (!f || f->m_face_index < 0 || f->m_face_index >= brep->m_F.Count()) continue;
 		surface_t st = ((surface_t *)data->i->face_surface_types)[f->m_face_index];
-		if (st == SURFACE_PLANE) {
+		if (st == SURFACE_PLANE && f->SurfaceOf()) {
 		    f->SurfaceOf()->IsPlanar(&eplane, BREP_PLANAR_TOL);
 		    have_planar_face = 1;
 		    break;
@@ -155,6 +173,10 @@ shoal_csg(struct bu_vls *msgs, surface_t surface_type, struct subbrep_shoal_data
 	    // No real face - deduce a plane from the curve
 	    if (!have_planar_face) {
 		ON_Curve *ecv2 = edge->EdgeCurveOf()->Duplicate();
+		if (!ecv2) {
+		    delete ecv;
+		    return 0;
+		}
 		if (!ecv2->IsPlanar(&eplane, BREP_PLANAR_TOL)) {
 		    if (msgs) bu_vls_printf(msgs, "%*sNonplanar edge in shoal (%s) - no go\n", L3_OFFSET, " ", bu_vls_addr(data->i->key));
 		    delete ecv;
@@ -258,32 +280,43 @@ shoal_csg(struct bu_vls *msgs, surface_t surface_type, struct subbrep_shoal_data
 	std::set<int> shoal_connected_edges;
 	std::set<int>::iterator scl_it;
 	for (int i = 0; i < data->shoal_loops_cnt; i++) {
+	    if (data->shoal_loops[i] < 0 || data->shoal_loops[i] >= brep->m_L.Count()) continue;
 	    const ON_BrepLoop *loop = &(brep->m_L[data->shoal_loops[i]]);
+	    if (!loop) continue;
 	    for (int ti = 0; ti < loop->m_ti.Count(); ti++) {
-		int vert_ind;
+		int vert_ind = -1;
+		if (loop->m_ti[ti] < 0 || loop->m_ti[ti] >= brep->m_T.Count()) continue;
 		const ON_BrepTrim *trim = &(brep->m_T[loop->m_ti[ti]]);
-		if (trim->m_ei != -1) {
+		if (trim->m_ei != -1 && trim->m_ei >= 0 && trim->m_ei < brep->m_E.Count()) {
 		    const ON_BrepEdge *edge = &(brep->m_E[trim->m_ei]);
+		    if (!edge || !edge->Vertex(0) || !edge->Vertex(1)) continue;
 		    if (trim->m_bRev3d) {
 			vert_ind = edge->Vertex(0)->m_vertex_index;
 		    } else {
 			vert_ind = edge->Vertex(1)->m_vertex_index;
 		    }
+		    if (vert_ind < 0 || vert_ind >= brep->m_V.Count()) continue;
 		    // Get vertex edges.
 		    const ON_BrepVertex *v = &(brep->m_V[vert_ind]);
 		    for (int ei = 0; ei < v->EdgeCount(); ei++) {
-			const ON_BrepEdge *e = &(brep->m_E[v->m_ei[ei]]);
-			//bu_log("insert edge %d\n", e->m_edge_index);
-			shoal_connected_edges.insert(e->m_edge_index);
+			int edgi = v->m_ei[ei];
+			if (edgi >= 0 && edgi < brep->m_E.Count()) {
+			    const ON_BrepEdge *e = &(brep->m_E[edgi]);
+			    if (e) shoal_connected_edges.insert(e->m_edge_index);
+			}
 		    }
 		}
 	    }
 	}
 	for (scl_it = shoal_connected_edges.begin(); scl_it != shoal_connected_edges.end(); scl_it++) {
+	    if (*scl_it < 0 || *scl_it >= brep->m_E.Count()) continue;
 	    const ON_BrepEdge *edge= &(brep->m_E[(int)*scl_it]);
-	    //bu_log("Edge: %d\n", edge->m_edge_index);
-	    ON_3dPoint p1 = brep->m_V[edge->Vertex(0)->m_vertex_index].Point();
-	    ON_3dPoint p2 = brep->m_V[edge->Vertex(1)->m_vertex_index].Point();
+	    if (!edge || !edge->Vertex(0) || !edge->Vertex(1)) continue;
+	    int vi0 = edge->Vertex(0)->m_vertex_index;
+	    int vi1 = edge->Vertex(1)->m_vertex_index;
+	    if (vi0 < 0 || vi0 >= brep->m_V.Count() || vi1 < 0 || vi1 >= brep->m_V.Count()) continue;
+	    ON_3dPoint p1 = brep->m_V[vi0].Point();
+	    ON_3dPoint p2 = brep->m_V[vi1].Point();
 	    double dotp1 = ON_DotProduct(p1 - shoal_implicit_plane.origin, shoal_implicit_plane.Normal());
 	    double dotp2 = ON_DotProduct(p2 - shoal_implicit_plane.origin, shoal_implicit_plane.Normal());
 	    if (NEAR_ZERO(dotp1, BREP_PLANAR_TOL) || NEAR_ZERO(dotp2, BREP_PLANAR_TOL)) continue;
@@ -292,6 +325,8 @@ shoal_csg(struct bu_vls *msgs, surface_t surface_type, struct subbrep_shoal_data
 	    }
 	}
     }
+
+    if (nonplanar_surfaces.empty()) return 0;
 
     int ndc;
     int *nde = NULL;
@@ -314,6 +349,7 @@ shoal_csg(struct bu_vls *msgs, surface_t surface_type, struct subbrep_shoal_data
 	default:
 	    break;
     }
+    if (nde) bu_free(nde, "nondegen edges");
     if (need_arbn == -1) return 0;
 
 
@@ -350,37 +386,39 @@ shoal_csg(struct bu_vls *msgs, surface_t surface_type, struct subbrep_shoal_data
     // Second, check for plane intersection points that are inside/outside the
     // arb.  If a set of three planes defines a point that is inside, those
     // planes are part of the final arb.  Based on the arbn prep test.
-    int *planes_used = (int *)bu_calloc(uniq_planes.Count(), sizeof(int), "usage flags");
-    convex_plane_usage(&uniq_planes, &planes_used);
-    // Finally, based on usage tests, construct the set of planes that will define the arbn.
-    // If it doesn't have 3 or more uses, it's not a net contributor to the shape.
-    ON_SimpleArray<ON_Plane> arbn_planes;
-    for (int i = 0; i < uniq_planes.Count(); i++) {
-	//if (planes_used[i] != 0 && planes_used[i] < 3) bu_log("%d: have %d uses for plane %d\n", *data->i->obj_cnt + 1, planes_used[i], i);
-	if (planes_used[i] != 0 && planes_used[i] > 2) arbn_planes.Append(uniq_planes[i]);
-    }
-    bu_free(planes_used, "planes_used");
-
-
-    // Construct the arbn to intersect with the implicit to form the final shape
-    if (arbn_planes.Count() > 3) {
-	struct csg_object_params *sub_param;
-	BU_GET(sub_param, struct csg_object_params);
-	csg_object_params_init(sub_param, data);
-	sub_param->csg_id = (*(data->i->obj_cnt))++;
-	sub_param->csg_type = ARBN;
-	sub_param->bool_op = '+'; // arbn is intersected with primary primitive
-	sub_param->planes = (plane_t *)bu_calloc(arbn_planes.Count(), sizeof(plane_t), "planes");
-	sub_param->plane_cnt = arbn_planes.Count();
-	for (int i = 0; i < arbn_planes.Count(); i++) {
-	    ON_Plane p = arbn_planes[i];
-	    double d = p.DistanceTo(ON_3dPoint(0, 0, 0));
-	    sub_param->planes[i][0] = p.Normal().x;
-	    sub_param->planes[i][1] = p.Normal().y;
-	    sub_param->planes[i][2] = p.Normal().z;
-	    sub_param->planes[i][3] = -1 * d;
+    if (uniq_planes.Count() > 3) {
+	int *planes_used = (int *)bu_calloc(uniq_planes.Count(), sizeof(int), "usage flags");
+	convex_plane_usage(&uniq_planes, &planes_used);
+	// Finally, based on usage tests, construct the set of planes that will define the arbn.
+	// If it doesn't have 3 or more uses, it's not a net contributor to the shape.
+	ON_SimpleArray<ON_Plane> arbn_planes;
+	for (int i = 0; i < uniq_planes.Count(); i++) {
+	    //if (planes_used[i] != 0 && planes_used[i] < 3) bu_log("%d: have %d uses for plane %d\n", *data->i->obj_cnt + 1, planes_used[i], i);
+	    if (planes_used[i] != 0 && planes_used[i] > 2) arbn_planes.Append(uniq_planes[i]);
 	}
-	bu_ptbl_ins(data->shoal_children, (long *)sub_param);
+	bu_free(planes_used, "planes_used");
+
+
+	// Construct the arbn to intersect with the implicit to form the final shape
+	if (arbn_planes.Count() > 3) {
+	    struct csg_object_params *sub_param;
+	    BU_GET(sub_param, struct csg_object_params);
+	    csg_object_params_init(sub_param, data);
+	    sub_param->csg_id = (*(data->i->obj_cnt))++;
+	    sub_param->csg_type = ARBN;
+	    sub_param->bool_op = '+'; // arbn is intersected with primary primitive
+	    sub_param->planes = (plane_t *)bu_calloc(arbn_planes.Count(), sizeof(plane_t), "planes");
+	    sub_param->plane_cnt = arbn_planes.Count();
+	    for (int i = 0; i < arbn_planes.Count(); i++) {
+		ON_Plane p = arbn_planes[i];
+		double d = p.DistanceTo(ON_3dPoint(0, 0, 0));
+		sub_param->planes[i][0] = p.Normal().x;
+		sub_param->planes[i][1] = p.Normal().y;
+		sub_param->planes[i][2] = p.Normal().z;
+		sub_param->planes[i][3] = -1 * d;
+	    }
+	    bu_ptbl_ins(data->shoal_children, (long *)sub_param);
+	}
     }
 
 

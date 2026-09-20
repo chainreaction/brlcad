@@ -42,14 +42,17 @@
 int
 cone_validate_face(const ON_BrepFace *forig, const ON_BrepFace *fcand)
 {
+    if (!forig || !fcand || !forig->SurfaceOf() || !fcand->SurfaceOf()) return 0;
     ON_Cone corig;
     ON_Surface *csorig = forig->SurfaceOf()->Duplicate();
+    if (!csorig) return 0;
     csorig->IsCone(&corig, BREP_CONIC_TOL);
     delete csorig;
     ON_Line lorig(corig.BasePoint(), corig.ApexPoint());
 
     ON_Cone ccand;
     ON_Surface *cscand = fcand->SurfaceOf()->Duplicate();
+    if (!cscand) return 0;
     cscand->IsCone(&ccand, BREP_CONIC_TOL);
     delete cscand;
     double d1 = lorig.DistanceTo(ccand.BasePoint());
@@ -76,10 +79,13 @@ cone_validate_face(const ON_BrepFace *forig, const ON_BrepFace *fcand)
  * 1 if it is pointing out, and 0 if there is some other problem */
 int
 negative_cone(const ON_Brep *brep, int face_index, double cone_tol) {
+    if (!brep || face_index < 0 || face_index >= brep->m_F.Count()) return 0;
     int ret = 0;
     const ON_Surface *surf = brep->m_F[face_index].SurfaceOf();
+    if (!surf) return 0;
     ON_Cone cone;
     ON_Surface *cs = surf->Duplicate();
+    if (!cs) return 0;
     cs->IsCone(&cone, cone_tol);
     delete cs;
 
@@ -110,8 +116,15 @@ cone_implicit_plane(const ON_Brep *brep, int lc, int *le, ON_SimpleArray<ON_Plan
 int
 cone_implicit_params(struct subbrep_shoal_data *data, ON_SimpleArray<ON_Plane> *cone_planes, int implicit_plane_ind, int ndc, int *nde, int shoal_nonplanar_face, int UNUSED(nonlinear_edge))
 {
+    if (!data || !data->i || !data->i->brep || !data->params || !cone_planes) return -1;
+    if (data->shoal_loops_cnt <= 0 || !data->shoal_loops) return -1;
 
     const ON_Brep *brep = data->i->brep;
+    int l0 = data->shoal_loops[0];
+    if (l0 < 0 || l0 >= brep->m_L.Count()) return -1;
+    const ON_BrepFace *face = brep->m_L[l0].Face();
+    if (!face || !face->SurfaceOf()) return -1;
+
     std::set<int> nondegen_edges;
     std::set<int>::iterator c_it;
     array_to_set(&nondegen_edges, nde, ndc);
@@ -119,7 +132,8 @@ cone_implicit_params(struct subbrep_shoal_data *data, ON_SimpleArray<ON_Plane> *
 
     // Make a starting cone from one of the cylindrical surfaces and construct the axis line
     ON_Cone cone;
-    ON_Surface *cs = brep->m_L[data->shoal_loops[0]].Face()->SurfaceOf()->Duplicate();
+    ON_Surface *cs = face->SurfaceOf()->Duplicate();
+    if (!cs) return -1;
     cs->IsCone(&cone, BREP_CONIC_TOL);
     delete cs;
     ON_Line l(cone.BasePoint(), cone.ApexPoint());
@@ -132,7 +146,7 @@ cone_implicit_params(struct subbrep_shoal_data *data, ON_SimpleArray<ON_Plane> *
     int need_arbn = 1;
     if ((*cone_planes).Count() <= 2) {
 	int perpendicular = 0;
-	for (int i = 0; i < 2; i++) {
+	for (int i = 0; i < (*cone_planes).Count(); i++) {
 	    ON_Plane p = (*cone_planes)[i];
 	    if (p.Normal().IsParallelTo(cone.Axis(), VUNITIZE_TOL) != 0) perpendicular++;
 	}
@@ -151,7 +165,9 @@ cone_implicit_params(struct subbrep_shoal_data *data, ON_SimpleArray<ON_Plane> *
 
     // Add in all the nondegenerate edge vertices
     for (c_it = nondegen_edges.begin(); c_it != nondegen_edges.end(); c_it++) {
+	if (*c_it < 0 || *c_it >= brep->m_E.Count()) continue;
         const ON_BrepEdge *edge = &(brep->m_E[*c_it]);
+	if (!edge || !edge->Vertex(0) || !edge->Vertex(1)) continue;
         axis_pts_init.Append(edge->Vertex(0)->Point());
         axis_pts_init.Append(edge->Vertex(1)->Point());
     }
@@ -178,9 +194,19 @@ cone_implicit_params(struct subbrep_shoal_data *data, ON_SimpleArray<ON_Plane> *
 		    dpc = ON_DotProduct(av, -1*(*cone_planes)[i].Normal());
 		}
 		C = M_PI - (M_PI/2 - acos(dpc)) - fabs(cone.AngleInRadians());
-		a = fabs(side * sin(cone.AngleInRadians()) / sin(C));
+		double sin_c1 = sin(C);
+		if (NEAR_ZERO(sin_c1, VUNITIZE_TOL)) {
+		    notrim_planes.insert(i);
+		    continue;
+		}
+		a = fabs(side * sin(cone.AngleInRadians()) / sin_c1);
 		C = M_PI - (M_PI/2 + acos(dpc)) - fabs(cone.AngleInRadians());
-		b = fabs(side * sin(fabs(cone.AngleInRadians())) / sin(C));
+		double sin_c2 = sin(C);
+		if (NEAR_ZERO(sin_c2, VUNITIZE_TOL)) {
+		    notrim_planes.insert(i);
+		    continue;
+		}
+		b = fabs(side * sin(fabs(cone.AngleInRadians())) / sin_c2);
 
 		ON_3dVector cone_unit_axis = cone.Axis();
 		cone_unit_axis.Unitize();
@@ -219,6 +245,8 @@ cone_implicit_params(struct subbrep_shoal_data *data, ON_SimpleArray<ON_Plane> *
         }
         if (!trimmed) axis_pts_2nd.Append(axis_pts_init[i]);
     }
+
+    if (axis_pts_2nd.Count() == 0) return -1;
 
     // For everything that's left, project it back onto the central axis line and see
     // if it's further up or down the line than anything previously checked.  We want

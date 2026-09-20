@@ -42,6 +42,7 @@
 void
 set_key(struct bu_vls *key, int k_cnt, int *k_array)
 {
+    if (!key || k_cnt <= 0 || !k_array) return;
     for (int i = 0; i < k_cnt; i++) {
 	bu_vls_printf(key, "%d", k_array[i]);
 	if (i != k_cnt - 1) bu_vls_printf(key, "%c", COMMA);
@@ -52,16 +53,20 @@ set_key(struct bu_vls *key, int k_cnt, int *k_array)
 void
 set_to_array(int **array, int *array_cnt, std::set<int> *set)
 {
+    if (!array || !array_cnt) return;
+    if (*array) {
+	bu_free((*array), "free old array");
+	*array = NULL;
+    }
+    *array_cnt = 0;
+    if (!set || set->empty()) return;
     std::set<int>::iterator s_it;
     int i = 0;
-    if (*array) bu_free((*array), "free old array");
-    (*array_cnt) = set->size();
-    if ((*array_cnt) > 0) {
-	(*array) = (int *)bu_calloc((*array_cnt), sizeof(int), "array");
-	for (s_it = set->begin(); s_it != set->end(); s_it++) {
-	    (*array)[i] = *s_it;
-	    i++;
-	}
+    *array_cnt = set->size();
+    *array = (int *)bu_calloc(*array_cnt, sizeof(int), "array");
+    for (s_it = set->begin(); s_it != set->end(); s_it++) {
+	(*array)[i] = *s_it;
+	i++;
     }
 }
 
@@ -69,6 +74,7 @@ set_to_array(int **array, int *array_cnt, std::set<int> *set)
 void
 array_to_set(std::set<int> *set, int *array, int array_cnt)
 {
+    if (!set || !array || array_cnt <= 0) return;
     for (int i = 0; i < array_cnt; i++) {
 	set->insert(array[i]);
     }
@@ -183,7 +189,7 @@ subbrep_island_free(struct subbrep_island_data *obj)
 
     if (obj->nucleus) {
 	subbrep_shoal_free(obj->nucleus);
-	BU_PUT(obj->nucleus, struct csg_obj_params);
+	BU_PUT(obj->nucleus, struct subbrep_shoal_data);
 	obj->nucleus = NULL;
     }
 
@@ -242,9 +248,11 @@ subbrep_island_free(struct subbrep_island_data *obj)
 surface_t
 GetSurfaceType(const ON_Surface *orig_surface)
 {
+    if (!orig_surface) return SURFACE_GENERAL;
     ON_Surface *surface;
     surface_t ret = SURFACE_GENERAL;
     ON_Surface *in_surface = orig_surface->Duplicate();
+    if (!in_surface) return SURFACE_GENERAL;
     // Make things a bit larger so small surfaces can be identified
     ON_Xform sf(1000);
     in_surface->Transform(sf);
@@ -500,6 +508,7 @@ subbrep_brep_boolean(struct subbrep_island_data *data)
 int
 subbrep_make_brep(struct bu_vls *UNUSED(msgs), struct subbrep_island_data *data)
 {
+    if (!data || !data->brep || data->island_loops_cnt <= 0 || !data->island_loops) return 0;
     if (data->local_brep) return 0;
     data->local_brep = ON_Brep::New();
     const ON_Brep *brep = data->brep;
@@ -617,7 +626,9 @@ subbrep_make_brep(struct bu_vls *UNUSED(msgs), struct subbrep_island_data *data)
     // Make sure all the loop directions and types are correct
     for (int f = 0; f < nbrep->m_F.Count(); f++) {
 	ON_BrepFace *face = &(nbrep->m_F[f]);
-	if (face->m_li.Count() == 1) {
+	if (face->m_li.Count() == 0) {
+	    continue;
+	} else if (face->m_li.Count() == 1) {
 	    ON_BrepLoop& loop = nbrep->m_L[face->m_li[0]];
 	    if (nbrep->LoopDirection(loop) != 1) {
 		nbrep->FlipLoop(loop);

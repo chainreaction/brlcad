@@ -45,14 +45,17 @@
 int
 cyl_validate_face(const ON_BrepFace *forig, const ON_BrepFace *fcand)
 {
+    if (!forig || !fcand || !forig->SurfaceOf() || !fcand->SurfaceOf()) return 0;
     ON_Cylinder corig;
     ON_Surface *csorig = forig->SurfaceOf()->Duplicate();
+    if (!csorig) return 0;
     csorig->IsCylinder(&corig, BREP_CYLINDRICAL_TOL);
     delete csorig;
     ON_Line lorig(corig.circle.Center(), corig.circle.Center() + corig.Axis());
 
     ON_Cylinder ccand;
     ON_Surface *cscand = fcand->SurfaceOf()->Duplicate();
+    if (!cscand) return 0;
     cscand->IsCylinder(&ccand, BREP_CYLINDRICAL_TOL);
     delete cscand;
     double d1 = lorig.DistanceTo(ccand.circle.Center());
@@ -76,10 +79,13 @@ cyl_validate_face(const ON_BrepFace *forig, const ON_BrepFace *fcand)
  * 1 if it is pointing out, and 0 if there is some other problem */
 int
 negative_cylinder(const ON_Brep *brep, int face_index, double cyl_tol) {
+    if (!brep || face_index < 0 || face_index >= brep->m_F.Count()) return 0;
     int ret = 0;
     const ON_Surface *surf = brep->m_F[face_index].SurfaceOf();
+    if (!surf) return 0;
     ON_Cylinder cylinder;
     ON_Surface *cs = surf->Duplicate();
+    if (!cs) return 0;
     cs->IsCylinder(&cylinder, cyl_tol);
     delete cs;
 
@@ -103,6 +109,7 @@ negative_cylinder(const ON_Brep *brep, int face_index, double cyl_tol) {
 int
 cyl_implicit_plane(const ON_Brep *brep, int lc, int *le, ON_SimpleArray<ON_Plane> *cyl_planes)
 {
+    if (!brep || !cyl_planes) return -2;
     std::set<int> linear_edges;
     std::set<int>::iterator c_it;
     array_to_set(&linear_edges, le, lc);
@@ -116,6 +123,7 @@ cyl_implicit_plane(const ON_Brep *brep, int lc, int *le, ON_SimpleArray<ON_Plane
 	// plane.  Otherwise, construct a plane from the vertex points.
 	//bu_log("found two linear edges\n");
 	for (c_it = linear_edges.begin(); c_it != linear_edges.end(); c_it++) {
+	    if (*c_it < 0 || *c_it >= brep->m_E.Count()) continue;
 	    const ON_BrepEdge *edge = &(brep->m_E[*c_it]);
 	    verts.insert(edge->m_vi[0]);
 	    verts.insert(edge->m_vi[1]);
@@ -128,9 +136,12 @@ cyl_implicit_plane(const ON_Brep *brep, int lc, int *le, ON_SimpleArray<ON_Plane
 	ON_3dPointArray points;
 	points.SetCapacity(3);
 	for (c_it = verts.begin(); c_it != verts.end(); c_it++) {
+	    if (*c_it < 0 || *c_it >= brep->m_V.Count()) continue;
 	    const ON_BrepVertex *v = &(brep->m_V[*c_it]);
 	    points.Append(v->Point());
 	}
+
+	if (points.Count() < 3) return -1;
 
 	ON_Plane pf(points[0], points[1], points[2]);
 #if TIKZ_OUT1
@@ -159,7 +170,7 @@ cyl_implicit_plane(const ON_Brep *brep, int lc, int *le, ON_SimpleArray<ON_Plane
 
 	// If the fourth point is not coplanar with the other three, we've hit a case
 	// that we don't currently handlinear_edges.- hault. (TODO - need test case)
-	if (pf.DistanceTo(points[3]) > BREP_PLANAR_TOL) return -2;
+	if (points.Count() > 3 && pf.DistanceTo(points[3]) > BREP_PLANAR_TOL) return -2;
 
 	(*cyl_planes).Append(pf);
 	return (*cyl_planes).Count() - 1;
@@ -173,14 +184,23 @@ cyl_implicit_plane(const ON_Brep *brep, int lc, int *le, ON_SimpleArray<ON_Plane
 int
 cyl_implicit_params(struct subbrep_shoal_data *data, ON_SimpleArray<ON_Plane> *cyl_planes, int implicit_plane_ind, int ndc, int *nde, int shoal_nonplanar_face, int nonlinear_edge)
 {
+    if (!data || !data->i || !data->i->brep || !data->params || !cyl_planes) return -1;
+    if (data->shoal_loops_cnt <= 0 || !data->shoal_loops) return -1;
+
     const ON_Brep *brep = data->i->brep;
+    int l0 = data->shoal_loops[0];
+    if (l0 < 0 || l0 >= brep->m_L.Count()) return -1;
+    const ON_BrepFace *face = brep->m_L[l0].Face();
+    if (!face || !face->SurfaceOf()) return -1;
+
     std::set<int> nondegen_edges;
     std::set<int>::iterator c_it;
     array_to_set(&nondegen_edges, nde, ndc);
 
     // Make a starting cylinder from one of the cylindrical surfaces and construct the axis line
     ON_Cylinder cylinder;
-    ON_Surface *cs = brep->m_L[data->shoal_loops[0]].Face()->SurfaceOf()->Duplicate();
+    ON_Surface *cs = face->SurfaceOf()->Duplicate();
+    if (!cs) return -1;
     cs->IsCylinder(&cylinder, BREP_CYLINDRICAL_TOL);
     delete cs;
     double height[2];
@@ -210,6 +230,7 @@ cyl_implicit_params(struct subbrep_shoal_data *data, ON_SimpleArray<ON_Plane> *c
     std::set<int> apinit;
     std::set<int>::iterator apit;
     for (c_it = nondegen_edges.begin(); c_it != nondegen_edges.end(); c_it++) {
+	if (*c_it < 0 || *c_it >= brep->m_E.Count()) continue;
 	const ON_BrepEdge *edge = &(brep->m_E[*c_it]);
 	apinit.insert(edge->m_vi[0]);
 	apinit.insert(edge->m_vi[1]);
@@ -217,6 +238,7 @@ cyl_implicit_params(struct subbrep_shoal_data *data, ON_SimpleArray<ON_Plane> *c
     // Add the points to a 3DPoint array
     ON_3dPointArray axis_pts_init;
     for (apit = apinit.begin(); apit != apinit.end(); apit++) {
+	if (*apit < 0 || *apit >= brep->m_V.Count()) continue;
 	const ON_BrepVertex *v = &(brep->m_V[*apit]);
 	axis_pts_init.Append(v->Point());
     }
@@ -282,6 +304,8 @@ cyl_implicit_params(struct subbrep_shoal_data *data, ON_SimpleArray<ON_Plane> *c
 	if (!trimmed) axis_pts_2nd.Append(axis_pts_init[i]);
     }
 
+    if (axis_pts_2nd.Count() == 0) return -1;
+
     // For everything that's left, project it back onto the central axis line and see
     // if it's further up or down the line than anything previously checked.  We want
     // the min and the max points on the centeral axis.
@@ -312,8 +336,10 @@ cyl_implicit_params(struct subbrep_shoal_data *data, ON_SimpleArray<ON_Plane> *c
     // Now that we have the implicit plane and the cylinder, see how much of the cylinder
     // we've got as positive volume.  This information is needed in certain situations to resolve booleans.
     if (implicit_plane_ind != -1) {
-	if (nonlinear_edge != -1) {
+	if (implicit_plane_ind >= 0 && implicit_plane_ind < (*cyl_planes).Count() &&
+	    nonlinear_edge >= 0 && nonlinear_edge < brep->m_E.Count()) {
 	    const ON_BrepEdge *edge = &(brep->m_E[nonlinear_edge]);
+	    if (!edge || !edge->EdgeCurveOf()) return -1;
 	    ON_3dPoint midpt = edge->EdgeCurveOf()->PointAt(edge->EdgeCurveOf()->Domain().Mid());
 	    ON_Plane p = (*cyl_planes)[implicit_plane_ind];
 	    ON_3dVector ve = midpt - p.origin;
