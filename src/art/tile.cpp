@@ -62,18 +62,40 @@ extern struct fb *fbp;	/* Framebuffer handle */
 void
 ArtTileCallback::on_tile_end(const renderer::Frame* frame, const size_t tile_x, const size_t tile_y)
 {
-    foundation::Tile& t = frame->image().tile(tile_x, tile_y);
+    if (!frame || !fbp)
+	return;
+
+    const foundation::Image& img = frame->image();
+    const auto& props = img.properties();
+    if (tile_x >= props.m_tile_count_x || tile_y >= props.m_tile_count_y)
+	return;
+
+    const foundation::Tile& t = img.tile(tile_x, tile_y);
     const foundation::Tile rgb(t, PixelFormatUInt8);
-    // fb_write(fbp, tile_x, tile_y, rgb.get_storage(), rgb.get_size());
-    // printf("yay!\n");
-    // printf("%lu %lu \n", tile_x, tile_y);
-    // printf("%lu %lu \n", rgb.get_width(), rgb.get_height());
-    for (size_t y = 0; y < rgb.get_height(); y++) {
-	for (size_t x = 0; x < rgb.get_width(); x++) {
-	    size_t x_coord = tile_x * rgb.get_width() + x;
-	    size_t y_coord = tile_y * rgb.get_height() + y;
-	    size_t img_h = frame->image().properties().m_canvas_height;
-	    fb_write(fbp, (int)x_coord, (int)(img_h - y_coord), rgb.get_storage()+((y * rgb.get_width() * 4) + (x * 4)), 1);
+
+    size_t img_w = props.m_canvas_width;
+    size_t img_h = props.m_canvas_height;
+    size_t tile_w = rgb.get_width();
+    size_t tile_h = rgb.get_height();
+    const uint8_t *storage = reinterpret_cast<const uint8_t *>(rgb.get_storage());
+    size_t storage_size = rgb.get_size();
+
+    if (!storage || img_h == 0)
+	return;
+
+    for (size_t y = 0; y < tile_h; y++) {
+	size_t y_coord = tile_y * tile_h + y;
+	if (y_coord >= img_h)
+	    continue;
+	int fb_y = (int)(img_h - 1 - y_coord);
+	for (size_t x = 0; x < tile_w; x++) {
+	    size_t x_coord = tile_x * tile_w + x;
+	    if (x_coord >= img_w)
+		continue;
+	    size_t pixel_offset = (y * tile_w + x) * 4;
+	    if (pixel_offset + 4 <= storage_size) {
+		fb_write(fbp, (int)x_coord, fb_y, storage + pixel_offset, 1);
+	    }
 	}
     }
 }

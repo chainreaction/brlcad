@@ -120,7 +120,7 @@ thread_local struct BRLCAD_to_ASR brlcad_ray_info;
 
 /* brlcad raytrace hit callback */
 int
-brlcad_hit(struct application* UNUSED(ap), struct partition* PartHeadp, struct seg* UNUSED(segs))
+brlcad_hit(struct application* ap, struct partition* PartHeadp, struct seg* UNUSED(segs))
 {
     struct partition* pp;
     struct hit* hitp = NULL;
@@ -132,6 +132,9 @@ brlcad_hit(struct application* UNUSED(ap), struct partition* PartHeadp, struct s
     //point_t pt;
     vect_t inormal;
 
+    if (!ap || !PartHeadp)
+	return 0;
+
     // vect_t onormal;
 
     /* Secondary path-tracing rays may originate inside a region.  In that
@@ -141,13 +144,13 @@ brlcad_hit(struct application* UNUSED(ap), struct partition* PartHeadp, struct s
     for (pp = PartHeadp->pt_forw; pp != PartHeadp; pp = pp->pt_forw) {
 	if (pp->pt_inhit && pp->pt_inhit->hit_dist >= 0.0) {
 	    hitp = pp->pt_inhit;
-	    stp = pp->pt_inseg->seg_stp;
+	    stp = pp->pt_inseg ? pp->pt_inseg->seg_stp : NULL;
 	    flip = pp->pt_inflip;
 	    break;
 	}
 	if (pp->pt_outhit && pp->pt_outhit->hit_dist >= 0.0) {
 	    hitp = pp->pt_outhit;
-	    stp = pp->pt_outseg->seg_stp;
+	    stp = pp->pt_outseg ? pp->pt_outseg->seg_stp : NULL;
 	    flip = pp->pt_outflip;
 	    break;
 	}
@@ -213,15 +216,17 @@ BrlcadObject:: BrlcadObject(
     VSET(max, m_params.get_required<double>("maxX"), m_params.get_required<double>("maxY"), m_params.get_required<double>("maxZ"));
 
     std::string db_file = m_params.get_required<std::string>("database_path");
-    this->rtip = rt_i_create(p_ap->a_rt_i->rti_dbip);
+    this->rtip = (p_ap && p_ap->a_rt_i && p_ap->a_rt_i->rti_dbip) ? rt_i_create(p_ap->a_rt_i->rti_dbip) : RTI_NULL;
     if (this->rtip == RTI_NULL) {
         RENDERER_LOG_INFO("building the database directory for [%s] FAILED\n", db_file.c_str());
         bu_exit(BRLCAD_ERROR, "building the database directory for [%s] FAILED\n", db_file.c_str());
     }
 
-    for (int ic = 0; ic < MAX_PSW; ic++) {
-	rt_init_resource(&p_resources[ic], ic, this->rtip);
-        RT_CK_RESOURCE(&p_resources[ic]);
+    if (p_resources) {
+	for (int ic = 0; ic < MAX_PSW; ic++) {
+	    rt_init_resource(&p_resources[ic], ic, this->rtip);
+	    RT_CK_RESOURCE(&p_resources[ic]);
+	}
     }
 
     rt_gettree(this->rtip, this->name->c_str());
@@ -244,6 +249,10 @@ BrlcadObject::release()
 {
     // bu_free(resources, "appleseed");
     // bu_free(ap, "appleseed");
+    if (this->rtip != RTI_NULL) {
+	rt_i_destroy(this->rtip);
+	this->rtip = RTI_NULL;
+    }
     delete this->name;
     delete this;
 }
@@ -316,10 +325,17 @@ BrlcadObject::intersect(
     const asr::ShadingRay& ray,
     IntersectionResult& result) const
 {
+    if (!resources || !this->name) {
+	result.m_hit = false;
+	return;
+    }
+
     struct application app;
     app = ap;  /*struct copy*/
     /* brlcad raytracing */
     int cpu = get_id();
+    if (cpu < 0 || cpu >= MAX_PSW)
+	cpu = 0;
     app.a_resource = &resources[cpu];
 
     /* Honor the shading ray's valid interval [m_tmin, m_tmax).  m_dir is NOT
@@ -370,10 +386,15 @@ BrlcadObject::intersect(
 bool
 BrlcadObject::intersect(const asr::ShadingRay& ray) const
 {
+    if (!resources || !this->name)
+	return false;
+
     struct application app;
     app = ap; /* struct copy */
     /* brlcad raytracing */
     int cpu = get_id();
+    if (cpu < 0 || cpu >= MAX_PSW)
+	cpu = 0;
     app.a_resource = &resources[cpu];
 
     /* Occlusion test over the ray's [m_tmin, m_tmax) interval (see the detailed
@@ -431,7 +452,9 @@ static std::atomic<int> counter;
 int
 BrlcadObject::get_id()
 {
-    thread_local int id = counter++;
+    thread_local int id = (counter++) % MAX_PSW;
+    if (id < 0)
+	id = 0;
     return id;
 }
 
@@ -502,14 +525,17 @@ BrlcadObject::configure_raytrace_application(const char* path, int objc, std::ve
     }
 
     /* parse object arguments */
-    const char** objv = (const char**)bu_calloc((size_t)objc + 1, sizeof(char*), "obj array");
-    for (int i = 0; i < objc; i++) {
-	objv[i] = objects.at(i).c_str();
-    }
+    if (objc > 0 && !objects.empty()) {
+	const char** objv = (const char**)bu_calloc((size_t)objc + 1, sizeof(char*), "obj array");
+	for (int i = 0; i < objc && i < (int)objects.size(); i++) {
+	    objv[i] = objects.at(i).c_str();
+	}
 
-    /* include objects from database */
-    if (rt_gettrees(rtip, objc, objv, (int)npsw) < 0) {
-	bu_log("Loading the geometry for [%s] FAILED\n", objects[0].c_str());
+	/* include objects from database */
+	if (rt_gettrees(rtip, objc, objv, (int)npsw) < 0) {
+	    bu_log("Loading the geometry for [%s] FAILED\n", objects[0].c_str());
+	}
+	bu_free(objv, "obj array");
     }
 
     /* Prepare database for raytracing */

@@ -60,7 +60,7 @@
 #include "art.h"
 
 /* A BRLCAD object from geometry database */
-const char* Model = "brlcad geometry";
+static const char* const Model = "brlcad geometry";
 
 struct BRLCAD_to_ASR
 {

@@ -272,10 +272,10 @@ color_hook(const struct bu_structparse *sp, const char *name, void *UNUSED(base)
 {
     struct bu_color color = BU_COLOR_INIT_ZERO;
 
-    BU_CK_STRUCTPARSE(sp);
-
     if (!sp || !name || !value || sp->sp_count != 3 || bu_strcmp("%f", sp->sp_fmt))
 	bu_bomb("color_hook(): invalid arguments");
+
+    BU_CK_STRUCTPARSE(sp);
 
     if (!bu_color_from_str(&color, value)) {
 	bu_log("ERROR: invalid color string: '%s'\n", value);
@@ -400,7 +400,7 @@ art_validate_options(void)
 		 "path-tracer quality with -c \"set samples=<N>\" instead "
 		 "(current default is 25)");
 
-    if (use_air != 0 || airdensity != 0.0 || densityfile != NULL)
+    if (use_air != 0 || !ZERO(airdensity) || densityfile != NULL)
 	ART_WARN("-U air-region handling, -m atmospheric haze, and -d density "
 		 "file are ignored; art has no participating-media model");
 
@@ -480,8 +480,12 @@ namespace asr = renderer;
 static void
 art_parse_light_intensity(const struct bu_vls* shader, double* bright, double* fract)
 {
-    *bright = 1.0;
-    *fract = -1.0;
+    if (bright)
+	*bright = 1.0;
+    if (fract)
+	*fract = -1.0;
+    if (!shader || !bright || !fract)
+	return;
 
     const char* s = bu_vls_cstr(shader);
     if (bu_strncmp(s, "light", 5) == 0)
@@ -549,8 +553,11 @@ register_region(struct db_tree_state* tsp,
     bu_log("name: %s\n", conversion_temp.c_str());
 
     // get objects bounding box
-    struct ged* gedp;
-    gedp = ged_open("db", tsp->ts_dbip->dbi_filename, 1);
+    if (!tsp || !tsp->ts_dbip || !tsp->ts_dbip->dbi_filename)
+	return 1;
+    struct ged* gedp = ged_open("db", tsp->ts_dbip->dbi_filename, 1);
+    if (gedp == GED_NULL)
+	return 1;
     point_t min;
     point_t max;
     int ret = rt_obj_bounds(gedp->ged_result_str, gedp->dbip, 1, (const char**)&name_full, 1, min, max);
@@ -738,6 +745,7 @@ register_region(struct db_tree_state* tsp,
 	    asf::Transformd::identity());
     scene->assembly_instances().insert(assembly_instance);
 
+    ged_close(gedp);
     return 0;
 }
 
@@ -872,23 +880,32 @@ build_project(const char* file, const char* UNUSED(objects))
     // walk the db to register all regions
     struct db_tree_state state;
     RT_DBTS_INIT(&state);
-    struct db_i* dbip = db_open(file, DB_OPEN_READONLY);
-    state.ts_dbip = dbip;
+    struct db_i* walk_dbip = (APP.a_rt_i && APP.a_rt_i->rti_dbip) ? APP.a_rt_i->rti_dbip : DBI_NULL;
+    struct db_i* dbip = DBI_NULL;
+    if (walk_dbip == DBI_NULL && file) {
+	dbip = db_open(file, DB_OPEN_READONLY);
+	walk_dbip = dbip;
+    }
+    state.ts_dbip = walk_dbip;
 
     /* discovered lights are collected by register_region() during the walk */
     art_lights.clear();
     art_seen_regions.clear();
 
-    if (objc) {
-	db_walk_tree(APP.a_rt_i->rti_dbip, objc, (const char**)objv, 1, &state, register_region, NULL, NULL, reinterpret_cast<void*>(scene.get()));
-    }
-    if (cmd_objs) {
-
-	size_t cmdobjc = BU_PTBL_LEN(cmd_objs);
-	const char** cmdobjv = (const char**)cmd_objs->buffer;
-	if (cmdobjc) {
-	    db_walk_tree(APP.a_rt_i->rti_dbip, (int)cmdobjc, cmdobjv, 1, &state, register_region, NULL, NULL, reinterpret_cast<void*>(scene.get()));
+    if (walk_dbip) {
+	if (objc) {
+	    db_walk_tree(walk_dbip, objc, (const char**)objv, 1, &state, register_region, NULL, NULL, reinterpret_cast<void*>(scene.get()));
 	}
+	if (cmd_objs) {
+	    size_t cmdobjc = BU_PTBL_LEN(cmd_objs);
+	    const char** cmdobjv = (const char**)cmd_objs->buffer;
+	    if (cmdobjc) {
+		db_walk_tree(walk_dbip, (int)cmdobjc, cmdobjv, 1, &state, register_region, NULL, NULL, reinterpret_cast<void*>(scene.get()));
+	    }
+	}
+    }
+    if (dbip) {
+	db_close(dbip);
     }
 
     //------------------------------------------------------------------------
@@ -1051,6 +1068,7 @@ build_project(const char* file, const char* UNUSED(objects))
 	        .insert("film_dimensions", bu_vls_cstr(&dimensions))
 	        .insert("horizontal_fov", bu_vls_cstr(&fov))
 		));
+	bu_vls_free(&fov);
         camera = pinhole;
     } else {
         // Create an orthographic camera with film dimensions
@@ -1121,6 +1139,7 @@ build_project(const char* file, const char* UNUSED(objects))
     // Bind the scene to the project.
     project->set_scene(scene);
 
+    bu_vls_free(&dimensions);
     return project;
 }
 
@@ -1263,6 +1282,9 @@ def_tree(struct rt_i* rtip)
 static void
 art_save_image(asr::Project& project, const char* filename)
 {
+    if (!filename || !project.get_frame())
+	return;
+
     const char* dot = strrchr(filename, '.');
 
     /* Formats Appleseed writes directly: skip the round-trip. */
@@ -1358,7 +1380,7 @@ art_cm_end(const int UNUSED(argc), const char** UNUSED(argv))
     renderer.reset();
 
     // clean up resources
-
+    bu_vls_free(&str);
 
     return 0;
 }
@@ -1394,7 +1416,11 @@ main(int argc, char **argv)
     struct bu_vls str = BU_VLS_INIT_ZERO;
     //int objs_free_argv = 0;
 
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0]) {
+	bu_setprogname(argv[0]);
+    } else {
+	bu_setprogname("art");
+    }
 
     // initialize options and overload menu before parsing
     init_defaults();
@@ -1402,12 +1428,12 @@ main(int argc, char **argv)
     /* Process command line options */
     int i = get_args(argc, (const char**)argv);
     if (i < 0) {
-	usage(argv[0], 0);
+	usage(bu_getprogname(), 0);
 	return 1;
     }
     // explicitly asking for help
     else if (i == 0) {
-	usage(argv[0], 99);
+	usage(bu_getprogname(), 99);
 	return 0;
     }
 
@@ -1416,8 +1442,8 @@ main(int argc, char **argv)
     art_validate_options();
 
     if (bu_optind >= argc) {
-	RENDERER_LOG_INFO("%s: BRL-CAD geometry database not specified\n", argv[0]);
-	usage(argv[0], 0);
+	RENDERER_LOG_INFO("%s: BRL-CAD geometry database not specified\n", bu_getprogname());
+	usage(bu_getprogname(), 0);
 	return 1;
     }
 
@@ -1450,6 +1476,7 @@ main(int argc, char **argv)
     rtip = rt_dirbuild(title_file, title, sizeof(title));
     if (rtip == RTI_NULL) {
 	RENDERER_LOG_INFO("building the database directory for [%s] FAILED\n", title_file);
+	bu_free(resources, "appleseed");
 	return -1;
     }
 
@@ -1476,7 +1503,8 @@ main(int argc, char **argv)
 
 	/* include objects from database */
 	if (rt_gettrees(rtip, objc, (const char**)objv, (int)npsw) < 0) {
-	    RENDERER_LOG_INFO("loading the geometry for [%s...] FAILED\n", objv[0]);
+	    RENDERER_LOG_INFO("loading the geometry for [%s...] FAILED\n", (objv && objc > 0 && objv[0]) ? objv[0] : "objects");
+	    bu_free(resources, "appleseed");
 	    return -1;
 	}
 
@@ -1499,6 +1527,7 @@ main(int argc, char **argv)
 		break;
 	}
 	bu_free(resources, "appleseed");
+	bu_vls_free(&str);
 	return 0;
     }
 
@@ -1513,7 +1542,9 @@ main(int argc, char **argv)
 
     if (framebuffer && !fbp) {
 	RENDERER_LOG_INFO("FRAMEBUFFER IS ON\n");
-	fb_setup();
+	if (fb_setup() != 0 || fbp == FB_NULL) {
+	    framebuffer = NULL;
+	}
     }
     ArtTileCallback artcallback;
     // Create the master renderer.
@@ -1578,6 +1609,7 @@ main(int argc, char **argv)
         renderer.reset();
     }
     // clean up resources
+    bu_vls_free(&str);
     bu_free(resources, "appleseed");
 
     return 0;
