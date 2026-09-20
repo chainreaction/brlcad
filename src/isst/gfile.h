@@ -43,6 +43,9 @@ class GFile : public QObject
     Q_OBJECT
 
     public:
+	GFile();
+	virtual ~GFile();
+
 	int load_g(const char *filename, int argc, const char **argv);
 	void closedb();
 

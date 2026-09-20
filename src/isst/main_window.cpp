@@ -63,16 +63,22 @@ ISST_MainWindow::open_file()
     const char *file_filters = "BRL-CAD (*.g *.asc);;All Files (*)";
     QString fileName = QFileDialog::getOpenFileName((QWidget *)this,
 	    "Open Geometry File",
-	    qApp->applicationDirPath(),
+	    qApp ? qApp->applicationDirPath() : QString(),
 	    file_filters,
 	    NULL,
 	    QFileDialog::DontUseNativeDialog);
     if (!fileName.isEmpty()) {
-	int ret = ((ISSTApp *)qApp)->load_g(fileName.toLocal8Bit(), 0, NULL);
-	if (ret) {
-	    statusBar()->showMessage("open failed");
-	} else {
-	    statusBar()->showMessage(fileName);
+	ISSTApp *app = qobject_cast<ISSTApp *>(qApp);
+	int ret = -1;
+	if (app) {
+	    ret = app->load_g(fileName.toLocal8Bit().constData(), 0, NULL);
+	}
+	if (statusBar()) {
+	    if (ret) {
+		statusBar()->showMessage("open failed");
+	    } else {
+		statusBar()->showMessage(fileName);
+	    }
 	}
     }
 }
@@ -98,7 +104,8 @@ void ISST_MainWindow::write_settings()
 
 void ISST_MainWindow::save_image()
 {
-    canvas->save_image();
+    if (canvas)
+	canvas->save_image();
 }
 
 

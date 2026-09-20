@@ -28,14 +28,19 @@
 int
 ISSTApp::load_g(const char *filename, int argc, const char *argv[])
 {
+    if (!filename)
+	return -1;
+
     if (g.load_g(filename, argc, argv)) {
-	w.statusBar()->showMessage("open failed");
+	if (w.statusBar())
+	    w.statusBar()->showMessage("open failed");
 	return -1;
     }
 
     // The OpenGL widget manages the rendering, so let it know about the
     // TIE data structure associated with the current model
-    w.canvas->set_tie(g.tie);
+    if (w.canvas)
+	w.canvas->set_tie(g.tie);
 
     return 0;
 }

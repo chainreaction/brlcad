@@ -34,8 +34,9 @@
 
 int main(int argc, char *argv[])
 {
-
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0]) {
+	bu_setprogname(argv[0]);
+    }
 
     ISSTApp app(argc, argv);
     app.setOrganizationName("BRL-CAD");
@@ -50,29 +51,33 @@ int main(int argc, char *argv[])
     argc--; argv++;
 
     // If we have command line arguments, process them
-    if (argc > 1) {
+    if (argc >= 1 && argv && argv[0]) {
 	const char *filename = argv[0];
 	argc--; argv++;
 	app.load_g(filename, argc, (const char **)argv);
     }
 
-    // This is an illustration of how to force an exact size for
-    // the OpenGL canvas.  Useful when we need a framebuffer window
-    // to exactly match a specified size.
-    QSize cminsize = app.w.canvas->minimumSize();
-    QSize cmaxsize = app.w.canvas->maximumSize();
-    app.w.canvas->setMinimumSize(1100,800);
-    app.w.canvas->setMaximumSize(1100,800);
-    app.w.canvas->updateGeometry();
+    if (app.w.canvas) {
+	// This is an illustration of how to force an exact size for
+	// the OpenGL canvas.  Useful when we need a framebuffer window
+	// to exactly match a specified size.
+	QSize cminsize = app.w.canvas->minimumSize();
+	QSize cmaxsize = app.w.canvas->maximumSize();
+	app.w.canvas->setMinimumSize(1100,800);
+	app.w.canvas->setMaximumSize(1100,800);
+	app.w.canvas->updateGeometry();
 
-    // Draw the window
-    app.w.show();
+	// Draw the window
+	app.w.show();
 
-    // Having forced the size we wanted, restore the original settings
-    // to allow for subsequent change (if it would have been allowed
-    // by the original settings.)
-    app.w.canvas->setMinimumSize(cminsize);
-    app.w.canvas->setMaximumSize(cmaxsize);
+	// Having forced the size we wanted, restore the original settings
+	// to allow for subsequent change (if it would have been allowed
+	// by the original settings.)
+	app.w.canvas->setMinimumSize(cminsize);
+	app.w.canvas->setMaximumSize(cmaxsize);
+    } else {
+	app.w.show();
+    }
 
     return app.exec();
 }

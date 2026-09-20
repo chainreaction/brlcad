@@ -28,6 +28,8 @@
 #include <QtGlobal>
 
 #include "bu/parallel.h"
+#include "bu/log.h"
+#include "bu/malloc.h"
 #include "isstgl.h"
 
 #include <chrono>
@@ -37,23 +39,25 @@
 TIERenderer::TIERenderer(isstGL *w)
     : m_w(w)
 {
-   // Initialize TIE camera
+    memset(&camera, 0, sizeof(camera));
+    memset(&tile, 0, sizeof(tile));
+    camera_pos_init[0] = camera_pos_init[1] = camera_pos_init[2] = 0.0;
+    camera_focus_init[0] = camera_focus_init[1] = camera_focus_init[2] = 0.0;
+
+    // Initialize TIE camera
     camera.type = RENDER_CAMERA_PERSPECTIVE;
     camera.fov = 25;
+    camera.w = 512;
+    camera.h = 512;
     render_camera_init(&camera, bu_avail_cpus());
     render_phong_init(&camera.render, NULL);
 
     // Initialize texture buffer
     TIENET_BUFFER_INIT(buffer_image);
-    texdata = realloc(texdata, camera.w * camera.h * 3);
-    texdata_size = camera.w * camera.h;
+    texdata_size = (long)camera.w * (long)camera.h;
+    texdata = malloc((size_t)texdata_size * 3);
 
     // Initialize TIE tile
-    //
-    // Note:  If orig_x and orig_Y are not initialized, output pixel placement
-    // in the buffer may be randomly offset - you may see no image, or an image
-    // in the wrong place (or it may happen to work if the values happen to be
-    // zero anyway...)
     tile.orig_x = 0;
     tile.orig_y = 0;
     tile.format = RENDER_CAMERA_BIT_DEPTH_24;
@@ -62,79 +66,115 @@ TIERenderer::TIERenderer(isstGL *w)
 TIERenderer::~TIERenderer()
 {
     TIENET_BUFFER_FREE(buffer_image);
-    free(texdata);
+    if (texdata) {
+	free(texdata);
+	texdata = NULL;
+    }
+    if (camera.view_list) {
+	bu_free(camera.view_list, "camera view_list");
+	camera.view_list = NULL;
+    }
 }
 
 void TIERenderer::resize()
 {
     // If something changed, we need to re-render - otherwise, no-op
-    if (!changed)
+    if (!changed || !m_w)
 	return;
 
     int w = m_w->width();
     int h = m_w->height();
+
+    if (w <= 0 || h <= 0)
+	return;
 
     // Translated from Tcl/Tk ISST logic for resolution adjustment
     if (resolution_factor == 0) {
 	camera.w = w;
 	camera.h = h;
     } else {
-	camera.w = resolution_factor;
-	camera.h = camera.w * h / w;
+	camera.w = (resolution_factor > 0) ? resolution_factor : 1;
+	camera.h = (int)((long long)camera.w * h / w);
+	if (camera.h <= 0)
+	    camera.h = 1;
     }
 
     // Set tile size
     tile.size_x = camera.w;
     tile.size_y = camera.h;
 
-
     // Set up the raytracing image buffer
-    TIENET_BUFFER_SIZE(buffer_image, (uint32_t)(3 * camera.w * camera.h));
+    TIENET_BUFFER_SIZE(buffer_image, (uint32_t)(3 * (size_t)camera.w * (size_t)camera.h));
 
-    if (texdata_size < camera.w * camera.h) {
-	texdata_size = camera.w * camera.h;
-	texdata = realloc(texdata, camera.w * camera.h * 3);
+    size_t new_size = (size_t)camera.w * (size_t)camera.h;
+    if (texdata_size < (long)new_size) {
+	void *new_texdata = realloc(texdata, new_size * 3);
+	if (new_texdata) {
+	    texdata = new_texdata;
+	    texdata_size = (long)new_size;
+	}
     }
+
+    if (texid == 0) {
+	glGenTextures(1, &texid);
+    }
+    glBindTexture(GL_TEXTURE_2D, texid);
 
     // Set up the TeXImage2D buffer that will hold the results of the raytrace
     // for OpenGL
-    glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
-    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-    glTexImage2D (GL_TEXTURE_2D, 0, GL_RGB, camera.w, camera.h, 0, GL_RGB, GL_UNSIGNED_BYTE, texdata);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, camera.w, camera.h, 0, GL_RGB, GL_UNSIGNED_BYTE, texdata);
 }
 
 void TIERenderer::res_incr()
 {
-    // Increase setting controlling raytracing grid density.
-    // Maximum is one raytraced pixel per window pixel
+    if (!m_w)
+	return;
     resolution++;
     CLAMP(resolution, 1, 20);
-    resolution_factor = (resolution == 20) ? 0 : lrint(floor(m_w->width() * .05 * resolution));
+    int win_w = m_w->width();
+    if (win_w <= 0)
+	win_w = 512;
+    resolution_factor = (resolution == 20) ? 0 : lrint(floor(win_w * .05 * resolution));
+    if (resolution < 20 && resolution_factor < 1)
+	resolution_factor = 1;
     scaled = true;
 }
 
 void TIERenderer::res_decr()
 {
-    // Decrease setting controlling raytracing grid density.
-    // Minimum is clamped - too course and the image is meaningless
+    if (!m_w)
+	return;
     resolution--;
     CLAMP(resolution, 1, 20);
-    resolution_factor = (resolution == 20) ? 0 : lrint(floor(m_w->height() * .05 * resolution));
+    int win_w = m_w->width();
+    if (win_w <= 0)
+	win_w = 512;
+    resolution_factor = (resolution == 20) ? 0 : lrint(floor(win_w * .05 * resolution));
+    if (resolution < 20 && resolution_factor < 1)
+	resolution_factor = 1;
     scaled = true;
 }
 
 void TIERenderer::render()
 {
-    if (m_exiting)
+    if (m_exiting || !m_w)
 	return;
 
     int w = m_w->width();
     int h = m_w->height();
-    // Zero size == nothing to do
-    if (!w || !h)
+    // Zero or negative size == nothing to do
+    if (w <= 0 || h <= 0)
 	return;
+
+    if (!tie) {
+	// No scene loaded yet
+	std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	return;
+    }
 
     if (scaled) {
 	changed = true;
@@ -163,7 +203,6 @@ void TIERenderer::render()
 	return;
     Q_ASSERT(ctx->thread() == QThread::currentThread());
 
-
     // Have context, initialize if necessary
     m_w->makeCurrent();
     if (!m_init) {
@@ -173,7 +212,6 @@ void TIERenderer::render()
 
     // Ready for actual OpenGL calls.
     resize();
-
 
     changed = false;
 
@@ -187,20 +225,25 @@ void TIERenderer::render()
 
     glDisable(GL_LIGHTING);
 
-    glViewport(0,0, m_w->width(), m_w->height());
-    glMatrixMode (GL_PROJECTION);
-    glLoadIdentity ();
+    glViewport(0, 0, m_w->width(), m_w->height());
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
     glOrtho(0, m_w->width(), m_w->height(), 0, -1, 1);
-    glMatrixMode (GL_MODELVIEW);
+    glMatrixMode(GL_MODELVIEW);
 
     glClear(GL_COLOR_BUFFER_BIT);
 
     glClear(GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
-    glColor3f(1,1,1);
+    glColor3f(1, 1, 1);
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, texid);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, camera.w, camera.h, GL_RGB, GL_UNSIGNED_BYTE, buffer_image.data + sizeof(camera_tile_t));
+
+    size_t req_bytes = sizeof(camera_tile_t) + 3 * (size_t)camera.w * (size_t)camera.h;
+    if (buffer_image.data && buffer_image.size >= req_bytes) {
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, camera.w, camera.h, GL_RGB, GL_UNSIGNED_BYTE, buffer_image.data + sizeof(camera_tile_t));
+    }
+
     glBegin(GL_TRIANGLE_STRIP);
 
     glTexCoord2d(0, 0); glVertex3f(0, 0, 0);
@@ -209,7 +252,6 @@ void TIERenderer::render()
     glTexCoord2d(1, 1); glVertex3f(m_w->width(), m_w->height(), 0);
 
     glEnd();
-
 
     // Make no context current on this thread and move the QOpenGLWidget's
     // context back to the gui thread.
@@ -253,22 +295,29 @@ isstGL::isstGL(QWidget *parent)
 
 isstGL::~isstGL()
 {
-    m_renderer->prepareExit();
-    m_thread->quit();
-    m_thread->wait();
-    delete m_thread;
+    if (m_renderer) {
+	m_renderer->prepareExit();
+    }
+    if (m_thread) {
+	m_thread->quit();
+	m_thread->wait();
+	delete m_thread;
+	m_thread = nullptr;
+    }
 }
 
 void isstGL::onAboutToCompose()
 {
     // We are on the gui thread here. Composition is about to
     // begin. Wait until the render thread finishes.
-    m_renderer->lockRenderer();
+    if (m_renderer)
+	m_renderer->lockRenderer();
 }
 
 void isstGL::onFrameSwapped()
 {
-    m_renderer->unlockRenderer();
+    if (m_renderer)
+	m_renderer->unlockRenderer();
     // Assuming a blocking swap, our animation is driven purely by the
     // vsync in this example.
     emit renderRequested();
@@ -276,18 +325,21 @@ void isstGL::onFrameSwapped()
 
 void isstGL::onAboutToResize()
 {
-    m_renderer->lockRenderer();
+    if (m_renderer)
+	m_renderer->lockRenderer();
 }
 
 void isstGL::onResized()
 {
-    m_renderer->changed = true;
-    m_renderer->unlockRenderer();
+    if (m_renderer) {
+	m_renderer->changed = true;
+	m_renderer->unlockRenderer();
+    }
 }
 
 void isstGL::grabContext()
 {
-    if (m_renderer->m_exiting)
+    if (!m_renderer || m_renderer->m_exiting)
 	return;
     m_renderer->lockRenderer();
     QMutexLocker lock(m_renderer->grabMutex());
@@ -299,15 +351,22 @@ void isstGL::grabContext()
 void
 isstGL::set_tie(struct tie_s *in_tie)
 {
+    if (!m_renderer)
+	return;
+
+    m_renderer->lockRenderer();
     m_renderer->tie = in_tie;
+    if (in_tie) {
+	// Initialize the camera position
+	VSETALL(m_renderer->camera.pos, in_tie->radius);
+	VMOVE(m_renderer->camera.focus, in_tie->mid);
 
-    // Initialize the camera position
-    VSETALL(m_renderer->camera.pos, m_renderer->tie->radius);
-    VMOVE(m_renderer->camera.focus, m_renderer->tie->mid);
-
-    // Record the initial settings for use in subsequent calculations
-    VSETALL(m_renderer->camera_pos_init, m_renderer->tie->radius);
-    VMOVE(m_renderer->camera_focus_init, m_renderer->tie->mid);
+	// Record the initial settings for use in subsequent calculations
+	VSETALL(m_renderer->camera_pos_init, in_tie->radius);
+	VMOVE(m_renderer->camera_focus_init, in_tie->mid);
+	m_renderer->changed = true;
+    }
+    m_renderer->unlockRenderer();
 
     // Having just loaded a new TIE scene,
     // we need a new image
@@ -315,6 +374,8 @@ isstGL::set_tie(struct tie_s *in_tie)
 }
 
 void isstGL::keyPressEvent(QKeyEvent *k) {
+    if (!k || !m_renderer)
+	return;
     //QString kstr = QKeySequence(k->key()).toString();
     //bu_log("%s\n", kstr.toStdString().c_str());
     switch (k->key()) {
@@ -337,6 +398,8 @@ void isstGL::keyPressEvent(QKeyEvent *k) {
 
 void isstGL::mouseMoveEvent(QMouseEvent *e)
 {
+    if (!e)
+	return;
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     bu_log("(%d,%d)\n", e->x(), e->y());
     if (x_prev > -INT_MAX && y_prev > -INT_MAX) {
@@ -349,8 +412,8 @@ void isstGL::mouseMoveEvent(QMouseEvent *e)
     if (x_prev > -INT_MAX && y_prev > -INT_MAX) {
 	bu_log("Delta: (%f,%f)\n", e->position().x() - x_prev, e->position().y() - y_prev);
     }
-    x_prev = e->position().x();
-    y_prev = e->position().y();
+    x_prev = (int)e->position().x();
+    y_prev = (int)e->position().y();
 #endif
 
     QOpenGLWidget::mouseMoveEvent(e);
@@ -358,7 +421,9 @@ void isstGL::mouseMoveEvent(QMouseEvent *e)
 
 void isstGL::save_image() {
     QImage image = this->grabFramebuffer();
-    image.save("file.png");
+    if (!image.isNull()) {
+	image.save("file.png");
+    }
 }
 
 // Local Variables:
