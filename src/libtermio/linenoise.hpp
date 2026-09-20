@@ -2017,7 +2017,7 @@ inline int linenoiseState::completeLine(char *cbuf, int *c)
 		int old_pos = pos_;
 		char *old_buf = buf_;
 		len_ = pos_ = static_cast<int>(lc[i].size());
-		buf_ = &lc[i][0];
+		buf_ = const_cast<char*>(lc[i].c_str());
 		RefreshLine();
 		len_ = old_len;
 		pos_ = old_pos;
@@ -2050,7 +2050,9 @@ inline int linenoiseState::completeLine(char *cbuf, int *c)
 		default:
 		    /* Update buffer and return */
 		    if (i < static_cast<int>(lc.size())) {
-			nwritten = snprintf(buf_,buf_len_,"%s", &lc[i][0]);
+			nwritten = snprintf(buf_, buf_len_, "%s", lc[i].c_str());
+			if (nwritten < 0) nwritten = 0;
+			if (nwritten >= buf_len_) nwritten = buf_len_ - 1;
 			len_ = pos_ = nwritten;
 		    }
 		    stop = 1;
@@ -2077,6 +2079,8 @@ inline void linenoiseState::refreshSingleLine()
 
     if (cols_ <= 0)
 	cols_ = getColumns(ifd_, ofd_);
+    if (cols_ <= 0)
+	cols_ = 80;
 
     while ((pcolwid+unicodeColumnPos(buf_, pos_)) >= cols_) {
 	int glen = unicodeGraphemeLen(buf_, len_, 0);
@@ -2111,6 +2115,8 @@ inline void linenoiseState::refreshMultiLine()
 {
     if (cols_ <= 0)
 	cols_ = getColumns(ifd_, ofd_);
+    if (cols_ <= 0)
+	cols_ = 80;
 
     char seq[64];
     int pcolwid = unicodeColumnPos(prompt_.c_str(), static_cast<int>(prompt_.length()));
@@ -2209,7 +2215,7 @@ inline void linenoiseState::ClearScreen()
 
 inline void linenoiseState::SetPrompt(const char *p)
 {
-    prompt_ = std::string(p);
+    prompt_ = (p) ? std::string(p) : std::string("> ");
 }
 inline void linenoiseState::SetPrompt(std::string &p)
 {
@@ -2221,7 +2227,8 @@ inline void linenoiseState::SetPrompt(std::string &p)
  * On error writing to the terminal -1 is returned, otherwise 0. */
 inline int linenoiseState::EditInsert(const char* cbuf, int clen)
 {
-    if (len_ < buf_len_) {
+    if (clen <= 0 || !cbuf) return 0;
+    if (len_ + clen < buf_len_) {
 	if (len_ == pos_) {
 	    memcpy(&buf_[pos_],cbuf,clen);
 	    pos_+=clen;
@@ -2324,7 +2331,7 @@ inline void linenoiseState::EditHistoryNext(int dir)
     // Put the currently selected history line's temporary
     // string contents into the buffer
     memset(buf_, 0, buf_len_);
-    strcpy(buf_, history_tmpbufs_[history_index_].c_str());
+    snprintf(buf_, buf_len_, "%s", history_tmpbufs_[history_index_].c_str());
     len_ = pos_ = static_cast<int>(strlen(buf_));
     RefreshLine();
 }
@@ -2359,6 +2366,9 @@ inline void linenoiseState::EditBackspace()
  * current word. */
 inline void linenoiseState::EditDeletePrevWord()
 {
+    if (pos_ <= 0 || len_ <= 0 || pos_ > len_)
+	return;
+
     int old_pos = pos_;
     int diff;
 
@@ -2369,6 +2379,7 @@ inline void linenoiseState::EditDeletePrevWord()
     diff = old_pos - pos_;
     memmove(buf_+pos_,buf_+old_pos,len_-old_pos+1);
     len_ -= diff;
+    buf_[len_] = '\0';
     RefreshLine();
 }
 
@@ -2683,6 +2694,7 @@ inline bool linenoiseState::AddHistory(std::string &line)
 
 inline bool linenoiseState::AddHistory(const char *line)
 {
+    if (!line) return false;
     std::string l(line);
     return AddHistory(l);
 }
@@ -2705,6 +2717,7 @@ inline bool linenoiseState::SetHistoryMaxLen(size_t mlen)
  * otherwise *false* is returned. */
 inline bool linenoiseState::SaveHistory(const char* path)
 {
+    if (!path) return false;
     std::ofstream f(path); // TODO: need 'std::ios::binary'?
     if (!f) return false;
     for (const auto& h: history_) {
@@ -2720,6 +2733,7 @@ inline bool linenoiseState::SaveHistory(const char* path)
  * on error *false* is returned. */
 inline bool linenoiseState::LoadHistory(const char* path)
 {
+    if (!path) return false;
     std::ifstream f(path);
     if (!f) return false;
     std::string line;

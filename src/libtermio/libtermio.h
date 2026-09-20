@@ -176,13 +176,15 @@ void        termio_debug_shutdown(void);
 #  include <memory.h>
 #endif
 
+#define TERMIO_FD_MAX 512
+
 #if defined(HAVE_TERMIOS_H)
 #  undef SYSV
 #  undef BSD
 #  include <termios.h>
 
-static struct termios save_tio[FOPEN_MAX] = TERMIO_ZERO_INIT;
-static struct termios curr_tio[FOPEN_MAX] = TERMIO_ZERO_INIT;
+static struct termios save_tio[TERMIO_FD_MAX] = TERMIO_ZERO_INIT;
+static struct termios curr_tio[TERMIO_FD_MAX] = TERMIO_ZERO_INIT;
 
 #else	/* !defined(HAVE_TERMIOS_H) */
 
@@ -190,16 +192,16 @@ static struct termios curr_tio[FOPEN_MAX] = TERMIO_ZERO_INIT;
 #    undef BSD
 #    include <termio.h>
 #    include <memory.h>
-static struct termio save_tio[FOPEN_MAX] = TERMIO_ZERO_INIT;
-static struct termio curr_tio[FOPEN_MAX] = TERMIO_ZERO_INIT;
+static struct termio save_tio[TERMIO_FD_MAX] = TERMIO_ZERO_INIT;
+static struct termio curr_tio[TERMIO_FD_MAX] = TERMIO_ZERO_INIT;
 #  endif /* SYSV */
 
 #  ifdef BSD
 #    undef SYSV
 #    include <sys/ioctl.h>
 
-static struct sgttyb save_tio[FOPEN_MAX] = TERMIO_ZERO_INIT;
-static struct sgttyb curr_tio[FOPEN_MAX] = TERMIO_ZERO_INIT;
+static struct sgttyb save_tio[TERMIO_FD_MAX] = TERMIO_ZERO_INIT;
+static struct sgttyb curr_tio[TERMIO_FD_MAX] = TERMIO_ZERO_INIT;
 #  endif /* BSD */
 
 #endif /* HAVE_TERMIOS_H */
@@ -207,8 +209,8 @@ static struct sgttyb curr_tio[FOPEN_MAX] = TERMIO_ZERO_INIT;
 #if defined(HAVE_CONIO_H)
 #  include <conio.h>
 /* array of unused function pointers, but created for consistency */
-static int (*save_tio[FOPEN_MAX])(void) = TERMIO_ZERO_INIT;
-static int (*curr_tio[FOPEN_MAX])(void) = TERMIO_ZERO_INIT;
+static int (*save_tio[TERMIO_FD_MAX])(void) = TERMIO_ZERO_INIT;
+static int (*curr_tio[TERMIO_FD_MAX])(void) = TERMIO_ZERO_INIT;
 #endif
 
 
@@ -237,6 +239,8 @@ copy_Tio(
 void
 clr_Echo(int fd)
 {
+    if (fd < 0 || fd >= TERMIO_FD_MAX)
+	return;
 #ifdef BSD
     curr_tio[fd].sg_flags &= ~ECHO;		/* Echo mode OFF.	*/
     (void) ioctl(fd, TIOCSETP, &curr_tio[fd]);
@@ -262,6 +266,8 @@ clr_Echo(int fd)
 void
 reset_Tty(int fd)
 {
+    if (fd < 0 || fd >= TERMIO_FD_MAX)
+	return;
 #ifdef BSD
     (void) ioctl(fd, TIOCSETP, &save_tio[fd]); /* Write setting.		*/
 #endif
@@ -283,6 +289,8 @@ reset_Tty(int fd)
 void
 save_Tty(int fd)
 {
+    if (fd < 0 || fd >= TERMIO_FD_MAX)
+	return;
 #ifdef BSD
     (void) ioctl(fd, TIOCGETP, &save_tio[fd]);
 #endif
@@ -305,6 +313,8 @@ save_Tty(int fd)
 void
 set_Cbreak(int fd)
 {
+    if (fd < 0 || fd >= TERMIO_FD_MAX)
+	return;
 #ifdef BSD
     curr_tio[fd].sg_flags |= CBREAK;	/* CBREAK mode ON.	*/
     (void) ioctl(fd, TIOCSETP, &curr_tio[fd]);
@@ -333,6 +343,8 @@ set_Cbreak(int fd)
 void
 set_Raw(int fd)
 {
+    if (fd < 0 || fd >= TERMIO_FD_MAX)
+	return;
 #ifdef BSD
     curr_tio[fd].sg_flags |= RAW;		/* Raw mode ON.		*/
     (void) ioctl(fd, TIOCSETP, &curr_tio[fd]);
@@ -770,6 +782,9 @@ static int termio_pipe_read_byte(unsigned char *c){
 
 /* Returns >0 key; 0 ignore; -1 need more data */
 static int ti_process_byte(unsigned char b){
+    if (ti_len >= TERMIO_ESC_BUF_MAX - 1) {
+        ti_reset();
+    }
     if (ti_discard_mouse){
         ti_buf[ti_len++]=(char)b;
         if (ti_state==TI_ESC_CSI_MOUSE_X10){
@@ -1085,6 +1100,7 @@ int termio_poll_resize(int fd){
     return 0;
 }
 static ssize_t termio_full_write_posix(int fd,const char *buf,size_t len){
+    if (fd < 0 || !buf) return -1;
     size_t off=0;
     while (off<len){
         ssize_t r=write(fd,buf+off,len-off);
@@ -1109,6 +1125,7 @@ void termio_show_cursor(int fd,int show){
     termio_write(fd, show? "\033[?25h":"\033[?25l",6);
 }
 void termio_flash_status_line(int fd,int row,int cols){
+    if (fd < 0 || row < 0 || cols < 0) return;
     char seq[48];
     int n=snprintf(seq,sizeof(seq),"\033[%d;1H\033[7m",row);
     termio_write(fd,seq,(size_t)n);
@@ -1133,6 +1150,7 @@ void termio_enable_vt_output(int fd_out){ (void)fd_out; }
 
 /* POSIX getch with mouse/paste filtering */
 int termio_getch(int fd){
+    if (fd < 0 || fd >= FD_SETSIZE) return TERMIO_KEY_NONE;
     for(;;){
         unsigned char c;
         ssize_t r=read(fd,&c,1);
