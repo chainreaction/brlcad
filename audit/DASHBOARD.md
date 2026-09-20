@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-20 02:33:00 UTC
+**Last Updated:** 2026-09-20 02:37:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 530 (15.2%)
-- **Files Pending Review:** 2963
-- **Total Issues Identified:** 231
+- **Files Reviewed:** 532 (15.2%)
+- **Files Pending Review:** 2961
+- **Total Issues Identified:** 232
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 161 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 162 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 47 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 231
+- **Fixed (Committed):** 232
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -101,7 +101,7 @@
 | `src/libqtcad` | 29 | 0 | 0.0% | 0 |
 | `src/librt` | 373 | 0 | 0.0% | 0 |
 | `src/libtclcad` | 31 | 0 | 0.0% | 0 |
-| `src/libtermio` | 2 | 0 | 0.0% | 0 |
+| `src/libtermio` | 2 | 2 | 100.0% | 1 |
 | `src/libwdb` | 27 | 0 | 0.0% | 0 |
 | `src/mged` | 55 | 0 | 0.0% | 0 |
 | `src/nirt` | 2 | 0 | 0.0% | 0 |

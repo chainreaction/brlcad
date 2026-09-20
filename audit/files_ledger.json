@@ -32007,20 +32007,24 @@
       "path": "src/libtermio/libtermio.h",
       "subsystem": "src/libtermio",
       "lines": 1246,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:37:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0232"
+      ]
     },
     {
       "id": 3135,
       "path": "src/libtermio/linenoise.hpp",
       "subsystem": "src/libtermio",
       "lines": 2823,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:37:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0232"
+      ]
     },
     {
       "id": 3136,

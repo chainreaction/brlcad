@@ -4155,7 +4155,25 @@
       "created_at": "2026-09-20T02:32:00Z",
       "verified_at": "2026-09-20T02:32:30Z",
       "fixed_at": "2026-09-20T02:32:40Z"
+    },
+    {
+      "id": "SEC-0232",
+      "file": "src/libtermio/libtermio.h, src/libtermio/linenoise.hpp",
+      "lines": "libtermio.h:176-215, 235-360, 780-795, 1100-1155; linenoise.hpp:2015-2060, 2075-2125, 2215-2240, 2325-2385, 2690-2740",
+      "severity": 2,
+      "category": "Buffer Overflow, Out-of-Bounds Array Access, Division by Zero & Missing Pointer Validation",
+      "description": "In libtermio: in libtermio.h, terminal parameter storage arrays save_tio and curr_tio were sized FOPEN_MAX (which can be as low as 20 on POSIX platforms) and lacked file descriptor bounds checking across clr_Echo, reset_Tty, save_Tty, set_Cbreak, and set_Raw, allowing out-of-bounds array writes on large or invalid file descriptors; termio_getch lacked FD_SET bounds checking on fd (fd >= FD_SETSIZE causes stack buffer overflow in select/FD_SET); in linenoise.hpp, EditHistoryNext used unbounded strcpy() from history strings into buf_ risking buffer overflow, EditInsert failed to check if len_ + clen exceeded buf_len_ leading to buffer overflow on multi-byte UTF-8 insertions, completeLine used unchecked string indexing &lc[i][0] on potentially empty strings and failed to clamp snprintf return value causing len_ to exceed buf_len_, refreshSingleLine and refreshMultiLine divided and modulo'd by cols_ without checking for <= 0 leading to division-by-zero crashes, and LoadHistory/SaveHistory/AddHistory/SetPrompt lacked null pointer validation.",
+      "verification_status": "CONFIRMED",
+      "verification_test": "Code inspection, compilation of all dependent binaries (brledit, gsh, btclsh, bwish, ganalyze, mged, fbcolor, fbpoint, fbzoom, nirt), and regression suite (regress-licenses, regress-repository).",
+      "test_result": "All targets compile cleanly with zero warnings, regress-repository passes 100%.",
+      "fix_status": "FIXED",
+      "fix_description": "Expanded tio arrays to 512 entries and added fd bounds checks across tier-1 termio functions; bounded fd against FD_SETSIZE in termio_getch; replaced strcpy with snprintf in history recall; enforced len_ + clen < buf_len_ on edit insertion; clamped snprintf in completion; guarded cols_ against non-positive values to prevent division by zero; added null pointer validation on strings and file paths.",
+      "commit_hash": "64920b1f22",
+      "commit_message": "libtermio: fix buffer overflows, out-of-bounds array access, and division by zero",
+      "created_at": "2026-09-20T02:36:00Z",
+      "verified_at": "2026-09-20T02:36:30Z",
+      "fixed_at": "2026-09-20T02:36:39Z"
     }
   ],
-  "last_updated": "2026-09-20T02:33:00Z"
+  "last_updated": "2026-09-20T02:37:00Z"
 }
