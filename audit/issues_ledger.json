@@ -4263,7 +4263,25 @@
       "created_at": "2026-09-20T02:56:00Z",
       "verified_at": "2026-09-20T02:56:20Z",
       "fixed_at": "2026-09-20T02:56:38Z"
+    },
+    {
+      "id": "SEC-0238",
+      "file": "src/launcher/launcher.c, src/launcher/registry.c, src/launcher/launch.c, src/launcher/fbtext.c, src/launcher/ui_fb.c, src/launcher/ui_text.c",
+      "lines": "launcher.c:48-62, 73-95; registry.c:59-87, 92-104, 110-165, 190-210, 235-260; launch.c:46-72, 120-135; fbtext.c:83-119, 174-198; ui_fb.c:64-88, 108-170, 174-237, 260-272, 380-422; ui_text.c:56-72",
+      "severity": 2,
+      "category": "Buffer Overflow, Out-of-bounds Array Access, Null Pointer Dereference, and Input Validation",
+      "description": "In BRL-CAD launcher tools and UI: in launcher.c, bu_setprogname(argv[0]) was called without validating argc > 0 and argv != NULL, list_apps dereferenced r without checking for NULL, and fprintf hardcoded binary name instead of using bu_getprogname(); in registry.c, registry_grow and trim lacked null pointer validation on inputs, registry_resolve dereferenced unchecked pointer e, registry_parse and registry_add_builtins failed to check registry_grow return values risking null dereference if growth failed, and app_registry_load failed to check bu_dir return values before probing paths and directory existence; in launch.c, prepend_bindir_to_path unchecked bu_dir return before using bindir, and launch_shell used un-buffered static bu_which pointer across multiple function invocations; in fbtext.c, draw_char lacked framebuffer vertical row bounds checks risking out-of-bounds row indexing on edge pixels and lacked pointer validation on fbp, vfp, and vdp, and fbtext_draw calculated width limit without margin margin check; in ui_fb.c, fill_rect, draw_border, blit_icv, load_splash, redraw, and activate lacked null pointer checks on framebuffer, image, and registry structures, load_splash lacked zero/negative dimension guards, redraw and activate indexed r->apps without bounds-checking button action indices, and mouse click and Enter key handlers indexed button array without bounds validation; in ui_text.c, print_menu lacked null pointer checks on r.",
+      "verification_status": "CONFIRMED",
+      "verification_test": "Code inspection, compilation of brlcad-launcher target, CLI execution of -h, -l, -t, and regression suite (regress-licenses, regress-repository).",
+      "test_result": "Target compiles cleanly with zero warnings, brlcad-launcher runs successfully, regress-licenses and regress-repository pass 100%.",
+      "fix_status": "FIXED",
+      "fix_description": "Added argc/argv guards in launcher.c main and list_apps; added null checks to registry_grow, trim, registry_resolve, and slot checks to registry_parse/registry_add_builtins in registry.c; guarded bu_dir in launch.c and safely copied bu_which results into term_buf; added framebuffer row bounds and pointer checks in draw_char and corrected width check in fbtext.c; added pointer checks, dimension checks, action index bounds validation, and button array clamping in ui_fb.c; added null checks in ui_text.c.",
+      "commit_hash": "fd87b0a569",
+      "commit_message": "launcher: fix buffer bounds, memory allocation safety, and null pointer dereferences",
+      "created_at": "2026-09-20T03:05:00Z",
+      "verified_at": "2026-09-20T03:05:30Z",
+      "fixed_at": "2026-09-20T03:05:53Z"
     }
   ],
-  "last_updated": "2026-09-20T02:56:38Z"
+  "last_updated": "2026-09-20T03:05:53Z"
 }

@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-20 02:56:38 UTC
+**Last Updated:** 2026-09-20 03:05:53 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 554 (15.9%)
-- **Files Pending Review:** 2939
-- **Total Issues Identified:** 237
+- **Files Reviewed:** 562 (16.1%)
+- **Files Pending Review:** 2931
+- **Total Issues Identified:** 238
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 167 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 168 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 47 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 237
+- **Fixed (Committed):** 238
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -82,7 +82,7 @@
 | `src/fbserv` | 4 | 4 | 100.0% | 2 |
 | `src/gtools` | 40 | 0 | 0.0% | 0 |
 | `src/isst` | 9 | 0 | 0.0% | 0 |
-| `src/launcher` | 8 | 0 | 0.0% | 0 |
+| `src/launcher` | 8 | 8 | 100.0% | 1 |
 | `src/libanalyze` | 40 | 0 | 0.0% | 0 |
 | `src/libbg` | 232 | 232 | 100.0% | 79 |
 | `src/libbn` | 41 | 41 | 100.0% | 31 |

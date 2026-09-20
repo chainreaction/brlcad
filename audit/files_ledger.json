@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 554,
-    "pending_files": 2939,
-    "last_updated": "2026-09-20T02:56:38Z",
-    "total_issues": 237,
-    "reviewed_count": 554
+    "reviewed_files": 562,
+    "pending_files": 2931,
+    "last_updated": "2026-09-20T03:05:53Z",
+    "total_issues": 238,
+    "reviewed_count": 562
   },
   "files": [
     {
@@ -12813,18 +12813,20 @@
       "path": "src/launcher/fbtext.c",
       "subsystem": "src/launcher",
       "lines": 209,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:05:53Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0238"
+      ]
     },
     {
       "id": 1278,
       "path": "src/launcher/fbtext.h",
       "subsystem": "src/launcher",
       "lines": 66,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:05:53Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -12833,28 +12835,32 @@
       "path": "src/launcher/launch.c",
       "subsystem": "src/launcher",
       "lines": 170,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:05:53Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0238"
+      ]
     },
     {
       "id": 1280,
       "path": "src/launcher/launcher.c",
       "subsystem": "src/launcher",
       "lines": 127,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:05:53Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0238"
+      ]
     },
     {
       "id": 1281,
       "path": "src/launcher/launcher.h",
       "subsystem": "src/launcher",
       "lines": 89,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:05:53Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -12863,30 +12869,36 @@
       "path": "src/launcher/registry.c",
       "subsystem": "src/launcher",
       "lines": 289,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:05:53Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0238"
+      ]
     },
     {
       "id": 1283,
       "path": "src/launcher/ui_fb.c",
       "subsystem": "src/launcher",
       "lines": 424,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:05:53Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0238"
+      ]
     },
     {
       "id": 1284,
       "path": "src/launcher/ui_text.c",
       "subsystem": "src/launcher",
       "lines": 133,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:05:53Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0238"
+      ]
     },
     {
       "id": 1285,
