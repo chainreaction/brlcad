@@ -4245,7 +4245,25 @@
       "created_at": "2026-09-20T02:50:00Z",
       "verified_at": "2026-09-20T02:50:25Z",
       "fixed_at": "2026-09-20T02:50:40Z"
+    },
+    {
+      "id": "SEC-0237",
+      "file": "src/art/tile.cpp, src/art/brlcadplugin.h, src/art/brlcadplugin.cpp, src/art/art.cpp",
+      "lines": "tile.cpp:63-88; brlcadplugin.h:60-65; brlcadplugin.cpp:120-175, 215-260, 325-455, 525-540; art.cpp:270-285, 400-405, 479-514, 550-600, 740-750, 880-910, 1065-1075, 1135-1145, 1280-1310, 1375-1380, 1415-1445, 1475-1545, 1605-1615",
+      "severity": 2,
+      "category": "Buffer Bounds, Resource Leaks, Null Dereferences, and Out-of-Bounds Memory Access",
+      "description": "In art Appleseed ray tracing integration: in tile.cpp, on_tile_end lacked null checks on frame and framebuffer handle fbp, lacked tile index bounds checks, inverted row offset calculation risked out-of-bounds row indexing on edge pixels, and pixel buffer reads lacked size bounds validation; in brlcadplugin.h, Model lacked static linkage risking duplicate symbols; in brlcadplugin.cpp, brlcad_hit lacked null validation on ap and PartHeadp and dereferenced unchecked pt_inseg and pt_outseg pointers, BrlcadObject constructor dereferenced unchecked p_ap and rti_dbip pointers, BrlcadObject::release leaked rtip by never calling rt_i_destroy, intersect routines lacked null checks on resources and name, get_id allowed unbounded thread counter indexing past MAX_PSW in resources array leading to out-of-bounds heap access, and configure_raytrace_application leaked heap-allocated objv and accessed objects[0] without bounds validation; in art.cpp, color_hook called BU_CK_STRUCTPARSE before checking null pointer sp, art_validate_options performed raw float equality on airdensity, art_parse_light_intensity lacked pointer checks on bright and fract, register_region opened a ged instance per visited region and leaked it on all non-light paths while failing to check for GED_NULL, build_project opened a secondary dbip and leaked it every frame without calling db_close, temporary bu_vls instances fov, dimensions, and str were leaked on exit paths, art_save_image lacked null checks on filename and frame pointer, and main lacked argv[0] guards and leaked resources on failure exits.",
+      "verification_status": "CONFIRMED",
+      "verification_test": "Code inspection, compilation of art target, art help CLI execution, and regression suite (regress-licenses, regress-repository).",
+      "test_result": "All targets compile cleanly with zero warnings, art CLI runs successfully, regress-licenses and regress-repository pass 100%.",
+      "fix_status": "FIXED",
+      "fix_description": "Added frame/fbp checks, tile bounds guards, correct framebuffer row calculation (img_h - 1 - y_coord), and pixel storage bounds checks in tile.cpp; made Model static const in brlcadplugin.h; added null checks and segment pointer validation in brlcad_hit, guarded p_ap and resources, destroyed rtip via rt_i_destroy on release, clamped get_id thread counter modulo MAX_PSW, and freed objv in brlcadplugin.cpp; corrected structparse null check order in color_hook, used !ZERO(airdensity), closed ged instances on all paths in register_region, shared or closed dbip in build_project, freed temporary bu_vls buffers, guarded art_save_image against null pointers, and guarded argv with cleanup in main.",
+      "commit_hash": "6bc634cdd2",
+      "commit_message": "art: fix buffer bounds, memory leaks, null dereferences, and resource destruction",
+      "created_at": "2026-09-20T02:56:00Z",
+      "verified_at": "2026-09-20T02:56:20Z",
+      "fixed_at": "2026-09-20T02:56:38Z"
     }
   ],
-  "last_updated": "2026-09-20T02:50:40Z"
+  "last_updated": "2026-09-20T02:56:38Z"
 }

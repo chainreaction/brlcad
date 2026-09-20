@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 548,
-    "pending_files": 2945,
-    "last_updated": "2026-09-20T02:50:40Z",
-    "total_issues": 236,
-    "reviewed_count": 548
+    "reviewed_files": 554,
+    "pending_files": 2939,
+    "last_updated": "2026-09-20T02:56:38Z",
+    "total_issues": 237,
+    "reviewed_count": 554
   },
   "files": [
     {
@@ -4706,18 +4706,20 @@
       "path": "src/art/art.cpp",
       "subsystem": "src/art",
       "lines": 1594,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T02:56:38Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0237"
+      ]
     },
     {
       "id": 469,
       "path": "src/art/art.h",
       "subsystem": "src/art",
       "lines": 152,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T02:56:38Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -4726,38 +4728,44 @@
       "path": "src/art/brlcadplugin.cpp",
       "subsystem": "src/art",
       "lines": 624,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T02:56:38Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0237"
+      ]
     },
     {
       "id": 471,
       "path": "src/art/brlcadplugin.h",
       "subsystem": "src/art",
       "lines": 98,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T02:56:38Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0237"
+      ]
     },
     {
       "id": 472,
       "path": "src/art/tile.cpp",
       "subsystem": "src/art",
       "lines": 89,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T02:56:38Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0237"
+      ]
     },
     {
       "id": 473,
       "path": "src/art/tile.h",
       "subsystem": "src/art",
       "lines": 74,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T02:56:38Z",
       "issues_count": 0,
       "issue_ids": []
     },

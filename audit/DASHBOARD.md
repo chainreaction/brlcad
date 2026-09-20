@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-20 02:51:00 UTC
+**Last Updated:** 2026-09-20 02:56:38 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 548 (15.7%)
-- **Files Pending Review:** 2945
-- **Total Issues Identified:** 236
+- **Files Reviewed:** 554 (15.9%)
+- **Files Pending Review:** 2939
+- **Total Issues Identified:** 237
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 166 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 167 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 47 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 236
+- **Fixed (Committed):** 237
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -30,7 +30,7 @@
 | `regress` | 21 | 0 | 0.0% | 0 |
 | `src/adrt` | 51 | 0 | 0.0% | 0 |
 | `src/archer` | 1 | 0 | 0.0% | 0 |
-| `src/art` | 6 | 0 | 0.0% | 0 |
+| `src/art` | 6 | 6 | 100.0% | 1 |
 | `src/brlman` | 1 | 0 | 0.0% | 0 |
 | `src/bwish` | 3 | 3 | 100.0% | 1 |
 | `src/conv/3dm` | 1 | 0 | 0.0% | 0 |
