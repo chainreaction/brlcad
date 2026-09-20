@@ -63,6 +63,8 @@ namespace Extra {
   template <class View>
   ExecStatus
   DisEq<View>::post(Space* home, View dex0, View dex1, View dex2) {
+    if (!home)
+      return ES_FAILED;
     (void) new (home) DisEq<View>(home,dex0,dex1,dex2);
     return ES_OK;
   }
@@ -81,12 +83,16 @@ namespace Extra {
   template <class View>
   Actor*
   DisEq<View>::copy(Space* home, bool share) {
+    if (!home)
+      return NULL;
     return new (home) DisEq<View>(home,share,*this);
   }
 
   template <class View>
   ExecStatus
   DisEq<View>::propagate(Space* home, ModEventDelta) {
+    if (!home)
+      return ES_FAILED;
     typedef Int::ViewRanges<View> Ranges;
 
     Ranges vr1(x1), vr2(x2);
@@ -104,6 +110,8 @@ namespace Extra {
   /** \brief Post propagator for \f$ x_1=x_2\lor x_1=x_3\f$
    */
   void diseq(Space* home, IntVar x1, IntVar x2, IntVar x3) {
+    if (!home)
+      return;
     Int::IntView v1(x1), v2(x2), v3(x3);
     GECODE_ES_FAIL(DisEq<Int::IntView>::post(home, v1, v2, v3));
   }

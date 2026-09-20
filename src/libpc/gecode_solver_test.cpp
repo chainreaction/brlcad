@@ -69,8 +69,8 @@ class EqSolve : public Gecode::Space {
 };
 
 int main(int argc, const char *argv[]) {
-
-  bu_setprogname(argv[0]);
+  if (argc > 0 && argv && argv[0])
+    bu_setprogname(argv[0]);
 
   EqSolve* m = new EqSolve(4, 0, 10);
 

@@ -112,7 +112,8 @@ public:
  *  \relates CartesianHeart
  */
 int main(int argc, char* argv[]) {
-  bu_setprogname(argv[0]);
+  if (argc > 0 && argv && argv[0])
+    bu_setprogname(argv[0]);
   Options opt("CartesianHeart");
   opt.parse(argc,argv);
   opt.solutions(0);

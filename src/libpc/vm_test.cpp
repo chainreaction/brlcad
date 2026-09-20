@@ -24,6 +24,7 @@
  */
 
 #include "common.h"
+#include "vmath.h"
 
 #include "pcMathGrammar.h"
 #include "pcMathVM.h"
@@ -38,7 +39,10 @@ typedef boost::shared_ptr<MathFunction> ct;
 
 double add(double a, double b) { return a+b; }
 double multiply(double a, double b) { return a*b; }
-double div(double a, double b) { return a / b; }
+double div(double a, double b) {
+    if (ZERO(b)) return 0.0;
+    return a / b;
+}
 double avg(double a, double b) { return (a+b)/2; }
 
 /* Type definitions for unary and binary function pointers */
@@ -67,6 +71,7 @@ boost::shared_ptr<MathFunction> make_function(char const *name, function1_ptr f1
    }
 */
 void findfunction(ct **ap, const char *s, MathVM & vm) {
+    if (!ap) return;
     *ap = boost::spirit::classic::find<ct>(vm.functions, s);
     if (! *ap) {
 	std::cout << "Function not found" << std::endl;
@@ -137,7 +142,8 @@ void eval()
 
 int main(int argc, const char *argv[])
 {
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
     eval();
     return 0;
 }

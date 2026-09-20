@@ -45,6 +45,9 @@ class GeometrySolve : public Gecode::Space {
 void
 add_constraint_coincident_pnt(GeometrySolve *s, int tol, int p1, int p2)
 {
+    if (!s || p1 < 0 || p2 < 0 || 2 + 3*p1 >= s->l.size() || 2 + 3*p2 >= s->l.size())
+	return;
+
     Gecode::IntVar AX(s->l[0 + 3*p1]), AY(s->l[1 + 3*p1]), AZ(s->l[2 + 3*p1]);
     Gecode::IntVar BX(s->l[0 + 3*p2]), BY(s->l[1 + 3*p2]), BZ(s->l[2 + 3*p2]);
     Gecode::rel(*s, AX - BX > -1 * tol);
@@ -58,6 +61,9 @@ add_constraint_coincident_pnt(GeometrySolve *s, int tol, int p1, int p2)
 void
 add_constraint_perpendicular_vect(GeometrySolve *s, int tol, int p1, int p2)
 {
+    if (!s || p1 < 0 || p2 < 0 || 2 + 3*p1 >= s->l.size() || 2 + 3*p2 >= s->l.size())
+	return;
+
     Gecode::IntVar AX(s->l[0 + 3*p1]), AY(s->l[1 + 3*p1]), AZ(s->l[2 + 3*p1]);
     Gecode::IntVar BX(s->l[0 + 3*p2]), BY(s->l[1 + 3*p2]), BZ(s->l[2 + 3*p2]);
     Gecode::rel(*s, AX * BX + AY * BY + AZ * BZ > -1 * tol);
@@ -67,6 +73,9 @@ add_constraint_perpendicular_vect(GeometrySolve *s, int tol, int p1, int p2)
 void
 add_constraint_pnt_on_line_segment(GeometrySolve *s, int tol, int p, int s1, int s2)
 {
+    if (!s || p < 0 || s1 < 0 || s2 < 0 || 2 + 3*p >= s->l.size() || 2 + 3*s1 >= s->l.size() || 2 + 3*s2 >= s->l.size())
+	return;
+
     Gecode::IntVar PX(s->l[0 + 3*p]),  PY(s->l[1 + 3*p]),  PZ(s->l[2 + 3*p]);
     Gecode::IntVar S1X(s->l[0 + 3*s1]), S1Y(s->l[1 + 3*s1]), S1Z(s->l[2 + 3*s1]);
     Gecode::IntVar S2X(s->l[0 + 3*s2]), S2Y(s->l[1 + 3*s2]), S2Z(s->l[2 + 3*s2]);
@@ -90,7 +99,8 @@ add_constraint_pnt_on_line_segment(GeometrySolve *s, int tol, int p, int s1, int
 
 int main(int argc, const char *argv[]) {
 
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
 
     /* Perpendicular constraint test */
     {

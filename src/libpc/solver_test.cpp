@@ -44,8 +44,11 @@ struct f1 {
 public:
     bool operator() (VCSet & vcset, std::list<std::string> UNUSED(Vid)) const {
 	typedef Variable<int> *Vi ;
-	int A = ((Variable<int>*) vcset.getVariablebyID("A"))->getValue();
-	int B = ((Vi) vcset.getVariablebyID("B"))->getValue();
+	Vi varA = (Vi) vcset.getVariablebyID("A");
+	Vi varB = (Vi) vcset.getVariablebyID("B");
+	if (!varA || !varB) return false;
+	int A = varA->getValue();
+	int B = varB->getValue();
 	return (A * B == 12);
     }
 } f1;
@@ -53,8 +56,11 @@ struct f2 {
 public:
     bool operator() (VCSet & vcset, std::list<std::string> UNUSED(Vid)) const {
 	typedef Variable<int> *Vi ;
-	int B = ((Vi) vcset.getVariablebyID("B"))->getValue();
-	int C = ((Vi) vcset.getVariablebyID("C"))->getValue();
+	Vi varB = (Vi) vcset.getVariablebyID("B");
+	Vi varC = (Vi) vcset.getVariablebyID("C");
+	if (!varB || !varC) return false;
+	int B = varB->getValue();
+	int C = varC->getValue();
 	return (B + C < 5);
     }
 } f2;
@@ -63,8 +69,11 @@ struct f3 {
 public:
     bool operator() (VCSet & vcset, std::list<std::string> UNUSED(Vid)) const {
 	typedef Variable<int> *Vi ;
-	int A = ((Vi) vcset.getVariablebyID("A"))->getValue();
-	int D = ((Vi) vcset.getVariablebyID("D"))->getValue();
+	Vi varA = (Vi) vcset.getVariablebyID("A");
+	Vi varD = (Vi) vcset.getVariablebyID("D");
+	if (!varA || !varD) return false;
+	int A = varA->getValue();
+	int D = varD->getValue();
 	return (A - D == 2);
     }
 } f3;
@@ -73,8 +82,11 @@ struct f4 {
 public:
     bool operator() (VCSet & vcset, std::list<std::string> UNUSED(Vid)) const {
 	typedef Variable<int> *Vi ;
-	int C = ((Vi) vcset.getVariablebyID("C"))->getValue();
-	int A = ((Vi) vcset.getVariablebyID("A"))->getValue();
+	Vi varC = (Vi) vcset.getVariablebyID("C");
+	Vi varA = (Vi) vcset.getVariablebyID("A");
+	if (!varC || !varA) return false;
+	int C = varC->getValue();
+	int A = varA->getValue();
 	return (A * C == 4);
     }
 } f4;
@@ -87,7 +99,8 @@ int main(int argc, const char *argv[])
     struct pc_pc_set pcs;
     VCSet vc_set;
 
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
 
     pc_init_pcset(&pcs);
     fastf_t D = 8.04;
@@ -108,7 +121,9 @@ int main(int argc, const char *argv[])
     myparser.parse(&pcs);
 
     /* modify/access parameter property in vc_set using getParameter */
-    vc_set.getParameter("G")->setConst(true);
+    Parameter *pG = vc_set.getParameter("G");
+    if (pG)
+	pG->setConst(true);
 
     /* Two solution methods*/
     vc_set.display();
