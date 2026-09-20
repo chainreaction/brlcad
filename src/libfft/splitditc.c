@@ -44,14 +44,18 @@ splitdit(int N, int M)
     double cc1, ss1, cc3, ss3;
     int i, j, k, ni;
     int n2, n4;
+
+    if (N < 2 || M < 1)
+	return;
+
     rfft_adds = rfft_mults = 0;
 
     printf("/*\n"
 	   " * BRL-CAD\n"
 	   " *\n"
 	   " * This file is a generated source file.\n"
-	   " * See %s for license and distribution details.\n"
-	   " */\n", __FILE__);
+	   " * See splitditc.c for license and distribution details.\n"
+	   " */\n");
 
     printf("/*\n"
 	   " * Machine-generated Real Split Radix Decimation in Time FFT\n"

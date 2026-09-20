@@ -39,6 +39,9 @@ irfft(double *x, int n /* length */)
     double t1, t2, t3, t4, t5;
     double cc1, ss1, cc3, ss3, e, a, a3;
 
+    if (!x || n < 2)
+	return;
+
     /* L shaped butterflies */
     n2 = n << 1;
     for (k = 2; k < n; k <<= 1) {

@@ -45,12 +45,12 @@ parse_fft_length(const char *arg, int *n)
 	fprintf(stderr, "fftc: invalid length '%s' (expected a positive power of two)\n", arg);
 	return 0;
     }
-    if (parsed <= 0) {
-	fprintf(stderr, "fftc: length must be greater than zero, got '%s'\n", arg);
+    if (parsed < 2) {
+	fprintf(stderr, "fftc: length must be at least 2, got '%s'\n", arg);
 	return 0;
     }
-    if (parsed > INT_MAX) {
-	fprintf(stderr, "fftc: length out of range '%s'\n", arg);
+    if (parsed > 65536) {
+	fprintf(stderr, "fftc: length out of range '%s' (max 65536)\n", arg);
 	return 0;
     }
     if ((parsed & (parsed - 1)) != 0) {
@@ -68,7 +68,7 @@ main(int argc, char *argv[])
 {
     int n, m, t;
 
-    if ( argc != 2 ) {
+    if ( argc != 2 || !argv || !argv[1] ) {
 	fprintf( stderr, "Usage: fftc length > fftlength.c\n" );
 	return 1;
     }

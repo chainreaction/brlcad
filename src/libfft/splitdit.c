@@ -33,6 +33,10 @@ rfft(double *X, int N)
     double	cc1, ss1, cc3, ss3, xt;
     int	i, j, k, ni;
     int	n2, n4;
+
+    if (!X || N < 2)
+	return;
+
     rfft_adds = rfft_mults = 0;
 
     /* bit reverse counter */

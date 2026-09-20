@@ -46,14 +46,18 @@ ditsplit(int n /* length */, int m /* n = 2^m */)
     int i0, i1, i2, i3, i4, i5, i6, i7, i8;
     int is, id;
     double cc1, ss1, cc3, ss3, e, a, a3;
+
+    if (n < 2 || m < 1)
+	return;
+
     irfft_adds = irfft_mults = 0;
 
     printf("/*\n"
 	   " * BRL-CAD\n"
 	   " *\n"
 	   " * This file is a generated source file.\n"
-	   " * See %s for license and distribution details.\n"
-	   " */\n", __FILE__);
+	   " * See ditsplitc.c for license and distribution details.\n"
+	   " */\n");
 
     printf("/*\n"
 	   " * Machine-generated Real Split Radix Decimation in Freq Inverse FFT\n"

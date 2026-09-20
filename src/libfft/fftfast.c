@@ -54,6 +54,9 @@ int init_sintab(int size);
 void
 cfft(COMPLEX *dat, int num)
 {
+    if (!dat || num < 2)
+	return;
+
     /* Check for trig table initialization */
     if (num != _init_size) {
 	if (init_sintab(num) == 0) {
@@ -72,6 +75,9 @@ cfft(COMPLEX *dat, int num)
 void
 icfft(COMPLEX *dat, int num)
 {
+    if (!dat || num < 2)
+	return;
+
     /* Check for trig table initialization */
     if (num != _init_size) {
 	if (init_sintab(num) == 0) {
@@ -120,8 +126,8 @@ init_sintab(int size)
      * Check whether the requested size is within our compiled
      * limit and make sure it's a power of two.
      */
-    if (size > MAXSIZE) {
-	fprintf(stderr, "fft: Only compiled for max size of %d\n", MAXSIZE);
+    if (size < 2 || size > MAXSIZE) {
+	fprintf(stderr, "fft: Only compiled for sizes between 2 and %d\n", MAXSIZE);
 	fprintf(stderr, "fft: Can't do the requested %d\n", size);
 	return 0;
     }
@@ -134,11 +140,30 @@ init_sintab(int size)
     }
 
     /* Get some buffer space */
-    if (sintab != NULL) free(sintab);
-    if (costab != NULL) free(costab);
+    if (sintab != NULL) {
+	free(sintab);
+	sintab = NULL;
+    }
+    if (costab != NULL) {
+	free(costab);
+	costab = NULL;
+    }
+    _init_size = 0;
+
     /* should not use bu_calloc() as libfft is not dependent upon libbu */
     sintab = (double *)calloc(size, sizeof(*sintab));
     costab = (double *)calloc(size, sizeof(*costab));
+    if (!sintab || !costab) {
+	if (sintab != NULL) {
+	    free(sintab);
+	    sintab = NULL;
+	}
+	if (costab != NULL) {
+	    free(costab);
+	    costab = NULL;
+	}
+	return 0;
+    }
 
     /*
      * Size is okay.  Set up tables.
@@ -178,6 +203,9 @@ scramble(int numpoints, COMPLEX *dat)
     register int i, j, m;
     COMPLEX temp;
 
+    if (!dat || numpoints < 2)
+	return;
+
     j = 0;
     for (i = 0; i < numpoints; i++, j += m) {
 	if (i < j) {
@@ -203,6 +231,9 @@ butterflies(int numpoints, int inverse, COMPLEX *dat)
     register COMPLEX *node1, *node2;
     register int step, column, m;
     COMPLEX w, temp;
+
+    if (!dat || numpoints < 2 || !sintab || !costab || _init_size != numpoints)
+	return;
 
     /*
      * For each column of the butterfly
@@ -268,6 +299,9 @@ butterflies(int numpoints, int inverse, COMPLEX *dat)
 void
 cadd(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
 {
+    if (!result || !val1 || !val2)
+	return;
+
     result->re = val1->re + val2->re;
     result->im = val1->im + val2->im;
 }
@@ -278,6 +312,9 @@ cadd(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
 void
 csub(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
 {
+    if (!result || !val1 || !val2)
+	return;
+
     result->re = val1->re - val2->re;
     result->im = val1->im - val2->im;
 }
@@ -288,6 +325,9 @@ csub(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
 void
 cmult(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
 {
+    if (!result || !val1 || !val2)
+	return;
+
     result->re = val1->re*val2->re - val1->im*val2->im;
     result->im = val1->im*val2->re + val1->re*val2->im;
 }
@@ -300,7 +340,16 @@ cdiv(COMPLEX *result, COMPLEX *val1, COMPLEX *val2)
 {
     double denom;
 
+    if (!result || !val1 || !val2)
+	return;
+
     denom = val2->re*val2->re + val2->im*val2->im;
+    if (denom <= 0.0) {
+	result->re = 0.0;
+	result->im = 0.0;
+	return;
+    }
+
     result->re = (val1->re*val2->re + val1->im*val2->im)/denom;
     result->im = (val1->im*val2->re - val1->re*val2->im)/denom;
 }

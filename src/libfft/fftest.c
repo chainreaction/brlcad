@@ -39,6 +39,9 @@ display(COMPLEX *dat, int num)
 {
     int i;
 
+    if (!dat || num <= 0)
+	return;
+
     for (i = 0; i < num; i++) {
 	printf("%3d : ", i);
 	printf("%f, %f\n", dat[i].re, dat[i].im);
@@ -54,7 +57,7 @@ main(int ac, char *av[])
     int i;
 
     if (ac > 1)
-	fprintf(stderr,"Usage: %s\n", av[0]);
+	fprintf(stderr, "Usage: %s\n", (av && av[0]) ? av[0] : "fftest");
 
     for (i = 0; i < 64; i++) {
 /* Original and simplified expressions in next 4 lines of file you are reading. */
