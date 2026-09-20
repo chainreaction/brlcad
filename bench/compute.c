@@ -50,14 +50,15 @@ double
 average(int ac, double av[])
 {
     double total = 0.0;
+    int count = ac;
 
-    if (ac < 1)
-	return -0.0;
+    if (ac < 1 || !av)
+	return 0.0;
 
     while (ac-- > 0) {
 	total += av[ac];
     }
-    return total / ac;
+    return total / (double)count;
 }
 
 
@@ -68,8 +69,8 @@ variance(int ac, double av[])
     double err = 0.0;
     double num = ac;
 
-    if (ac < 1)
-	return -0.0;
+    if (ac < 1 || !av)
+	return 0.0;
     else if (ac == 1)
 	return 0.0;
 
@@ -81,7 +82,7 @@ variance(int ac, double av[])
     }
 
     /* return the sample variance */
-    return err / (num - 1);
+    return err / (num - 1.0);
 }
 
 

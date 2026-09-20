@@ -70,18 +70,21 @@ clean_obstacles(const char *base_filename, int id)
 	if (bu_file_exists(bu_vls_cstr(&vpid), NULL)) {
 	    bu_file_delete(bu_vls_cstr(&vp));
 	}
-	//bu_file_move(bu_vls_cstr(&vp), bu_vls_cstr(&vpid));
     }
 
     /* look for a log file */
+    bu_vls_trunc(&vp, 0);
+    bu_vls_trunc(&vpid, 0);
     bu_vls_printf(&vp, "%s.log", base_filename);
     if (bu_file_exists(bu_vls_cstr(&vp), NULL)) {
 	bu_vls_printf(&vpid, "%s-%d.log", base_filename, id);
 	if (bu_file_exists(bu_vls_cstr(&vpid), NULL)) {
 	    bu_file_delete(bu_vls_cstr(&vp));
 	}
-	//bu_file_move(bu_vls_cstr(&vp), bu_vls_cstr(&vpid));
     }
+
+    bu_vls_free(&vpid);
+    bu_vls_free(&vp);
 }
 
 

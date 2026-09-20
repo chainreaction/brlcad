@@ -201,7 +201,7 @@ compare_rgb(int r1, int g1, int b1, int r2, int g2, int b2, size_t *matching, si
 int
 main(int argc, char *argv[])
 {
-    const char *argv0 = argv[0];
+    const char *argv0 = (argc > 0 && argv && argv[0]) ? argv[0] : "pixcmp";
 
     FILE *f1 = NULL;
     FILE *f2 = NULL;
@@ -227,7 +227,9 @@ main(int argc, char *argv[])
     size_t f2_skip = 0;
     size_t stop_after = 0;
 
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0]) {
+	bu_setprogname(argv[0]);
+    }
 
     /* process opts */
     while ((c = bu_getopt(argc, argv, "sdbi:n:q?")) != -1) {
@@ -320,6 +322,8 @@ main(int argc, char *argv[])
 	f2 = stdin;
     } else if ((f2 = fopen(argv[1], "rb")) == NULL) {
 	perror(argv[1]);
+	if (f1 != stdin)
+	    fclose(f1);
 	exit(FILE_ERROR);
     }
 
@@ -328,6 +332,8 @@ main(int argc, char *argv[])
     /* setmode(fileno(stdout), O_BINARY); */
 
     if (f1_skip != f2_skip && f1 == stdin && f2 == stdin) {
+	if (f1 != stdin) fclose(f1);
+	if (f2 != stdin) fclose(f2);
 	bu_exit(OPTS_ERROR, "ERROR: cannot skip the same input stream by different amounts\n");
     }
 
@@ -342,27 +348,33 @@ main(int argc, char *argv[])
 
     /* bu_log("FILE1_size(%zu) FILE1_skip(%zu) FILE2_size(%zu) FILE2_skip(%zu)\n", (size_t)sf1.st_size, f1_skip, (size_t)sf2.st_size, f2_skip); */
 
-    if (!quiet && ((sf1.st_size - f1_skip) != (sf2.st_size - f2_skip))) {
-	bu_log("WARNING: Different image sizes detected\n");
-	if (print_bytes) {
-	    bu_log("\t%s: %7zu bytes (%8zu bytes, skipping %7zu)\n",
-		   argv[0], (size_t)sf1.st_size - f1_skip, (size_t)sf1.st_size, f1_skip);
-	    bu_log("\t%s: %7zu bytes (%8zu bytes, skipping %7zu)\n",
-		   argv[1], (size_t)sf2.st_size - f2_skip, (size_t)sf2.st_size, f2_skip);
-	} else {
-	    bu_log("\t%s: %7zu pixels (%8zu bytes, skipping %7zu)\n",
-		   argv[0], ((size_t)sf1.st_size - f1_skip)/3, (size_t)sf1.st_size, f1_skip);
-	    bu_log("\t%s: %7zu pixels (%8zu bytes, skipping %7zu)\n",
-		   argv[1], ((size_t)sf2.st_size - f2_skip)/3, (size_t)sf2.st_size, f2_skip);
-	}
-    }
+    {
+	size_t s1_eff = (sf1.st_size > (off_t)f1_skip) ? ((size_t)sf1.st_size - f1_skip) : 0;
+	size_t s2_eff = (sf2.st_size > (off_t)f2_skip) ? ((size_t)sf2.st_size - f2_skip) : 0;
+	const char *f2_name = (argc > 1 ? argv[1] : "-");
 
-    /* make sure we read all bytes */
-    if (stop_after == 0) {
-	stop_after = FMAX((sf1.st_size - f1_skip), (sf2.st_size - f2_skip));
-	if (f1 == stdin && f2 == stdin) {
-	    /* dual stdin is interleaved */
-	    stop_after = (stop_after+1)/2;
+	if (!quiet && (s1_eff != s2_eff)) {
+	    bu_log("WARNING: Different image sizes detected\n");
+	    if (print_bytes) {
+		bu_log("\t%s: %7zu bytes (%8zu bytes, skipping %7zu)\n",
+		       argv[0], s1_eff, (size_t)sf1.st_size, f1_skip);
+		bu_log("\t%s: %7zu bytes (%8zu bytes, skipping %7zu)\n",
+		       f2_name, s2_eff, (size_t)sf2.st_size, f2_skip);
+	    } else {
+		bu_log("\t%s: %7zu pixels (%8zu bytes, skipping %7zu)\n",
+		       argv[0], s1_eff/3, (size_t)sf1.st_size, f1_skip);
+		bu_log("\t%s: %7zu pixels (%8zu bytes, skipping %7zu)\n",
+		       f2_name, s2_eff/3, (size_t)sf2.st_size, f2_skip);
+	    }
+	}
+
+	/* make sure we read all bytes */
+	if (stop_after == 0) {
+	    stop_after = FMAX(s1_eff, s2_eff);
+	    if (f1 == stdin && f2 == stdin) {
+		/* dual stdin is interleaved */
+		stop_after = (stop_after+1)/2;
+	    }
 	}
     }
 

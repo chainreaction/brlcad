@@ -94,13 +94,15 @@ record(const char *fmt, ...)
     bu_vls_vprintf(&str, fmt, ap);
     va_end(ap);
 
-    if (!BU_STR_EQUAL(LOGFILE, "")) {
+    if (!BU_STR_EMPTY(LOGFILE)) {
 	FILE *fp = fopen(LOGFILE, "a");
-	fprintf(fp, "%s", bu_vls_addr(&str));
-	fclose(fp);
+	if (fp) {
+	    fprintf(fp, "%s", bu_vls_cstr(&str));
+	    fclose(fp);
+	}
     }
     if (bu_str_false(QUIET)) {
-	bu_log("%s", bu_vls_addr(&str));
+	bu_log("%s", bu_vls_cstr(&str));
     }
 
     bu_vls_free(&str);
@@ -284,10 +286,15 @@ main(int ac, char *av[])
     void (*verbose_echo)(const char *, ...) = sink;
     void (*echo)(const char *, ...) = record;
 
-    bu_setprogname(av[0]);
+    if (ac > 0 && av && av[0]) {
+	bu_setprogname(av[0]);
+    } else {
+	bu_setprogname("benchmark");
+    }
 
     /* process the argument list for commands */
     for (arg=1; arg<ac; arg++) {
+	char *eq;
 	if (BU_STR_EQUAL(av[arg], "clean")) {
 	    bu_setenv("CLEAN", "1", 1);
 	    continue;
@@ -305,7 +312,7 @@ main(int ac, char *av[])
 	    bu_setenv("HELP", "1", 1);
 	    continue;
 	}
-	if (bu_strncasecmp(av[arg], "instruct", 8)) {
+	if (bu_strncasecmp(av[arg], "instruct", 8) == 0) {
 	    bu_setenv("INSTRUCTIONS", "1", 1);
 	    continue;
 	}
@@ -324,13 +331,12 @@ main(int ac, char *av[])
 	    bu_setenv("RUN", "1", 1);
 	    continue;
 	}
-	if (strchr(av[arg], '=')) {
-	    /* TODO: !!! make sure this still works */
+	eq = strchr(av[arg], '=');
+	if (eq) {
 	    char *var = bu_strdup(av[arg]);
-	    char *val = strtok(var, "=");
-	    if (var && val) {
-		bu_setenv(var, val, 1);
-	    }
+	    char *eq_in_var = var + (eq - av[arg]);
+	    *eq_in_var = '\0';
+	    bu_setenv(var, eq_in_var + 1, 1);
 	    bu_free(var, "strdup av[arg]");
 	    continue;
 	}
@@ -343,7 +349,7 @@ main(int ac, char *av[])
      * handle help before main processing
      ***/
     if (bu_str_true(getenv("HELP"))) {
-	bu_log("Usage: %s [command(s)] [OPTION=value] [RT_OPTIONS]\n", av[0]);
+	bu_log("Usage: %s [command(s)] [OPTION=value] [RT_OPTIONS]\n", bu_getprogname());
 	bu_log("\n");
 	bu_log("Available commands:\n");
 	bu_log("  clean\n");
@@ -378,7 +384,10 @@ main(int ac, char *av[])
 	bu_log("BRL-CAD is a powerful cross-platform open source solid modeling system.\n");
 	bu_log("For more information about BRL-CAD, see http://brlcad.org\n");
 	bu_log("\n");
-	bu_log("Run '%s instructions' or see the manpage for additional information.\n", av[0]);
+	bu_log("Run '%s instructions' or see the manpage for additional information.\n", bu_getprogname());
+	bu_vls_free(&rtargs);
+	bu_vls_free(&vp);
+	bu_vls_free(&str);
 	bu_exit(1, NULL);
     }
 
@@ -443,6 +452,9 @@ main(int ac, char *av[])
 	bu_log("The manual page has even more information and specific usage examples.\n");
 	bu_log("Run 'brlman benchmark'.\n");
 	bu_log("\n");
+	bu_vls_free(&rtargs);
+	bu_vls_free(&vp);
+	bu_vls_free(&str);
 	bu_exit(0, NULL);
     }
 
@@ -466,7 +478,7 @@ main(int ac, char *av[])
 	    sleep(5);
 	} else {
 	    bu_log("Deleting most benchmark images and log files in %s\n", bu_getcwd(cwd, MAXPATHLEN));
-	    bu_log("Running '%s clobber' will remove run logs.\n", av[0]);
+	    bu_log("Running '%s clobber' will remove run logs.\n", bu_getprogname());
 	}
 	bu_log("\n");
 
@@ -546,6 +558,9 @@ main(int ac, char *av[])
 	} else {
 	    bu_log("\nBenchmark clean complete.\n");
 	}
+	bu_vls_free(&rtargs);
+	bu_vls_free(&vp);
+	bu_vls_free(&str);
 	bu_exit(0, NULL);
     }
 
@@ -555,15 +570,19 @@ main(int ac, char *av[])
      ***/
 
     if (bu_str_false(getenv("RUN"))) {
-	bu_exit(1, "Type '%s help' for usage.\n", av[0]);
+	bu_vls_free(&rtargs);
+	bu_vls_free(&vp);
+	bu_vls_free(&str);
+	bu_exit(1, "Type '%s help' for usage.\n", bu_getprogname());
     }
 
     /* where to write results */
     {
 	int fd;
 	const char *logfile;
+	bu_vls_trunc(&str, 0);
 	bu_vls_printf(&str, "run-%d-benchmark.log", bu_pid());
-	logfile = bu_vls_addr(&str);
+	logfile = bu_vls_cstr(&str);
 	bu_setenv("LOGFILE", logfile, 1);
 	fd = open(logfile, O_WRONLY|O_CREAT, S_IRUSR | S_IWUSR);
 	if (fd < 0 || !bu_file_writable(logfile)) {
@@ -572,6 +591,9 @@ main(int ac, char *av[])
 	    }
 	    /* FIXME: not valid logfile on windows, use 'nul' */
 	    bu_setenv("LOGFILE", "/dev/null", 1);
+	}
+	if (fd >= 0) {
+	    close(fd);
 	}
     }
 
@@ -604,9 +626,10 @@ main(int ac, char *av[])
 
 	echo("B R L - C A D   B E N C H M A R K\n");
 	echo("=================================\n");
-	echo("Running %s on %s\n", av[0], rfc2822);
+	echo("Running %s on %s\n", bu_getprogname(), rfc2822);
 	echo("Logging output to %s\n", logfile ? logfile : "disabled");
-	echo("%s\n\n", bu_vls_addr(&v));
+	echo("%s\n\n", bu_vls_cstr(&v));
+	bu_vls_free(&v);
     }
 
 
@@ -813,6 +836,7 @@ main(int ac, char *av[])
 	    estimate = maxtime;
 
 	echo("Estimated time is %s\n", format_elapsed(estimate));
+	bu_vls_free(&elapsed);
     }
 
     /************************
@@ -830,7 +854,7 @@ main(int ac, char *av[])
     ret += bench("sphflake");
 
     echo("\n... Done.\n");
-    echo("Total testing time elapsed: %.2lfs\n", format_elapsed(bu_gettime() - start));
+    echo("Total testing time elapsed: %s\n", format_elapsed(bu_gettime() - start));
 
     if (ret != 0) {
 	echo("\n");
@@ -843,8 +867,11 @@ main(int ac, char *av[])
 	echo("please report your configuration information to benchmark@brlcad.org\n");
 	echo("\n");
 	echo("Output was saved to %s from %s\n", LOG, bu_dir(NULL, 0, BU_DIR_CURR, NULL));
-	echo("Run '%s clean' to remove generated pix files.\n", av[0]);
+	echo("Run '%s clean' to remove generated pix files.\n", bu_getprogname());
 	echo("Benchmark testing failed.\n");
+	bu_vls_free(&rtargs);
+	bu_vls_free(&vp);
+	bu_vls_free(&str);
 	return 2;
     }
 
@@ -867,7 +894,7 @@ main(int ac, char *av[])
 	echo("  *.pix.* ... pix image files for previous frames and raytrace tests\n");
 	echo("  summary ... performance results summary, 2 lines per run\n");
 	echo("\n");
-	echo("Run '%s clean' to remove generated pix files.\n", av[0]);
+	echo("Run '%s clean' to remove generated pix files.\n", bu_getprogname());
 	echo("\n");
 
 	echo("Summary:\n");
@@ -900,6 +927,7 @@ main(int ac, char *av[])
 		echo("\n");
 	    }
 	}
+	bu_vls_free(&performance);
     }
 
     {
@@ -937,6 +965,9 @@ main(int ac, char *av[])
 
     echo("Output was saved to %s from %s\n", LOG, bu_dir(NULL, 0, BU_DIR_CURR, NULL));
     echo("Benchmark testing complete.\n");
+
+    bu_vls_free(&vp);
+    bu_vls_free(&str);
 
     return 0;
 }

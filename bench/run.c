@@ -64,21 +64,32 @@ int
 run(int ac, char *av[])
 {
     int retval;
-    const char *run_geomname = av[0];
-    const char *run_geometry = av[1];
-    long int hypersample = strtod(av[2], NULL);
+    const char *run_geomname;
+    const char *run_geometry;
+    const char *run_target;
+    long int hypersample;
+
+    if (ac < 3 || !av || !av[0] || !av[1] || !av[2])
+	return -1;
+
+    run_geomname = av[0];
+    run_geometry = av[1];
+    hypersample = strtol(av[2], NULL, 10);
     av += 3;
     ac -= 3;
 
+    run_target = (ac > 0 && av && av[0]) ? av[0] : "";
+
     {
 	struct bu_vls args = bu_argv_to_string(ac, (const char **)av);
-	echo("DEBUG: Running %s -B -M -s512 -H%ld -J0 %s -o %s.pix %s/%s.g %s\n", av[0], hypersample, args, run_geomname, run_geomname, run_geometry);
+	echo("DEBUG: Running %s -B -M -s512 -H%ld -J0 %s -o %s.pix %s/%s.g %s\n",
+	     run_target, hypersample, bu_vls_cstr(&args), run_geomname, run_geomname, run_geometry);
 	bu_vls_free(&args);
     }
 
     /* pipe(stdin_for_bu_exec); */
     retval = bu_exec("program", NULL, NULL, NULL);
-    echo("DEBUG: Running %s returned %d\n", av[0], retval);
+    echo("DEBUG: Running %s returned %d\n", run_target, retval);
 
     return retval;
 }
