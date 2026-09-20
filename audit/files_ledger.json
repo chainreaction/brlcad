@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 501,
-    "pending_files": 2992,
-    "last_updated": "2026-09-20T02:15:00Z",
-    "total_issues": 227,
-    "reviewed_count": 328
+    "reviewed_files": 548,
+    "pending_files": 2945,
+    "last_updated": "2026-09-20T02:50:40Z",
+    "total_issues": 236,
+    "reviewed_count": 548
   },
   "files": [
     {
@@ -24,50 +24,60 @@
       "path": "bench/benchmark.c",
       "subsystem": "bench",
       "lines": 953,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T02:50:40Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0236"
+      ]
     },
     {
       "id": 2,
       "path": "bench/clean.c",
       "subsystem": "bench",
       "lines": 96,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T02:50:40Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0236"
+      ]
     },
     {
       "id": 3,
       "path": "bench/compute.c",
       "subsystem": "bench",
       "lines": 96,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T02:50:40Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0236"
+      ]
     },
     {
       "id": 4,
       "path": "bench/pixcmp.c",
       "subsystem": "bench",
       "lines": 514,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T02:50:40Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0236"
+      ]
     },
     {
       "id": 5,
       "path": "bench/run.c",
       "subsystem": "bench",
       "lines": 114,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T02:50:40Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0236"
+      ]
     },
     {
       "id": 6,

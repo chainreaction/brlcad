@@ -4227,7 +4227,25 @@
       "created_at": "2026-09-20T02:45:00Z",
       "verified_at": "2026-09-20T02:45:45Z",
       "fixed_at": "2026-09-20T02:46:11Z"
+    },
+    {
+      "id": "SEC-0236",
+      "file": "bench/clean.c, bench/compute.c, bench/run.c, bench/pixcmp.c, bench/benchmark.c",
+      "lines": "clean.c:70-90; compute.c:50-85; run.c:64-90; pixcmp.c:201-375; benchmark.c:80-105, 285-345, 385-455, 475-625, 820-965",
+      "severity": 2,
+      "category": "Format String Bugs, Division Errors, File Descriptor Leaks, and Bounds Checks",
+      "description": "In bench suite tools: in clean.c, clean_obstacles reused un-truncated vls instances appending .log to .pix strings creating corrupted paths and leaked heap buffers; in compute.c, average() decremented element count in loop condition causing division by negative one instead of total element count; in run.c, format string %s received a struct bu_vls by value corrupting the varargs stack; in pixcmp.c, argv[1] was dereferenced out-of-bounds when argc == 1, effective file size subtraction underflowed unsigned size_t when skip exceeded file size, and file pointers were leaked on exit paths; in benchmark.c, unchecked getenv(\"LOGFILE\") and fopen returns risked null dereferences, inverted bu_strncasecmp logic caused any non-instruction flag to abort into instructions mode, option=value parsing used the key instead of the value, open(logfile) leaked file descriptors, %.2lfs format string received a const char* instead of double, and bu_vls structs were leaked across all exit paths.",
+      "verification_status": "CONFIRMED",
+      "verification_test": "Code inspection, compilation of bark and pixcmp, running pixcmp and bark cli tests, ctest bench_pixcmp_tolerance, and regression suite (regress-licenses, regress-repository).",
+      "test_result": "All targets compile cleanly with zero warnings, all tests pass 100%, regress-licenses and regress-repository pass 100%.",
+      "fix_status": "FIXED",
+      "fix_description": "Truncated and freed vls instances in clean.c; preserved total count for average calculation and added null array guards in compute.c; passed bu_vls_cstr to format strings and guarded parameter bounds in run.c; protected argv[1] access, guarded against unsigned underflow on file skip, and closed open file descriptors in pixcmp.c; checked BU_STR_EMPTY and valid fopen before writing, fixed bu_strncasecmp comparison, correctly parsed option=value, closed file descriptors, corrected format string to %s, and added bu_vls_free across all exit paths in benchmark.c.",
+      "commit_hash": "41dce3ec37",
+      "commit_message": "bench: fix format string bugs, division errors, file descriptor leaks, and bounds checks",
+      "created_at": "2026-09-20T02:50:00Z",
+      "verified_at": "2026-09-20T02:50:25Z",
+      "fixed_at": "2026-09-20T02:50:40Z"
     }
   ],
-  "last_updated": "2026-09-20T02:46:00Z"
+  "last_updated": "2026-09-20T02:50:40Z"
 }
