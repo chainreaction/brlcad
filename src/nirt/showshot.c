@@ -65,7 +65,9 @@ main (int argc, char **argv)
     double entryp[3] = VINIT_ZERO;	/* Ray's entry into current region */
     double exitp[3] = VINIT_ZERO;		/* Ray's exit from current region */
 
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0]) {
+	bu_setprogname(argv[0]);
+    }
     pid = bu_pid();
 
     *rayname = '\0';
@@ -76,7 +78,7 @@ main (int argc, char **argv)
 		bu_strlcpy(rayname, bu_optarg, BUF_LEN);
 		break;
 	    case 'r':
-		if (sscanf(bu_optarg, "%lf", &ray_radius) != 1) {
+		if (sscanf(bu_optarg, "%lf", &ray_radius) != 1 || ray_radius <= 0.0) {
 		    bu_exit(1, "Illegal radius: '%s'\n", bu_optarg);
 		}
 		break;
@@ -91,7 +93,7 @@ main (int argc, char **argv)
 
     /* Construct the names of the objects to add to the database */
     if (*rayname == '\0')	/* Was one given on command line? */
-	sprintf(rayname, "ray.%d", pid);
+	snprintf(rayname, sizeof(rayname), "ray.%d", pid);
 
     if (strlen(rayname) > NAMESIZE) {
 	fprintf(stderr,
@@ -116,10 +118,12 @@ main (int argc, char **argv)
 	while (isspace((int)*bp))
 	    ++bp;
 
-	/* Get region name */
-	for (i = 0; ! isspace((int)*bp) && (*bp != '\0'); ++i, ++bp)
+	/* Get region name with bounds check */
+	for (i = 0; !isspace((int)*bp) && (*bp != '\0') && i < BUF_LEN - 1; ++i, ++bp)
 	    rname[i] = *bp;
 	rname[i] = '\0';
+	while (!isspace((int)*bp) && (*bp != '\0'))
+	    ++bp;
 
 	/* Read entry and exit coordinates for this partition */
 	if (sscanf(bp, "%lf%lf%lf%lf%lf%lf",
@@ -134,8 +138,11 @@ main (int argc, char **argv)
 	    VMOVE(first_entryp, entryp);
 	}
     }
-    if (! feof(stdin)) {
-	bu_exit(1, "Error from bu_fgets().  This shouldn't happen");
+    if (!feof(stdin)) {
+	bu_exit(1, "Error from bu_fgets().  This shouldn't happen\n");
+    }
+    if (line_nm == 0) {
+	bu_exit(1, "show-shot: No input lines read from stdin\n");
     }
 
     printf("\nkill %s.s\nin %s.s rcc\n\t%f %f %f\n\t%f %f %f\n\t%f\n",

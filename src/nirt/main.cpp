@@ -143,6 +143,8 @@ list_formats(struct nirt_io_data *io_data, char ***names)
 	bu_vls_trunc(&ptf, 0);
 	bu_vls_printf(&ptf, "%s/%s", bu_vls_addr(&nfp), filearray[i]);
 	f = fopen(bu_vls_addr(&ptf), "rb");
+	if (!f)
+	    continue;
 
 	fnddesc = 0;
 	bu_vls_trunc(&fl, 0);
@@ -263,12 +265,14 @@ nirt_dest_cmd(struct nirt_io_data *io_data, struct bu_vls *iline)
 	    fprintf(io_data->err, "Cannot open pipe '%s'\n", bu_vls_addr(iline));
 	} else {
 	    if (io_data->using_pipe) {
-		pclose(io_data->out);
-		pclose(io_data->err);
+		if (io_data->out)
+		    pclose(io_data->out);
+		if (io_data->err && io_data->err != io_data->out)
+		    pclose(io_data->err);
 	    } else {
 		if (io_data->out && io_data->out != stdout)
 		    fclose(io_data->out);
-		if (io_data->err && io_data->err != stderr)
+		if (io_data->err && io_data->err != stderr && io_data->err != io_data->out)
 		    fclose(io_data->err);
 	    }
 	    io_data->out = newf;
@@ -283,14 +287,18 @@ nirt_dest_cmd(struct nirt_io_data *io_data, struct bu_vls *iline)
     } else {
 	/* File or stdout/stderr */
 	if (io_data->using_pipe) {
-	    pclose(io_data->out);
-	    pclose(io_data->err);
+	    if (io_data->out)
+		pclose(io_data->out);
+	    if (io_data->err && io_data->err != io_data->out)
+		pclose(io_data->err);
+	    io_data->out = stdout;
+	    io_data->err = stderr;
 	    io_data->using_pipe = 0;
 	}
 	if (BU_STR_EQUAL(bu_vls_addr(iline), "default")) {
-	    if (io_data->out != stdout)
+	    if (io_data->out && io_data->out != stdout)
 		fclose(io_data->out);
-	    if (io_data->err != stderr)
+	    if (io_data->err && io_data->err != stderr && io_data->err != io_data->out)
 		fclose(io_data->err);
 	    io_data->out = stdout;
 	    io_data->err = stderr;
@@ -301,11 +309,15 @@ nirt_dest_cmd(struct nirt_io_data *io_data, struct bu_vls *iline)
 	    if (!newf) {
 		fprintf(io_data->err, "Cannot open file '%s'\n", bu_vls_addr(iline));
 	    } else {
+		if (io_data->out && io_data->out != stdout)
+		    fclose(io_data->out);
+		if (io_data->err && io_data->err != stderr && io_data->err != io_data->out)
+		    fclose(io_data->err);
 		io_data->out = newf;
 		io_data->err = newf;
+		bu_vls_sprintf(io_data->outfile, "%s", bu_vls_addr(iline));
+		bu_vls_sprintf(io_data->errfile, "%s", bu_vls_addr(iline));
 	    }
-	    bu_vls_sprintf(io_data->outfile, "%s", bu_vls_addr(iline));
-	    bu_vls_sprintf(io_data->errfile, "%s", bu_vls_addr(iline));
 	}
     }
     bu_vls_trunc(iline, 0);
@@ -450,7 +462,7 @@ main(int argc, const char **argv)
     struct bu_vls nirt_debug = BU_VLS_INIT_ZERO;
     struct bu_vls optparse_msg = BU_VLS_INIT_ZERO;
     struct bu_vls state_file = BU_VLS_INIT_ZERO;
-    struct db_i *dbip;
+    struct db_i *dbip = DBI_NULL;
     struct nirt_io_data io_data = IO_DATA_NULL;
     struct nirt_state *ns = NULL;
 
@@ -459,23 +471,23 @@ main(int argc, const char **argv)
     struct nirt_opt_vals optv = NIRT_OPT_INIT;
     struct bu_opt_desc *d = nirt_opt_desc(&optv);
 
-    if (argc == 0 || !argv)
+    if (argc <= 0 || !argv || !argv[0])
 	return -1;
 
     /* Store the full execution command as a string so we can report it back in
      * output if we want to.  Do this before anything alters the argc/argv
      * values. */
     for (int ic = 0; ic < argc - 1; ic++) {
-	if (strchr(argv[ic], ' ')) {
+	if (argv[ic] && strchr(argv[ic], ' ')) {
 	    bu_vls_printf(&launch_cmd, "\"%s\" ", argv[ic]);
 	} else {
-	    bu_vls_printf(&launch_cmd, "%s ", argv[ic]);
+	    bu_vls_printf(&launch_cmd, "%s ", argv[ic] ? argv[ic] : "");
 	}
     }
-    if (strchr(argv[argc-1], ' ')) {
+    if (argv[argc-1] && strchr(argv[argc-1], ' ')) {
 	bu_vls_printf(&launch_cmd, "\"%s\" ", argv[argc-1]);
     } else {
-	bu_vls_printf(&launch_cmd, "%s", argv[argc-1]);
+	bu_vls_printf(&launch_cmd, "%s", argv[argc-1] ? argv[argc-1] : "");
     }
 
     /* Let libbu know where we are */
@@ -584,11 +596,22 @@ main(int argc, const char **argv)
 
 	    nirt_msg(&io_data, " (specify via -f option)\n");
 	}
-	bu_argv_free(fmtcnt, names);
+	if (names)
+	    bu_argv_free(fmtcnt, names);
     }
 
     /* OK, from here on out we are actually going to be working with NIRT
      * itself.  Set up the initial environment */
+
+    if (ac < 1) {
+	char *help = bu_opt_describe(d, &dopts);
+	bu_vls_sprintf(&msg, "Usage: nirt [options] model.g [objects]...\n\nOptions:\n%s\n", help ? help : "");
+	nirt_out(&io_data, bu_vls_cstr(&msg));
+	if (help)
+	    bu_free(help, "help str");
+	ret = EXIT_FAILURE;
+	goto done;
+    }
 
     if (optv.silent_mode != NIRT_SILENT_YES) {
 	bu_vls_sprintf(&msg, "Database file:  '%s'\n", argv[0]);
@@ -606,6 +629,7 @@ main(int argc, const char **argv)
 	nirt_msg(&io_data, "Building the directory...\n");
     if (db_dirbuild(dbip) < 0) {
 	db_close(dbip);
+	dbip = DBI_NULL;
 	bu_vls_sprintf(&msg, "db_dirbuild failed: %s\n", argv[0]);
 	nirt_err(&io_data, bu_vls_cstr(&msg));
 	ret = EXIT_FAILURE;
@@ -615,6 +639,7 @@ main(int argc, const char **argv)
     BU_GET(ns, struct nirt_state);
     if (nirt_init(ns) == -1) {
 	BU_PUT(ns, struct nirt_state);
+	ns = NULL;
 	nirt_err(&io_data, "nirt state initialization failed\n");
 	ret = EXIT_FAILURE;
 	goto done;
@@ -714,15 +739,13 @@ main(int argc, const char **argv)
 
     /* We know enough now to initialize */
     if (nirt_init_dbip(ns, dbip) == -1) {
-	BU_PUT(ns, struct nirt_state);
 	bu_vls_sprintf(&msg, "nirt_init_dbip failed: %s\n", argv[0]);
 	nirt_err(&io_data, bu_vls_cstr(&msg));
 	ret = EXIT_FAILURE;
 	goto done;
     }
-    db_close(dbip); /* nirt will now manage its own copies of the dbip */
 
-    /* Report Database info */
+    /* Report Database info before closing our initial dbip handle */
     if (optv.silent_mode != NIRT_SILENT_YES) {
 	units_str = bu_units_string(dbip->dbi_local2base);
 	bu_vls_sprintf(&msg, "Database title: '%s'\n", dbip->dbi_title);
@@ -731,6 +754,9 @@ main(int argc, const char **argv)
 	nirt_msg(&io_data, bu_vls_cstr(&msg));
 	(void)nirt_exec(ns, "state model_bounds");
     }
+
+    db_close(dbip); /* nirt will now manage its own copies of the dbip */
+    dbip = DBI_NULL;
 
     /* Initialize the state file to "nirt_state" */
     bu_vls_sprintf(&state_file, "nirt_state");
@@ -756,6 +782,8 @@ main(int argc, const char **argv)
 		if (nirt_exec(ns, bu_vls_cstr(&eye_pt_cmd)) < 0) {
 		    bu_vls_free(&eye_pt_cmd);
 		    nirt_err(&io_data, "nirt: read_mat(): Failed to read eye_pt\n");
+		    bu_free(buf, "rt_read_cmd command buffer");
+		    buf = NULL;
 		    ret = EXIT_FAILURE;
 		    goto done;
 		}
@@ -765,6 +793,8 @@ main(int argc, const char **argv)
 	    } else if (bu_strncmp(buf, "orientation", 11) == 0) {
 		if (sscanf(buf + 11, "%lf%lf%lf%lf", &scan[X], &scan[Y], &scan[Z], &scan[W]) != 4) {
 		    nirt_err(&io_data, "nirt: read_mat(): Failed to read orientation\n");
+		    bu_free(buf, "rt_read_cmd command buffer");
+		    buf = NULL;
 		    ret = EXIT_FAILURE;
 		    goto done;
 		}
@@ -780,6 +810,8 @@ main(int argc, const char **argv)
 			    &scan[4], &scan[5], &scan[6], &scan[7],
 			    &scan[8], &scan[9], &scan[10], &scan[11],
 			    &scan[12], &scan[13], &scan[14], &scan[15]) != 16) {
+		    bu_free(buf, "rt_read_cmd command buffer");
+		    buf = NULL;
 		    bu_exit(1, "nirt: read_mat(): Failed to read viewrot\n");
 		}
 
@@ -787,6 +819,8 @@ main(int argc, const char **argv)
 		//bn_mat_print("view matrix", m);
 		status |= RMAT_SAW_VR;
 	    }
+	    bu_free(buf, "rt_read_cmd command buffer");
+	    buf = NULL;
 	}
 	if ((status & RMAT_SAW_EYE) == 0) {
 	    nirt_err(&io_data, "nirt: read_mat(): Was given no eye_pt\n");
@@ -859,23 +893,38 @@ done:
     nirt_opt_vals_free(&optv);
     bu_free(d, "nirt opt desc");
 
+    if (dbip != DBI_NULL) {
+	db_close(dbip);
+	dbip = DBI_NULL;
+    }
+
     if (io_data.using_pipe) {
-	pclose(io_data.out);
-	pclose(io_data.err);
+	if (io_data.out)
+	    pclose(io_data.out);
+	if (io_data.err && io_data.err != io_data.out)
+	    pclose(io_data.err);
     } else {
-	if (io_data.out != stdout)
+	if (io_data.out && io_data.out != stdout)
 	    fclose(io_data.out);
-	if (io_data.err != stderr)
+	if (io_data.err && io_data.err != stderr && io_data.err != io_data.out)
 	    fclose(io_data.err);
     }
 
-    bu_vls_free(io_data.outfile);
-    bu_vls_free(io_data.errfile);
-    BU_PUT(io_data.outfile, struct bu_vls);
-    BU_PUT(io_data.errfile, struct bu_vls);
-    nirt_destroy(ns);
-    if (ns)
+    if (io_data.outfile) {
+	bu_vls_free(io_data.outfile);
+	BU_PUT(io_data.outfile, struct bu_vls);
+	io_data.outfile = NULL;
+    }
+    if (io_data.errfile) {
+	bu_vls_free(io_data.errfile);
+	BU_PUT(io_data.errfile, struct bu_vls);
+	io_data.errfile = NULL;
+    }
+    if (ns) {
+	nirt_destroy(ns);
 	BU_PUT(ns, struct nirt_state);
+	ns = NULL;
+    }
 
     return ret;
 }
