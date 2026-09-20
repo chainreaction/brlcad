@@ -4173,7 +4173,25 @@
       "created_at": "2026-09-20T02:36:00Z",
       "verified_at": "2026-09-20T02:36:30Z",
       "fixed_at": "2026-09-20T02:36:39Z"
+    },
+    {
+      "id": "SEC-0233",
+      "file": "src/libpc/gecode_librt_test.cpp, src/libpc/solver_test.cpp, src/libpc/vm_test.cpp, src/libpc/domain_constraint_propagator.cpp, src/libpc/cartesian-heart.cpp, src/libpc/gecode_solver_test.cpp",
+      "lines": "gecode_librt_test.cpp:45-95; solver_test.cpp:43-85, 90-115; vm_test.cpp:38-45, 70-78, 140-145; domain_constraint_propagator.cpp:60-110; cartesian-heart.cpp:112-120; gecode_solver_test.cpp:70-75",
+      "severity": 2,
+      "category": "Out-of-Bounds Array Access, Division by Zero, and Missing Pointer Validation",
+      "description": "In libpc routines: in gecode_librt_test.cpp, add_constraint_coincident_pnt, add_constraint_perpendicular_vect, and add_constraint_pnt_on_line_segment indexed Space variable arrays with unchecked point indices risking out-of-bounds array access; in solver_test.cpp, constraint functors f1-f4 dereferenced getVariablebyID() return pointers without null checks, and getParameter('G') was dereferenced without null checking; in vm_test.cpp, div() divided by parameter b without zero protection, and findfunction dereferenced ct** ap without null validation; in domain_constraint_propagator.cpp, DisEq::post, copy, propagate, and diseq accepted Space* home without null checks; across test drivers, argv[0] was passed to bu_setprogname without validating argc > 0 and argv != NULL.",
+      "verification_status": "CONFIRMED",
+      "verification_test": "Code inspection, compilation, and regression suite (regress-licenses, regress-repository).",
+      "test_result": "All targets compile cleanly with zero warnings, regress-repository passes 100%.",
+      "fix_status": "FIXED",
+      "fix_description": "Added point index bounds validation and space pointer null checks in geometry constraint helpers; added null checks on getVariablebyID and getParameter in solver test; protected division by zero with ZERO macro and validated function pointers in math VM test; guarded Space* pointers in domain propagator; validated argc/argv across test main drivers.",
+      "commit_hash": "99d242bbf0",
+      "commit_message": "libpc: fix out-of-bounds accesses, null pointer dereferences, and division by zero",
+      "created_at": "2026-09-20T02:38:00Z",
+      "verified_at": "2026-09-20T02:38:40Z",
+      "fixed_at": "2026-09-20T02:38:51Z"
     }
   ],
-  "last_updated": "2026-09-20T02:37:00Z"
+  "last_updated": "2026-09-20T02:39:00Z"
 }

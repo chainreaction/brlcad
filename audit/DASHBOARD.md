@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-20 02:37:00 UTC
+**Last Updated:** 2026-09-20 02:39:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 532 (15.2%)
-- **Files Pending Review:** 2961
-- **Total Issues Identified:** 232
+- **Files Reviewed:** 538 (15.4%)
+- **Files Pending Review:** 2955
+- **Total Issues Identified:** 233
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 162 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 163 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 47 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 232
+- **Fixed (Committed):** 233
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -96,7 +96,7 @@
 | `src/libicv` | 34 | 0 | 0.0% | 0 |
 | `src/libnmg` | 54 | 0 | 0.0% | 0 |
 | `src/liboptical` | 46 | 0 | 0.0% | 0 |
-| `src/libpc` | 6 | 0 | 0.0% | 0 |
+| `src/libpc` | 6 | 6 | 100.0% | 1 |
 | `src/libpkg` | 10 | 10 | 100.0% | 3 |
 | `src/libqtcad` | 29 | 0 | 0.0% | 0 |
 | `src/librt` | 373 | 0 | 0.0% | 0 |

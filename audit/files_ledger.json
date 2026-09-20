@@ -27512,60 +27512,72 @@
       "path": "src/libpc/cartesian-heart.cpp",
       "subsystem": "src/libpc",
       "lines": 123,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:39:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0233"
+      ]
     },
     {
       "id": 2686,
       "path": "src/libpc/domain_constraint_propagator.cpp",
       "subsystem": "src/libpc",
       "lines": 110,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:39:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0233"
+      ]
     },
     {
       "id": 2687,
       "path": "src/libpc/gecode_librt_test.cpp",
       "subsystem": "src/libpc",
       "lines": 208,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:39:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0233"
+      ]
     },
     {
       "id": 2688,
       "path": "src/libpc/gecode_solver_test.cpp",
       "subsystem": "src/libpc",
       "lines": 103,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:39:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0233"
+      ]
     },
     {
       "id": 2689,
       "path": "src/libpc/solver_test.cpp",
       "subsystem": "src/libpc",
       "lines": 192,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:39:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0233"
+      ]
     },
     {
       "id": 2690,
       "path": "src/libpc/vm_test.cpp",
       "subsystem": "src/libpc",
       "lines": 154,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:39:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0233"
+      ]
     },
     {
       "id": 2691,
