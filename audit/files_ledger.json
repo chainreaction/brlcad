@@ -4766,30 +4766,36 @@
       "path": "src/bwish/cmd.c",
       "subsystem": "src/bwish",
       "lines": 417,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:46:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0235"
+      ]
     },
     {
       "id": 476,
       "path": "src/bwish/input.c",
       "subsystem": "src/bwish",
       "lines": 585,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:46:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0235"
+      ]
     },
     {
       "id": 477,
       "path": "src/bwish/main.c",
       "subsystem": "src/bwish",
       "lines": 373,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:46:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0235"
+      ]
     },
     {
       "id": 478,

@@ -4209,7 +4209,25 @@
       "created_at": "2026-09-20T02:42:00Z",
       "verified_at": "2026-09-20T02:42:15Z",
       "fixed_at": "2026-09-20T02:42:20Z"
+    },
+    {
+      "id": "SEC-0235",
+      "file": "src/bwish/cmd.c, src/bwish/input.c, src/bwish/main.c",
+      "lines": "cmd.c:80-155, 210-245, 250-285, 290-350; input.c:135-150, 220-240, 255-285, 320-335, 365-425, 490-530; main.c:75-85, 230-265, 280-288, 315-335",
+      "severity": 2,
+      "category": "Heap/Stack Buffer Overflow, Pointer Underflow, and Memory Leaks",
+      "description": "In bwish/btclsh routines: in cmd.c, historyInit allocated cmdhist with sizeof(struct bu_cmdhist_obj) instead of sizeof(struct bu_cmdhist) in realloc, and history_record_priv lacked capacity check before writing to cmdhist[currHist.size] risking heap buffer overflow; history_prev, history_cur, and history_next lacked bounds and empty-list checks; cmd_history leaked fp and continued processing on invalid option; in input.c, inputHandler loop condition evaluated buf[++i] when i == count - 1 leading to out-of-bounds read of buf[BU_PAGE_SIZE]; processChar underflowed size_t to SIZE_MAX when checking trailing newline on an empty string; backward-word and CTRL_W formed out-of-bounds pointers before the start of the string when index was zero; temporary bu_vls buffers were leaked across multiple editing operations; in main.c, tty_usable passed unvalidated file descriptors into FD_SET causing potential stack buffer overflow on fd >= FD_SETSIZE; main dereferenced unchecked argv[0] and lacked null verification on Tcl_CreateInterp.",
+      "verification_status": "CONFIRMED",
+      "verification_test": "Code inspection, compilation of btclsh/bwish, interactive execution tests, and regression suite (regress-licenses, regress-repository).",
+      "test_result": "All targets compile cleanly with zero warnings, regress-licenses and regress-repository pass 100%.",
+      "fix_status": "FIXED",
+      "fix_description": "Corrected history allocation sizing and ensured capacity check precedes history record insertion; added bounds validation to history accessors and command handlers; corrected inputHandler read loop to prevent out-of-bounds array reads; protected against size_t underflow and negative pointer arithmetic in editing handlers; properly scoped and freed temporary vls buffers; bounded fd against FD_SETSIZE in tty_usable; validated argc/argv and interpreter creation.",
+      "commit_hash": "6b5401f045",
+      "commit_message": "bwish: fix buffer overflows, pointer underflows, and memory leaks",
+      "created_at": "2026-09-20T02:45:00Z",
+      "verified_at": "2026-09-20T02:45:45Z",
+      "fixed_at": "2026-09-20T02:46:11Z"
     }
   ],
-  "last_updated": "2026-09-20T02:43:00Z"
+  "last_updated": "2026-09-20T02:46:00Z"
 }
