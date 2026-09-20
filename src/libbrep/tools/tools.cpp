@@ -41,6 +41,12 @@ bool ON_NearZero(double val, double epsilon) {
 
 
 double ON_Curve_Get_Tangent(int direction, const ON_Curve* curve, double min, double max, double zero_tol) {
+    if (!curve || direction < 0 || direction > 2 || min > max) {
+	return min;
+    }
+    if (zero_tol <= 0.0) {
+	zero_tol = 1.0e-6;
+    }
     double mid;
     bool tanmin;
     ON_3dVector tangent;
@@ -81,6 +87,7 @@ double ON_Curve_Get_Vertical_Tangent(const ON_Curve* curve, double min, double m
 
 
 int ON_Curve_Has_Tangent(const ON_Curve* curve, double ct_min, double ct_max, double t_tol) {
+    if (!curve) return 0;
 
     bool tanx1, tanx2, x_changed;
     bool tany1, tany2, y_changed;
@@ -126,6 +133,7 @@ int ON_Curve_Has_Tangent(const ON_Curve* curve, double ct_min, double ct_max, do
 static double
 find_next_point(const ON_Curve* crv, double startdomval, double increment, double tolerance, int stepcount)
 {
+    if (!crv || stepcount > 10) return 0.0;
     double inc = increment;
     if (startdomval + increment > 1.0) inc = 1.0 - startdomval;
     ON_Interval dom = crv->Domain();
@@ -136,7 +144,6 @@ find_next_point(const ON_Curve* crv, double startdomval, double increment, doubl
 	inc = inc / 2;
 	return find_next_point(crv, startdomval, inc, tolerance, stepcount);
     } else {
-	if (stepcount > 5) return 0.0;
 	return startdomval + inc;
     }
 }
@@ -196,6 +203,7 @@ int ON_Curve_PolyLine_Approx(ON_Polyline *polyline, const ON_Curve *curve, doubl
 
 bool ON_Surface_IsFlat(const ON_Plane frames[9], double f_tol)
 {
+    if (!frames) return false;
     double Ndot=1.0;
 
     for (int i=0; i<8; i++) {
@@ -212,6 +220,7 @@ bool ON_Surface_IsFlat(const ON_Plane frames[9], double f_tol)
 
 bool ON_Surface_IsFlat_U(const ON_Plane frames[9], double f_tol)
 {
+    if (!frames) return false;
     // check surface normals in U direction
     double Ndot = 1.0;
     if ((Ndot=frames[0].zaxis * frames[1].zaxis) < f_tol) {
@@ -242,6 +251,7 @@ bool ON_Surface_IsFlat_U(const ON_Plane frames[9], double f_tol)
 
 bool ON_Surface_IsFlat_V(const ON_Plane frames[9], double f_tol)
 {
+    if (!frames) return false;
     // check surface normals in V direction
     double Ndot = 1.0;
     if ((Ndot=frames[0].zaxis * frames[3].zaxis) < f_tol) {
@@ -272,11 +282,12 @@ bool ON_Surface_IsFlat_V(const ON_Plane frames[9], double f_tol)
 
 bool ON_Surface_IsStraight(const ON_Plane frames[9], double s_tol)
 {
+    if (!frames) return false;
     double Xdot=1.0;
 
     for (int i=0; i<8; i++) {
 	for (int j=i+1; j<9; j++) {
-	    if ((Xdot = Xdot * frames[0].xaxis * frames[1].xaxis) < s_tol) {
+	    if ((Xdot = Xdot * frames[i].xaxis * frames[j].xaxis) < s_tol) {
 		return false;
 	    }
 	}

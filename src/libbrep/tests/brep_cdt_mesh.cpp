@@ -27,10 +27,12 @@
 int
 main(int argc, const char **argv)
 {
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
 
-    if (argc != 2) {
+    if (argc != 2 || !argv || !argv[1]) {
 	std::cerr << "brep_cdt_mesh <serialization_file>\n";
+	return -1;
     }
     struct cdt_bmesh *fmesh;
     if (cdt_bmesh_create(&fmesh)) return -1;

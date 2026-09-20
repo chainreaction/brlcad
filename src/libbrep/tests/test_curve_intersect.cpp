@@ -35,6 +35,8 @@
 static void
 test_cci(ON_Curve *c1, ON_Curve *c2)
 {
+    if (!c1 || !c2)
+	return;
     ON_wString wstr;
     ON_TextLog textlog(wstr);
     ON_SimpleArray<ON_X_EVENT> x;
@@ -48,7 +50,7 @@ test_cci(ON_Curve *c1, ON_Curve *c2)
 	for (int i = 0; i < x.Count(); i++)
 	    x[i].Dump(textlog);
 	ON_String str(wstr);
-	bu_log("%s", str.Array());
+	bu_log("%s", str.Array() ? str.Array() : "");
     }
     bu_log("\n\n");
 }
@@ -57,6 +59,8 @@ test_cci(ON_Curve *c1, ON_Curve *c2)
 static void
 test_csi(ON_Curve *c1, ON_Surface *s2)
 {
+    if (!c1 || !s2)
+	return;
     ON_wString wstr;
     ON_TextLog textlog(wstr);
     ON_SimpleArray<ON_X_EVENT> x;
@@ -70,16 +74,17 @@ test_csi(ON_Curve *c1, ON_Surface *s2)
 	for (int i = 0; i < x.Count(); i++)
 	    x[i].Dump(textlog);
 	ON_String str(wstr);
-	bu_log("%s", str.Array());
+	bu_log("%s", str.Array() ? str.Array() : "");
     }
     bu_log("\n\n");
 }
 
 
 int
-main(int, char**av)
+main(int ac, char**av)
 {
-    bu_setprogname(av[0]);
+    if (ac > 0 && av && av[0])
+	bu_setprogname(av[0]);
     ON_3dPoint origin(0.0, 0.0, 0.0);
     ON_3dVector xdir(1.0, 0.0, 0.0);
     ON_3dVector ydir(0.0, 1.0, 1.0);

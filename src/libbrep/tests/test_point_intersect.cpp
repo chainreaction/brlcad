@@ -49,7 +49,7 @@ test_ppi(ON_3dPoint &p1, ON_3dPoint &p2)
 	for (int i = 0; i < x.Count(); i++)
 	    x[i].Dump(textlog);
 	ON_String str(wstr);
-	bu_log("%s", str.Array());
+	bu_log("%s", str.Array() ? str.Array() : "");
     }
     bu_log("\n\n");
 }
@@ -75,7 +75,7 @@ test_pci(ON_3dPoint &p, ON_Curve &c)
 	for (int i = 0; i < x.Count(); i++)
 	    x[i].Dump(textlog);
 	ON_String str(wstr);
-	bu_log("%s", str.Array());
+	bu_log("%s", str.Array() ? str.Array() : "");
     }
     bu_log("\n\n");
 }
@@ -99,7 +99,7 @@ test_psi(ON_3dPoint &p, ON_Surface &s)
 	for (int i = 0; i < x.Count(); i++)
 	    x[i].Dump(textlog);
 	ON_String str(wstr);
-	bu_log("%s", str.Array());
+	bu_log("%s", str.Array() ? str.Array() : "");
     }
     bu_log("\n\n");
 }
@@ -114,15 +114,22 @@ rand_f(double min, double max)
 
 
 int
-main(int, char**av)
+main(int ac, char**av)
 {
-    bu_setprogname(av[0]);
+    if (ac > 0 && av && av[0])
+	bu_setprogname(av[0]);
     srand(time(0));
 
     ON_3dPoint center(0.0, 0.0, 0.0);
     double radius = 10.0;
     ON_Sphere sphere(center, radius);
     ON_Brep *brep = ON_BrepSphere(sphere);
+    if (!brep)
+	return 1;
+    if (brep->m_C3.Count() == 0 || !brep->m_C3[0] || brep->m_S.Count() == 0 || !brep->m_S[0]) {
+	delete brep;
+	return 1;
+    }
 
     ON_3dPoint p1(0.0, 0.0, 0.0);
     ON_3dPoint p2(0.0, 0.0, radius);

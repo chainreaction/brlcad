@@ -216,9 +216,10 @@ do_equal_point_tests(void)
 }
 
 int
-main(int UNUSED(argc), const char *argv[])
+main(int argc, const char *argv[])
 {
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
 
     do_equal_point_tests();
 

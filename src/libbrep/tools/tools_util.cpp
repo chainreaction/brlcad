@@ -40,6 +40,8 @@
 void
 ON_MinMaxInit(ON_3dPoint *min, ON_3dPoint *max)
 {
+    if (!min || !max)
+	return;
     min->x = ON_DBL_MAX;
     min->y = ON_DBL_MAX;
     min->z = ON_DBL_MAX;
@@ -83,6 +85,8 @@ ON_LinePlaneIntersect(ON_Line &line, ON_Plane &plane)
 int
 ON_BrepTikz(ON_String& s, const ON_Brep *brep, const char *c, const char *pre)
 {
+    if (!brep)
+	return 0;
     struct bu_vls color = BU_VLS_INIT_ZERO;
     struct bu_vls output = BU_VLS_INIT_ZERO;
     struct bu_vls prefix = BU_VLS_INIT_ZERO;
@@ -104,27 +108,35 @@ ON_BrepTikz(ON_String& s, const ON_Brep *brep, const char *c, const char *pre)
     for (int i = 0; i < brep->m_E.Count(); i++) {
 	const ON_BrepEdge *edge = &(brep->m_E[i]);
 	//int ei = edge->m_edge_index;
-	ON_Curve *ecv = edge->EdgeCurveOf()->Duplicate();
+	const ON_Curve *edge_curve = edge->EdgeCurveOf();
+	if (!edge_curve)
+	    continue;
+	ON_Curve *ecv = edge_curve->Duplicate();
+	if (!ecv)
+	    continue;
 	if (ecv->IsLinear()) {
-	    bu_vls_printf(&output, "\\draw[%s] (%sV%d) -- (%sV%d);\n", bu_vls_addr(&color), bu_vls_addr(&prefix), edge->Vertex(0)->m_vertex_index, bu_vls_addr(&prefix), edge->Vertex(1)->m_vertex_index);
+	    if (edge->Vertex(0) && edge->Vertex(1)) {
+		bu_vls_printf(&output, "\\draw[%s] (%sV%d) -- (%sV%d);\n", bu_vls_addr(&color), bu_vls_addr(&prefix), edge->Vertex(0)->m_vertex_index, bu_vls_addr(&prefix), edge->Vertex(1)->m_vertex_index);
+	    }
 	    delete ecv;
 	    continue;
 	}
-	ecv = edge->EdgeCurveOf()->Duplicate();
 	ON_Polyline poly;
-	ON_Curve *ncv = edge->EdgeCurveOf()->Duplicate();
+	ON_Curve *ncv = edge_curve->Duplicate();
+	if (!ncv) {
+	    delete ecv;
+	    continue;
+	}
 	int pnt_cnt = ON_Curve_PolyLine_Approx(&poly, ncv, BN_TOL_DIST);
-	if (pnt_cnt) {
+	if (pnt_cnt > 0 && poly.Count() > 0) {
 	    if (ecv->IsPolyline()) {
 		ON_3dPoint p = poly[0];
-		if (pnt_cnt) {
-		    bu_vls_printf(&output, "\\draw[%s] (%f, %f, %f)", bu_vls_addr(&color), p.x, p.y, p.z);
-		    for (int si = 1; si < poly.Count(); si++) {
-			p = poly[si];
-			bu_vls_printf(&output, " -- (%f, %f, %f)", p.x, p.y, p.z);
-			if (si+1 == poly.Count()) {
-			    bu_vls_printf(&output, ";\n");
-			}
+		bu_vls_printf(&output, "\\draw[%s] (%f, %f, %f)", bu_vls_addr(&color), p.x, p.y, p.z);
+		for (int si = 1; si < poly.Count(); si++) {
+		    p = poly[si];
+		    bu_vls_printf(&output, " -- (%f, %f, %f)", p.x, p.y, p.z);
+		    if (si+1 == poly.Count()) {
+			bu_vls_printf(&output, ";\n");
 		    }
 		}
 	    } else {
@@ -157,6 +169,8 @@ ON_BrepTikz(ON_String& s, const ON_Brep *brep, const char *c, const char *pre)
 void
 ON_BoundingBox_Plot(FILE *pf, ON_BoundingBox &bb)
 {
+    if (!pf)
+	return;
     fastf_t pt[8][3];
     point_t min, max;
     min[0] = bb.Min().x;
@@ -182,6 +196,8 @@ ON_BoundingBox_Plot(FILE *pf, ON_BoundingBox &bb)
 void
 ON_Plane_Plot(FILE *pf, ON_Plane &plane)
 {
+    if (!pf)
+	return;
     int r = int(256*drand48() + 1.0);
     int g = int(256*drand48() + 1.0);
     int b = int(256*drand48() + 1.0);
@@ -238,6 +254,8 @@ brep_translate_scv(
         fastf_t dz)
 {
     ON_NurbsSurface *nurbsSurface = NULL;
+    if (!brep)
+	return -1;
     if (surface_index < 0 || surface_index >= brep->m_S.Count()) {
         bu_log("brep_translate_scv: invalid surface index %d\n", surface_index);
         return -1;

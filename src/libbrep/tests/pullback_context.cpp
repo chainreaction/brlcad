@@ -501,12 +501,13 @@ exercise_validated_curve_pullback()
 
 
 int
-main(int, const char **argv)
+main(int argc, const char **argv)
 {
     const unsigned int worker_count = 8;
     std::atomic<bool> valid(true);
 
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
 
     /* Disabling a CPU-work deadline must not disable independent stall
      * cancellation, and the caller must be able to distinguish the reason. */

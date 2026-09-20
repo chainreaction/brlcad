@@ -19,9 +19,10 @@ static double tri_area_2d(const point2d_t *pts, int a, int b, int c) {
     return fabs((bx-ax)*(cy-ay)-(cx-ax)*(by-ay))*0.5;
 }
 
-int main(int UNUSED(ac), const char **argv) {
+int main(int ac, const char **argv) {
 
-    bu_setprogname(argv[0]);
+    if (ac > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
 
     /* 2D UV points (1082 total) */
     point2d_t *pnts_2d = (point2d_t *)bu_calloc(1083, sizeof(point2d_t), "pnts_2d");
@@ -3360,48 +3361,64 @@ int main(int UNUSED(ac), const char **argv) {
         (size_t)holes_cnt,
         steiner_cnt ? steiner : NULL, steiner_cnt,
 (const point2d_t *)(void *)pnts_2d, 1082, TRI_CONSTRAINED_DELAUNAY);
+    int ret_code = 0;
     if (ret != 0) {
         printf("FAIL: bg_nested_poly_triangulate returned %d\n", ret);
-        return 1;
-    }
-
-    /* Verify: no output triangle centroid falls inside any hole polygon */
-    int bad_tris = 0;
-    double bad_area = 0.0;
-    {
-        int t;
-        for (t = 0; t < num_faces; t++) {
-            int a = faces[3*t], b = faces[3*t+1], c = faces[3*t+2];
-            point2d_t cen;
-            int hi;
-            cen[X] = (pnts_2d[a][X]+pnts_2d[b][X]+pnts_2d[c][X])/3.0;
-            cen[Y] = (pnts_2d[a][Y]+pnts_2d[b][Y]+pnts_2d[c][Y])/3.0;
-            for (hi = 0; hi < holes_cnt; hi++) {
-                point2d_t *hpoly = (point2d_t *)bu_malloc(
-                    holes_npts[hi]*sizeof(point2d_t), "hpoly");
-                size_t hj;
-                for (hj = 0; hj < holes_npts[hi]; hj++) {
-                    hpoly[hj][X] = pnts_2d[holes_array[hi][hj]][X];
-                    hpoly[hj][Y] = pnts_2d[holes_array[hi][hj]][Y];
+        ret_code = 1;
+    } else {
+        /* Verify: no output triangle centroid falls inside any hole polygon */
+        int bad_tris = 0;
+        double bad_area = 0.0;
+        {
+            int t;
+            for (t = 0; t < num_faces; t++) {
+                int a = faces[3*t], b = faces[3*t+1], c = faces[3*t+2];
+                point2d_t cen;
+                int hi;
+                cen[X] = (pnts_2d[a][X]+pnts_2d[b][X]+pnts_2d[c][X])/3.0;
+                cen[Y] = (pnts_2d[a][Y]+pnts_2d[b][Y]+pnts_2d[c][Y])/3.0;
+                for (hi = 0; hi < holes_cnt; hi++) {
+                    point2d_t *hpoly = (point2d_t *)bu_malloc(
+                        holes_npts[hi]*sizeof(point2d_t), "hpoly");
+                    size_t hj;
+                    for (hj = 0; hj < holes_npts[hi]; hj++) {
+                        hpoly[hj][X] = pnts_2d[holes_array[hi][hj]][X];
+                        hpoly[hj][Y] = pnts_2d[holes_array[hi][hj]][Y];
+                    }
+                    if (bg_pnt_in_polygon(holes_npts[hi], (const point2d_t *)(void *)hpoly, (const point2d_t *)(void *)&cen)) {
+                        printf("  PROBLEM tri %d (%d,%d,%d) cen=(%.10g,%.10g) in hole %d\n",
+                            t, a, b, c, (double)cen[X], (double)cen[Y], hi);
+                        bad_tris++;
+                        bad_area += tri_area_2d((const point2d_t *)(void *)pnts_2d, a, b, c);
+                    }
+                    bu_free(hpoly, "hpoly");
                 }
-                if (bg_pnt_in_polygon(holes_npts[hi], (const point2d_t *)(void *)hpoly, (const point2d_t *)(void *)&cen)) {
-                    printf("  PROBLEM tri %d (%d,%d,%d) cen=(%.10g,%.10g) in hole %d\n",
-                        t, a, b, c, (double)cen[X], (double)cen[Y], hi);
-                    bad_tris++;
-                    bad_area += tri_area_2d((const point2d_t *)(void *)pnts_2d, a, b, c);
-                }
-                bu_free(hpoly, "hpoly");
             }
         }
-    }
 
-    if (bad_tris > 0) {
-        printf("FAIL: %d triangles intrude into holes (bad area=%.6g)\n",
-               bad_tris, bad_area);
-        return 1;
+        if (bad_tris > 0) {
+            printf("FAIL: %d triangles intrude into holes (bad area=%.6g)\n",
+                   bad_tris, bad_area);
+            ret_code = 1;
+        } else {
+            printf("PASS: %d output triangles, no hole intrusions\n", num_faces);
+        }
     }
-    printf("PASS: %d output triangles, no hole intrusions\n", num_faces);
-    return 0;
+    if (faces) bu_free(faces, "faces");
+    if (steiner) bu_free(steiner, "steiner");
+    if (raw_steiner) bu_free(raw_steiner, "raw_st");
+    if (holes_array) {
+        int hi;
+        for (hi = 0; hi < holes_cnt; hi++) {
+            if (holes_array[hi]) bu_free(holes_array[hi], "hole");
+        }
+        bu_free(holes_array, "holes_array");
+    }
+    if (holes_npts) bu_free(holes_npts, "holes_npts");
+    if (opoly) bu_free(opoly, "opoly");
+    if (pnts_2d) bu_free(pnts_2d, "pnts_2d");
+
+    return ret_code;
 }
 
 /*
