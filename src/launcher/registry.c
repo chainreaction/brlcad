@@ -59,6 +59,8 @@
 static struct app_entry *
 registry_grow(struct app_registry *r)
 {
+    if (!r)
+	return NULL;
     if (r->count >= r->cap) {
 	int ncap = (r->cap > 0) ? (r->cap * 2) : 8;
 	r->apps = (struct app_entry *)bu_realloc(r->apps, ncap * sizeof(struct app_entry), "app_registry");
@@ -74,6 +76,8 @@ static char *
 trim(char *s)
 {
     char *end;
+    if (!s)
+	return NULL;
     while (*s && isspace((unsigned char)*s))
 	s++;
     if (*s == '\0')
@@ -92,6 +96,9 @@ trim(char *s)
 static void
 registry_resolve(struct app_entry *e)
 {
+    if (!e)
+	return;
+
     if (e->exec[0] == '@') {
 	bu_strlcpy(e->exec_path, e->exec, sizeof(e->exec_path));
 	e->available = 1;
@@ -113,6 +120,10 @@ registry_parse(struct app_registry *r, const char *path)
     FILE *fp;
     char line[APP_TEXT_LEN * 2];
     struct app_entry tmp;
+    struct app_entry *slot;
+
+    if (!r || !path)
+	return 0;
 
     fp = fopen(path, "r");
     if (!fp)
@@ -135,7 +146,7 @@ registry_parse(struct app_registry *r, const char *path)
 	*eq = '\0';
 	key = trim(line);
 	val = trim(eq + 1);
-	if (key[0] == '\0' || val[0] == '\0')
+	if (!key || !val || key[0] == '\0' || val[0] == '\0')
 	    continue;
 
 	if (BU_STR_EQUAL(key, "name"))
@@ -159,7 +170,10 @@ registry_parse(struct app_registry *r, const char *path)
 	return 0;
 
     registry_resolve(&tmp);
-    *registry_grow(r) = tmp;
+    slot = registry_grow(r);
+    if (!slot)
+	return 0;
+    *slot = tmp;
     return 1;
 }
 
@@ -190,6 +204,8 @@ registry_add_builtins(struct app_registry *r)
 
     for (i = 0; i < sizeof(defs) / sizeof(defs[0]); i++) {
 	struct app_entry *e = registry_grow(r);
+	if (!e)
+	    break;
 	bu_strlcpy(e->name, defs[i].name, sizeof(e->name));
 	bu_strlcpy(e->exec, defs[i].exec, sizeof(e->exec));
 	bu_strlcpy(e->description, defs[i].desc, sizeof(e->description));
@@ -236,17 +252,18 @@ app_registry_load(struct app_registry *r)
     if (!r)
 	return 0;
 
-    bu_dir(dir, sizeof(dir), BU_DIR_DATA, APPS_SUBDIR, NULL);
+    if (!bu_dir(dir, sizeof(dir), BU_DIR_DATA, APPS_SUBDIR, NULL))
+	return 0;
 
     if (bu_file_directory(dir))
 	nfiles = bu_file_list(dir, "*.app", &files);
 
     for (i = 0; i < nfiles; i++) {
 	char path[MAXPATHLEN] = {0};
-	if (bu_file_directory(files[i]))
+	if (!files[i] || bu_file_directory(files[i]))
 	    continue;
-	bu_dir(path, sizeof(path), BU_DIR_DATA, APPS_SUBDIR, files[i], NULL);
-	(void)registry_parse(r, path);
+	if (bu_dir(path, sizeof(path), BU_DIR_DATA, APPS_SUBDIR, files[i], NULL))
+	    (void)registry_parse(r, path);
     }
     if (files)
 	bu_argv_free(nfiles, files);

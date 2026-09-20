@@ -87,8 +87,18 @@ draw_char(struct fb *fbp, struct vfont *vfp, struct vfont_dispatch *vdp,
     int i, j, base, ln;
     int totwid = cw;
     int bytes_wide = (cw + 7) >> 3;
+    int rW, rH;
+
+    if (!fbp || !vfp || !vdp || !vfp->vf_bits)
+	return;
+
+    rW = fb_getwidth(fbp);
+    rH = fb_getheight(fbp);
 
     if (cw <= 0 || ch <= 0 || cw + 4 >= FONTBUFSZ || ch + 4 >= FONTBUFSZ)
+	return;
+
+    if (x < 0 || x + totwid + 3 > rW)
 	return;
 
     for (i = 0; i < 2; i++)
@@ -103,8 +113,11 @@ draw_char(struct fb *fbp, struct vfont *vfp, struct vfont_dispatch *vdp,
     base = (vdp->vd_down % 2) ? 1 : 2;
 
     for (i = ch + base; i >= base; i--) {
+	int fy = y - vdp->vd_down + i;
+	if (fy < 0 || fy >= rH)
+	    continue;
 	squash(filterbuf[i - 1], filterbuf[i], filterbuf[i + 1], resbuf, totwid + 4);
-	fb_read(fbp, x, y - vdp->vd_down + i, (unsigned char *)fbline, totwid + 3);
+	fb_read(fbp, x, fy, (unsigned char *)fbline, totwid + 3);
 	for (j = 0; j < (totwid + 3) - 1; j++) {
 	    int tmp;
 	    tmp = fbline[j][RED] & 0377;
@@ -114,7 +127,7 @@ draw_char(struct fb *fbp, struct vfont *vfp, struct vfont_dispatch *vdp,
 	    tmp = fbline[j][BLU] & 0377;
 	    fbline[j][BLU] = (int)(color[BLU] * resbuf[j] + (1 - resbuf[j]) * tmp) & 0377;
 	}
-	(void)fb_write(fbp, x, y - vdp->vd_down + i, (unsigned char *)fbline, totwid + 3);
+	(void)fb_write(fbp, x, fy, (unsigned char *)fbline, totwid + 3);
     }
 }
 
@@ -190,7 +203,7 @@ fbtext_draw(struct fb *fbp, struct fbtext *t, int x, int y, const char *s, const
 	    currx += 8;
 	    continue;
 	}
-	if (currx + cw > fb_getwidth(fbp) - 1)
+	if (currx + cw + 3 > fb_getwidth(fbp))
 	    break;
 
 	draw_char(fbp, t->vfp, vdp, currx, y, color, cw, ch);

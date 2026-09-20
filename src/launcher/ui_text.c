@@ -57,6 +57,8 @@ static void
 print_menu(const struct app_registry *r)
 {
     int i;
+    if (!r)
+	return;
     for (i = 0; i < r->count; i++) {
 	const struct app_entry *e = &r->apps[i];
 	printf("   %2d) %-16s %s%s\n",

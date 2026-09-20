@@ -64,10 +64,15 @@ struct button {
 static void
 fill_rect(struct fb *fbp, int x, int yb, int w, int h, const RGBpixel c)
 {
-    int rW = fb_getwidth(fbp);
-    int rH = fb_getheight(fbp);
+    int rW, rH;
     unsigned char *row;
     int i, yy;
+
+    if (!fbp)
+	return;
+
+    rW = fb_getwidth(fbp);
+    rH = fb_getheight(fbp);
 
     if (x < 0) { w += x; x = 0; }
     if (yb < 0) { h += yb; yb = 0; }
@@ -110,15 +115,20 @@ blit_icv(struct fb *fbp, icv_image_t *img, int sx, int sy)
 {
     unsigned char *rgb;
     int iw, ih, i;
-    int rH = fb_getheight(fbp);
+    int rH;
 
-    if (!img)
+    if (!fbp || !img)
 	return;
+    rH = fb_getheight(fbp);
     rgb = icv_data2uchar(img);
     if (!rgb)
 	return;
     iw = (int)img->width;
     ih = (int)img->height;
+    if (iw <= 0 || ih <= 0) {
+	bu_free(rgb, "blit_icv rgb");
+	return;
+    }
     for (i = 0; i < ih; i++) {
 	int fy = sy + i;
 	if (fy < 0 || fy >= rH)
@@ -140,18 +150,26 @@ load_splash(int maxw, int maxh)
     icv_image_t *img = NULL;
     double sc;
 
-    bu_dir(path, sizeof(path), BU_DIR_DATA, "launcher", "splash.png", NULL);
-    if (bu_file_exists(path, NULL))
-	img = icv_read(path, BU_MIME_IMAGE_AUTO, 0, 0);
+    if (maxw <= 0 || maxh <= 0)
+	return NULL;
 
-    if (!img) {
-	bu_dir(path, sizeof(path), BU_DIR_DATA, "images", "brlLogo-nobg.png", NULL);
+    if (bu_dir(path, sizeof(path), BU_DIR_DATA, "launcher", "splash.png", NULL)) {
 	if (bu_file_exists(path, NULL))
 	    img = icv_read(path, BU_MIME_IMAGE_AUTO, 0, 0);
     }
 
-    if (!img)
+    if (!img) {
+	if (bu_dir(path, sizeof(path), BU_DIR_DATA, "images", "brlLogo-nobg.png", NULL)) {
+	    if (bu_file_exists(path, NULL))
+		img = icv_read(path, BU_MIME_IMAGE_AUTO, 0, 0);
+	}
+    }
+
+    if (!img || img->width == 0 || img->height == 0) {
+	if (img)
+	    icv_destroy(img);
 	return NULL;
+    }
 
     sc = 1.0;
     if ((int)img->width > maxw)
@@ -174,10 +192,16 @@ static void
 redraw(struct fb *fbp, struct fbtext *ft, struct app_registry *r,
        icv_image_t *splash, struct button *btns, int nbtns, int hover)
 {
-    int rW = fb_getwidth(fbp);
-    int rH = fb_getheight(fbp);
+    int rW, rH;
     int i;
-    int lh = fbtext_line_height(ft);
+    int lh;
+
+    if (!fbp || !ft || !r || !btns || nbtns <= 0)
+	return;
+
+    rW = fb_getwidth(fbp);
+    rH = fb_getheight(fbp);
+    lh = fbtext_line_height(ft);
 
     fill_rect(fbp, 0, 0, rW, rH, col_bg);
 
@@ -203,7 +227,7 @@ redraw(struct fb *fbp, struct fbtext *ft, struct app_registry *r,
 	const RGBpixel *tcol = &col_text;
 	const RGBpixel *dcol = &col_text_dim;
 
-	if (b->action != QUIT_ACTION) {
+	if (b->action != QUIT_ACTION && b->action >= 0 && b->action < r->count) {
 	    struct app_entry *e = &r->apps[b->action];
 	    name = e->name;
 	    desc = e->description;
@@ -260,11 +284,14 @@ hit_test(struct button *btns, int nbtns, int x, int y)
 static void
 activate(struct app_registry *r, struct button *b, int *running)
 {
+    if (!r || !b || !running)
+	return;
+
     if (b->action == QUIT_ACTION) {
 	*running = 0;
 	return;
     }
-    {
+    if (b->action >= 0 && b->action < r->count) {
 	struct app_entry *e = &r->apps[b->action];
 	if (e->available)
 	    (void)app_launch(e);
@@ -369,7 +396,7 @@ ui_fb_run(struct app_registry *r)
 		case FB_EVENT_BUTTON_RELEASE:
 		    if (e.button == 1) {
 			int h = hit_test(btns, nbtns, e.x, e.y);
-			if (h >= 0)
+			if (h >= 0 && h < nbtns)
 			    activate(r, &btns[h], &running);
 			need_redraw = 1;
 		    }
@@ -386,7 +413,7 @@ ui_fb_run(struct app_registry *r)
 				need_redraw = 1;
 			    }
 			} else if (k == '\r' || k == '\n') {
-			    if (hover >= 0) {
+			    if (hover >= 0 && hover < nbtns) {
 				activate(r, &btns[hover], &running);
 				need_redraw = 1;
 			    }

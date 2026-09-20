@@ -50,6 +50,8 @@ static void
 list_apps(struct app_registry *r)
 {
     int i;
+    if (!r)
+	return;
     printf("Discovered BRL-CAD applications:\n");
     for (i = 0; i < r->count; i++) {
 	struct app_entry *e = &r->apps[i];
@@ -71,7 +73,10 @@ main(int argc, char *argv[])
     int do_list = 0;
     int i;
 
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
+    else
+	bu_setprogname("brlcad-launcher");
 
     for (i = 1; i < argc; i++) {
 	if (BU_STR_EQUAL(argv[i], "-t") || BU_STR_EQUAL(argv[i], "--text")) {
@@ -84,7 +89,7 @@ main(int argc, char *argv[])
 	    fputs(usage, stdout);
 	    return 0;
 	} else {
-	    fprintf(stderr, "brlcad-launcher: unknown option '%s'\n\n", argv[i]);
+	    fprintf(stderr, "%s: unknown option '%s'\n\n", bu_getprogname(), argv[i]);
 	    fputs(usage, stderr);
 	    return 1;
 	}

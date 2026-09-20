@@ -57,8 +57,7 @@ prepend_bindir_to_path(void)
     const char sep = ':';
 #endif
 
-    bu_dir(bindir, sizeof(bindir), BU_DIR_BIN, NULL);
-    if (bindir[0] == '\0')
+    if (!bu_dir(bindir, sizeof(bindir), BU_DIR_BIN, NULL) || bindir[0] == '\0')
 	return;
 
     oldpath = getenv("PATH");
@@ -121,10 +120,12 @@ launch_shell(void)
 	shell = "/bin/sh";
 
     for (i = 0; terms[i]; i++) {
+	char term_buf[MAXPATHLEN] = {0};
 	const char *term = bu_which(terms[i]);
 	if (!term)
 	    continue;
-	argv[0] = term;
+	bu_strlcpy(term_buf, term, sizeof(term_buf));
+	argv[0] = term_buf;
 	argv[1] = "-e";
 	argv[2] = shell;
 	argv[3] = NULL;
