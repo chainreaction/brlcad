@@ -12723,90 +12723,108 @@
       "path": "src/isst/gfile.cpp",
       "subsystem": "src/isst",
       "lines": 348,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:11:06Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0239"
+      ]
     },
     {
       "id": 1269,
       "path": "src/isst/gfile.h",
       "subsystem": "src/isst",
       "lines": 69,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:11:06Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0239"
+      ]
     },
     {
       "id": 1270,
       "path": "src/isst/isstapp.cpp",
       "subsystem": "src/isst",
       "lines": 54,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:11:06Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0239"
+      ]
     },
     {
       "id": 1271,
       "path": "src/isst/isstapp.h",
       "subsystem": "src/isst",
       "lines": 63,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:11:06Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0239"
+      ]
     },
     {
       "id": 1272,
       "path": "src/isst/isstgl.cpp",
       "subsystem": "src/isst",
       "lines": 372,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:11:06Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0239"
+      ]
     },
     {
       "id": 1273,
       "path": "src/isst/isstgl.h",
       "subsystem": "src/isst",
       "lines": 156,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:11:06Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0239"
+      ]
     },
     {
       "id": 1274,
       "path": "src/isst/main.cpp",
       "subsystem": "src/isst",
       "lines": 89,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:11:06Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0239"
+      ]
     },
     {
       "id": 1275,
       "path": "src/isst/main_window.cpp",
       "subsystem": "src/isst",
       "lines": 116,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:11:06Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0239"
+      ]
     },
     {
       "id": 1276,
       "path": "src/isst/main_window.h",
       "subsystem": "src/isst",
       "lines": 86,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-20T03:11:06Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0239"
+      ]
     },
     {
       "id": 1277,

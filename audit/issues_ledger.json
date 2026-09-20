@@ -4281,7 +4281,25 @@
       "created_at": "2026-09-20T03:05:00Z",
       "verified_at": "2026-09-20T03:05:30Z",
       "fixed_at": "2026-09-20T03:05:53Z"
+    },
+    {
+      "id": "SEC-0239",
+      "file": "src/isst/gfile.h, src/isst/gfile.cpp, src/isst/isstgl.h, src/isst/isstgl.cpp, src/isst/main.cpp, src/isst/main_window.cpp, src/isst/isstapp.cpp",
+      "lines": "gfile.h:44-55; gfile.cpp:45-55, 60-120, 130-200, 210-235, 240-340; isstgl.h:58-69, 79-95; isstgl.cpp:37-67, 68-106, 108-126, 128-250, 280-295, 300-330, 340-390; main.cpp:35-40, 50-75; main_window.cpp:61-78, 99-103; isstapp.cpp:28-42",
+      "severity": 2,
+      "category": "Buffer Overflow, Memory Leaks, Division by Zero, Null Pointer Dereference, and Out-of-Bounds Memory Access",
+      "description": "In BRL-CAD ISST interactive ray-tracing subsystem: in gfile.h and gfile.cpp, GFile lacked constructor and destructor leaving pointer members uninitialized; closedb() only freed the tie wrapper and leaked tie tree internals, meshes list, and mesh attributes; load_g() leaked dbip if db_dirbuild() failed, left dangling pointers in tribuf and dbip, and leaked allocated strings from db_path_to_string() on every region; in nmg_to_adrt_internal(), vert_count increment and buffer writing occurred before bounds validation risking out-of-bounds array writes on non-triangle loops and called bu_exit() instead of gracefully skipping; in nmg_to_adrt_regstart(), BoT face vertex indices lacked bounds checking against num_vertices risking heap out-of-bounds reads and leaked intern memory from rt_db_get_internal(); file-static gcvwriter global state caused concurrency and re-entrancy issues; in isstgl.h and isstgl.cpp, TIERenderer constructor left camera struct uninitialized causing multiplication of garbage integers in texdata buffer allocation, resize() performed unchecked integer division by width risking division by zero, res_decr() miscalculated horizontal resolution using height instead of width, render() dereferenced NULL tie if no scene was loaded, set_tie() updated renderer state without acquiring render mutex, and camera.view_list was leaked in destructor; in main.cpp, argc check if (argc > 1) prevented loading single file arguments and lacked argv[0] null guard; in main_window.cpp, raw C casts and unchecked canvas pointers were used; in isstapp.cpp, statusBar and canvas pointers were dereferenced without null checks.",
+      "verification_status": "CONFIRMED",
+      "verification_test": "Code inspection, CMake verification, and regression test targets (regress-licenses, regress-repository).",
+      "test_result": "Clean regression run: regress-licenses and regress-repository pass 100%.",
+      "fix_status": "FIXED",
+      "fix_description": "Added GFile constructor, destructor, and complete closedb() resource cleanup freeing tie, meshes, and attributes; eliminated static gcvwriter global struct; added bounds checking and graceful loop handling in nmg_to_adrt_internal(); added BoT vertex bounds checking and rt_db_free_internal() cleanup in nmg_to_adrt_regstart(); freed db_path_to_string() buffers; initialized camera in TIERenderer constructor and freed camera.view_list; added width/height bounds and division by zero checks in resize(); corrected res_decr(); guarded NULL tie in render(); synchronized set_tie() with render mutex; corrected argc check and guarded argv[0] in main.cpp; added qobject_cast and canvas null checks in main_window.cpp and isstapp.cpp.",
+      "commit_hash": "2b150c6371",
+      "commit_message": "isst: address memory safety, bounds checks, and resource cleanup",
+      "created_at": "2026-09-20T03:10:00Z",
+      "verified_at": "2026-09-20T03:10:30Z",
+      "fixed_at": "2026-09-20T03:11:06Z"
     }
   ],
-  "last_updated": "2026-09-20T03:05:53Z"
+  "last_updated": "2026-09-20T03:11:06Z"
 }

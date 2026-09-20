@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-20 03:05:53 UTC
+**Last Updated:** 2026-09-20 03:11:06 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 562 (16.1%)
-- **Files Pending Review:** 2931
-- **Total Issues Identified:** 238
+- **Files Reviewed:** 571 (16.3%)
+- **Files Pending Review:** 2922
+- **Total Issues Identified:** 239
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 168 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 169 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 47 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 238
+- **Fixed (Committed):** 239
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -81,7 +81,7 @@
 | `src/fb` | 29 | 0 | 0.0% | 0 |
 | `src/fbserv` | 4 | 4 | 100.0% | 2 |
 | `src/gtools` | 40 | 0 | 0.0% | 0 |
-| `src/isst` | 9 | 0 | 0.0% | 0 |
+| `src/isst` | 9 | 9 | 100.0% | 1 |
 | `src/launcher` | 8 | 8 | 100.0% | 1 |
 | `src/libanalyze` | 40 | 0 | 0.0% | 0 |
 | `src/libbg` | 232 | 232 | 100.0% | 79 |
@@ -347,6 +347,15 @@
 | `SEC-0228` | **Sev 2** | Null Pointer Dereference, Out-of-bounds Vector Access, Resource Leak | `src/libbrep/cdt/cdt.cpp, src/libbrep/cdt/cdt_util.cpp, src/libbrep/cdt/mesh.cpp, src/libbrep/cdt/ovlps_simple.cpp, src/libbrep/cdt/surf.cpp, src/libbrep/cdt/tri_isect.cpp` | `FIXED` | In cdt.cpp and ovlps_simple.cpp, missing size validation and null pointer checks on bedge_seg_t::uedges() results caused potential out-of-bounds access and null pointer dereference. In mesh.cpp, bedge_seg_t::uedges() lacked trim index bounds checking and null pointer validation. Across mesh.cpp, cdt_util.cpp, tri_isect.cpp, and surf.cpp, pervasive unchecked fopen() return values in debug plot functions caused potential NULL pointer dereferences. |
 | `SEC-0229` | **Sev 2** | Memory Access Violation, Out-of-bounds Array Access, Memory Leaks, Division by Zero, Null Pointer Dereference | `src/libbrep/shape_recognition/cone.cpp, src/libbrep/shape_recognition/cylinder.cpp, src/libbrep/shape_recognition/pipeline.cpp, src/libbrep/shape_recognition/planar.cpp, src/libbrep/shape_recognition/shape_recognition.cpp, src/libbrep/shape_recognition/sphere.cpp, src/libbrep/shape_recognition/sr_util.cpp, src/libbrep/shape_recognition/torus.cpp` | `FIXED` | In planar.cpp, an off-by-one loop condition j <= array_end - array_start caused out-of-bounds read and write in triangulate_array_with_holes; outer_pt_ind, holes arrays, vert_map, and loop_starts leaked on every triangulation; BU_PTBL_GET dereferenced empty island_children causing null dereference crash; in cylinder.cpp, points[3] was accessed without checking points count > 3, and implicit_plane_ind was indexed without bounds checks; in cone.cpp, loop over cone planes indexed plane 1 when count was 1, and sin(C) was divided without zero checking; in pipeline.cpp, nde array leaked across multiple return paths, and nonplanar_surfaces was dereferenced when empty; in shape_recognition.cpp, unchecked fol_to_i iterator dereference caused crash, subbrep_shoal_data leaked when shoal_csg failed, and face_surface_types and uninserted sb leaked on failure; in sr_util.cpp, BU_PUT for obj->nucleus erroneously freed subbrep_shoal_data with struct csg_obj_params size/tag, and empty face->m_li caused out-of-bounds loop access; in sphere.cpp, a typo c2->IsArc(NULL, &a1) left a2 uninitialized and leaked curve duplicates c1 and c2; in torus.cpp, arc loop leaked curve ecv and ep_normal was incorrectly set to torus.plane.Normal(). |
 | `SEC-0230` | **Sev 2** | Memory Leaks, Uncontrolled Recursion, Out-of-bounds Array Access, Null Pointer Dereference, Logic Error | `src/libbrep/tools/tools.cpp, src/libbrep/tools/tools_util.cpp, src/libbrep/tests/brep_cdt_hole_face17.c, src/libbrep/tests/brep_cdt_hole_face27.c, src/libbrep/tests/brep_cdt_invalid.cpp, src/libbrep/tests/brep_cdt_mesh.cpp, src/libbrep/tests/assembly.cpp, src/libbrep/tests/ppx.cpp, src/libbrep/tests/pullback_context.cpp, src/libbrep/tests/test_curve_intersect.cpp, src/libbrep/tests/test_point_intersect.cpp` | `FIXED` | In libbrep tools and tests: in tools.cpp, find_next_point placed recursion limit inside else block, causing infinite recursion and stack exhaustion; ON_Curve_Get_Tangent and ON_Curve_Has_Tangent lacked null pointer and direction bounds checks; in ON_Surface_IsStraight, frames[0] and frames[1] were repeatedly indexed instead of frames[i] and frames[j]; in tools_util.cpp, ON_BrepTikz leaked duplicate edge curves on non-linear edges, and lacked null pointer and array bounds checks; in brep_cdt_mesh.cpp, invalid argument count printed usage but proceeded without exiting, dereferencing invalid argv[1]; in brep_cdt_hole_face17.c and brep_cdt_hole_face27.c, multiple heap-allocated arrays leaked on test completion; across test executables, argv[0] was passed to bu_setprogname without validating argc > 0 and argv != NULL. |
+| `SEC-0231` | **Sev 2** | Infinite Loop Denial of Service, Null Pointer Dereference, Division by Zero, Missing Bounds Validation | `src/libfft/fftfast.c, src/libfft/splitdit.c, src/libfft/ditsplit.c, src/libfft/fftc.c, src/libfft/ifftc.c, src/libfft/splitditc.c, src/libfft/ditsplitc.c, src/libfft/fftest.c` | `FIXED` | In libfft routines: init_sintab infinite loop on invalid size, unchecked calloc returns, cdiv zero division, and missing null pointer and bounds checks across forward/inverse FFT transforms and test generators. |
+| `SEC-0232` | **Sev 2** | Buffer Overflow, Out-of-Bounds Array Access, Division by Zero & Missing Pointer Validation | `src/libtermio/libtermio.h, src/libtermio/linenoise.hpp` | `FIXED` | In libtermio: terminal parameter arrays sized FOPEN_MAX lacked fd bounds checks, FD_SET lacked fd bounds checks in termio_getch, EditHistoryNext used unbounded strcpy, EditInsert lacked buffer capacity checks, and refresh lines divided by unchecked cols_. |
+| `SEC-0233` | **Sev 2** | Out-of-Bounds Array Access, Division by Zero, and Missing Pointer Validation | `src/libpc/gecode_librt_test.cpp, src/libpc/solver_test.cpp, src/libpc/vm_test.cpp, src/libpc/domain_constraint_propagator.cpp, src/libpc/cartesian-heart.cpp, src/libpc/gecode_solver_test.cpp` | `FIXED` | In libpc: unchecked point indices in geometry constraint helpers, null dereference in solver test functors and parameter access, zero division in math VM test, and unchecked Space* pointers in domain constraint propagators. |
+| `SEC-0234` | **Sev 2** | Use-After-Free, Double-Free, Buffer Overflow, and Resource Leaks | `src/nirt/main.cpp, src/nirt/showshot.c` | `FIXED` | In nirt: premature db_close caused use-after-free, double-free on failure cleanup, double pclose/fclose on shared output stream, leaked rt_read_cmd buffers, unbounded rname copy in showshot, and unchecked radius input. |
+| `SEC-0235` | **Sev 2** | Heap/Stack Buffer Overflow, Pointer Underflow, and Memory Leaks | `src/bwish/cmd.c, src/bwish/input.c, src/bwish/main.c` | `FIXED` | In bwish/btclsh: wrong struct size in historyInit realloc, missing capacity check in history_record_priv, off-by-one read in inputHandler, size_t underflow in processChar, negative pointer arithmetic in editing handlers, and unchecked fd in FD_SET. |
+| `SEC-0236` | **Sev 2** | Format String Bugs, Division Errors, File Descriptor Leaks, and Bounds Checks | `bench/clean.c, bench/compute.c, bench/run.c, bench/pixcmp.c, bench/benchmark.c` | `FIXED` | In bench suite: vls accumulation bug and memory leak in clean.c, off-by-one element count causing negative division in compute.c, passing bu_vls by value to %s in run.c, argv[1] OOB access and file descriptor leaks in pixcmp.c and benchmark.c. |
+| `SEC-0237` | **Sev 2** | Buffer Bounds, Resource Leaks, Null Dereferences, and Out-of-Bounds Memory Access | `src/art/tile.cpp, src/art/brlcadplugin.h, src/art/brlcadplugin.cpp, src/art/art.cpp` | `FIXED` | In art Appleseed integration: missing frame/fbp checks and row offset calculation in tile.cpp, missing rt_i_destroy and thread index clamping in brlcadplugin.cpp, leaked ged instances and open dbip in art.cpp, and leaked temporary vls buffers. |
+| `SEC-0238` | **Sev 2** | Buffer Overflow, Out-of-bounds Array Access, Null Pointer Dereference, and Input Validation | `src/launcher/launcher.c, src/launcher/registry.c, src/launcher/launch.c, src/launcher/fbtext.c, src/launcher/ui_fb.c, src/launcher/ui_text.c` | `FIXED` | In launcher: unchecked argc/argv in main, null pointer dereference in list_apps, unchecked registry growth and bu_dir results, framebuffer vertical row bounds checks in draw_char, and button action index bounds checks in ui_fb.c. |
+| `SEC-0239` | **Sev 2** | Buffer Overflow, Memory Leaks, Division by Zero, Null Pointer Dereference, and Out-of-Bounds Memory Access | `src/isst/gfile.h, src/isst/gfile.cpp, src/isst/isstgl.h, src/isst/isstgl.cpp, src/isst/main.cpp, src/isst/main_window.cpp, src/isst/isstapp.cpp` | `FIXED` | In isst: uninitialized GFile members and memory leaks in closedb(), static gcvwriter global state, out-of-bounds array write in nmg_to_adrt_internal, out-of-bounds vertex indexing and leaked intern in nmg_to_adrt_regstart, leaked db_path_to_string buffers, uninitialized camera in TIERenderer, division by zero in resize(), null tie dereference in render(), missing render mutex in set_tie(), and unchecked argc/argv in main. |
 
 
 
