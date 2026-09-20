@@ -12,10 +12,10 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 482,
-    "pending_files": 3011,
-    "last_updated": "2026-09-19T11:55:18Z",
-    "total_issues": 226,
+    "reviewed_files": 501,
+    "pending_files": 2992,
+    "last_updated": "2026-09-20T02:15:00Z",
+    "total_issues": 227,
     "reviewed_count": 328
   },
   "files": [
@@ -16465,18 +16465,20 @@
       "path": "src/libbrep/cdt/cdt.cpp",
       "subsystem": "src/libbrep",
       "lines": 817,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:15:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0228"
+      ]
     },
     {
       "id": 1609,
       "path": "src/libbrep/cdt/cdt.h",
       "subsystem": "src/libbrep",
       "lines": 188,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-20T02:15:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -16485,18 +16487,20 @@
       "path": "src/libbrep/cdt/cdt_util.cpp",
       "subsystem": "src/libbrep",
       "lines": 864,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:15:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0228"
+      ]
     },
     {
       "id": 1611,
       "path": "src/libbrep/cdt/edge.cpp",
       "subsystem": "src/libbrep",
       "lines": 1678,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-20T02:15:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -16505,8 +16509,8 @@
       "path": "src/libbrep/cdt/fast.cpp",
       "subsystem": "src/libbrep",
       "lines": 2390,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-20T02:15:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -16515,18 +16519,20 @@
       "path": "src/libbrep/cdt/mesh.cpp",
       "subsystem": "src/libbrep",
       "lines": 6222,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:15:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0228"
+      ]
     },
     {
       "id": 1614,
       "path": "src/libbrep/cdt/mesh.h",
       "subsystem": "src/libbrep",
       "lines": 1145,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-20T02:15:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -16535,38 +16541,44 @@
       "path": "src/libbrep/cdt/ovlps_simple.cpp",
       "subsystem": "src/libbrep",
       "lines": 547,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:15:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0228"
+      ]
     },
     {
       "id": 1616,
       "path": "src/libbrep/cdt/surf.cpp",
       "subsystem": "src/libbrep",
       "lines": 1053,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:15:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0228"
+      ]
     },
     {
       "id": 1617,
       "path": "src/libbrep/cdt/tri_isect.cpp",
       "subsystem": "src/libbrep",
       "lines": 332,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:15:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0228"
+      ]
     },
     {
       "id": 1618,
       "path": "src/libbrep/cdt/validate.cpp",
       "subsystem": "src/libbrep",
       "lines": 195,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-20T02:15:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
