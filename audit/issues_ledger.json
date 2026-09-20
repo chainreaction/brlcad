@@ -4191,7 +4191,25 @@
       "created_at": "2026-09-20T02:38:00Z",
       "verified_at": "2026-09-20T02:38:40Z",
       "fixed_at": "2026-09-20T02:38:51Z"
+    },
+    {
+      "id": "SEC-0234",
+      "file": "src/nirt/main.cpp, src/nirt/showshot.c",
+      "lines": "main.cpp:145-158, 260-312, 460-505, 595-635, 740-815, 875-905; showshot.c:65-85, 90-100, 115-140",
+      "severity": 2,
+      "category": "Use-After-Free, Double-Free, Buffer Overflow, and Resource Leaks",
+      "description": "In nirt routines: in main.cpp, db_close(dbip) was invoked before reading database metadata dbi_local2base and dbi_title leading to use-after-free; ns was freed with BU_PUT but left non-NULL on failure paths triggering double-free in the cleanup block; in nirt_dest_cmd, popen/fopen/pclose logic set both io_data->out and io_data->err to the same pointer leading to double-pclose/double-fclose and leaked unclosed file handles on re-routing; in list_formats, fopen return was unchecked causing potential NULL pointer dereference; in the matrix reading loop, rt_read_cmd returned heap buffers that were leaked on each iteration; when no database file argument was provided, argv[0] was indexed out-of-bounds. In showshot.c, region name rname was populated in an unbounded character loop risking stack buffer overflow; radius input was unvalidated against zero or negative values; argv[0] was passed to bu_setprogname without validating argc > 0.",
+      "verification_status": "CONFIRMED",
+      "verification_test": "Code inspection, compilation, execution of showshot and nirt help/invalid invocation tests, and regression suite (regress-licenses, regress-repository).",
+      "test_result": "All targets compile cleanly with zero warnings, regress-licenses and regress-repository pass 100%.",
+      "fix_status": "FIXED",
+      "fix_description": "Deferred db_close until after database info output and reset dbip to DBI_NULL; prevented double-free of ns; guarded stream closes to ensure duplicate pointers are not closed twice; freed rt_read_cmd buffers on all loop paths; bounded rname copy to BUF_LEN - 1; validated radius > 0 and checked argc/argv across main entry points.",
+      "commit_hash": "3688b63968",
+      "commit_message": "nirt: fix use-after-free, double-free, buffer overflow, and resource leaks",
+      "created_at": "2026-09-20T02:42:00Z",
+      "verified_at": "2026-09-20T02:42:15Z",
+      "fixed_at": "2026-09-20T02:42:20Z"
     }
   ],
-  "last_updated": "2026-09-20T02:39:00Z"
+  "last_updated": "2026-09-20T02:43:00Z"
 }

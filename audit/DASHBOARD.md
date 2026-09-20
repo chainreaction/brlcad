@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-20 02:39:00 UTC
+**Last Updated:** 2026-09-20 02:43:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 538 (15.4%)
-- **Files Pending Review:** 2955
-- **Total Issues Identified:** 233
+- **Files Reviewed:** 540 (15.5%)
+- **Files Pending Review:** 2953
+- **Total Issues Identified:** 234
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 163 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 164 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 47 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 233
+- **Fixed (Committed):** 234
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -104,7 +104,7 @@
 | `src/libtermio` | 2 | 2 | 100.0% | 1 |
 | `src/libwdb` | 27 | 0 | 0.0% | 0 |
 | `src/mged` | 55 | 0 | 0.0% | 0 |
-| `src/nirt` | 2 | 0 | 0.0% | 0 |
+| `src/nirt` | 2 | 2 | 100.0% | 1 |
 | `src/proc-db` | 55 | 0 | 0.0% | 0 |
 | `src/qged` | 34 | 0 | 0.0% | 0 |
 | `src/remrt` | 7 | 7 | 100.0% | 2 |

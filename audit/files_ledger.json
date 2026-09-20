@@ -32863,20 +32863,24 @@
       "path": "src/nirt/main.cpp",
       "subsystem": "src/nirt",
       "lines": 892,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:42:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0234"
+      ]
     },
     {
       "id": 3219,
       "path": "src/nirt/showshot.c",
       "subsystem": "src/nirt",
       "lines": 163,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:42:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0234"
+      ]
     },
     {
       "id": 3220,
