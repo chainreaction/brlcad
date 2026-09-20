@@ -753,8 +753,14 @@ CDT_Audit(struct ON_Brep_CDT_State *s_cdt)
 	for (b_it = ps_it->second.begin(); b_it != ps_it->second.end(); b_it++) {
 	    bedge_seg_t *eseg = *b_it;
 	    std::vector<std::pair<cdt_mesh_t *,uedge_t>> uedges = eseg->uedges();
+	    if (uedges.size() < 2) {
+		continue;
+	    }
 	    cdt_mesh_t *fmesh_f1 = uedges[0].first;
 	    cdt_mesh_t *fmesh_f2 = uedges[1].first;
+	    if (!fmesh_f1 || !fmesh_f2) {
+		continue;
+	    }
 	    uedge_t ue1 = uedges[0].second;
 	    uedge_t ue2 = uedges[1].second;
 	    std::set<size_t> f1_tris = fmesh_f1->uedges2tris[ue1];

@@ -174,6 +174,9 @@ cpolyedge_t::plot3d(const char *fname)
 	double slen = trim_s_3d.DistanceTo(trim_e_3d);
 
 	FILE* plot_file = fopen(fname, "w");
+	if (!plot_file) {
+	    return;
+	}
 
 	pl_color(plot_file, 0, 0, 255);
 	plot_seg_3d(plot_file, &trim_s_3d, &trim_e_3d);
@@ -196,6 +199,9 @@ void
 bedge_seg_t::plot(const char *fname)
 {
     FILE* plot_file = fopen(fname, "w");
+    if (!plot_file) {
+	return;
+    }
 
     double slen = e_start->DistanceTo(*e_end);
     double plen = 0.05*slen;
@@ -216,9 +222,28 @@ std::vector<std::pair<cdt_mesh_t *,uedge_t>>
 bedge_seg_t::uedges()
 {
     std::vector<std::pair<cdt_mesh_t *,uedge_t>> edges;
+    if (!p_cdt || !tseg1 || !tseg2) {
+	return edges;
+    }
     struct ON_Brep_CDT_State *s_cdt_edge = (struct ON_Brep_CDT_State *)p_cdt;
-    int f_id1 = s_cdt_edge->brep->m_T[tseg1->trim_ind].Face()->m_face_index;
-    int f_id2 = s_cdt_edge->brep->m_T[tseg2->trim_ind].Face()->m_face_index;
+    if (!s_cdt_edge->brep) {
+	return edges;
+    }
+    if (tseg1->trim_ind < 0 || tseg1->trim_ind >= s_cdt_edge->brep->m_T.Count() ||
+	tseg2->trim_ind < 0 || tseg2->trim_ind >= s_cdt_edge->brep->m_T.Count()) {
+	return edges;
+    }
+    ON_BrepFace *face1 = s_cdt_edge->brep->m_T[tseg1->trim_ind].Face();
+    ON_BrepFace *face2 = s_cdt_edge->brep->m_T[tseg2->trim_ind].Face();
+    if (!face1 || !face2) {
+	return edges;
+    }
+    int f_id1 = face1->m_face_index;
+    int f_id2 = face2->m_face_index;
+    if (s_cdt_edge->fmeshes.find(f_id1) == s_cdt_edge->fmeshes.end() ||
+	s_cdt_edge->fmeshes.find(f_id2) == s_cdt_edge->fmeshes.end()) {
+	return edges;
+    }
     cdt_mesh_t &fmesh_f1 = s_cdt_edge->fmeshes[f_id1];
     cdt_mesh_t &fmesh_f2 = s_cdt_edge->fmeshes[f_id2];
 
@@ -226,6 +251,9 @@ bedge_seg_t::uedges()
     cpolyedge_t *pe2 = tseg2;
     cpolygon_t *poly1 = pe1->polygon;
     cpolygon_t *poly2 = pe2->polygon;
+    if (!poly1 || !poly2) {
+	return edges;
+    }
     long ue1_1 = fmesh_f1.p2ind[fmesh_f1.pnts[fmesh_f1.p2d3d[poly1->p2o[tseg1->v2d[0]]]]];
     long ue1_2 = fmesh_f1.p2ind[fmesh_f1.pnts[fmesh_f1.p2d3d[poly1->p2o[tseg1->v2d[1]]]]];
     uedge_t ue1(ue1_1, ue1_2);
@@ -1271,6 +1299,9 @@ cpolygon_t::cdt(triangulation_t ttype)
 void cpolygon_t::polygon_plot(const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
     pl_color_buc(plot_file, &c);
@@ -1358,6 +1389,9 @@ void cpolygon_t::polygon_plot(const char *filename)
 void cpolygon_t::polygon_plot_in_plane(const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
     pl_color_buc(plot_file, &c);
@@ -2611,11 +2645,13 @@ cdt_mesh_t::self_intersecting_mesh()
 		std::cout << "Self intersection in mesh found\n";
 		struct uedge_t pue = et_it->first;
 		FILE* plot_file = fopen("self_intersecting_edge.plot3", "w");
-		struct bu_color c = BU_COLOR_INIT_ZERO;
-		bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
-		pl_color_buc(plot_file, &c);
-		plot_edge(pue, plot_file);
-		fclose(plot_file);
+		if (plot_file) {
+		    struct bu_color c = BU_COLOR_INIT_ZERO;
+		    bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
+		    pl_color_buc(plot_file, &c);
+		    plot_edge(pue, plot_file);
+		    fclose(plot_file);
+		}
 		return true;
 	    }
 	}
@@ -4101,6 +4137,9 @@ cdt_mesh_t::valid(int verbose)
 void cdt_mesh_t::boundary_edges_plot(const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
     pl_color_buc(plot_file, &c);
@@ -4211,6 +4250,9 @@ cdt_mesh_t::tri_pnt_r(long tri_ind)
 void cdt_mesh_t::face_neighbors_plot(const triangle_t &f, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
 
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
@@ -4232,6 +4274,9 @@ void cdt_mesh_t::face_neighbors_plot(const triangle_t &f, const char *filename)
 void cdt_mesh_t::vertex_face_neighbors_plot(long vind, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
 
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
@@ -4257,6 +4302,9 @@ void cdt_mesh_t::vertex_face_neighbors_plot(long vind, const char *filename)
 void cdt_mesh_t::interior_incorrect_normals_plot(const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
 
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
@@ -4272,6 +4320,9 @@ void cdt_mesh_t::interior_incorrect_normals_plot(const char *filename)
 void cdt_mesh_t::tri_plot(const triangle_t &tri, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
 
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
@@ -4291,6 +4342,9 @@ void cdt_mesh_t::tri_plot(long ind, const char *filename)
 void cdt_mesh_t::ctris_vect_plot(std::vector<struct ctriangle_t> &tvect, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
 
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
@@ -4306,6 +4360,9 @@ void cdt_mesh_t::ctris_vect_plot(std::vector<struct ctriangle_t> &tvect, const c
 void cdt_mesh_t::tris_vect_plot(std::vector<triangle_t> &tvect, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
 
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
@@ -4321,6 +4378,9 @@ void cdt_mesh_t::tris_vect_plot(std::vector<triangle_t> &tvect, const char *file
 void cdt_mesh_t::tris_set_plot(std::set<triangle_t> &tset, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
 
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
@@ -4350,6 +4410,9 @@ void cdt_mesh_t::tris_set_plot(std::set<size_t> &tset, const char *filename)
 void cdt_mesh_t::tris_plot(const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
 
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
@@ -4409,6 +4472,9 @@ void cdt_mesh_t::tris_plot(const char *filename)
 void cdt_mesh_t::tris_rtree_plot(const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
 
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
@@ -4453,6 +4519,9 @@ void cdt_mesh_t::plot_edge(const bedge_seg_t *s, FILE *plot)
 void cdt_mesh_t::edge_set_plot(std::set<uedge_t> &eset, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
 
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
@@ -4469,6 +4538,9 @@ void cdt_mesh_t::edge_set_plot(std::set<uedge_t> &eset, const char *filename)
 void cdt_mesh_t::edge_set_plot(std::set<uedge_t> &eset, const char *filename, int r, int g, int b)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
 
     pl_color(plot_file, r, g, b);
 
@@ -4484,6 +4556,9 @@ void cdt_mesh_t::edge_set_plot(std::set<uedge_t> &eset, const char *filename, in
 void cdt_mesh_t::edge_set_plot(std::set<bedge_seg_t *> &eset, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
 
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
@@ -4500,6 +4575,9 @@ void cdt_mesh_t::edge_set_plot(std::set<bedge_seg_t *> &eset, const char *filena
 void cdt_mesh_t::edge_set_plot(std::set<bedge_seg_t *> &eset, const char *filename, int r, int g, int b)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
 
     pl_color(plot_file, r, g, b);
 
@@ -4537,6 +4615,9 @@ void cdt_mesh_t::plot_tri_2d(const triangle_t &t, struct bu_color *buc, FILE *pl
 void cdt_mesh_t::tris_vect_plot_2d(std::vector<triangle_t> &tset, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
 
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
@@ -5041,6 +5122,9 @@ void
 cdt_mesh_t::best_fit_plane_plot(point_t *center, vect_t *norm, const char *fname)
 {
     FILE* plot_file = fopen(fname, "w");
+    if (!plot_file) {
+	return;
+    }
     int r = int(256*drand48() + 1.0);
     int g = int(256*drand48() + 1.0);
     int b = int(256*drand48() + 1.0);
@@ -5810,6 +5894,9 @@ cdt_mesh_t::polyplot_2d(cpolygon_t *polygon, FILE* plot_file)
 void cdt_mesh_t::polygon_plot_2d(cpolygon_t *polygon, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
     pl_color_buc(plot_file, &c);
@@ -5823,6 +5910,9 @@ void cdt_mesh_t::polygon_plot_2d(cpolygon_t *polygon, const char *filename)
 void cdt_mesh_t::cdt_inputs_plot(const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
     pl_color(plot_file, 255, 0 ,0);
 
     ON_BrepFace &face = brep->m_F[f_id];
@@ -6075,6 +6165,9 @@ void cdt_mesh_t::cdt_inputs_print(const char *filename)
 void cdt_mesh_t::polygon_plot_3d(cpolygon_t *polygon, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
     pl_color_buc(plot_file, &c);

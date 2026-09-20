@@ -37,6 +37,9 @@
 void
 on_bb_plot(const char *fname, ON_BoundingBox &bb) {
     FILE *plot = fopen (fname, "w");
+    if (!plot) {
+	return;
+    }
     ON_BoundingBox_Plot(plot, bb);
     fclose(plot);
 }
@@ -154,6 +157,9 @@ void
 plot_rtree_2d(ON_RTree *rtree, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
     pl_color_buc(plot_file, &c);
@@ -172,6 +178,9 @@ void
 plot_rtree_2d2(RTree<void *, double, 2> &rtree, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
     pl_color_buc(plot_file, &c);
@@ -194,6 +203,9 @@ void
 plot_rtree_3d(RTree<void *, double, 3> &rtree, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
     pl_color_buc(plot_file, &c);
@@ -216,6 +228,9 @@ void
 plot_bbox(point_t m_min, point_t m_max, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
     pl_color_buc(plot_file, &c);
@@ -229,6 +244,9 @@ void
 plot_on_bbox(ON_BoundingBox &bb, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
     pl_color_buc(plot_file, &c);
@@ -242,6 +260,9 @@ void
 plot_ce_bbox(struct ON_Brep_CDT_State *s_cdt, cpolyedge_t *pe, const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
     pl_color_buc(plot_file, &c);

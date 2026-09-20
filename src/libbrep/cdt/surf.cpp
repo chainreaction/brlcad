@@ -138,6 +138,9 @@ class SPatch {
 void SPatch::plot(const char *filename)
 {
     FILE* plot_file = fopen(filename, "w");
+    if (!plot_file) {
+	return;
+    }
     struct bu_color c = BU_COLOR_INIT_ZERO;
     bu_color_rand(&c, BU_COLOR_RANDOM_LIGHTENED);
     pl_color_buc(plot_file, &c);

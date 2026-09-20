@@ -118,6 +118,9 @@ void
 tri_isect_t::plot(const char *fname)
 {
     FILE *plotfile = fopen(fname, "w");
+    if (!plotfile) {
+	return;
+    }
     double fpnt_r = -1.0;
     double pnt_r = -1.0;
     pl_color(plotfile, 0, 0, 255);

@@ -313,6 +313,10 @@ brep_split_edge(
     cdt_mesh_t *fmesh_f1 = uedges[0].first;
     cdt_mesh_t *fmesh_f2 = uedges[1].first;
 
+    if (!fmesh_f1 || !fmesh_f2) {
+	return -1;
+    }
+
     int f_id1 = fmesh_f1->f_id;
     int f_id2 = fmesh_f2->f_id;
 
@@ -382,8 +386,14 @@ brep_split_edge(
 	bedge_seg_t *es = *es_it;
 
 	std::vector<std::pair<cdt_mesh_t *,uedge_t>> nuedges = es->uedges();
+	if (nuedges.size() < 2) {
+	    continue;
+	}
 	cdt_mesh_t *f1 = nuedges[0].first;
 	cdt_mesh_t *f2 = nuedges[1].first;
+	if (!f1 || !f2) {
+	    continue;
+	}
 	uedge_t ue_1 = nuedges[0].second;
 	uedge_t ue_2 = nuedges[1].second;
 
