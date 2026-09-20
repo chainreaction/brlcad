@@ -1,23 +1,23 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-20 02:15:00 UTC
+**Last Updated:** 2026-09-20 02:21:41 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 501 (14.3%)
-- **Files Pending Review:** 2992
-- **Total Issues Identified:** 228
+- **Files Reviewed:** 510 (14.6%)
+- **Files Pending Review:** 2983
+- **Total Issues Identified:** 229
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 157 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 159 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 47 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 227
-- **Pending Verification:** 0
+- **Fixed (Committed):** 228
+- **Pending Verification:** 1
 - **Disproven:** 0
 
 ## Subsystem Review Progress
@@ -86,7 +86,7 @@
 | `src/libanalyze` | 40 | 0 | 0.0% | 0 |
 | `src/libbg` | 232 | 232 | 100.0% | 79 |
 | `src/libbn` | 41 | 41 | 100.0% | 31 |
-| `src/libbrep` | 50 | 29 | 58.0% | 3 |
+| `src/libbrep` | 50 | 38 | 76.0% | 4 |
 | `src/libbu` | 176 | 176 | 100.0% | 101 |
 | `src/libbv` | 19 | 0 | 0.0% | 0 |
 | `src/libdm` | 80 | 0 | 0.0% | 0 |
@@ -345,6 +345,7 @@
 | `SEC-0226` | **Sev 2** | Null Pointer Dereference, Division by Zero, Out-of-bounds Array Access | `src/libbrep/BBNode.cpp, src/libbrep/BRNode.cpp, src/libbrep/PullbackCurve.cpp, src/libbrep/Subcurve.cpp, src/libbrep/Subsurface.cpp, src/libbrep/assembly.cpp, src/libbrep/boolean.cpp, src/libbrep/brep_defines.h` | `FIXED` | In libbrep core evaluation, trimming, assembly, and pullback routines, missing null checks on curve, surface, face, and child pointers could result in null pointer dereferences. Missing checks against zero denominators in cubic curve interpolation, knot intervals, Newton solver steps, and basis control ratio calculations could cause division by zero. Edge index parameters in edge merging routines lacked array bounds checks before indexing brep edge tables. |
 | `SEC-0227` | **Sev 2** | Null Pointer Dereference, Division by Zero, Out-of-bounds Index, Resource Leak | `src/libbrep/px_event.cpp, src/libbrep/ssx_event.cpp, src/libbrep/quality.cpp, src/libbrep/edit.cpp, src/libbrep/debug_plot.cpp` | `FIXED` | In px_event.cpp, Compare() returned inverted null-pointer values and used boolean instead of 3-way integer comparison for sorting. In ssx_event.cpp, DumpSSXEvent() unconditionally dereferenced m_curveA, m_curveB, and m_curve3d without null checks. In quality.cpp, bbox_contains() evaluated an invalid point, and edge quality iteration lacked vertex and trim index bounds validation. In edit.cpp, brep_edge_create() lacked curve/vertex index bounds checks, and calculateTangentVectors(), getPosRoot(), bsplineBasisFuns(), and solveTridiagonalint() had unguarded divisions by potentially-zero denominators. In debug_plot.cpp, write_plot_to_file() used fopen() result without null check. |
 | `SEC-0228` | **Sev 2** | Null Pointer Dereference, Out-of-bounds Vector Access, Resource Leak | `src/libbrep/cdt/cdt.cpp, src/libbrep/cdt/cdt_util.cpp, src/libbrep/cdt/mesh.cpp, src/libbrep/cdt/ovlps_simple.cpp, src/libbrep/cdt/surf.cpp, src/libbrep/cdt/tri_isect.cpp` | `FIXED` | In cdt.cpp and ovlps_simple.cpp, missing size validation and null pointer checks on bedge_seg_t::uedges() results caused potential out-of-bounds access and null pointer dereference. In mesh.cpp, bedge_seg_t::uedges() lacked trim index bounds checking and null pointer validation. Across mesh.cpp, cdt_util.cpp, tri_isect.cpp, and surf.cpp, pervasive unchecked fopen() return values in debug plot functions caused potential NULL pointer dereferences. |
+| `SEC-0229` | **Sev 2** | Memory Access Violation, Out-of-bounds Array Access, Memory Leaks, Division by Zero, Null Pointer Dereference | `src/libbrep/shape_recognition/cone.cpp, src/libbrep/shape_recognition/cylinder.cpp, src/libbrep/shape_recognition/pipeline.cpp, src/libbrep/shape_recognition/planar.cpp, src/libbrep/shape_recognition/shape_recognition.cpp, src/libbrep/shape_recognition/sphere.cpp, src/libbrep/shape_recognition/sr_util.cpp, src/libbrep/shape_recognition/torus.cpp` | `FIXED` | In planar.cpp, an off-by-one loop condition j <= array_end - array_start caused out-of-bounds read and write in triangulate_array_with_holes; outer_pt_ind, holes arrays, vert_map, and loop_starts leaked on every triangulation; BU_PTBL_GET dereferenced empty island_children causing null dereference crash; in cylinder.cpp, points[3] was accessed without checking points count > 3, and implicit_plane_ind was indexed without bounds checks; in cone.cpp, loop over cone planes indexed plane 1 when count was 1, and sin(C) was divided without zero checking; in pipeline.cpp, nde array leaked across multiple return paths, and nonplanar_surfaces was dereferenced when empty; in shape_recognition.cpp, unchecked fol_to_i iterator dereference caused crash, subbrep_shoal_data leaked when shoal_csg failed, and face_surface_types and uninserted sb leaked on failure; in sr_util.cpp, BU_PUT for obj->nucleus erroneously freed subbrep_shoal_data with struct csg_obj_params size/tag, and empty face->m_li caused out-of-bounds loop access; in sphere.cpp, a typo c2->IsArc(NULL, &a1) left a2 uninitialized and leaked curve duplicates c1 and c2; in torus.cpp, arc loop leaked curve ecv and ep_normal was incorrectly set to torus.plane.Normal(). |
 
 
 

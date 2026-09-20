@@ -4101,7 +4101,25 @@
       "created_at": "2026-09-20T02:15:00Z",
       "verified_at": "2026-09-20T02:15:00Z",
       "fixed_at": "2026-09-20T02:15:00Z"
+    },
+    {
+      "id": "SEC-0229",
+      "file": "src/libbrep/shape_recognition/cone.cpp, src/libbrep/shape_recognition/cylinder.cpp, src/libbrep/shape_recognition/pipeline.cpp, src/libbrep/shape_recognition/planar.cpp, src/libbrep/shape_recognition/shape_recognition.cpp, src/libbrep/shape_recognition/sphere.cpp, src/libbrep/shape_recognition/sr_util.cpp, src/libbrep/shape_recognition/torus.cpp",
+      "lines": "cone.cpp:42-100, 116-242; cylinder.cpp:45-165, 184-358; pipeline.cpp:40-173, 280-410; planar.cpp:201-230, 294-352, 503-510, 531-547, 748-855, 960-1010; shape_recognition.cpp:163-171, 347-353, 410-454, 525-591; sphere.cpp:40-95, 115-180, 187-200; sr_util.cpp:42-75, 189-195, 248-256, 508-515, 626-635; torus.cpp:36-192",
+      "severity": 2,
+      "category": "Memory Access Violation, Out-of-bounds Array Access, Memory Leaks, Division by Zero, Null Pointer Dereference",
+      "description": "In libbrep shape recognition routines: multiple memory leaks and out-of-bounds array reads occurred across CSG conversion pipelines. In planar.cpp, an off-by-one loop condition j <= array_end - array_start caused out-of-bounds read and write in triangulate_array_with_holes; outer_pt_ind, holes arrays, vert_map, and loop_starts leaked on every triangulation; BU_PTBL_GET dereferenced empty island_children causing null dereference crash; in cylinder.cpp, points[3] was accessed without checking points count > 3, and implicit_plane_ind was indexed without bounds checks; in cone.cpp, loop over cone planes indexed plane 1 when count was 1, and sin(C) was divided without zero checking; in pipeline.cpp, nde array leaked across multiple return paths, and nonplanar_surfaces was dereferenced when empty; in shape_recognition.cpp, unchecked fol_to_i iterator dereference caused crash, subbrep_shoal_data leaked when shoal_csg failed, and face_surface_types and uninserted sb leaked on failure; in sr_util.cpp, BU_PUT for obj->nucleus erroneously freed subbrep_shoal_data with struct csg_obj_params size/tag, and empty face->m_li caused out-of-bounds loop access; in sphere.cpp, a typo c2->IsArc(NULL, &a1) left a2 uninitialized and leaked curve duplicates c1 and c2; in torus.cpp, arc loop leaked curve ecv and ep_normal was incorrectly set to torus.plane.Normal().",
+      "verification_status": "CONFIRMED",
+      "verification_test": "Code inspection, compilation, unit tests (brep_*), and regression test suite.",
+      "test_result": "All fixes compile cleanly, 6/6 brep tests pass, regress-licenses and regress-repository pass.",
+      "fix_status": "FIXED",
+      "fix_description": "Fixed off-by-one and freed all allocated arrays in triangulate_array_with_holes, subbrep_polygon_tri, and shoal_polygon_tri; guarded empty island_children and freed nucleus at degenerate in planar.cpp; added bounds check on points array and implicit plane index in cylinder.cpp; guarded cone plane loop and sin(C) division in cone.cpp; freed nde on all exit paths and guarded empty nonplanar_surfaces in pipeline.cpp; checked fol_to_i iterator and freed sh, sb, and face_surface_types in shape_recognition.cpp; fixed BU_PUT type for obj->nucleus and guarded empty face loops in sr_util.cpp; fixed a2 arc initialization and freed c1/c2 in sphere.cpp; fixed ecv leak and normal calculation in torus.cpp.",
+      "commit_hash": "9b65866350",
+      "commit_message": "libbrep: fix memory leaks, out-of-bounds accesses, and null dereferences in shape_recognition",
+      "created_at": "2026-09-20T02:20:00Z",
+      "verified_at": "2026-09-20T02:21:30Z",
+      "fixed_at": "2026-09-20T02:21:41Z"
     }
   ],
-  "last_updated": "2026-09-20T02:15:00Z"
+  "last_updated": "2026-09-20T02:21:41Z"
 }

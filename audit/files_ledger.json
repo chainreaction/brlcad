@@ -16665,58 +16665,68 @@
       "path": "src/libbrep/shape_recognition/cone.cpp",
       "subsystem": "src/libbrep",
       "lines": 300,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:21:41Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0229"
+      ]
     },
     {
       "id": 1627,
       "path": "src/libbrep/shape_recognition/cylinder.cpp",
       "subsystem": "src/libbrep",
       "lines": 452,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:21:41Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0229"
+      ]
     },
     {
       "id": 1628,
       "path": "src/libbrep/shape_recognition/pipeline.cpp",
       "subsystem": "src/libbrep",
       "lines": 398,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:21:41Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0229"
+      ]
     },
     {
       "id": 1629,
       "path": "src/libbrep/shape_recognition/planar.cpp",
       "subsystem": "src/libbrep",
       "lines": 1009,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:21:41Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0229"
+      ]
     },
     {
       "id": 1630,
       "path": "src/libbrep/shape_recognition/shape_recognition.cpp",
       "subsystem": "src/libbrep",
       "lines": 595,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:21:41Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0229"
+      ]
     },
     {
       "id": 1631,
       "path": "src/libbrep/shape_recognition/shape_recognition.h",
       "subsystem": "src/libbrep",
       "lines": 140,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-20T02:21:41Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -16725,30 +16735,36 @@
       "path": "src/libbrep/shape_recognition/sphere.cpp",
       "subsystem": "src/libbrep",
       "lines": 212,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:21:41Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0229"
+      ]
     },
     {
       "id": 1633,
       "path": "src/libbrep/shape_recognition/sr_util.cpp",
       "subsystem": "src/libbrep",
       "lines": 674,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:21:41Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0229"
+      ]
     },
     {
       "id": 1634,
       "path": "src/libbrep/shape_recognition/torus.cpp",
       "subsystem": "src/libbrep",
       "lines": 209,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:21:41Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0229"
+      ]
     },
     {
       "id": 1635,
