@@ -16783,108 +16783,128 @@
       "path": "src/libbrep/tests/assembly.cpp",
       "subsystem": "src/libbrep",
       "lines": 183,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:28:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0230"
+      ]
     },
     {
       "id": 1637,
       "path": "src/libbrep/tests/brep_cdt_hole_face17.c",
       "subsystem": "src/libbrep",
       "lines": 3415,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:28:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0230"
+      ]
     },
     {
       "id": 1638,
       "path": "src/libbrep/tests/brep_cdt_hole_face27.c",
       "subsystem": "src/libbrep",
       "lines": 6356,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:28:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0230"
+      ]
     },
     {
       "id": 1639,
       "path": "src/libbrep/tests/brep_cdt_invalid.cpp",
       "subsystem": "src/libbrep",
       "lines": 70,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:28:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0230"
+      ]
     },
     {
       "id": 1640,
       "path": "src/libbrep/tests/brep_cdt_mesh.cpp",
       "subsystem": "src/libbrep",
       "lines": 60,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:28:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0230"
+      ]
     },
     {
       "id": 1641,
       "path": "src/libbrep/tests/ppx.cpp",
       "subsystem": "src/libbrep",
       "lines": 235,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:28:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0230"
+      ]
     },
     {
       "id": 1642,
       "path": "src/libbrep/tests/pullback_context.cpp",
       "subsystem": "src/libbrep",
       "lines": 707,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:28:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0230"
+      ]
     },
     {
       "id": 1643,
       "path": "src/libbrep/tests/test_curve_intersect.cpp",
       "subsystem": "src/libbrep",
       "lines": 210,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:28:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0230"
+      ]
     },
     {
       "id": 1644,
       "path": "src/libbrep/tests/test_point_intersect.cpp",
       "subsystem": "src/libbrep",
       "lines": 214,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:28:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0230"
+      ]
     },
     {
       "id": 1645,
       "path": "src/libbrep/tools/tools.cpp",
       "subsystem": "src/libbrep",
       "lines": 296,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:28:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0230"
+      ]
     },
     {
       "id": 1646,
       "path": "src/libbrep/tools/tools.h",
       "subsystem": "src/libbrep",
       "lines": 235,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED_CLEAN",
+      "reviewed_at": "2026-09-20T02:28:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -16893,10 +16913,12 @@
       "path": "src/libbrep/tools/tools_util.cpp",
       "subsystem": "src/libbrep",
       "lines": 320,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:28:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0230"
+      ]
     },
     {
       "id": 1648,
@@ -35568,5 +35590,6 @@
       "issues_count": 0,
       "issue_ids": []
     }
-  ]
+  ],
+  "last_updated": "2026-09-20T02:28:00Z"
 }

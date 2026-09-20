@@ -4119,7 +4119,25 @@
       "created_at": "2026-09-20T02:20:00Z",
       "verified_at": "2026-09-20T02:21:30Z",
       "fixed_at": "2026-09-20T02:21:41Z"
+    },
+    {
+      "id": "SEC-0230",
+      "file": "src/libbrep/tools/tools.cpp, src/libbrep/tools/tools_util.cpp, src/libbrep/tests/brep_cdt_hole_face17.c, src/libbrep/tests/brep_cdt_hole_face27.c, src/libbrep/tests/brep_cdt_invalid.cpp, src/libbrep/tests/brep_cdt_mesh.cpp, src/libbrep/tests/assembly.cpp, src/libbrep/tests/ppx.cpp, src/libbrep/tests/pullback_context.cpp, src/libbrep/tests/test_curve_intersect.cpp, src/libbrep/tests/test_point_intersect.cpp",
+      "lines": "tools.cpp:43-70, 83-143, 197-286; tools_util.cpp:40-49, 83-148, 158-180, 182-228, 230-271; brep_cdt_mesh.cpp:27-48; brep_cdt_hole_face17.c:22-35, 3360-3415; brep_cdt_hole_face27.c:22-35, 6300-6355; assembly.cpp:103-109; ppx.cpp:218-225; pullback_context.cpp:504-512; test_curve_intersect.cpp:35-85; test_point_intersect.cpp:45-145",
+      "severity": 2,
+      "category": "Memory Leaks, Uncontrolled Recursion, Out-of-bounds Array Access, Null Pointer Dereference, Logic Error",
+      "description": "In libbrep tools and tests: in tools.cpp, find_next_point placed the recursion depth termination condition stepcount > 5 inside the else branch, allowing infinite recursion and stack exhaustion when point distance exceeded tolerance; ON_Curve_Get_Tangent and ON_Curve_Has_Tangent lacked null pointer and direction bounds checks; in ON_Surface_IsStraight, frames[0] and frames[1] were repeatedly indexed instead of frames[i] and frames[j]; in tools_util.cpp, ON_BrepTikz leaked duplicate edge curves on non-linear edges, and lacked null pointer and array bounds checks; in brep_cdt_mesh.cpp, invalid argument count printed usage but proceeded without exiting, dereferencing invalid argv[1]; in brep_cdt_hole_face17.c and brep_cdt_hole_face27.c, multiple heap-allocated arrays (pnts_2d, opoly, holes_array, raw_steiner, steiner, faces) leaked on test completion; across test executables, argv[0] was passed to bu_setprogname without validating argc > 0 and argv != NULL.",
+      "verification_status": "CONFIRMED",
+      "verification_test": "Code inspection, compilation of libbrep and all test executables, ctest suite (brep_*), and regression suite (regress-licenses, regress-repository).",
+      "test_result": "All test executables and libbrep compile cleanly with zero warnings, all 6 brep ctests pass, regress-repository and regress-licenses pass 100%.",
+      "fix_status": "FIXED",
+      "fix_description": "Added early recursion limit and null checks in find_next_point, ON_Curve_Get_Tangent, ON_Curve_Has_Tangent, and ON_Surface_* in tools.cpp; fixed copy-paste frame indices in ON_Surface_IsStraight; eliminated curve duplication leak and added null/bounds guards in tools_util.cpp; added exit on invalid argc in brep_cdt_mesh.cpp; freed all heap allocations before exit in brep_cdt_hole_face17.c and brep_cdt_hole_face27.c; validated argc and argv pointers before calling bu_setprogname across all test drivers.",
+      "commit_hash": "ddd98fa158",
+      "commit_message": "libbrep: fix memory leaks, potential crashes, and logic errors in tools and tests",
+      "created_at": "2026-09-20T02:27:00Z",
+      "verified_at": "2026-09-20T02:27:45Z",
+      "fixed_at": "2026-09-20T02:27:54Z"
     }
   ],
-  "last_updated": "2026-09-20T02:21:41Z"
+  "last_updated": "2026-09-20T02:28:00Z"
 }
