@@ -84,7 +84,7 @@ cmd_quit(void *UNUSED(clientData),
 {
     int status;
 
-    if (argc == 2)
+    if (argc >= 2 && argv && argv[1])
 	status = atoi(argv[1]);
     else
 	status = 0;
@@ -98,20 +98,21 @@ cmd_quit(void *UNUSED(clientData),
 
 /***************************** BWISH/BTCLSH COMMAND HISTORY *****************************/
 
-static int historyInitialized=0;
 static void
 historyInit(void)
 {
     if (currHist.capacity == 0) {
 	currHist.capacity = BU_CMDHIST_LIST_INIT_CAPACITY;
+	currHist.size = 0;
+	currHist.current = 0;
 	currHist.cmdhist = (struct bu_cmdhist *)bu_malloc(
 		sizeof (struct bu_cmdhist) * currHist.capacity,
 		"init chop");
-    } else if (currHist.size == currHist.capacity) {
+    } else if (currHist.size >= currHist.capacity) {
 	currHist.capacity *= 2;
 	currHist.cmdhist = (struct bu_cmdhist *)bu_realloc(
 		currHist.cmdhist,
-		sizeof (struct bu_cmdhist_obj) * currHist.capacity,
+		sizeof (struct bu_cmdhist) * currHist.capacity,
 		"init chop");
     }
 }
@@ -128,10 +129,13 @@ history_record_priv(struct bu_vls *cmdp, struct timeval *start, struct timeval *
 {
     struct bu_cmdhist *new_hist;
 
+    if (!cmdp || !start || !finish)
+	return;
+
     if (BU_STR_EQUAL(bu_vls_addr(cmdp), "\n"))
 	return;
 
-    if (!historyInitialized) {
+    if (currHist.capacity == 0 || currHist.size >= currHist.capacity) {
 	historyInit();
     }
 
@@ -142,11 +146,6 @@ history_record_priv(struct bu_vls *cmdp, struct timeval *start, struct timeval *
     new_hist->h_start = *start;
     new_hist->h_finish = *finish;
     new_hist->h_status = status;
-
-    /* As long as this isn't our first command to record after setting
-     * up the journal (which would be "journal", which we don't want
-     * recorded!)...
-     */
 
     currHist.current = currHist.size;
     currHist.size++;
@@ -214,7 +213,10 @@ cmd_history(void *clientData, int argc, const char **argv)
 		++argv;
 	    }
 	} else {
+	    if (fp != NULL)
+		fclose(fp);
 	    Tcl_AppendResult(interp, "Invalid option ", argv[1], "\n", (char *)NULL);
+	    return TCL_ERROR;
 	}
 
 	--argc;
@@ -222,8 +224,8 @@ cmd_history(void *clientData, int argc, const char **argv)
     }
 
     for (i = 1; i < currHist.size; i++) {
-	    hp = &currHist.cmdhist[i];
-	    hp_prev = &currHist.cmdhist[i - 1];
+	hp = &currHist.cmdhist[i];
+	hp_prev = &currHist.cmdhist[i - 1];
 	bu_vls_trunc(&str, 0);
 	if (with_delays) {
 	    if (timediff(&tvdiff, &(hp_prev->h_finish), &(hp->h_start)) >= 0)
@@ -240,6 +242,7 @@ cmd_history(void *clientData, int argc, const char **argv)
 	else
 	    Tcl_AppendResult(interp, bu_vls_addr(&str), (char *)NULL);
     }
+    bu_vls_free(&str);
 
     if (fp != NULL)
 	fclose(fp);
@@ -251,7 +254,7 @@ cmd_history(void *clientData, int argc, const char **argv)
 struct bu_vls *
 history_prev(void)
 {
-    if (currHist.current == 0) {
+    if (currHist.current == 0 || currHist.size == 0 || currHist.cmdhist == NULL) {
 	return NULL;
     } else {
 	currHist.current--;
@@ -263,18 +266,18 @@ history_prev(void)
 struct bu_vls *
 history_cur(void)
 {
-    if (currHist.capacity == 0) {
+    if (currHist.size == 0 || currHist.cmdhist == NULL || currHist.current >= currHist.size) {
 	return NULL;
     } else {
 	return &(currHist.cmdhist[currHist.current].h_command);
-	}
+    }
 }
 
 
 struct bu_vls *
 history_next(void)
 {
-    if (currHist.capacity == 0 || currHist.current == currHist.size - 1) {
+    if (currHist.size == 0 || currHist.cmdhist == NULL || currHist.current >= currHist.size - 1) {
 	return NULL;
     }
 
@@ -288,17 +291,17 @@ cmd_hist(void *clientData, int argc, const char **argv)
 {
     Tcl_Interp *interp = (Tcl_Interp *)clientData;
     struct bu_vls *vp;
-    struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-    if (argc < 2) {
+    if (argc < 2 || !argv || !argv[1]) {
 	Tcl_AppendResult(interp, "hist command\n\troutine for maintaining command history", (char *)0);
 	return TCL_ERROR;
     }
 
     if (BU_STR_EQUAL(argv[1], "add")) {
 	struct timeval zero;
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-	if (argc != 3) {
+	if (argc != 3 || !argv[2]) {
 	    Tcl_AppendResult(interp, "hist add command\n\tadd command to history", (char *)0);
 	    return TCL_ERROR;
 	}
@@ -328,7 +331,6 @@ cmd_hist(void *clientData, int argc, const char **argv)
 	    return TCL_ERROR;
 
 	Tcl_AppendResult(interp, bu_vls_addr(vp), (char *)NULL);
-	bu_vls_free(&vls);
 	return TCL_OK;
     }
 
@@ -343,7 +345,6 @@ cmd_hist(void *clientData, int argc, const char **argv)
 	    return TCL_ERROR;
 
 	Tcl_AppendResult(interp, bu_vls_addr(vp), (char *)NULL);
-	bu_vls_free(&vls);
 	return TCL_OK;
     }
 

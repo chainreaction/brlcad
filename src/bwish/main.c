@@ -75,6 +75,8 @@ static BOOL consoleRequired = TRUE;
 int tty_usable(int fd) {
    fd_set fdset;
    struct timeval timeout;
+   if (fd < 0 || fd >= FD_SETSIZE)
+       return 0;
    FD_ZERO(&fdset);
    FD_SET(fd, &fdset);
    timeout.tv_sec = 0;
@@ -228,6 +230,9 @@ main(int argc, char **argv)
     argv = __argv;
 #endif
 #if !defined(HAVE_WINDOWS_H)
+    if (argc <= 0 || !argv || !argv[0]) {
+	return 1;
+    }
     struct bu_vls tlog = BU_VLS_INIT_ZERO;
     int status = TCL_OK;
     char *filename = NULL;
@@ -238,6 +243,10 @@ main(int argc, char **argv)
 
     /* Create the interpreter */
     INTERP = Tcl_CreateInterp();
+    if (!INTERP) {
+	bu_log("Failed to create Tcl interpreter\n");
+	return 1;
+    }
     Tcl_FindExecutable(argv[0]);
 #endif
 #if defined(HAVE_WINDOWS_H)
@@ -251,7 +260,9 @@ main(int argc, char **argv)
 	}
     }
 #endif
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0]) {
+	bu_setprogname(argv[0]);
+    }
 #if defined(HAVE_WINDOWS_H)
 #  ifdef BWISH
     Tk_Main(argc, argv, Tcl_WinInit);
@@ -281,7 +292,7 @@ main(int argc, char **argv)
 	filename = Tcl_ExternalToUtfDString(NULL, filename, -1, &argString);
     }
 
-    sprintf(buf, "%ld", (long)(argc-1));
+    snprintf(buf, sizeof(buf), "%ld", (long)(argc-1));
     Tcl_SetVar(INTERP, "argc", buf, TCL_GLOBAL_ONLY);
     Tcl_SetVar(INTERP, "argv0", Tcl_DStringValue(&argString), TCL_GLOBAL_ONLY);
 
@@ -321,12 +332,13 @@ main(int argc, char **argv)
 	Tcl_ResetResult(INTERP);
 	fstatus = Tcl_EvalFile(INTERP, filename);
 	if (fstatus != TCL_OK) {
+	    const char *errInfo;
 	    Tcl_AddErrorInfo(INTERP, "");
+	    errInfo = Tcl_GetVar(INTERP, "errorInfo", TCL_GLOBAL_ONLY);
 #ifdef BWISH
-	    displayWarning(Tcl_GetVar(INTERP, "errorInfo",
-				      TCL_GLOBAL_ONLY), "Error in startup script");
+	    displayWarning(errInfo ? errInfo : "Unknown error in startup script", "Error in startup script");
 #else
-	    bu_log("Error in startup script: %s\n", Tcl_GetVar(INTERP, "errorInfo", TCL_GLOBAL_ONLY));
+	    bu_log("Error in startup script: %s\n", errInfo ? errInfo : "unknown error");
 #endif
 	}
 

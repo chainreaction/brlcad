@@ -135,18 +135,24 @@ inputHandler(ClientData clientData, int UNUSED(mask))
 
     count = read((int)fd, (void *)buf, BU_PAGE_SIZE);
 
-    if (count < 0) {
-	perror("READ ERROR");
-    }
-    if (count <= 0 && feof(stdin)) {
-	Cad_Exit(TCL_OK);
+    if (count <= 0) {
+	if (count < 0) {
+	    perror("READ ERROR");
+	}
+	if (feof(stdin) || count == 0) {
+	    Cad_Exit(TCL_OK);
+	}
+	return;
     }
 
-    /* Process everything in buf */
-    for (i = 0, ch = buf[i]; i < count && ch != '\0'; ch = buf[++i]) {
-	if (ch < 0 || ch > CHAR_MAX)
+    /* Process everything in buf safely */
+    for (i = 0; i < count; i++) {
+	ch = (unsigned char)buf[i];
+	if (ch == '\0')
+	    break;
+	if (ch > CHAR_MAX)
 	    continue;
-	processChar(ch);
+	processChar((char)ch);
     }
 }
 
@@ -156,7 +162,6 @@ static void
 processChar(char ch)
 {
     struct bu_vls *vp = NULL;
-    struct bu_vls temp = BU_VLS_INIT_ZERO;
     static int escaped = 0;
     static int bracketed = 0;
     static int freshline = 1;
@@ -229,6 +234,7 @@ processChar(char ch)
 		bu_log("\b \b");
 		bu_vls_trunc(&input_str, bu_vls_strlen(&input_str)-1);
 	    } else {
+		struct bu_vls temp = BU_VLS_INIT_ZERO;
 		bu_vls_strcpy(&temp, bu_vls_addr(&input_str)+input_str_index);
 		bu_vls_trunc(&input_str, input_str_index-1);
 		bu_log("\b%s ", bu_vls_addr(&temp));
@@ -253,37 +259,46 @@ processChar(char ch)
 	    escaped = bracketed = 0;
 	    break;
 	case CTRL_D:                    /* Delete character at cursor */
-	    if (input_str_index == bu_vls_strlen(&input_str)) {
+	    if (input_str_index >= bu_vls_strlen(&input_str)) {
 		insert_beep(); /* Beep if at end of input string */
 		break;
 	    }
-	    bu_vls_strcpy(&temp, bu_vls_addr(&input_str)+input_str_index+1);
-	    bu_vls_trunc(&input_str, input_str_index);
-	    bu_log("%s ", bu_vls_addr(&temp));
-	    insert_prompt();
-	    bu_log("%s", bu_vls_addr(&input_str));
-	    bu_vls_vlscat(&input_str, &temp);
-	    bu_vls_free(&temp);
+	    {
+		struct bu_vls temp = BU_VLS_INIT_ZERO;
+		bu_vls_strcpy(&temp, bu_vls_addr(&input_str)+input_str_index+1);
+		bu_vls_trunc(&input_str, input_str_index);
+		bu_log("%s ", bu_vls_addr(&temp));
+		insert_prompt();
+		bu_log("%s", bu_vls_addr(&input_str));
+		bu_vls_vlscat(&input_str, &temp);
+		bu_vls_free(&temp);
+	    }
 	    escaped = bracketed = 0;
 	    break;
 	case CTRL_U:                   /* Delete whole line */
-	    insert_prompt();
-	    bu_vls_strncpy(&temp, SPACES, bu_vls_strlen(&input_str));
-	    bu_log("%s", bu_vls_addr(&temp));
-	    bu_vls_free(&temp);
-	    insert_prompt();
-	    bu_vls_trunc(&input_str, 0);
-	    input_str_index = 0;
-	    escaped = bracketed = 0;
+	    {
+		struct bu_vls temp = BU_VLS_INIT_ZERO;
+		insert_prompt();
+		bu_vls_strncpy(&temp, SPACES, bu_vls_strlen(&input_str));
+		bu_log("%s", bu_vls_addr(&temp));
+		bu_vls_free(&temp);
+		insert_prompt();
+		bu_vls_trunc(&input_str, 0);
+		input_str_index = 0;
+		escaped = bracketed = 0;
+	    }
 	    break;
 	case CTRL_K:                    /* Delete to end of line */
-	    bu_vls_strncpy(&temp, SPACES, bu_vls_strlen(&input_str)-input_str_index);
-	    bu_log("%s", bu_vls_addr(&temp));
-	    bu_vls_free(&temp);
-	    bu_vls_trunc(&input_str, input_str_index);
-	    insert_prompt();
-	    bu_log("%s", bu_vls_addr(&input_str));
-	    escaped = bracketed = 0;
+	    {
+		struct bu_vls temp = BU_VLS_INIT_ZERO;
+		bu_vls_strncpy(&temp, SPACES, bu_vls_strlen(&input_str)-input_str_index);
+		bu_log("%s", bu_vls_addr(&temp));
+		bu_vls_free(&temp);
+		bu_vls_trunc(&input_str, input_str_index);
+		insert_prompt();
+		bu_log("%s", bu_vls_addr(&input_str));
+		escaped = bracketed = 0;
+	    }
 	    break;
 	case CTRL_L:                   /* Redraw line */
 	    bu_log("\n");
@@ -315,7 +330,7 @@ processChar(char ch)
 	    escaped = bracketed = 0;
 	    break;
 	case CTRL_T:                  /* Transpose characters */
-	    if (input_str_index == 0) {
+	    if (input_str_index == 0 || bu_vls_strlen(&input_str) < 2) {
 		insert_beep();
 		break;
 	    }
@@ -364,24 +379,33 @@ processChar(char ch)
 		    }
 		}
 	    }
-	    insert_prompt();
-	    bu_vls_strncpy(&temp, SPACES, bu_vls_strlen(&input_str));
-	    bu_log("%s", bu_vls_addr(&temp));
-	    bu_vls_free(&temp);
-	    insert_prompt();
-	    bu_vls_trunc(&input_str, 0);
-	    bu_vls_vlscat(&input_str, vp);
-	    if (bu_vls_addr(&input_str)[bu_vls_strlen(&input_str)-1] == '\n')
-		bu_vls_trunc(&input_str, bu_vls_strlen(&input_str)-1); /* del \n */
-	    bu_log("%s", bu_vls_addr(&input_str));
-	    input_str_index = bu_vls_strlen(&input_str);
-	    escaped = bracketed = 0;
+	    {
+		struct bu_vls temp = BU_VLS_INIT_ZERO;
+		insert_prompt();
+		bu_vls_strncpy(&temp, SPACES, bu_vls_strlen(&input_str));
+		bu_log("%s", bu_vls_addr(&temp));
+		bu_vls_free(&temp);
+		insert_prompt();
+		bu_vls_trunc(&input_str, 0);
+		bu_vls_vlscat(&input_str, vp);
+		if (bu_vls_strlen(&input_str) > 0 && bu_vls_addr(&input_str)[bu_vls_strlen(&input_str)-1] == '\n')
+		    bu_vls_trunc(&input_str, bu_vls_strlen(&input_str)-1); /* del \n */
+		bu_log("%s", bu_vls_addr(&input_str));
+		input_str_index = bu_vls_strlen(&input_str);
+		escaped = bracketed = 0;
+	    }
 	    break;
 	case CTRL_W:                   /* backward-delete-word */
+	    if (input_str_index == 0) {
+		insert_beep();
+		escaped = bracketed = 0;
+		break;
+	    }
 	    {
 		char *start;
 		char *curr;
 		int len;
+		struct bu_vls temp = BU_VLS_INIT_ZERO;
 		struct bu_vls temp2 = BU_VLS_INIT_ZERO;
 
 		start = bu_vls_addr(&input_str);
@@ -395,7 +419,7 @@ processChar(char ch)
 		while (curr > start && *curr != ' ')
 		    --curr;
 
-		bu_vls_strcat(&temp, start+input_str_index);
+		bu_vls_strcpy(&temp, start+input_str_index);
 
 		if (curr == start)
 		    input_str_index = 0;
@@ -425,6 +449,7 @@ processChar(char ch)
 		char *start;
 		char *curr;
 		int i;
+		struct bu_vls temp = BU_VLS_INIT_ZERO;
 		struct bu_vls temp2 = BU_VLS_INIT_ZERO;
 
 		start = bu_vls_addr(&input_str);
@@ -462,6 +487,7 @@ processChar(char ch)
 		/* forward-word */
 		char *start;
 		char *curr;
+		struct bu_vls temp = BU_VLS_INIT_ZERO;
 
 		start = bu_vls_addr(&input_str);
 		curr = start + input_str_index;
@@ -489,31 +515,39 @@ processChar(char ch)
 	case 'b':
 	    if (escaped) {
 		/* backward-word */
-		char *start;
-		char *curr;
+		if (input_str_index == 0) {
+		    insert_beep();
+		    escaped = bracketed = 0;
+		    break;
+		}
+		{
+		    char *start;
+		    char *curr;
+		    struct bu_vls temp = BU_VLS_INIT_ZERO;
 
-		start = bu_vls_addr(&input_str);
-		curr = start + input_str_index - 1;
+		    start = bu_vls_addr(&input_str);
+		    curr = start + input_str_index - 1;
 
-		/* skip spaces */
-		while (curr > start && *curr == ' ')
-		    --curr;
+		    /* skip spaces */
+		    while (curr > start && *curr == ' ')
+			--curr;
 
-		/* find next space */
-		while (curr > start && *curr != ' ')
-		    --curr;
+		    /* find next space */
+		    while (curr > start && *curr != ' ')
+			--curr;
 
-		if (curr == start)
-		    input_str_index = 0;
-		else
-		    input_str_index = curr - start + 1;
+		    if (curr == start)
+			input_str_index = 0;
+		    else
+			input_str_index = curr - start + 1;
 
-		bu_vls_strcpy(&temp, start+input_str_index);
-		bu_vls_trunc(&input_str, input_str_index);
-		insert_prompt();
-		bu_log("%s", bu_vls_addr(&input_str));
-		bu_vls_vlscat(&input_str, &temp);
-		bu_vls_free(&temp);
+		    bu_vls_strcpy(&temp, start+input_str_index);
+		    bu_vls_trunc(&input_str, input_str_index);
+		    insert_prompt();
+		    bu_log("%s", bu_vls_addr(&input_str));
+		    bu_vls_vlscat(&input_str, &temp);
+		    bu_vls_free(&temp);
+		}
 	    } else
 		insert_char(ch);
 
