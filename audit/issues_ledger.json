@@ -4137,7 +4137,25 @@
       "created_at": "2026-09-20T02:27:00Z",
       "verified_at": "2026-09-20T02:27:45Z",
       "fixed_at": "2026-09-20T02:27:54Z"
+    },
+    {
+      "id": "SEC-0231",
+      "file": "src/libfft/fftfast.c, src/libfft/splitdit.c, src/libfft/ditsplit.c, src/libfft/fftc.c, src/libfft/ifftc.c, src/libfft/splitditc.c, src/libfft/ditsplitc.c, src/libfft/fftest.c",
+      "lines": "fftfast.c:54-85, 120-165, 203-245, 290-345; splitdit.c:33-40; ditsplit.c:39-46; fftc.c:45-75; ifftc.c:44-75; splitditc.c:44-60; ditsplitc.c:46-62; fftest.c:39-60",
+      "severity": 2,
+      "category": "Infinite Loop Denial of Service, Null Pointer Dereference, Division by Zero, Missing Bounds Validation",
+      "description": "In libfft routines: in fftfast.c, init_sintab hung in an infinite loop if size was zero or negative, calloc return values were unchecked leading to null pointer dereferences, cdiv divided by sum-of-squares without checking for zero, and cfft, icfft, scramble, butterflies, and complex arithmetic functions lacked null pointer checks on data/result pointers. In splitdit.c and ditsplit.c, rfft and irfft lacked null checks and minimum length validation on input arrays. In fftc.c and ifftc.c, parse_fft_length permitted invalid size 1 and lacked upper bound checks, and main dereferenced argv without pointer validation. In splitditc.c and ditsplitc.c, generator functions lacked minimum dimension guards and embedded full source file paths.",
+      "verification_status": "CONFIRMED",
+      "verification_test": "Code inspection, compilation (libfft, fftest, fftc, ifftc), execution of test binary (build/bin/fftest), and regression suite (regress-licenses, regress-repository).",
+      "test_result": "All targets compile cleanly, fftest executes and verifies forward and inverse transforms, regress-repository passes 100%.",
+      "fix_status": "FIXED",
+      "fix_description": "Guarded size range and powers of two in init_sintab to prevent infinite loops; validated calloc return values and reset state on failure; guarded division by zero in cdiv; added null pointer and size checks across cfft, icfft, scramble, butterflies, arithmetic helpers, rfft, and irfft; constrained fftc/ifftc lengths and validated argv; guarded splitditc/ditsplitc generators.",
+      "commit_hash": "28ac636c0c",
+      "commit_message": "libfft: fix infinite loop, null dereferences, division by zero, and missing bounds checks",
+      "created_at": "2026-09-20T02:32:00Z",
+      "verified_at": "2026-09-20T02:32:30Z",
+      "fixed_at": "2026-09-20T02:32:40Z"
     }
   ],
-  "last_updated": "2026-09-20T02:28:00Z"
+  "last_updated": "2026-09-20T02:33:00Z"
 }

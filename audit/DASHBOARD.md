@@ -1,23 +1,23 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-20 02:28:00 UTC
+**Last Updated:** 2026-09-20 02:33:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 522 (14.9%)
-- **Files Pending Review:** 2971
-- **Total Issues Identified:** 230
+- **Files Reviewed:** 530 (15.2%)
+- **Files Pending Review:** 2963
+- **Total Issues Identified:** 231
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 160 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 161 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 47 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 229
-- **Pending Verification:** 1
+- **Fixed (Committed):** 231
+- **Pending Verification:** 0
 - **Disproven:** 0
 
 ## Subsystem Review Progress
@@ -90,7 +90,7 @@
 | `src/libbu` | 176 | 176 | 100.0% | 101 |
 | `src/libbv` | 19 | 0 | 0.0% | 0 |
 | `src/libdm` | 80 | 0 | 0.0% | 0 |
-| `src/libfft` | 8 | 0 | 0.0% | 0 |
+| `src/libfft` | 8 | 8 | 100.0% | 1 |
 | `src/libgcv` | 111 | 0 | 0.0% | 0 |
 | `src/libged` | 509 | 0 | 0.0% | 0 |
 | `src/libicv` | 34 | 0 | 0.0% | 0 |

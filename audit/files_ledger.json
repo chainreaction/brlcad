@@ -19876,80 +19876,96 @@
       "path": "src/libfft/ditsplit.c",
       "subsystem": "src/libfft",
       "lines": 174,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:33:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0231"
+      ]
     },
     {
       "id": 1924,
       "path": "src/libfft/ditsplitc.c",
       "subsystem": "src/libfft",
       "lines": 212,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:33:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0231"
+      ]
     },
     {
       "id": 1925,
       "path": "src/libfft/fftc.c",
       "subsystem": "src/libfft",
       "lines": 94,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:33:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0231"
+      ]
     },
     {
       "id": 1926,
       "path": "src/libfft/fftest.c",
       "subsystem": "src/libfft",
       "lines": 91,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:33:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0231"
+      ]
     },
     {
       "id": 1927,
       "path": "src/libfft/fftfast.c",
       "subsystem": "src/libfft",
       "lines": 316,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:33:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0231"
+      ]
     },
     {
       "id": 1928,
       "path": "src/libfft/ifftc.c",
       "subsystem": "src/libfft",
       "lines": 92,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:33:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0231"
+      ]
     },
     {
       "id": 1929,
       "path": "src/libfft/splitdit.c",
       "subsystem": "src/libfft",
       "lines": 159,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:33:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0231"
+      ]
     },
     {
       "id": 1930,
       "path": "src/libfft/splitditc.c",
       "subsystem": "src/libfft",
       "lines": 192,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-09-20T02:33:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0231"
+      ]
     },
     {
       "id": 1931,
