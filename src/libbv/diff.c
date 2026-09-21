@@ -84,9 +84,11 @@ _bv_adc_state_differ(struct bv_adc_state *v1, struct bv_adc_state *v2)
 {
     /* First, do sanity checks */
     if (!v1 && !v2)
-	return -1;
-    if ((v1 && !v2) || (!v1 && v2))
-	return -1;
+	return 0;
+    if (!v1 || !v2)
+	return 1;
+    if (v1 == v2)
+	return 0;
 
     BV_NDIFF(1,draw);
     BV_NDIFF(1,dv_x);
@@ -119,9 +121,11 @@ _bv_axes_differ(struct bv_axes *v1, struct bv_axes *v2)
 {
     /* First, do sanity checks */
     if (!v1 && !v2)
-	return -1;
-    if ((v1 && !v2) || (!v1 && v2))
-	return -1;
+	return 0;
+    if (!v1 || !v2)
+	return 1;
+    if (v1 == v2)
+	return 0;
 
     BV_NDIFF(1,draw);
     BV_VDIFF(1,axes_pos);
@@ -149,9 +153,11 @@ _bv_data_arrow_state_differ(struct bv_data_arrow_state *v1, struct bv_data_arrow
 {
     /* First, do sanity checks */
     if (!v1 && !v2)
-	return -1;
-    if ((v1 && !v2) || (!v1 && v2))
-	return -1;
+	return 0;
+    if (!v1 || !v2)
+	return 1;
+    if (v1 == v2)
+	return 0;
 
     BV_NDIFF(1,gdas_draw);
     BV_IVDIFF(1,gdas_color);
@@ -159,9 +165,12 @@ _bv_data_arrow_state_differ(struct bv_data_arrow_state *v1, struct bv_data_arrow
     BV_NDIFF(1,gdas_tip_length);
     BV_NDIFF(1,gdas_tip_width);
     BV_NDIFF(1,gdas_num_points);
-    // If we have the same number of points, check them
-    for (int i = 0; i < v1->gdas_num_points; i++) {
-	BV_VDIFF(1,gdas_points[i]);
+    if ((v1->gdas_points != NULL) != (v2->gdas_points != NULL))
+	return 1;
+    if (v1->gdas_points && v2->gdas_points) {
+	for (int i = 0; i < v1->gdas_num_points; i++) {
+	    BV_VDIFF(1,gdas_points[i]);
+	}
     }
     return 0;
 }
@@ -171,18 +180,23 @@ _bv_data_axes_state_differ(struct bv_data_axes_state *v1, struct bv_data_axes_st
 {
     /* First, do sanity checks */
     if (!v1 && !v2)
-	return -1;
-    if ((v1 && !v2) || (!v1 && v2))
-	return -1;
+	return 0;
+    if (!v1 || !v2)
+	return 1;
+    if (v1 == v2)
+	return 0;
 
     BV_NDIFF(1,draw);
     BV_IVDIFF(1,color);
     BV_NDIFF(1,line_width);
     BV_NDIFF(1,size);
     BV_NDIFF(1,num_points);
-    // If we have the same number of points, check them
-    for (int i = 0; i < v1->num_points; i++) {
-	BV_VDIFF(1,points[i]);
+    if ((v1->points != NULL) != (v2->points != NULL))
+	return 1;
+    if (v1->points && v2->points) {
+	for (int i = 0; i < v1->num_points; i++) {
+	    BV_VDIFF(1,points[i]);
+	}
     }
     return 0;
 }
@@ -192,21 +206,29 @@ _bv_data_label_state_differ(struct bv_data_label_state *v1, struct bv_data_label
 {
     /* First, do sanity checks */
     if (!v1 && !v2)
-	return -1;
-    if ((v1 && !v2) || (!v1 && v2))
-	return -1;
+	return 0;
+    if (!v1 || !v2)
+	return 1;
+    if (v1 == v2)
+	return 0;
 
     BV_NDIFF(1,gdls_draw);
     BV_IVDIFF(1,gdls_color);
     BV_NDIFF(1,gdls_num_labels);
-    // If we have the same number of labels, check them
-    for (int i = 0; i < v1->gdls_num_labels; i++) {
-	BV_SDIFF(1,gdls_labels[i]);
+    if ((v1->gdls_labels != NULL) != (v2->gdls_labels != NULL))
+	return 1;
+    if (v1->gdls_labels && v2->gdls_labels) {
+	for (int i = 0; i < v1->gdls_num_labels; i++) {
+	    BV_SDIFF(1,gdls_labels[i]);
+	}
     }
     BV_NDIFF(1,gdls_size);
-    // If we have the same number of points, check them
-    for (int i = 0; i < v1->gdls_size; i++) {
-	BV_VDIFF(1,gdls_points[i]);
+    if ((v1->gdls_points != NULL) != (v2->gdls_points != NULL))
+	return 1;
+    if (v1->gdls_points && v2->gdls_points) {
+	for (int i = 0; i < v1->gdls_size; i++) {
+	    BV_VDIFF(1,gdls_points[i]);
+	}
     }
     return 0;
 }
@@ -217,17 +239,22 @@ _bv_data_line_state_differ(struct bv_data_line_state *v1, struct bv_data_line_st
 {
     /* First, do sanity checks */
     if (!v1 && !v2)
-	return -1;
-    if ((v1 && !v2) || (!v1 && v2))
-	return -1;
+	return 0;
+    if (!v1 || !v2)
+	return 1;
+    if (v1 == v2)
+	return 0;
 
     BV_NDIFF(1,gdls_draw);
     BV_IVDIFF(1,gdls_color);
     BV_NDIFF(1,gdls_line_width);
     BV_NDIFF(1,gdls_num_points);
-    // If we have the same number of points, check them
-    for (int i = 0; i < v1->gdls_num_points; i++) {
-	BV_VDIFF(1,gdls_points[i]);
+    if ((v1->gdls_points != NULL) != (v2->gdls_points != NULL))
+	return 1;
+    if (v1->gdls_points && v2->gdls_points) {
+	for (int i = 0; i < v1->gdls_num_points; i++) {
+	    BV_VDIFF(1,gdls_points[i]);
+	}
     }
     return 0;
 }
@@ -235,15 +262,21 @@ _bv_data_line_state_differ(struct bv_data_line_state *v1, struct bv_data_line_st
 static int
 _bg_poly_contour_differ(struct bg_poly_contour *v1, struct bg_poly_contour *v2)
 {
-/* First, do sanity checks */
+    /* First, do sanity checks */
     if (!v1 && !v2)
-	return -1;
-    if ((v1 && !v2) || (!v1 && v2))
-	return -1;
+	return 0;
+    if (!v1 || !v2)
+	return 1;
+    if (v1 == v2)
+	return 0;
 
     BV_NDIFF(1,num_points);
-    for (size_t i = 0; i < v1->num_points; i++) {
-	BV_VDIFF(1,point[i]);
+    if ((v1->point != NULL) != (v2->point != NULL))
+	return 1;
+    if (v1->point && v2->point) {
+	for (size_t i = 0; i < v1->num_points; i++) {
+	    BV_VDIFF(1,point[i]);
+	}
     }
 
     return 0;
@@ -252,19 +285,27 @@ _bg_poly_contour_differ(struct bg_poly_contour *v1, struct bg_poly_contour *v2)
 static int
 _bg_polygon_differ(struct bg_polygon *v1, struct bg_polygon *v2)
 {
-/* First, do sanity checks */
+    /* First, do sanity checks */
     if (!v1 && !v2)
-	return -1;
-    if ((v1 && !v2) || (!v1 && v2))
-	return -1;
+	return 0;
+    if (!v1 || !v2)
+	return 1;
+    if (v1 == v2)
+	return 0;
 
     BV_NDIFF(1,num_contours);
     BV_IVDIFF(1,gp_color);
     BV_NDIFF(1,gp_line_width);
     BV_NDIFF(1,gp_line_style);
-    for (size_t i = 0; i < v1->num_contours; i++) {
-	BV_CDIFF(1, _bg_poly_contour_differ, contour[i]);
+    if ((v1->contour != NULL) != (v2->contour != NULL))
+	return 1;
+    if (v1->contour && v2->contour) {
+	for (size_t i = 0; i < v1->num_contours; i++) {
+	    BV_CDIFF(1, _bg_poly_contour_differ, contour[i]);
+	}
     }
+    if ((v1->hole != NULL) != (v2->hole != NULL))
+	return 1;
     if (v1->hole && v2->hole) {
 	for (size_t i = 0; i < v1->num_contours; i++) {
 	    BV_NDIFF(1,hole[i]);
@@ -276,15 +317,21 @@ _bg_polygon_differ(struct bg_polygon *v1, struct bg_polygon *v2)
 static int
 _bg_polygons_differ(struct bg_polygons *v1, struct bg_polygons *v2)
 {
-/* First, do sanity checks */
+    /* First, do sanity checks */
     if (!v1 && !v2)
-	return -1;
-    if ((v1 && !v2) || (!v1 && v2))
-	return -1;
+	return 0;
+    if (!v1 || !v2)
+	return 1;
+    if (v1 == v2)
+	return 0;
 
     BV_NDIFF(1,num_polygons);
-    for (size_t i = 0; i < v1->num_polygons; i++) {
-	BV_CDIFF(1, _bg_polygon_differ, polygon[i]);
+    if ((v1->polygon != NULL) != (v2->polygon != NULL))
+	return 1;
+    if (v1->polygon && v2->polygon) {
+	for (size_t i = 0; i < v1->num_polygons; i++) {
+	    BV_CDIFF(1, _bg_polygon_differ, polygon[i]);
+	}
     }
     return 0;
 }
@@ -294,9 +341,11 @@ _bv_data_polygon_state_differ(bv_data_polygon_state *v1, bv_data_polygon_state *
 {
     /* First, do sanity checks */
     if (!v1 && !v2)
-	return -1;
-    if ((v1 && !v2) || (!v1 && v2))
-	return -1;
+	return 0;
+    if (!v1 || !v2)
+	return 1;
+    if (v1 == v2)
+	return 0;
 
     BV_NDIFF(1,gdps_draw);
     BV_NDIFF(1,gdps_moveAll);
@@ -325,9 +374,11 @@ _bv_grid_state_differ(struct bv_grid_state *v1, struct bv_grid_state *v2)
 {
     /* First, do sanity checks */
     if (!v1 && !v2)
-	return -1;
-    if ((v1 && !v2) || (!v1 && v2))
-	return -1;
+	return 0;
+    if (!v1 || !v2)
+	return 1;
+    if (v1 == v2)
+	return 0;
 
     BV_NDIFF(1,rc);
     BV_NDIFF(1,draw);
@@ -347,9 +398,11 @@ _bv_params_state_differ(struct bv_params_state *v1, struct bv_params_state *v2)
 {
     /* First, do sanity checks */
     if (!v1 && !v2)
-	return -1;
-    if ((v1 && !v2) || (!v1 && v2))
-	return -1;
+	return 0;
+    if (!v1 || !v2)
+	return 1;
+    if (v1 == v2)
+	return 0;
 
     BV_NDIFF(1,draw);
     BV_NDIFF(1,draw_size);
@@ -368,9 +421,11 @@ _bv_other_state_differ(struct bv_other_state *v1, struct bv_other_state *v2)
 {
     /* First, do sanity checks */
     if (!v1 && !v2)
-	return -1;
-    if ((v1 && !v2) || (!v1 && v2))
-	return -1;
+	return 0;
+    if (!v1 || !v2)
+	return 1;
+    if (v1 == v2)
+	return 0;
 
     BV_NDIFF(1,gos_draw);
     BV_IVDIFF(1,gos_line_color);
@@ -385,9 +440,11 @@ _bv_interactive_rect_state_differ(struct bv_interactive_rect_state *v1, struct b
 {
     /* First, do sanity checks */
     if (!v1 && !v2)
-	return -1;
-    if ((v1 && !v2) || (!v1 && v2))
-	return -1;
+	return 0;
+    if (!v1 || !v2)
+	return 1;
+    if (v1 == v2)
+	return 0;
 
     BV_NDIFF(1,active);
     BV_NDIFF(1,draw);
@@ -413,6 +470,13 @@ _bv_interactive_rect_state_differ(struct bv_interactive_rect_state *v1, struct b
 static int
 _bv_settings_differ(struct bview_settings *v1, struct bview_settings *v2)
 {
+    if (!v1 && !v2)
+	return 0;
+    if (!v1 || !v2)
+	return 1;
+    if (v1 == v2)
+	return 0;
+
     BV_CDIFF(1, _bv_adc_state_differ, gv_adc);
     BV_CDIFF(1, _bv_axes_differ, gv_model_axes);
     BV_CDIFF(1, _bv_axes_differ, gv_view_axes);
@@ -443,15 +507,16 @@ bv_differ(struct bview *v1, struct bview *v2)
 {
     /* First, do sanity checks */
     if (!v1 && !v2)
-	return -1;
-    if ((v1 && !v2) || (!v1 && v2))
-	return -1;
+	return 0;
+    if (!v1 || !v2)
+	return 1;
+    if (v1 == v2)
+	return 0;
 
     /* Now the real work starts - check the contents.  First up are
      * any settings which potentially impact visible data */
     BV_NDIFF(1,gv_i_scale);
     BV_NDIFF(1,gv_a_scale);
-    BV_NDIFF(1,gv_scale);
     BV_NDIFF(1,gv_scale);
     BV_NDIFF(1,gv_size);
     BV_NDIFF(1,gv_isize);
@@ -491,11 +556,11 @@ bv_differ(struct bview *v1, struct bview *v2)
     BV_CDIFF(1, _bv_data_polygon_state_differ, gv_tcl.gv_sdata_polygons);
     BV_CDIFF(1, _bv_other_state_differ, gv_tcl.gv_prim_labels);
 
-    if (v1->gv_s != v2->gv_s) {
+    if ((v1->gv_s != NULL) != (v2->gv_s != NULL)) {
 	return 1;
     }
 
-    if (v1->gv_s) {
+    if (v1->gv_s && v2->gv_s) {
 	if (_bv_settings_differ(v1->gv_s, v2->gv_s)) {
 	    return 1;
 	}
@@ -510,7 +575,9 @@ bv_differ(struct bview *v1, struct bview *v2)
     BV_DIFF(3,dmp);
     BV_DIFF(3,u_data);
 
-    BV_DIFF(3,callbacks);
+    if ((v1->callbacks != NULL) != (v2->callbacks != NULL)) {
+	return 3;
+    }
     // check for internal callback differences
     if (v1->callbacks && v2->callbacks) {
 	if (BU_PTBL_LEN(v1->callbacks) != BU_PTBL_LEN(v2->callbacks)) {

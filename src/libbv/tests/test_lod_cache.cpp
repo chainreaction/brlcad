@@ -281,9 +281,10 @@ test_null_guards(void)
 
 /* -------------------------------------------------------------------- */
 int
-main(int UNUSED(argc), char *argv[])
+main(int argc, char *argv[])
 {
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv[0])
+	bu_setprogname(argv[0]);
 
     set_test_cache();
 

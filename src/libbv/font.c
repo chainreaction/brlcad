@@ -48,7 +48,7 @@ bv_vlist_3string(struct bu_list *vhead,
     mat_t	xlate_to_origin;
     mat_t	mat;
 
-    if ( string == NULL || *string == '\0' )
+    if (!vhead || !free_hd || !string || *string == '\0' || !origin || !rot)
 	return;			/* done before begun! */
 
     /*
@@ -61,44 +61,51 @@ bv_vlist_3string(struct bu_list *vhead,
      *  If the user provided translation or
      *  scaling in his matrix, it will *also* be applied.
      */
-    MAT_IDN( xlate_to_origin );
-    MAT_DELTAS_VEC( xlate_to_origin, origin );
-    bn_mat_mul( mat, xlate_to_origin, rot );
+    MAT_IDN(xlate_to_origin);
+    MAT_DELTAS_VEC(xlate_to_origin, origin);
+    bn_mat_mul(mat, xlate_to_origin, rot);
 
     /* Draw each character in the input string */
     offset = 0;
-    for ( cp = (unsigned char *)string; *cp; cp++, offset += scale )  {
+    for (cp = (unsigned char *)string; *cp; cp++, offset += scale) {
 	register int *p;	/* pointer to stroke table */
 	register int stroke;
 
-	VSET( temp, offset, 0, 0 );
-	MAT4X3PNT( loc, mat, temp );
-	BV_ADD_VLIST(free_hd, vhead, loc, BV_VLIST_LINE_MOVE );
+	VSET(temp, offset, 0, 0);
+	MAT4X3PNT(loc, mat, temp);
+	BV_ADD_VLIST(free_hd, vhead, loc, BV_VLIST_LINE_MOVE);
 
-	for ( p = plot3_font_getchar(cp); ((stroke= *p)) != PLOT3_FONT_LAST; p++ )  {
-	    int	draw;
+	p = plot3_font_getchar(cp);
+	if (!p)
+	    continue;
 
-	    if ( (stroke)==PLOT3_FONT_NEGY )  {
-		ysign = (-1);
-		stroke = *++p;
+	for (; (stroke = *p) != PLOT3_FONT_LAST; p++) {
+	    int draw;
+
+	    if (stroke == PLOT3_FONT_NEGY) {
+		ysign = -1;
+		p++;
+		if (*p == PLOT3_FONT_LAST)
+		    break;
+		stroke = *p;
 	    } else
 		ysign = 1;
 
 	    /* Detect & process pen control */
-	    if ( stroke < 0 )  {
+	    if (stroke < 0) {
 		stroke = -stroke;
 		draw = 0;
 	    } else
 		draw = 1;
 
 	    /* stroke coordinates in string coord system */
-	    VSET( temp, (stroke/11) * 0.1 * scale + offset,
-		  (ysign * (stroke%11)) * 0.1 * scale, 0 );
-	    MAT4X3PNT( loc, mat, temp );
-	    if ( draw )  {
-		BV_ADD_VLIST( free_hd, vhead, loc, BV_VLIST_LINE_DRAW );
+	    VSET(temp, (stroke/11) * 0.1 * scale + offset,
+		  (ysign * (stroke%11)) * 0.1 * scale, 0);
+	    MAT4X3PNT(loc, mat, temp);
+	    if (draw) {
+		BV_ADD_VLIST(free_hd, vhead, loc, BV_VLIST_LINE_DRAW);
 	    } else {
-		BV_ADD_VLIST( free_hd, vhead, loc, BV_VLIST_LINE_MOVE );
+		BV_ADD_VLIST(free_hd, vhead, loc, BV_VLIST_LINE_MOVE);
 	    }
 	}
     }

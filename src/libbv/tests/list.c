@@ -63,6 +63,12 @@ compare_result(char *expected_buf, FILE *result_fd)
     char result_buf[BUFFER_SIZE];
     memset(result_buf, 0, BUFFER_SIZE);
 
+    if (!expected_buf || !result_fd) {
+	if (result_fd)
+	    fclose(result_fd);
+	return 0;
+    }
+
     rewind(result_fd);
     errno = 0;
     ret = fread(result_buf, sizeof(char), BUFFER_SIZE, result_fd);
@@ -81,6 +87,9 @@ check_result_len(FILE *result_fd)
     size_t ret;
     char result_buf[BUFFER_SIZE+1];
 
+    if (!result_fd)
+	return 0;
+
     rewind(result_fd);
     ret = fread(result_buf, sizeof(char), BUFFER_SIZE, result_fd);
     if (ret < BUFFER_SIZE)
@@ -94,7 +103,10 @@ check_result_len(FILE *result_fd)
 void
 convert_points(double *d_values, int *i_values, int count)
 {
-    while (--count > 0) {
+    if (!d_values || !i_values)
+	return;
+
+    while (count-- > 0) {
 	*i_values++ = (int) *d_values++;
     }
 }
@@ -110,15 +122,19 @@ make_tp_i2list_expected(char *buf, int buflen, int *x, int *y, int npoints)
 {
     int chars_written;
 
-    if (npoints <= 0)
+    if (!buf || buflen <= 0 || !x || !y || npoints <= 0)
 	return;
 
     chars_written = snprintf(buf, buflen, "m %d %d\n", *x++, *y++);
+    if (chars_written < 0 || chars_written >= buflen)
+	return;
     buf += chars_written;
     buflen -= chars_written;
 
-    while (--npoints > 0) {
+    while (--npoints > 0 && buflen > 0) {
 	chars_written = snprintf(buf, buflen, "n %d %d\n", *x++, *y++);
+	if (chars_written < 0 || chars_written >= buflen)
+	    return;
 	buf += chars_written;
 	buflen -= chars_written;
     }
@@ -147,22 +163,25 @@ test_tp_i2list(int *x, int *y, int npoints)
     return compare_result(expected_buf, buf_out);
 }
 
-
 /* Produces the expected output of pd_list based on the input */
 void
 make_tp_2list_expected(char *buf, int buflen, double *x, double *y, int npoints)
 {
     int chars_written;
 
-    if (npoints <= 0)
+    if (!buf || buflen <= 0 || !x || !y || npoints <= 0)
 	return;
 
     chars_written = snprintf(buf, buflen, "o %g %g\n", *x++, *y++);
+    if (chars_written < 0 || chars_written >= buflen)
+	return;
     buf += chars_written;
     buflen -= chars_written;
 
-    while (--npoints > 0) {
+    while (--npoints > 0 && buflen > 0) {
 	chars_written = snprintf(buf, buflen, "q %g %g\n", *x++, *y++);
+	if (chars_written < 0 || chars_written >= buflen)
+	    return;
 	buf += chars_written;
 	buflen -= chars_written;
     }
@@ -330,15 +349,19 @@ make_tp_3list_expected(char *buf, int buflen, double *x, double *y, double *z, i
 {
     int chars_written;
 
-    if (npoints <= 0)
+    if (!buf || buflen <= 0 || !x || !y || !z || npoints <= 0)
 	return;
 
     chars_written = snprintf(buf, buflen, "O %g %g %g\n", *x++, *y++, *z++);
+    if (chars_written < 0 || chars_written >= buflen)
+	return;
     buf += chars_written;
     buflen -= chars_written;
 
-    while (--npoints > 0) {
+    while (--npoints > 0 && buflen > 0) {
 	chars_written = snprintf(buf, buflen, "Q %g %g %g\n", *x++, *y++, *z++);
+	if (chars_written < 0 || chars_written >= buflen)
+	    return;
 	buf += chars_written;
 	buflen -= chars_written;
     }
@@ -478,7 +501,7 @@ list_main(int argc, char *argv[])
     int i = 0;
     double x, y, z;
 
-    if (argc < 2) {
+    if (argc < 2 || !argv[1]) {
 	printf("Must supply at least the dimension.\n");
 	return -1;
     }
@@ -486,7 +509,8 @@ list_main(int argc, char *argv[])
     /* If it's a 2D test */
     if (*argv[1] == '2') {
 	while (i < (argc-2) && i < MAX_POINTS) {
-	    sscanf(argv[i+2], "%lg,%lg", &x, &y);
+	    if (sscanf(argv[i+2], "%lg,%lg", &x, &y) != 2)
+		break;
 
 	    x_data[i] = x;
 	    y_data[i] = y;
@@ -499,7 +523,8 @@ list_main(int argc, char *argv[])
 	/* or a 3D test */
 
 	while (i < (argc-2) && i < MAX_POINTS) {
-	    sscanf(argv[i+2], "%lg,%lg,%lg", &x, &y, &z);
+	    if (sscanf(argv[i+2], "%lg,%lg,%lg", &x, &y, &z) != 3)
+		break;
 
 	    x_data[i] = x;
 	    y_data[i] = y;

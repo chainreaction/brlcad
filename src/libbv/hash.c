@@ -62,6 +62,8 @@ _bv_data_arrow_state_hash(struct bu_data_hash_state *state, struct bv_data_arrow
 	return;
 
     bu_data_hash_update(state, v, sizeof(struct bv_data_arrow_state));
+    if (v->gdas_points && v->gdas_num_points > 0)
+	bu_data_hash_update(state, v->gdas_points, v->gdas_num_points * sizeof(point_t));
 }
 
 static void
@@ -72,7 +74,7 @@ _bv_data_axes_state_hash(struct bu_data_hash_state *state, struct bv_data_axes_s
 	return;
 
     bu_data_hash_update(state, v, sizeof(struct bv_data_axes_state));
-    if (v->num_points)
+    if (v->points && v->num_points > 0)
 	bu_data_hash_update(state, v->points, v->num_points * sizeof(point_t));
 }
 
@@ -84,11 +86,16 @@ _bv_data_label_state_hash(struct bu_data_hash_state *state, struct bv_data_label
 	return;
 
     bu_data_hash_update(state, v, sizeof(struct bv_data_label_state));
-    if (v->gdls_size)
+    if (v->gdls_points && v->gdls_size > 0)
 	bu_data_hash_update(state, v->gdls_points, v->gdls_size * sizeof(point_t));
-    for (int i = 0; i < v->gdls_num_labels; i++) {
-	if (strlen(v->gdls_labels[i]))
-	    bu_data_hash_update(state, v->gdls_labels[i], strlen(v->gdls_labels[i]));
+    if (v->gdls_labels && v->gdls_num_labels > 0) {
+	for (int i = 0; i < v->gdls_num_labels; i++) {
+	    if (v->gdls_labels[i]) {
+		size_t len = strlen(v->gdls_labels[i]);
+		if (len > 0)
+		    bu_data_hash_update(state, v->gdls_labels[i], len);
+	    }
+	}
     }
 }
 
@@ -101,7 +108,7 @@ _bv_data_line_state_hash(struct bu_data_hash_state *state, struct bv_data_line_s
 	return;
 
     bu_data_hash_update(state, v, sizeof(struct bv_data_line_state));
-    if (v->gdls_num_points)
+    if (v->gdls_points && v->gdls_num_points > 0)
 	bu_data_hash_update(state, v->gdls_points, v->gdls_num_points * sizeof(point_t));
 }
 
@@ -113,7 +120,7 @@ _bg_poly_contour_hash(struct bu_data_hash_state *state, struct bg_poly_contour *
 	return;
 
     bu_data_hash_update(state, v, sizeof(struct bg_poly_contour));
-    if (v->num_points)
+    if (v->point && v->num_points > 0)
 	bu_data_hash_update(state, v->point, v->num_points * sizeof(point_t));
 }
 
@@ -126,10 +133,12 @@ _bg_polygon_hash(struct bu_data_hash_state *state, struct bg_polygon *v)
 
     bu_data_hash_update(state, v, sizeof(struct bg_polygon));
 
-    for (size_t i = 0; i < v->num_contours; i++) {
-	_bg_poly_contour_hash(state, &v->contour[i]);
+    if (v->contour && v->num_contours > 0) {
+	for (size_t i = 0; i < v->num_contours; i++) {
+	    _bg_poly_contour_hash(state, &v->contour[i]);
+	}
     }
-    if (v->hole && v->num_contours) {
+    if (v->hole && v->num_contours > 0) {
 	bu_data_hash_update(state, v->hole, v->num_contours * sizeof(int));
     }
 }
@@ -142,8 +151,10 @@ _bg_polygons_hash(struct bu_data_hash_state *state, struct bg_polygons *v)
 	return;
 
     bu_data_hash_update(state, v, sizeof(struct bg_polygons));
-    for (size_t i = 0; i < v->num_polygons; i++) {
-	_bg_polygon_hash(state, &v->polygon[i]);
+    if (v->polygon && v->num_polygons > 0) {
+	for (size_t i = 0; i < v->num_polygons; i++) {
+	    _bg_polygon_hash(state, &v->polygon[i]);
+	}
     }
 }
 
@@ -217,9 +228,11 @@ bv_scene_obj_hash(struct bu_data_hash_state *state, struct bv_scene_obj *s)
 	return;
 
     bu_data_hash_update(state, s, sizeof(struct bv_scene_obj));
-    struct bv_vlist *tvp;
-    for (BU_LIST_FOR(tvp, bv_vlist, &((struct bv_vlist *)&s->s_vlist)->l)) {
-	bu_data_hash_update(state, tvp, sizeof(struct bv_vlist));
+    if (BU_LIST_IS_INITIALIZED(&s->s_vlist)) {
+	struct bv_vlist *tvp;
+	for (BU_LIST_FOR(tvp, bv_vlist, &((struct bv_vlist *)&s->s_vlist)->l)) {
+	    bu_data_hash_update(state, tvp, sizeof(struct bv_vlist));
+	}
     }
     if (s->s_os)
 	_bv_obj_settings_hash(state, s->s_os);
@@ -229,7 +242,7 @@ bv_scene_obj_hash(struct bu_data_hash_state *state, struct bv_scene_obj *s)
 unsigned long long
 bv_dl_hash(struct display_list *dl)
 {
-    if (!dl)
+    if (!dl || !BU_LIST_IS_INITIALIZED(&dl->l))
 	return 0;
 
     struct bu_data_hash_state *state = bu_data_hash_create();
@@ -245,10 +258,13 @@ bv_dl_hash(struct display_list *dl)
 	next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
 
 	bu_data_hash_update(state, gdlp, sizeof(struct display_list));
-	bu_data_hash_update(state, bu_vls_cstr(&gdlp->dl_path), bu_vls_strlen(&gdlp->dl_path));
+	if (BU_VLS_IS_INITIALIZED(&gdlp->dl_path))
+	    bu_data_hash_update(state, bu_vls_cstr(&gdlp->dl_path), bu_vls_strlen(&gdlp->dl_path));
 
-	for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
-	    bv_scene_obj_hash(state, sp);
+	if (BU_LIST_IS_INITIALIZED(&gdlp->dl_head_scene_obj)) {
+	    for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
+		bv_scene_obj_hash(state, sp);
+	    }
 	}
 
 	gdlp = next_gdlp;
@@ -263,6 +279,9 @@ bv_dl_hash(struct display_list *dl)
 void
 bv_settings_hash(struct bu_data_hash_state *state, struct bview_settings *s)
 {
+    if (!s || !state)
+	return;
+
     bu_data_hash_update(state, s, sizeof(struct bview_settings));
 
     _bv_adc_state_hash(state, &s->gv_adc);
@@ -322,13 +341,16 @@ bv_hash(struct bview *v)
 	    continue;
 	for (size_t i = 0; i < BU_PTBL_LEN(tbls[t]); i++) {
 	    struct bv_scene_group *g = (struct bv_scene_group *)BU_PTBL_GET(tbls[t], i);
+	    if (!g)
+		continue;
 	    if (BU_PTBL_IS_INITIALIZED(&g->children)) {
 		for (size_t j = 0; j < BU_PTBL_LEN(&g->children); j++) {
 		    struct bv_scene_obj *s_c = (struct bv_scene_obj *)BU_PTBL_GET(&g->children, j);
-		    bv_scene_obj_hash(state, s_c);
+		    if (s_c)
+			bv_scene_obj_hash(state, s_c);
 		}
 	    }
-	    bv_scene_obj_hash(state, g);
+	    bv_scene_obj_hash(state, (struct bv_scene_obj *)g);
 	}
     }
 

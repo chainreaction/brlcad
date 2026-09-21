@@ -149,6 +149,9 @@ bv_knobs_hash(struct bview_knobs *k, struct bu_data_hash_state *state)
 static void
 set_absolute_view_tran(struct bview *v)
 {
+    if (!v)
+	return;
+
     /* calculate absolute_tran */
     MAT4X3PNT(v->k.tra_v_abs, v->gv_model2view, v->orig_pos);
     /* Stash the current tra_v_abs value in case tra_v_abs is
@@ -159,6 +162,9 @@ set_absolute_view_tran(struct bview *v)
 static void
 set_absolute_model_tran(struct bview *v)
 {
+    if (!v || ZERO(v->gv_scale))
+	return;
+
     point_t new_pos;
     point_t diff;
 
@@ -174,6 +180,9 @@ set_absolute_model_tran(struct bview *v)
 static void
 abs_zoom(struct bview *v)
 {
+    if (!v)
+	return;
+
     /* Use initial Viewscale */
     if (-SMALL_FASTF < v->gv_a_scale && v->gv_a_scale < SMALL_FASTF) {
         v->gv_scale = v->gv_i_scale;
@@ -193,7 +202,8 @@ abs_zoom(struct bview *v)
 	v->gv_scale = BV_MINVIEWSCALE;
 
     v->gv_size = 2.0 * v->gv_scale;
-    v->gv_isize = 1.0 / v->gv_size;
+    if (!ZERO(v->gv_size))
+	v->gv_isize = 1.0 / v->gv_size;
     bv_update(v);
 
     if (!ZERO(v->k.tra_v_abs[X])
@@ -208,6 +218,9 @@ abs_zoom(struct bview *v)
 static void
 calc_mtran(struct bview *v, const vect_t tvec)
 {
+    if (!v || !tvec)
+	return;
+
     point_t delta;
     point_t vc, nvc;
 
@@ -224,6 +237,9 @@ calc_mtran(struct bview *v, const vect_t tvec)
 static void
 calc_vtran(struct bview *v, const vect_t tvec)
 {
+    if (!v || !tvec || ZERO(v->gv_scale))
+	return;
+
     vect_t tt;
     point_t delta;
     point_t work;
@@ -361,6 +377,9 @@ bv_knobs_rot(struct bview *v,
 void
 bv_update_rate_flags(struct bview *v)
 {
+    if (!v)
+	return;
+
     if (!ZERO(v->k.rot_m[X])
 	|| !ZERO(v->k.rot_m[Y])
 	|| !ZERO(v->k.rot_m[Z]))
@@ -557,6 +576,9 @@ bv_knobs_cmd_process(
 
 	// Translate cases
 	if (cmd[1] == 'X' || cmd[1] == 'Y' || cmd[1] == 'Z') {
+
+	    if (ZERO(v->gv_scale))
+		return BRLCAD_ERROR;
 
 	    fastf_t *vamt_c = &v->k.tra_m_abs[ind];
 	    fastf_t *vat_c = &v->k.tra_v_abs[ind];

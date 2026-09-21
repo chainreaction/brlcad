@@ -42,7 +42,7 @@ bv_vlist_cmd_cnt(struct bv_vlist *vlist)
     size_t num_commands;
     struct bv_vlist *vp;
 
-    if (UNLIKELY(vlist == NULL)) {
+    if (UNLIKELY(vlist == NULL) || !BU_LIST_IS_INITIALIZED(&(vlist->l))) {
 	return 0;
     }
 
@@ -119,6 +119,10 @@ bv_vlist_bbox(struct bu_list *vlistp, point_t *bmin, point_t *bmax, size_t *leng
     int disp_mode = 0;
     int dispmode_used = 0;
     size_t len = 0;
+
+    if (!vlistp || !BU_LIST_IS_INITIALIZED(vlistp) || !bmin || !bmax)
+	return 0;
+
     for (BU_LIST_FOR(vp, bv_vlist, vlistp)) {
 	cmd = bv_vlist_bbox_internal(vp, bmin, bmax, &disp_mode, &dispmode_used);
 	if (cmd) {
@@ -172,6 +176,9 @@ bv_ck_vlist(const struct bu_list *vhead)
     register struct bv_vlist *vp;
     size_t npts = 0;
 
+    if (!vhead || !BU_LIST_IS_INITIALIZED(vhead))
+	return 0;
+
     for (BU_LIST_FOR(vp, bv_vlist, vhead)) {
 	size_t i;
 	size_t nused = vp->nused;
@@ -215,6 +222,9 @@ bv_vlist_copy(struct bu_list *vlists, struct bu_list *dest, const struct bu_list
 {
     struct bv_vlist *vp;
 
+    if (!vlists || !dest || !src || !BU_LIST_IS_INITIALIZED(src))
+	return;
+
     for (BU_LIST_FOR(vp, bv_vlist, src)) {
 	size_t i;
 	size_t nused = vp->nused;
@@ -230,6 +240,9 @@ void
 bv_vlist_cleanup(struct bu_list *hd)
 {
     register struct bv_vlist *vp;
+
+    if (!hd)
+	return;
 
     if (!BU_LIST_IS_INITIALIZED(hd)) {
 	BU_LIST_INIT(hd);
@@ -252,6 +265,9 @@ bv_vlist_export(struct bu_vls *vls, struct bu_list *hp, const char *name)
     size_t nbytes;
     unsigned char *buf;
     unsigned char *bp;
+
+    if (!vls || !hp || !name || !BU_LIST_IS_INITIALIZED(hp))
+	return;
 
     BU_CK_VLS(vls);
 
@@ -313,6 +329,9 @@ bv_vlist_import(struct bu_list *vlists, struct bu_list *hp, struct bu_vls *namev
     size_t namelen;
     size_t i;
 
+    if (!vlists || !hp || !namevls || !buf)
+	return;
+
     /* must be double for import and export */
     double point[ELEMENTS_PER_POINT];
 
@@ -344,6 +363,12 @@ bv_vlblock_init(struct bu_list *free_vlist_hd, /**< where to get/put free vlists
     struct bv_vlblock *vbp;
     size_t i;
 
+    if (!free_vlist_hd)
+	return NULL;
+
+    if (max_ent < 2)
+	max_ent = 2;
+
     if (!BU_LIST_IS_INITIALIZED(free_vlist_hd))
 	BU_LIST_INIT(free_vlist_hd);
 
@@ -373,6 +398,9 @@ bv_vlblock_free(struct bv_vlblock *vbp)
 {
     size_t i;
 
+    if (!vbp)
+	return;
+
     BV_CK_VLBLOCK(vbp);
     for (i=0; i < vbp->nused; i++) {
 	/* Release any remaining vlist storage */
@@ -394,6 +422,9 @@ bv_vlblock_find(struct bv_vlblock *vbp, int r, int g, int b)
     size_t n;
     size_t omax;                /* old max */
 
+    if (!vbp)
+	return NULL;
+
     BV_CK_VLBLOCK(vbp);
 
     newrgb = ((r&0xFF)<<16)|((g&0xFF)<<8)|(b&0xFF);
@@ -411,7 +442,9 @@ bv_vlblock_find(struct bv_vlblock *vbp, int r, int g, int b)
 
     /************** enlarge the table ****************/
     omax = vbp->max;
-    vbp->max *= 2;
+    if (omax == 0)
+	omax = 2;
+    vbp->max = omax * 2;
 
     /* Look for empty lists and mark for use below. */
     for (n=0; n < omax; n++)
@@ -456,6 +489,9 @@ void
 bv_vlist_rpp(struct bu_list *vlists, struct bu_list *hd, const point_t minn, const point_t maxx)
 {
     point_t p;
+
+    if (!vlists || !hd || !minn || !maxx)
+	return;
 
     VSET(p, minn[X], minn[Y], minn[Z]);
     BV_ADD_VLIST(vlists, hd, p, BV_VLIST_LINE_MOVE);
@@ -508,6 +544,9 @@ bv_plot_vlblock(FILE *fp, const struct bv_vlblock *vbp)
 {
     size_t i;
 
+    if (!fp || !vbp)
+	return;
+
     BV_CK_VLBLOCK(vbp);
 
     for (i=0; i < vbp->nused; i++) {
@@ -542,33 +581,42 @@ bv_vlblock_to_objs(struct bu_ptbl *out, const char *name_root, struct bv_vlblock
     if (!out || !vbp || !f)
 	return;
 
+    const char *prefix = name_root ? name_root : "";
+
     // Before we create new objects, check that the proposed names are
     // not already used.  If they are, we first remove the old versions
     struct bu_ptbl oobjs = BU_PTBL_INIT_ZERO;
     for (size_t i = 0; i < vbp->nused; i++) {
 	if (!BU_LIST_IS_EMPTY(&(vbp->head[i]))) {
 	    struct bu_vls cname = BU_VLS_INIT_ZERO;
-	    bu_vls_sprintf(&cname, "%sobj%zd", name_root, i);
+	    bu_vls_sprintf(&cname, "%sobj%zd", prefix, i);
 	    for (size_t j = 0; j < BU_PTBL_LEN(out); j++) {
 		struct bv_scene_obj *s = (struct bv_scene_obj *)BU_PTBL_GET(out, j);
-		if (BU_STR_EQUAL(bu_vls_cstr(&cname), bu_vls_cstr(&s->s_name))) {
+		if (s && BU_STR_EQUAL(bu_vls_cstr(&cname), bu_vls_cstr(&s->s_name))) {
 		    bu_ptbl_ins_unique(&oobjs, (long *)s);
 		}
 	    }
+	    bu_vls_free(&cname);
 	}
     }
     for (size_t i = 0; i < BU_PTBL_LEN(&oobjs); i++) {
 	struct bv_scene_obj *s = (struct bv_scene_obj *)BU_PTBL_GET(&oobjs, i);
-	bu_ptbl_rm(out, (long *)s);
-	FREE_BV_SCENE_OBJ(s, &f->l, vlfree);
+	if (s) {
+	    bu_ptbl_rm(out, (long *)s);
+	    FREE_BV_SCENE_OBJ(s, &f->l, vlfree);
+	}
     }
+    bu_ptbl_free(&oobjs);
+
     for (size_t i = 0; i < vbp->nused; i++) {
 	if (!BU_LIST_IS_EMPTY(&(vbp->head[i]))) {
 	    struct bv_scene_obj *s;
 	    GET_BV_SCENE_OBJ(s, &f->l);
+	    if (!s)
+		continue;
 	    s->s_type_flags = BV_VIEWONLY;
 	    s->s_v = v;
-	    bu_vls_sprintf(&s->s_name, "%sobj%zd", name_root, i);
+	    bu_vls_sprintf(&s->s_name, "%sobj%zd", prefix, i);
 	    struct bv_vlist *bvl = (struct bv_vlist *)&vbp->head[i];
 	    long int rgb = vbp->rgb[i];
 	    s->s_vlen = bv_vlist_cmd_cnt(bvl);
@@ -585,7 +633,7 @@ bv_vlblock_to_objs(struct bu_ptbl *out, const char *name_root, struct bv_vlblock
 struct bv_scene_obj *
 bv_vlblock_obj(struct bv_vlblock *vbp, struct bview *v, const char *name)
 {
-    if (!vbp || !v)
+    if (!vbp || !v || !name)
 	return NULL;
 
     struct bv_scene_obj *s = bv_find_obj(v, name);
@@ -594,10 +642,14 @@ bv_vlblock_obj(struct bv_vlblock *vbp, struct bview *v, const char *name)
     } else {
 	s = bv_obj_get(v, BV_VIEW_OBJS);
     }
+    if (!s)
+	return NULL;
 
     for (size_t i = 0; i < vbp->nused; i++) {
 	if (!BU_LIST_IS_EMPTY(&(vbp->head[i]))) {
 	    struct bv_scene_obj *sc = bv_obj_get_child(s);
+	    if (!sc)
+		continue;
 	    struct bv_vlist *bvl = (struct bv_vlist *)&vbp->head[i];
 	    long int rgb = vbp->rgb[i];
 	    sc->s_vlen = bv_vlist_cmd_cnt(bvl);
@@ -617,6 +669,9 @@ void
 bv_vlist_to_uplot(FILE *fp, const struct bu_list *vhead)
 {
     register struct bv_vlist *vp;
+
+    if (!fp || !vhead || !BU_LIST_IS_INITIALIZED(vhead))
+	return;
 
     for (BU_LIST_FOR(vp, bv_vlist, vhead)) {
 	size_t i;

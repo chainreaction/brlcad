@@ -44,7 +44,7 @@
 void
 bv_polygon_contour(struct bv_scene_obj *s, struct bg_poly_contour *c, int curr_c, int curr_i, int do_pnt)
 {
-    if (!s || !c || !s->s_v)
+    if (!s || !c || !c->point || c->num_points == 0 || !s->s_v)
 	return;
 
     if (do_pnt) {
@@ -59,7 +59,7 @@ bv_polygon_contour(struct bv_scene_obj *s, struct bg_poly_contour *c, int curr_c
     if (!c->open)
 	BV_ADD_VLIST(s->vlfree, &s->s_vlist, c->point[0], BV_VLIST_LINE_DRAW);
 
-    if (curr_c && curr_i >= 0) {
+    if (curr_c && curr_i >= 0 && (size_t)curr_i < c->num_points) {
 	point_t psize;
 	VSET(psize, 10, 0, 0);
 	BV_ADD_VLIST(s->vlfree, &s->s_vlist, c->point[curr_i], BV_VLIST_LINE_MOVE);
@@ -108,7 +108,7 @@ bv_fill_polygon(struct bv_scene_obj *s)
 void
 bv_polygon_vlist(struct bv_scene_obj *s)
 {
-    if (!s)
+    if (!s || !s->s_i_data)
 	return;
 
     // Reset obj drawing data
@@ -121,10 +121,17 @@ bv_polygon_vlist(struct bv_scene_obj *s)
     int type = p->type;
 
     // Clear any old holes
-    for (size_t i = 0; i < BU_PTBL_LEN(&s->children); i++) {
-	struct bv_scene_obj *s_c = (struct bv_scene_obj *)BU_PTBL_GET(&s->children, i);
-	bv_obj_put(s_c);
+    if (BU_PTBL_IS_INITIALIZED(&s->children)) {
+	for (size_t i = 0; i < BU_PTBL_LEN(&s->children); i++) {
+	    struct bv_scene_obj *s_c = (struct bv_scene_obj *)BU_PTBL_GET(&s->children, i);
+	    if (s_c)
+		bv_obj_put(s_c);
+	}
+	bu_ptbl_reset(&s->children);
     }
+
+    if (!p->polygon.contour)
+	return;
 
     for (size_t i = 0; i < p->polygon.num_contours; ++i) {
 	/* Draw holes using segmented lines.  Since vlists don't have a style
@@ -137,18 +144,18 @@ bv_polygon_vlist(struct bv_scene_obj *s)
 	    do_pnt = 1;
 	if (type == BV_POLYGON_ELLIPSE && pcnt == 4)
 	    do_pnt = 1;
-	if (type == BV_POLYGON_RECTANGLE) {
+	if (type == BV_POLYGON_RECTANGLE && p->polygon.contour[0].point && p->polygon.contour[0].num_points >= 3) {
 	    if (NEAR_ZERO(DIST_PNT_PNT_SQ(p->polygon.contour[0].point[0], p->polygon.contour[0].point[1]), SMALL_FASTF) &&
 		    NEAR_ZERO(DIST_PNT_PNT_SQ(p->polygon.contour[0].point[0], p->polygon.contour[0].point[2]), SMALL_FASTF))
 		do_pnt = 1;
 	}
-	if (type == BV_POLYGON_SQUARE) {
+	if (type == BV_POLYGON_SQUARE && p->polygon.contour[0].point && p->polygon.contour[0].num_points >= 3) {
 	    if (NEAR_ZERO(DIST_PNT_PNT_SQ(p->polygon.contour[0].point[0], p->polygon.contour[0].point[1]), SMALL_FASTF) &&
 		    NEAR_ZERO(DIST_PNT_PNT_SQ(p->polygon.contour[0].point[0], p->polygon.contour[0].point[2]), SMALL_FASTF))
 		do_pnt = 1;
 	}
 
-	if (p->polygon.hole[i]) {
+	if (p->polygon.hole && p->polygon.hole[i]) {
 	    struct bv_scene_obj *s_c = bv_obj_get_child(s);
 	    s_c->s_soldash = 1;
 	    s_c->s_color[0] = s->s_color[0];
@@ -176,7 +183,13 @@ bv_polygon_vlist(struct bv_scene_obj *s)
 struct bv_scene_obj *
 bv_create_polygon_obj(struct bview *v, int flags, struct bv_polygon *p)
 {
+    if (!v || !p)
+	return NULL;
+
     struct bv_scene_obj *s = bv_obj_get(v, flags);
+    if (!s)
+	return NULL;
+
     s->s_type_flags |= BV_POLYGONS;
     s->s_type_flags |= BV_VIEWONLY;
 
@@ -202,6 +215,9 @@ bv_create_polygon_obj(struct bview *v, int flags, struct bv_polygon *p)
 struct bv_scene_obj *
 bv_create_polygon(struct bview *v, int flags, int type, point_t *fp)
 {
+    if (!v || !fp)
+	return NULL;
+
     struct bv_polygon *p;
     BU_GET(p, struct bv_polygon);
     p->type = type;
@@ -251,8 +267,10 @@ bv_create_polygon(struct bview *v, int flags, int type, point_t *fp)
 
     // Have polygon, now make scene object
     struct bv_scene_obj *s = bv_create_polygon_obj(v, flags, p);
-    if (!s)
+    if (!s) {
+	bg_polygon_free(&p->polygon);
 	BU_PUT(p, struct bv_polygon);
+    }
     return s;
 }
 
@@ -280,11 +298,14 @@ bv_polygon_cpy(struct bv_polygon *dest, struct bv_polygon *src)
 int
 bv_append_polygon_pt(struct bv_scene_obj *s, point_t *np)
 {
+    if (!s || !np || !s->s_i_data)
+	return -1;
+
     struct bv_polygon *p = (struct bv_polygon *)s->s_i_data;
     if (p->type != BV_POLYGON_GENERAL)
 	return -1;
 
-    if (p->curr_contour_i < 0)
+    if (p->curr_contour_i < 0 || (size_t)p->curr_contour_i >= p->polygon.num_contours || !p->polygon.contour)
 	return -1;
 
     // Construct closest point to np on plane
@@ -295,7 +316,7 @@ bv_append_polygon_pt(struct bv_scene_obj *s, point_t *np)
 
     struct bg_poly_contour *c = &p->polygon.contour[p->curr_contour_i];
     c->num_points++;
-    c->point = (point_t *)bu_realloc(c->point,c->num_points * sizeof(point_t), "realloc contour points");
+    c->point = (point_t *)bu_realloc(c->point, c->num_points * sizeof(point_t), "realloc contour points");
     VMOVE(c->point[c->num_points-1], m_pt);
 
     /* Have new polygon, now update view object vlist */
@@ -313,7 +334,7 @@ bv_append_polygon_pt(struct bv_scene_obj *s, point_t *np)
 struct bv_scene_obj *
 bv_select_polygon(struct bu_ptbl *objs, point_t *cp)
 {
-    if (!objs)
+    if (!objs || !cp)
 	return NULL;
 
     struct bv_scene_obj *closest = NULL;
@@ -321,7 +342,9 @@ bv_select_polygon(struct bu_ptbl *objs, point_t *cp)
 
     for (size_t i = 0; i < BU_PTBL_LEN(objs); i++) {
 	struct bv_scene_obj *s = (struct bv_scene_obj *)BU_PTBL_GET(objs, i);
-	if (s->s_type_flags & BV_POLYGONS) {
+	if (!s)
+	    continue;
+	if ((s->s_type_flags & BV_POLYGONS) && s->s_i_data) {
 	    struct bv_polygon *p = (struct bv_polygon *)s->s_i_data;
 	    // Because we're working in 2D orthogonal when processing polygons,
 	    // the specific value of Z for each individual polygon isn't
@@ -336,8 +359,13 @@ bv_select_polygon(struct bu_ptbl *objs, point_t *cp)
 	    point_t m_pt;
 	    bg_plane_pt_at(&m_pt, &zpln, fx, fy);
 
+	    if (!p->polygon.contour)
+		continue;
+
 	    for (size_t j = 0; j < p->polygon.num_contours; j++) {
 		struct bg_poly_contour *c = &p->polygon.contour[j];
+		if (!c->point || c->num_points < 2)
+		    continue;
 		for (size_t k = 0; k < c->num_points; k++) {
 		    double dcand;
 		    if (k < c->num_points - 1) {
@@ -360,8 +388,11 @@ bv_select_polygon(struct bu_ptbl *objs, point_t *cp)
 int
 bv_select_polygon_pt(struct bv_scene_obj *s, point_t *cp)
 {
+    if (!s || !cp || !s->s_i_data)
+	return -1;
+
     struct bv_polygon *p = (struct bv_polygon *)s->s_i_data;
-    if (p->type != BV_POLYGON_GENERAL)
+    if (p->type != BV_POLYGON_GENERAL || !p->polygon.num_contours || !p->polygon.contour)
 	return -1;
 
     plane_t zpln;
@@ -377,19 +408,23 @@ bv_select_polygon_pt(struct bv_scene_obj *s, point_t *cp)
     double dist_min_sq = DBL_MAX;
     long closest_ind = -1;
     long closest_contour = -1;
-    if (p->curr_contour_i >= 0) {
+    if (p->curr_contour_i >= 0 && (size_t)p->curr_contour_i < p->polygon.num_contours) {
 	struct bg_poly_contour *c = &p->polygon.contour[p->curr_contour_i];
 	closest_contour = p->curr_contour_i;
-	for (size_t i = 0; i < c->num_points; i++) {
-	    double dcand = DIST_PNT_PNT_SQ(c->point[i], m_pt);
-	    if (dcand < dist_min_sq) {
-		closest_ind = (long)i;
-		dist_min_sq = dcand;
+	if (c->point) {
+	    for (size_t i = 0; i < c->num_points; i++) {
+		double dcand = DIST_PNT_PNT_SQ(c->point[i], m_pt);
+		if (dcand < dist_min_sq) {
+		    closest_ind = (long)i;
+		    dist_min_sq = dcand;
+		}
 	    }
 	}
     } else {
 	for (size_t j = 0; j < p->polygon.num_contours; j++) {
 	    struct bg_poly_contour *c = &p->polygon.contour[j];
+	    if (!c->point)
+		continue;
 	    for (size_t i = 0; i < c->num_points; i++) {
 		double dcand = DIST_PNT_PNT_SQ(c->point[i], m_pt);
 		if (dcand < dist_min_sq) {
@@ -420,7 +455,7 @@ bv_select_clear_polygon_pt(struct bv_scene_obj *s)
     if (!s)
 	return;
 
-    if (s->s_type_flags & BV_POLYGONS) {
+    if ((s->s_type_flags & BV_POLYGONS) && s->s_i_data) {
 	struct bv_polygon *p = (struct bv_polygon *)s->s_i_data;
 	p->curr_point_i = -1;
 	p->curr_contour_i = -1;
@@ -434,6 +469,9 @@ bv_select_clear_polygon_pt(struct bv_scene_obj *s)
 int
 bv_move_polygon(struct bv_scene_obj *s, point_t *cp, point_t *prev_point)
 {
+    if (!s || !cp || !prev_point || !s->s_i_data)
+	return -1;
+
     fastf_t pfx, pfy, fx, fy;
     struct bv_polygon *p = (struct bv_polygon *)s->s_i_data;
 
@@ -448,10 +486,14 @@ bv_move_polygon(struct bv_scene_obj *s, point_t *cp, point_t *prev_point)
     vect_t v_mv;
     VSUB2(v_mv, m_pt, pm_pt);
 
-    for (size_t j = 0; j < p->polygon.num_contours; j++) {
-	struct bg_poly_contour *c = &p->polygon.contour[j];
-	for (size_t i = 0; i < c->num_points; i++) {
-	    VADD2(c->point[i], c->point[i], v_mv);
+    if (p->polygon.contour) {
+	for (size_t j = 0; j < p->polygon.num_contours; j++) {
+	    struct bg_poly_contour *c = &p->polygon.contour[j];
+	    if (!c->point)
+		continue;
+	    for (size_t i = 0; i < c->num_points; i++) {
+		VADD2(c->point[i], c->point[i], v_mv);
+	    }
 	}
     }
 
@@ -470,12 +512,22 @@ bv_move_polygon(struct bv_scene_obj *s, point_t *cp, point_t *prev_point)
 int
 bv_move_polygon_pt(struct bv_scene_obj *s, point_t *mp)
 {
+    if (!s || !mp || !s->s_i_data)
+	return -1;
+
     struct bv_polygon *p = (struct bv_polygon *)s->s_i_data;
     if (p->type != BV_POLYGON_GENERAL)
 	return -1;
 
     // Need to have a point selected before we can move
     if (p->curr_point_i < 0 || p->curr_contour_i < 0)
+	return -1;
+
+    if (!p->polygon.contour || (size_t)p->curr_contour_i >= p->polygon.num_contours)
+	return -1;
+
+    struct bg_poly_contour *c = &p->polygon.contour[p->curr_contour_i];
+    if (!c->point || (size_t)p->curr_point_i >= c->num_points)
 	return -1;
 
     fastf_t fx, fy;
@@ -486,7 +538,6 @@ bv_move_polygon_pt(struct bv_scene_obj *s, point_t *mp)
     point_t m_pt;
     bg_plane_pt_at(&m_pt, &zpln, fx, fy);
 
-    struct bg_poly_contour *c = &p->polygon.contour[p->curr_contour_i];
     VMOVE(c->point[p->curr_point_i], m_pt);
 
     /* Have new polygon, now update view object vlist */
@@ -501,6 +552,9 @@ bv_move_polygon_pt(struct bv_scene_obj *s, point_t *mp)
 int
 bv_update_polygon_circle(struct bv_scene_obj *s, point_t *cp, fastf_t pixel_size)
 {
+    if (!s || !cp || !s->s_i_data)
+	return 0;
+
     struct bv_polygon *p = (struct bv_polygon *)s->s_i_data;
 
     fastf_t curr_fx, curr_fy;
@@ -523,14 +577,17 @@ bv_update_polygon_circle(struct bv_scene_obj *s, point_t *cp, fastf_t pixel_size
      * circle being created so small circles have few segments and
      * large ones are nice and smooth.
      */
-    nsegs = M_PI_2 * r / pixel_size;
+    if (pixel_size <= SMALL_FASTF)
+	nsegs = 32;
+    else
+	nsegs = M_PI_2 * r / pixel_size;
     if (nsegs < 32)
 	nsegs = 32;
 
     struct bg_polygon gp;
     struct bg_polygon *gpp = &gp;
     gpp->num_contours = 1;
-    gpp->hole = (int *)bu_calloc(1, sizeof(int), "hole");;
+    gpp->hole = (int *)bu_calloc(1, sizeof(int), "hole");
     gpp->contour = (struct bg_poly_contour *)bu_calloc(1, sizeof(struct bg_poly_contour), "contour");
     gpp->contour[0].num_points = nsegs;
     gpp->contour[0].open = 0;
@@ -566,6 +623,9 @@ bv_update_polygon_circle(struct bv_scene_obj *s, point_t *cp, fastf_t pixel_size
 int
 bv_update_polygon_ellipse(struct bv_scene_obj *s, point_t *cp, fastf_t pixel_size)
 {
+    if (!s || !cp || !s->s_i_data)
+	return 0;
+
     struct bv_polygon *p = (struct bv_polygon *)s->s_i_data;
 
     /* use a variable number of segments based on the size of the
@@ -583,7 +643,11 @@ bv_update_polygon_ellipse(struct bv_scene_obj *s, point_t *cp, fastf_t pixel_siz
      * circle being created so small circles have few segments and
      * large ones are nice and smooth.
      */
-    int nsegs = M_PI_2 * r / pixel_size;
+    int nsegs;
+    if (pixel_size <= SMALL_FASTF)
+	nsegs = 32;
+    else
+	nsegs = M_PI_2 * r / pixel_size;
     if (nsegs < 32)
 	nsegs = 32;
 
@@ -617,7 +681,7 @@ bv_update_polygon_ellipse(struct bv_scene_obj *s, point_t *cp, fastf_t pixel_siz
     struct bg_polygon gp;
     struct bg_polygon *gpp = &gp;
     gpp->num_contours = 1;
-    gpp->hole = (int *)bu_calloc(1, sizeof(int), "hole");;
+    gpp->hole = (int *)bu_calloc(1, sizeof(int), "hole");
     gpp->contour = (struct bg_poly_contour *)bu_calloc(1, sizeof(struct bg_poly_contour), "contour");
     gpp->contour[0].num_points = nsegs;
     gpp->contour[0].open = 0;
@@ -653,7 +717,12 @@ bv_update_polygon_ellipse(struct bv_scene_obj *s, point_t *cp, fastf_t pixel_siz
 int
 bv_update_polygon_rectangle(struct bv_scene_obj *s, point_t *cp)
 {
+    if (!s || !cp || !s->s_i_data)
+	return 0;
+
     struct bv_polygon *p = (struct bv_polygon *)s->s_i_data;
+    if (p->polygon.num_contours < 1 || !p->polygon.contour || !p->polygon.contour[0].point || p->polygon.contour[0].num_points < 4)
+	return 0;
 
     fastf_t pfx, pfy, fx, fy;
     plane_t zpln;
@@ -682,7 +751,12 @@ bv_update_polygon_rectangle(struct bv_scene_obj *s, point_t *cp)
 int
 bv_update_polygon_square(struct bv_scene_obj *s, point_t *cp)
 {
+    if (!s || !cp || !s->s_i_data)
+	return 0;
+
     struct bv_polygon *p = (struct bv_polygon *)s->s_i_data;
+    if (p->polygon.num_contours < 1 || !p->polygon.contour || !p->polygon.contour[0].point || p->polygon.contour[0].num_points < 4)
+	return 0;
 
     fastf_t pfx, pfy, fx, fy;
     plane_t zpln;
@@ -725,6 +799,9 @@ bv_update_polygon_square(struct bv_scene_obj *s, point_t *cp)
 int
 bv_update_general_polygon(struct bv_scene_obj *s, int utype, point_t *cp)
 {
+    if (!s || !cp || !s->s_i_data)
+	return 0;
+
     struct bv_polygon *p = (struct bv_polygon *)s->s_i_data;
     if (p->type != BV_POLYGON_GENERAL)
 	return 0;
@@ -758,7 +835,7 @@ bv_update_general_polygon(struct bv_scene_obj *s, int utype, point_t *cp)
 int
 bv_update_polygon(struct bv_scene_obj *s, struct bview *v, int utype)
 {
-    if (!s)
+    if (!s || !v || !s->s_i_data)
 	return 0;
 
     struct bv_polygon *p = (struct bv_polygon *)s->s_i_data;
@@ -822,7 +899,7 @@ bv_update_polygon(struct bv_scene_obj *s, struct bview *v, int utype)
 struct bv_scene_obj *
 bv_dup_view_polygon(const char *nname, struct bv_scene_obj *s)
 {
-    if (!nname || !s)
+    if (!nname || !s || !s->s_i_data)
 	return NULL;
 
     struct bv_polygon *ip = (struct bv_polygon *)s->s_i_data;
@@ -832,6 +909,11 @@ bv_dup_view_polygon(const char *nname, struct bv_scene_obj *s)
     bv_polygon_cpy(p, ip);
 
     struct bv_scene_obj *np = bv_create_polygon_obj(s->s_v, s->s_type_flags, p);
+    if (!np) {
+	bg_polygon_free(&p->polygon);
+	BU_PUT(p, struct bv_polygon);
+	return NULL;
+    }
 
     // Have geometry, now copy visual settings
     VMOVE(np->s_color, s->s_color);

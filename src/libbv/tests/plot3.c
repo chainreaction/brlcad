@@ -52,18 +52,24 @@ main(int argc, const char *argv[])
 
     int opt_ret = bu_opt_parse(NULL, argc, argv, d);
 
-    if (!opt_ret)
-	bu_exit(1, "Usage: %s [opts] file\n", argv[0]);
+    if (opt_ret < 1 || !argv[0])
+	bu_exit(1, "Usage: plot3 [opts] file\n");
+
+    if (print_help) {
+	char *help = bu_opt_describe(d, NULL);
+	bu_log("Usage: %s [opts] file\n%s\n", argv[0], help);
+	bu_free(help, "help");
+	return 0;
+    }
 
     if (binary_mode && text_mode)
 	bu_exit(1, "Error - specify either binary mode or text mode\n");
-
 
     if (binary_mode)
 	mode = PL_OUTPUT_MODE_BINARY;
 
     if (text_mode)
-	mode = PL_OUTPUT_MODE_BINARY;
+	mode = PL_OUTPUT_MODE_TEXT;
 
     if (!bu_file_exists(argv[0], NULL)) {
 	bu_exit(1, "file %s not found\n", argv[0]);
@@ -76,6 +82,7 @@ main(int argc, const char *argv[])
 	bu_exit(1, "Error - could not open file %s\n", argv[0]);
 
     ret = plot3_invalid(fp, mode);
+    fclose(fp);
 
     if (expect_invalid) {
 	if (ret) {

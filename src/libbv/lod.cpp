@@ -125,6 +125,9 @@ typedef int (*full_detail_clbk_t)(struct bv_mesh_lod *, void *);
 static void
 obj_bb(int *have_objs, vect_t *min, vect_t *max, struct bv_scene_obj *s, struct bview *v)
 {
+    if (!have_objs || !min || !max || !s || !v)
+	return;
+
     vect_t minus, plus;
     if (bv_scene_obj_bound(s, v)) {
 	*have_objs = 1;
@@ -1064,6 +1067,19 @@ POPState::POPState(struct bv_mesh_lod_context *ctx, const point_t *v, size_t vcn
     maxy = maxy+fabs(MBUMP*maxy);
     maxz = maxz+fabs(MBUMP*maxz);
 
+    if (EQUAL(maxx, minx)) {
+	maxx += 1.0;
+	minx -= 1.0;
+    }
+    if (EQUAL(maxy, miny)) {
+	maxy += 1.0;
+	miny -= 1.0;
+    }
+    if (EQUAL(maxz, minz)) {
+	maxz += 1.0;
+	minz -= 1.0;
+    }
+
     // Characterize triangle faces
     tri_process();
 
@@ -1651,6 +1667,9 @@ POPState::to_level(int val, int level)
 fastf_t
 POPState::snap(fastf_t val, fastf_t min, fastf_t max, int level)
 {
+    if (EQUAL(max, min) || (size_t)level >= PRECOMPUTED_MASKS.size() || !PRECOMPUTED_MASKS[level])
+	return min;
+
     unsigned int vf = floor((val - min) / (max - min) * USHRT_MAX);
     int lv = floor(vf/double(PRECOMPUTED_MASKS[level]));
     unsigned int vc = ceil((val - min) / (max - min) * USHRT_MAX);
@@ -1830,19 +1849,25 @@ bv_mesh_lod_destroy(struct bv_mesh_lod *lod)
 	return;
 
     struct bv_mesh_lod_internal *i = (struct bv_mesh_lod_internal *)lod->i;
-    delete i->s;
-    i->s = NULL;
-    BU_PUT(i, struct bv_mesh_lod_internal);
-    lod->i = NULL;
+    if (i) {
+	delete i->s;
+	i->s = NULL;
+	BU_PUT(i, struct bv_mesh_lod_internal);
+	lod->i = NULL;
+    }
     BU_PUT(lod, struct bv_mesh_lod);
 }
 
 static void
 dlist_stale(struct bv_scene_obj *s)
 {
+    if (!s)
+	return;
+
     for (size_t i = 0; i < BU_PTBL_LEN(&s->children); i++) {
-	struct bv_scene_group *cg = (struct bv_scene_group *)BU_PTBL_GET(&s->children, i);
-	dlist_stale(cg);
+	struct bv_scene_obj *cg = (struct bv_scene_obj *)BU_PTBL_GET(&s->children, i);
+	if (cg)
+	    dlist_stale(cg);
     }
     s->s_dlist_stale = 1;
 }
@@ -1857,6 +1882,8 @@ bv_mesh_lod_level(struct bv_scene_obj *s, int level, int reset)
     if (!l)
 	return -1;
     struct bv_mesh_lod_internal *i = (struct bv_mesh_lod_internal *)l->i;
+    if (!i || !i->s)
+	return -1;
     POPState *sp = i->s;
     if (level < 0)
 	return sp->curr_level;
@@ -1910,9 +1937,12 @@ bv_mesh_lod_view(struct bv_scene_obj *s, struct bview *v, int reset)
 	return -1;
 
     struct bv_mesh_lod_internal *i = (struct bv_mesh_lod_internal *)l->i;
+    if (!i || !i->s)
+	return -1;
     POPState *sp = i->s;
+    struct bview_settings *gv_s = (v->gv_s) ? v->gv_s : &v->gv_ls;
     int ret = sp->curr_level;
-    int vscale = (int)((double)sp->get_level(v->gv_size) * v->gv_s->lod_scale);
+    int vscale = (int)((double)sp->get_level(v->gv_size) * gv_s->lod_scale);
     vscale = (vscale < 0) ? 0 : vscale;
     vscale = (vscale >= POP_MAXLEVEL) ? POP_MAXLEVEL-1 : vscale;
 
@@ -1936,6 +1966,8 @@ bv_mesh_lod_memshrink(struct bv_scene_obj *s)
 	return;
 
     struct bv_mesh_lod_internal *i = (struct bv_mesh_lod_internal *)l->i;
+    if (!i || !i->s)
+	return;
     POPState *sp = i->s;
     sp->shrink_memory();
     bu_log("memshrink\n");
@@ -2033,10 +2065,12 @@ bv_mesh_lod_detail_setup_clbk(
 	void *clbk_data
 	)
 {
-    if (!lod || !clbk)
+    if (!lod || !clbk || !lod->i)
 	return;
 
     struct bv_mesh_lod_internal *i = (struct bv_mesh_lod_internal *)lod->i;
+    if (!i->s)
+	return;
     POPState *s = i->s;
     s->full_detail_setup_clbk = clbk;
     s->detail_clbk_data = clbk_data;
@@ -2048,10 +2082,12 @@ bv_mesh_lod_detail_clear_clbk(
 	int (*clbk)(struct bv_mesh_lod *, void *)
 	)
 {
-    if (!lod || !clbk)
+    if (!lod || !clbk || !lod->i)
 	return;
 
     struct bv_mesh_lod_internal *i = (struct bv_mesh_lod_internal *)lod->i;
+    if (!i->s)
+	return;
     POPState *s = i->s;
     s->full_detail_clear_clbk = clbk;
 }
@@ -2062,10 +2098,12 @@ bv_mesh_lod_detail_free_clbk(
 	int (*clbk)(struct bv_mesh_lod *, void *)
 	)
 {
-    if (!lod || !clbk)
+    if (!lod || !clbk || !lod->i)
 	return;
 
     struct bv_mesh_lod_internal *i = (struct bv_mesh_lod_internal *)lod->i;
+    if (!i->s)
+	return;
     POPState *s = i->s;
     s->full_detail_free_clbk = clbk;
 }
@@ -2076,8 +2114,7 @@ bv_mesh_lod_free(struct bv_scene_obj *s)
     if (!s || !s->draw_data)
 	return;
     struct bv_mesh_lod *l = (struct bv_mesh_lod *)s->draw_data;
-    struct bv_mesh_lod_internal *i = (struct bv_mesh_lod_internal *)l->i;
-    delete i->s;
+    bv_mesh_lod_destroy(l);
     s->draw_data = NULL;
 }
 

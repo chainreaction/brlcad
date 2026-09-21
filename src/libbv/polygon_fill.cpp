@@ -42,7 +42,10 @@ bv_polygon_fill_segments(struct bg_polygon *poly, plane_t *vp, vect2d_t line_slo
 {
     struct bg_polygon poly_2d;
 
-    if (poly->num_contours < 1 || poly->contour[0].num_points < 3 || !vp)
+    if (!poly || poly->num_contours < 1 || !poly->contour || poly->contour[0].num_points < 3 || !poly->contour[0].point || !vp)
+	return NULL;
+
+    if (ZERO(line_spacing) || fabs(line_spacing) < BN_TOL_DIST)
 	return NULL;
 
     vect2d_t b2d_min = {MAX_FASTF, MAX_FASTF};
@@ -52,15 +55,17 @@ bv_polygon_fill_segments(struct bg_polygon *poly, plane_t *vp, vect2d_t line_slo
     poly_2d.hole = (int *)bu_calloc(poly->num_contours, sizeof(int), "p_hole");
     poly_2d.contour = (struct bg_poly_contour *)bu_calloc(poly->num_contours, sizeof(struct bg_poly_contour), "p_contour");
     for (size_t i = 0; i < poly->num_contours; ++i) {
-	poly_2d.hole[i] = poly->hole[i];
+	poly_2d.hole[i] = (poly->hole) ? poly->hole[i] : 0;
 	poly_2d.contour[i].num_points = poly->contour[i].num_points;
 	poly_2d.contour[i].point = (point_t *)bu_calloc(poly->contour[i].num_points, sizeof(point_t), "pc_point");
-	for (size_t j = 0; j < poly->contour[i].num_points; ++j) {
-	    vect2d_t p2d;
-	    bg_plane_closest_pt(&p2d[0], &p2d[1], vp, &poly->contour[i].point[j]);
-	    VSET(poly_2d.contour[i].point[j], p2d[0], p2d[1], 0);
-	    // bounding box
-	    V2MINMAX(b2d_min, b2d_max, p2d);
+	if (poly->contour[i].point) {
+	    for (size_t j = 0; j < poly->contour[i].num_points; ++j) {
+		vect2d_t p2d;
+		bg_plane_closest_pt(&p2d[0], &p2d[1], vp, &poly->contour[i].point[j]);
+		VSET(poly_2d.contour[i].point[j], p2d[0], p2d[1], 0);
+		// bounding box
+		V2MINMAX(b2d_min, b2d_max, p2d);
+	    }
 	}
     }
 
@@ -81,7 +86,12 @@ bv_polygon_fill_segments(struct bg_polygon *poly, plane_t *vp, vect2d_t line_slo
     fastf_t ldiag = DIST_PNT2_PNT2(b2d_max, b2d_min);
     V2MOVE(lseg, line_slope);
     V2UNITIZE(lseg);
-    int dir_step_cnt = (int)(0.5*ldiag / fabs(line_spacing) + 1);
+    double steps = 0.5*ldiag / fabs(line_spacing);
+    if (steps > 100000.0) {
+	bg_polygon_free(&poly_2d);
+	return NULL;
+    }
+    int dir_step_cnt = (int)(steps + 1);
 
     // If we're too small to handle the specified spacing, don't go any further
     if (dir_step_cnt < 2) {
@@ -164,12 +174,14 @@ bv_polygon_fill_segments(struct bg_polygon *poly, plane_t *vp, vect2d_t line_slo
     poly_fill->hole = (int *)bu_calloc(fpoly->num_contours, sizeof(int), "hole");
     poly_fill->contour = (struct bg_poly_contour *)bu_calloc(fpoly->num_contours, sizeof(struct bg_poly_contour), "f_contour");
     for (size_t i = 0; i < fpoly->num_contours; ++i) {
-	poly_fill->hole[i] = fpoly->hole[i];
+	poly_fill->hole[i] = (fpoly->hole) ? fpoly->hole[i] : 0;
 	poly_fill->contour[i].open = 1;
 	poly_fill->contour[i].num_points = fpoly->contour[i].num_points;
 	poly_fill->contour[i].point = (point_t *)bu_calloc(fpoly->contour[i].num_points, sizeof(point_t), "f_point");
-	for (size_t j = 0; j < fpoly->contour[i].num_points; ++j) {
-	    bg_plane_pt_at(&poly_fill->contour[i].point[j], vp, fpoly->contour[i].point[j][0], fpoly->contour[i].point[j][1]);
+	if (fpoly->contour[i].point) {
+	    for (size_t j = 0; j < fpoly->contour[i].num_points; ++j) {
+		bg_plane_pt_at(&poly_fill->contour[i].point[j], vp, fpoly->contour[i].point[j][0], fpoly->contour[i].point[j][1]);
+	    }
 	}
     }
 

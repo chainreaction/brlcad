@@ -41,10 +41,12 @@ vlist_main(int argc, char* argv[])
     size_t cmd_cnt_length = 0;
     int expected_length = 0;
 
-    sscanf(argv[1], "%d", &expected_length);
+    if (argc < 2 || !argv[1]) {
+	bu_exit(1, "ERROR: input format is test_args [count]\n");
+    }
 
-    if (argc < 2) {
-	bu_exit(1, "ERROR: input format is test_args [%s]\n", argv[0]);
+    if (sscanf(argv[1], "%d", &expected_length) != 1) {
+	bu_exit(1, "ERROR: invalid expected_length\n");
     }
 
     BU_LIST_INIT(&head);
@@ -59,7 +61,12 @@ vlist_main(int argc, char* argv[])
 
     cmd_cnt_length = bv_vlist_cmd_cnt((struct bv_vlist*) & head);
 
-    return !((size_t)expected_length == cmd_cnt_length);
+    int result = !((size_t)expected_length == cmd_cnt_length);
+
+    bv_vlist_cleanup(&head);
+    bv_vlist_cleanup(&vlfree);
+
+    return result;
 }
 
 

@@ -65,14 +65,14 @@ _find_closest_tcl_point(struct bv_cp_info_tcl *s, point_t *p, struct bv_data_lin
     int ret = 0;
     point_t P0, P1;
 
-    if (lines->gdls_num_points < 2) {
+    if (!s || !p || !lines || !lines->gdls_points || lines->gdls_num_points < 2) {
 	return ret;
     }
 
     // TODO - if we have a large number of lines drawn, we could really benefit
     // from an acceleration structure such as the RTree to localize these tests
     // rather than checking everything...
-    for (int i = 0; i < lines->gdls_num_points; i+=2) {
+    for (int i = 0; i < lines->gdls_num_points - 1; i+=2) {
 	if (s->c_l == i && s->c_lset == lines) {
 	    continue;
 	}
@@ -160,7 +160,12 @@ _find_close_isect_tcl(struct bv_cp_info_tcl *s, point_t *p)
 {
     point_t P0, P1, Q0, Q1;
 
-    if (!s || !s->c_lset || !p)
+    if (!s || !p || !s->c_lset || !s->c_lset2)
+	return;
+
+    if (!s->c_lset->gdls_points || s->c_l < 0 || s->c_l + 1 >= s->c_lset->gdls_num_points)
+	return;
+    if (!s->c_lset2->gdls_points || s->c_l2 < 0 || s->c_l2 + 1 >= s->c_lset2->gdls_num_points)
 	return;
 
     VMOVE(P0, s->c_lset->gdls_points[s->c_l]);
@@ -178,7 +183,7 @@ _find_closest_obj_point(struct bv_cp_info *s, point_t *p, struct bv_scene_obj *o
     int ret = 0;
     if (!s || !p || !o)
 	return 0;
-    if (!bu_list_len(&o->s_vlist))
+    if (!BU_LIST_IS_INITIALIZED(&o->s_vlist) || !bu_list_len(&o->s_vlist))
 	return 0;
 
     struct bv_vlist *tvp;
@@ -188,6 +193,8 @@ _find_closest_obj_point(struct bv_cp_info *s, point_t *p, struct bv_scene_obj *o
 	point_t *pt = tvp->pt;
 	point_t *pt1 = NULL;
 	point_t *pt2 = NULL;
+	if (!cmd || !pt)
+	    continue;
 	for (int i = 0; i < nused; i++, cmd++, pt++) {
 	    switch (*cmd) {
 		case BV_VLIST_LINE_MOVE:
@@ -242,10 +249,13 @@ line_tol_sq(struct bview *v, int lwidth)
     int width = v->gv_width;
     int height = v->gv_height;
 
-    if (!width || !height)
+    if (width <= 0 || height <= 0)
 	return 100*100;
 
     double lavg = ((double)width + (double)height) * 0.5;
+    if (ZERO(lavg))
+	return 100*100;
+
     double lratio = ((double)lwidth)/lavg;
 
     struct bview_settings *gv_s = (v->gv_s) ? v->gv_s : &v->gv_ls;
@@ -258,19 +268,21 @@ int
 bv_snap_lines_3d(point_t *out_pt, struct bview *v, point_t *p)
 {
     int ret = 0;
+    if (!p || !v || !out_pt) return 0;
+
     struct bview_settings *gv_s = (v->gv_s) ? v->gv_s : &v->gv_ls;
     struct bv_cp_info_tcl cpinfo = BV_CP_INFO_TCL_INIT;
-
-    if (!p || !v) return 0;
 
     // If we're not in Tcl mode only, we are looking at objects - either
     // all of them, or a specified subset
     if (gv_s->gv_snap_flags != BV_SNAP_TCL) {
 	struct bv_cp_info *s = &cpinfo.c;
 	s->ctol_sq = line_tol_sq(v, 1);
-	if (BU_PTBL_LEN(&gv_s->gv_snap_objs) > 0) {
+	if (BU_PTBL_IS_INITIALIZED(&gv_s->gv_snap_objs) && BU_PTBL_LEN(&gv_s->gv_snap_objs) > 0) {
 	    for (size_t i = 0; i < BU_PTBL_LEN(&gv_s->gv_snap_objs); i++) {
 		struct bv_scene_obj *so = (struct bv_scene_obj *)BU_PTBL_GET(&gv_s->gv_snap_objs, i);
+		if (!so)
+		    continue;
 		if (gv_s->gv_snap_flags) {
 		    if (gv_s->gv_snap_flags == BV_SNAP_DB && (!(so->s_type_flags & BV_DB_OBJS)))
 			continue;
@@ -285,32 +297,44 @@ bv_snap_lines_3d(point_t *out_pt, struct bview *v, point_t *p)
 	    if (!gv_s->gv_snap_flags || (gv_s->gv_snap_flags & BV_SNAP_DB)) {
 		if (!gv_s->gv_snap_flags || (gv_s->gv_snap_flags & BV_SNAP_SHARED)) {
 		    struct bu_ptbl *sobjs = bv_view_objs(v, BV_DB_OBJS);
-		    for (size_t i = 0; i < BU_PTBL_LEN(sobjs); i++) {
-			struct bv_scene_obj *so = (struct bv_scene_obj *)BU_PTBL_GET(sobjs, i);
-			ret += _find_closest_obj_point(s, p, so);
+		    if (sobjs) {
+			for (size_t i = 0; i < BU_PTBL_LEN(sobjs); i++) {
+			    struct bv_scene_obj *so = (struct bv_scene_obj *)BU_PTBL_GET(sobjs, i);
+			    if (so)
+				ret += _find_closest_obj_point(s, p, so);
+			}
 		    }
 		}
 		if (!gv_s->gv_snap_flags || (gv_s->gv_snap_flags & BV_SNAP_LOCAL)) {
 		    struct bu_ptbl *sobjs = bv_view_objs(v, BV_DB_OBJS | BV_LOCAL_OBJS);
-		    for (size_t i = 0; i < BU_PTBL_LEN(sobjs); i++) {
-			struct bv_scene_obj *so = (struct bv_scene_obj *)BU_PTBL_GET(sobjs, i);
-			ret += _find_closest_obj_point(s, p, so);
+		    if (sobjs) {
+			for (size_t i = 0; i < BU_PTBL_LEN(sobjs); i++) {
+			    struct bv_scene_obj *so = (struct bv_scene_obj *)BU_PTBL_GET(sobjs, i);
+			    if (so)
+				ret += _find_closest_obj_point(s, p, so);
+			}
 		    }
 		}
 	    }
 	    if (!gv_s->gv_snap_flags || (gv_s->gv_snap_flags & BV_SNAP_VIEW)) {
 		if (!gv_s->gv_snap_flags || (gv_s->gv_snap_flags & BV_SNAP_SHARED)) {
 		    struct bu_ptbl *sobjs = bv_view_objs(v, BV_VIEW_OBJS);
-		    for (size_t i = 0; i < BU_PTBL_LEN(sobjs); i++) {
-			struct bv_scene_obj *so = (struct bv_scene_obj *)BU_PTBL_GET(sobjs, i);
-			ret += _find_closest_obj_point(s, p, so);
+		    if (sobjs) {
+			for (size_t i = 0; i < BU_PTBL_LEN(sobjs); i++) {
+			    struct bv_scene_obj *so = (struct bv_scene_obj *)BU_PTBL_GET(sobjs, i);
+			    if (so)
+				ret += _find_closest_obj_point(s, p, so);
+			}
 		    }
 		}
 		if (!gv_s->gv_snap_flags || (gv_s->gv_snap_flags & BV_SNAP_LOCAL)) {
 		    struct bu_ptbl *sobjs = bv_view_objs(v, BV_VIEW_OBJS | BV_LOCAL_OBJS);
-		    for (size_t i = 0; i < BU_PTBL_LEN(sobjs); i++) {
-			struct bv_scene_obj *so = (struct bv_scene_obj *)BU_PTBL_GET(sobjs, i);
-			ret += _find_closest_obj_point(s, p, so);
+		    if (sobjs) {
+			for (size_t i = 0; i < BU_PTBL_LEN(sobjs); i++) {
+			    struct bv_scene_obj *so = (struct bv_scene_obj *)BU_PTBL_GET(sobjs, i);
+			    if (so)
+				ret += _find_closest_obj_point(s, p, so);
+			}
 		    }
 		}
 	    }
@@ -381,6 +405,9 @@ bv_view_center_linesnap(struct bview *v)
     point_t view_pt;
     point_t model_pt;
 
+    if (!v)
+	return;
+
     MAT_DELTAS_GET_NEG(model_pt, v->gv_center);
     MAT4X3PNT(view_pt, v->gv_model2view, model_pt);
     bv_snap_lines_2d(v, &view_pt[X], &view_pt[Y]);
@@ -402,7 +429,9 @@ bv_snap_grid_2d(struct bview *v, fastf_t *vx, fastf_t *vy)
     struct bview_settings *gv_s = (v->gv_s) ? v->gv_s : &v->gv_ls;
 
     if (ZERO(gv_s->gv_grid.res_h) ||
-	ZERO(gv_s->gv_grid.res_v))
+	ZERO(gv_s->gv_grid.res_v) ||
+	ZERO(v->gv_base2local) ||
+	ZERO(v->gv_scale))
 	return 0;
 
     inv_grid_res_h = 1/(gv_s->gv_grid.res_h * v->gv_base2local);

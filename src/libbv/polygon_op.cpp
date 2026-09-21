@@ -92,6 +92,8 @@ bv_polygon_csg(struct bv_scene_obj *target, struct bv_scene_obj *stencil, bg_cli
 
     // Perform the specified operation and get the new polygon
     struct bg_polygon *cp = bg_clip_polygon(op, &polyA->polygon, &polyB->polygon, CLIPPER_MAX, &polyA->vp);
+    if (!cp)
+	return 0;
 
     // Replace the original target polygon with the result
     bg_polygon_free(&polyA->polygon);
@@ -107,7 +109,8 @@ bv_polygon_csg(struct bv_scene_obj *target, struct bv_scene_obj *stencil, bg_cli
     polyA->type = BV_POLYGON_GENERAL;
 
     // Make sure everything's current
-    bv_update_polygon(target, target->s_v, BV_POLYGON_UPDATE_DEFAULT);
+    if (target->s_v)
+	bv_update_polygon(target, target->s_v, BV_POLYGON_UPDATE_DEFAULT);
 
     return 1;
 }
