@@ -18940,18 +18940,20 @@
       "path": "src/libbv/adc.c",
       "subsystem": "src/libbv",
       "lines": 98,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1825,
       "path": "src/libbv/bv_private.h",
       "subsystem": "src/libbv",
       "lines": 57,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -18960,170 +18962,204 @@
       "path": "src/libbv/diff.c",
       "subsystem": "src/libbv",
       "lines": 537,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1827,
       "path": "src/libbv/font.c",
       "subsystem": "src/libbv",
       "lines": 133,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1828,
       "path": "src/libbv/hash.c",
       "subsystem": "src/libbv",
       "lines": 349,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1829,
       "path": "src/libbv/knobs.cpp",
       "subsystem": "src/libbv",
       "lines": 621,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1830,
       "path": "src/libbv/lod.cpp",
       "subsystem": "src/libbv",
       "lines": 2091,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1831,
       "path": "src/libbv/polygon.c",
       "subsystem": "src/libbv",
       "lines": 859,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1832,
       "path": "src/libbv/polygon_fill.cpp",
       "subsystem": "src/libbv",
       "lines": 216,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1833,
       "path": "src/libbv/polygon_op.cpp",
       "subsystem": "src/libbv",
       "lines": 123,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1834,
       "path": "src/libbv/snap.c",
       "subsystem": "src/libbv",
       "lines": 445,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1835,
       "path": "src/libbv/tests/list.c",
       "subsystem": "src/libbv",
       "lines": 527,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1836,
       "path": "src/libbv/tests/plot3.c",
       "subsystem": "src/libbv",
       "lines": 108,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1837,
       "path": "src/libbv/tests/test_camera.c",
       "subsystem": "src/libbv",
       "lines": 311,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1838,
       "path": "src/libbv/tests/test_lod_cache.cpp",
       "subsystem": "src/libbv",
       "lines": 315,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1839,
       "path": "src/libbv/tests/vlist.c",
       "subsystem": "src/libbv",
       "lines": 74,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1840,
       "path": "src/libbv/util.cpp",
       "subsystem": "src/libbv",
       "lines": 1935,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1841,
       "path": "src/libbv/view_sets.cpp",
       "subsystem": "src/libbv",
       "lines": 151,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1842,
       "path": "src/libbv/vlist.c",
       "subsystem": "src/libbv",
       "lines": 660,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-21T00:20:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0240"
+      ]
     },
     {
       "id": 1843,

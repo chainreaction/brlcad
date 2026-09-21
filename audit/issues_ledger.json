@@ -4299,7 +4299,25 @@
       "created_at": "2026-09-20T03:10:00Z",
       "verified_at": "2026-09-20T03:10:30Z",
       "fixed_at": "2026-09-20T03:11:06Z"
+    },
+    {
+      "id": "SEC-0240",
+      "file": "src/libbv/adc.c, src/libbv/diff.c, src/libbv/font.c, src/libbv/hash.c, src/libbv/knobs.cpp, src/libbv/lod.cpp, src/libbv/polygon.c, src/libbv/polygon_fill.cpp, src/libbv/polygon_op.cpp, src/libbv/snap.c, src/libbv/tests/list.c, src/libbv/tests/plot3.c, src/libbv/tests/test_camera.c, src/libbv/tests/test_lod_cache.cpp, src/libbv/tests/vlist.c, src/libbv/util.cpp, src/libbv/view_sets.cpp, src/libbv/vlist.c",
+      "lines": "adc.c:48-95; diff.c:60-120, 180-240; font.c:50-80; hash.c:70-130, 200-280; knobs.cpp:60-110, 190-260, 480-530; lod.cpp:90-140, 240-300, 390-440, 500-550, 1200-1260; polygon.c:80-140, 200-350, 400-520, 600-750; polygon_fill.cpp:40-90, 120-180; polygon_op.cpp:60-90; snap.c:70-130, 180-250, 300-380; tests/list.c:60-100, 150-170, 350-370, 490-535; tests/plot3.c:50-80; tests/test_camera.c:280-290; tests/test_lod_cache.cpp:280-290; tests/vlist.c:40-65; util.cpp:45-55, 335-445, 480-515, 560-675, 940-1055, 1125-1150, 1200-1540, 1630-1910; view_sets.cpp:40-120; vlist.c:40-60, 115-135, 175-215, 220-235, 240-255, 260-275, 325-340, 360-395, 400-475, 565-675",
+      "severity": 1,
+      "category": "Memory Leaks, Buffer Overflow, Division by Zero, Out-of-bounds Array Access, and Null Pointer Dereferences",
+      "description": "In BRL-CAD libbv view library: in vlist.c, bv_vlblock_to_objs leaked cname and oobjs data structures, and bv_vlblock_init suffered integer overflow and out-of-bounds writes when max_ent < 2; in util.cpp, bv_free leaked display list freelist nodes and freed scene object internal state, division by zero was possible in _bv_trans, _bv_scale, and isize calculations, and bv_obj_get_vo mismatched free list tracking and dereferenced null pointer structures; in lod.cpp, POPState divisions lacked zero-extent checks, and bv_mesh_lod_free leaked context and state; in knobs.cpp, divisions by gv_scale and gv_size lacked ZERO checks; in polygon.c, polygon_fill.cpp, and snap.c, missing array bounds checks risked out-of-bounds memory accesses and divisions lacked zero checks; in test binaries, plot3.c leaked file pointers and inverted text mode, tests/vlist.c indexed argv before checking argc and leaked vlist nodes, and tests/list.c had an off-by-one loop in convert_points.",
+      "verification_status": "CONFIRMED",
+      "verification_test": "CMake build of libbv and test targets (bview_test, bview_plot3, test_bv_camera, test_bv_lod_cache), ctest execution of all 18 libbv test suites, and regression targets (regress-licenses, regress-repository).",
+      "test_result": "18/18 libbv unit tests passed, test_bv_camera and test_bv_lod_cache passed, regress-licenses and regress-repository passed 100%.",
+      "fix_status": "FIXED",
+      "fix_description": "Added complete resource cleanup for vlist blocks and free scene objects; added zero-division guards across view scaling, projection, and snapping routines; added array bounds and index validation in polygon, snap, and test routines; guarded pointer dereferences and verified list initialization across libbv.",
+      "commit_hash": "334cf4f376",
+      "commit_message": "libbv: address memory safety, bounds checks, and resource leaks",
+      "created_at": "2026-09-21T00:20:00Z",
+      "verified_at": "2026-09-21T00:20:15Z",
+      "fixed_at": "2026-09-21T00:20:29Z"
     }
   ],
-  "last_updated": "2026-09-20T03:11:06Z"
+  "last_updated": "2026-09-21T00:20:29Z"
 }
