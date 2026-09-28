@@ -20118,28 +20118,32 @@
       "path": "src/libgcv/bottess.c",
       "subsystem": "src/libgcv",
       "lines": 541,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1932,
       "path": "src/libgcv/facetize.c",
       "subsystem": "src/libgcv",
       "lines": 258,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1933,
       "path": "src/libgcv/gcv.c",
       "subsystem": "src/libgcv",
       "lines": 614,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20148,8 +20152,8 @@
       "path": "src/libgcv/plugins/asc/asc.cpp",
       "subsystem": "src/libgcv",
       "lines": 172,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20158,8 +20162,8 @@
       "path": "src/libgcv/plugins/asc/asc_v4.cpp",
       "subsystem": "src/libgcv",
       "lines": 2676,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20168,8 +20172,8 @@
       "path": "src/libgcv/plugins/asc/asc_v5.cpp",
       "subsystem": "src/libgcv",
       "lines": 430,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20178,8 +20182,8 @@
       "path": "src/libgcv/plugins/assetimport/assetimport_read.cpp",
       "subsystem": "src/libgcv",
       "lines": 1399,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20188,8 +20192,8 @@
       "path": "src/libgcv/plugins/assetimport/assetimport_write.cpp",
       "subsystem": "src/libgcv",
       "lines": 589,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20198,38 +20202,44 @@
       "path": "src/libgcv/plugins/decimate/decimate.c",
       "subsystem": "src/libgcv",
       "lines": 115,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1940,
       "path": "src/libgcv/plugins/fastgen4/fastgen4_read.c",
       "subsystem": "src/libgcv",
       "lines": 2993,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1941,
       "path": "src/libgcv/plugins/fastgen4/fastgen4_write.cpp",
       "subsystem": "src/libgcv",
       "lines": 2517,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1942,
       "path": "src/libgcv/plugins/gdal/gdal.cpp",
       "subsystem": "src/libgcv",
       "lines": 434,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20238,8 +20248,8 @@
       "path": "src/libgcv/plugins/gdal/gdal_ll.cpp",
       "subsystem": "src/libgcv",
       "lines": 100,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20248,8 +20258,8 @@
       "path": "src/libgcv/plugins/gltf/gltf_read.cpp",
       "subsystem": "src/libgcv",
       "lines": 314,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20258,8 +20268,8 @@
       "path": "src/libgcv/plugins/gltf/gltf_read_util.h",
       "subsystem": "src/libgcv",
       "lines": 317,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20268,8 +20278,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_brep_export.cpp",
       "subsystem": "src/libgcv",
       "lines": 684,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20278,8 +20288,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_brep_import.cpp",
       "subsystem": "src/libgcv",
       "lines": 6041,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20288,8 +20298,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_brep_import.h",
       "subsystem": "src/libgcv",
       "lines": 87,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20298,8 +20308,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_convert.cpp",
       "subsystem": "src/libgcv",
       "lines": 160,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20308,8 +20318,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_convert.h",
       "subsystem": "src/libgcv",
       "lines": 44,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20318,8 +20328,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_document.cpp",
       "subsystem": "src/libgcv",
       "lines": 848,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20328,8 +20338,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_document.h",
       "subsystem": "src/libgcv",
       "lines": 165,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20338,8 +20348,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_export.cpp",
       "subsystem": "src/libgcv",
       "lines": 411,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20348,8 +20358,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_export.h",
       "subsystem": "src/libgcv",
       "lines": 47,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20358,8 +20368,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_import.cpp",
       "subsystem": "src/libgcv",
       "lines": 1734,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20368,8 +20378,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_import.h",
       "subsystem": "src/libgcv",
       "lines": 121,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20378,8 +20388,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_native.cpp",
       "subsystem": "src/libgcv",
       "lines": 518,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20388,8 +20398,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_native.h",
       "subsystem": "src/libgcv",
       "lines": 54,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20398,8 +20408,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_nmg_export.cpp",
       "subsystem": "src/libgcv",
       "lines": 317,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20408,8 +20418,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_orientation.cpp",
       "subsystem": "src/libgcv",
       "lines": 708,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20418,8 +20428,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_orientation.h",
       "subsystem": "src/libgcv",
       "lines": 96,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20428,8 +20438,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_parameters.h",
       "subsystem": "src/libgcv",
       "lines": 95,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20438,8 +20448,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_primitive_export.cpp",
       "subsystem": "src/libgcv",
       "lines": 193,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20448,8 +20458,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_report.cpp",
       "subsystem": "src/libgcv",
       "lines": 213,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20458,8 +20468,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_report.h",
       "subsystem": "src/libgcv",
       "lines": 29,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20468,8 +20478,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_runtime.cpp",
       "subsystem": "src/libgcv",
       "lines": 195,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20478,8 +20488,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_runtime.h",
       "subsystem": "src/libgcv",
       "lines": 117,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20488,8 +20498,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_wire.cpp",
       "subsystem": "src/libgcv",
       "lines": 127,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20498,8 +20508,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_writer.cpp",
       "subsystem": "src/libgcv",
       "lines": 564,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20508,8 +20518,8 @@
       "path": "src/libgcv/plugins/iges/core/iges_writer.h",
       "subsystem": "src/libgcv",
       "lines": 170,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20518,8 +20528,8 @@
       "path": "src/libgcv/plugins/iges/iges_plugin.cpp",
       "subsystem": "src/libgcv",
       "lines": 40,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20528,8 +20538,8 @@
       "path": "src/libgcv/plugins/iges/iges_plugin.h",
       "subsystem": "src/libgcv",
       "lines": 28,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20538,8 +20548,8 @@
       "path": "src/libgcv/plugins/iges/iges_read.cpp",
       "subsystem": "src/libgcv",
       "lines": 192,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20548,8 +20558,8 @@
       "path": "src/libgcv/plugins/iges/iges_write.cpp",
       "subsystem": "src/libgcv",
       "lines": 131,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20558,78 +20568,92 @@
       "path": "src/libgcv/plugins/iges/tests/test_gcv_iges.cpp",
       "subsystem": "src/libgcv",
       "lines": 225,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1976,
       "path": "src/libgcv/plugins/iges/tests/test_iges_brep.cpp",
       "subsystem": "src/libgcv",
       "lines": 171,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1977,
       "path": "src/libgcv/plugins/iges/tests/test_iges_document.cpp",
       "subsystem": "src/libgcv",
       "lines": 369,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1978,
       "path": "src/libgcv/plugins/iges/tests/test_iges_import.cpp",
       "subsystem": "src/libgcv",
       "lines": 2044,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1979,
       "path": "src/libgcv/plugins/iges/tests/test_iges_orientation.cpp",
       "subsystem": "src/libgcv",
       "lines": 287,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1980,
       "path": "src/libgcv/plugins/iges/tests/test_iges_rays.cpp",
       "subsystem": "src/libgcv",
       "lines": 158,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1981,
       "path": "src/libgcv/plugins/iges/tests/test_iges_writer.cpp",
       "subsystem": "src/libgcv",
       "lines": 105,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1982,
       "path": "src/libgcv/plugins/jt/jt_parser.cpp",
       "subsystem": "src/libgcv",
       "lines": 2816,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20638,8 +20662,8 @@
       "path": "src/libgcv/plugins/jt/jt_parser.h",
       "subsystem": "src/libgcv",
       "lines": 406,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20648,18 +20672,20 @@
       "path": "src/libgcv/plugins/jt/jt_read.cpp",
       "subsystem": "src/libgcv",
       "lines": 2682,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1985,
       "path": "src/libgcv/plugins/jt/jt_topology.cpp",
       "subsystem": "src/libgcv",
       "lines": 417,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20668,8 +20694,8 @@
       "path": "src/libgcv/plugins/jt/jt_topology.h",
       "subsystem": "src/libgcv",
       "lines": 52,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20678,58 +20704,68 @@
       "path": "src/libgcv/plugins/jt/test_jt_parser.cpp",
       "subsystem": "src/libgcv",
       "lines": 2000,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1988,
       "path": "src/libgcv/plugins/jt/test_jt_topology.cpp",
       "subsystem": "src/libgcv",
       "lines": 245,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1989,
       "path": "src/libgcv/plugins/obj/obj_read.c",
       "subsystem": "src/libgcv",
       "lines": 3640,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1990,
       "path": "src/libgcv/plugins/obj/obj_write.c",
       "subsystem": "src/libgcv",
       "lines": 871,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1991,
       "path": "src/libgcv/plugins/obj/tri_face.c",
       "subsystem": "src/libgcv",
       "lines": 272,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 1992,
       "path": "src/libgcv/plugins/obj/tri_face.h",
       "subsystem": "src/libgcv",
       "lines": 51,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20738,8 +20774,8 @@
       "path": "src/libgcv/plugins/obj/wfobj/obj_grammar_decls.h",
       "subsystem": "src/libgcv",
       "lines": 53,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20748,8 +20784,8 @@
       "path": "src/libgcv/plugins/obj/wfobj/obj_parser.cpp",
       "subsystem": "src/libgcv",
       "lines": 1026,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20758,8 +20794,8 @@
       "path": "src/libgcv/plugins/obj/wfobj/obj_parser.h",
       "subsystem": "src/libgcv",
       "lines": 795,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20768,8 +20804,8 @@
       "path": "src/libgcv/plugins/obj/wfobj/obj_parser_state.h",
       "subsystem": "src/libgcv",
       "lines": 931,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20778,8 +20814,8 @@
       "path": "src/libgcv/plugins/obj/wfobj/obj_rules.h",
       "subsystem": "src/libgcv",
       "lines": 77,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20788,8 +20824,8 @@
       "path": "src/libgcv/plugins/obj/wfobj/obj_token_type.h",
       "subsystem": "src/libgcv",
       "lines": 52,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20798,8 +20834,8 @@
       "path": "src/libgcv/plugins/obj/wfobj/obj_util.cpp",
       "subsystem": "src/libgcv",
       "lines": 57,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20808,8 +20844,8 @@
       "path": "src/libgcv/plugins/obj/wfobj/obj_util.h",
       "subsystem": "src/libgcv",
       "lines": 98,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20818,28 +20854,32 @@
       "path": "src/libgcv/plugins/ply/ply_read.c",
       "subsystem": "src/libgcv",
       "lines": 396,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 2002,
       "path": "src/libgcv/plugins/ply/ply_write.c",
       "subsystem": "src/libgcv",
       "lines": 846,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 2003,
       "path": "src/libgcv/plugins/ply/rply.c",
       "subsystem": "src/libgcv",
       "lines": 1684,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20848,8 +20888,8 @@
       "path": "src/libgcv/plugins/ply/rply.h",
       "subsystem": "src/libgcv",
       "lines": 394,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20858,8 +20898,8 @@
       "path": "src/libgcv/plugins/ply/rplyfile.h",
       "subsystem": "src/libgcv",
       "lines": 71,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20868,18 +20908,20 @@
       "path": "src/libgcv/plugins/rhino/rhino_read.cpp",
       "subsystem": "src/libgcv",
       "lines": 1204,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 2007,
       "path": "src/libgcv/plugins/scad/scad.h",
       "subsystem": "src/libgcv",
       "lines": 333,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20888,8 +20930,8 @@
       "path": "src/libgcv/plugins/scad/scad_eval.c",
       "subsystem": "src/libgcv",
       "lines": 2022,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20898,8 +20940,8 @@
       "path": "src/libgcv/plugins/scad/scad_geom.c",
       "subsystem": "src/libgcv",
       "lines": 1129,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20908,8 +20950,8 @@
       "path": "src/libgcv/plugins/scad/scad_parse.c",
       "subsystem": "src/libgcv",
       "lines": 1121,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20918,38 +20960,44 @@
       "path": "src/libgcv/plugins/scad/scad_read.c",
       "subsystem": "src/libgcv",
       "lines": 245,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 2012,
       "path": "src/libgcv/plugins/stl/stl_read.c",
       "subsystem": "src/libgcv",
       "lines": 699,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 2013,
       "path": "src/libgcv/plugins/stl/stl_write.cpp",
       "subsystem": "src/libgcv",
       "lines": 487,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 2014,
       "path": "src/libgcv/plugins/vol/png_read.c",
       "subsystem": "src/libgcv",
       "lines": 116,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20958,18 +21006,20 @@
       "path": "src/libgcv/plugins/vrml/vrml_read/file_util.cpp",
       "subsystem": "src/libgcv",
       "lines": 125,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 2016,
       "path": "src/libgcv/plugins/vrml/vrml_read/file_util.h",
       "subsystem": "src/libgcv",
       "lines": 60,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20978,8 +21028,8 @@
       "path": "src/libgcv/plugins/vrml/vrml_read/node.cpp",
       "subsystem": "src/libgcv",
       "lines": 570,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20988,8 +21038,8 @@
       "path": "src/libgcv/plugins/vrml/vrml_read/node.h",
       "subsystem": "src/libgcv",
       "lines": 155,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -20998,8 +21048,8 @@
       "path": "src/libgcv/plugins/vrml/vrml_read/node_type.cpp",
       "subsystem": "src/libgcv",
       "lines": 87,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -21008,8 +21058,8 @@
       "path": "src/libgcv/plugins/vrml/vrml_read/node_type.h",
       "subsystem": "src/libgcv",
       "lines": 56,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -21018,8 +21068,8 @@
       "path": "src/libgcv/plugins/vrml/vrml_read/parser.cpp",
       "subsystem": "src/libgcv",
       "lines": 326,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -21028,8 +21078,8 @@
       "path": "src/libgcv/plugins/vrml/vrml_read/parser.h",
       "subsystem": "src/libgcv",
       "lines": 77,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -21038,18 +21088,20 @@
       "path": "src/libgcv/plugins/vrml/vrml_read/string_util.cpp",
       "subsystem": "src/libgcv",
       "lines": 268,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 2024,
       "path": "src/libgcv/plugins/vrml/vrml_read/string_util.h",
       "subsystem": "src/libgcv",
       "lines": 67,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -21058,18 +21110,20 @@
       "path": "src/libgcv/plugins/vrml/vrml_read/test_vrml1_parser.cpp",
       "subsystem": "src/libgcv",
       "lines": 152,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 2026,
       "path": "src/libgcv/plugins/vrml/vrml_read/transform_node.cpp",
       "subsystem": "src/libgcv",
       "lines": 126,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -21078,8 +21132,8 @@
       "path": "src/libgcv/plugins/vrml/vrml_read/transform_node.h",
       "subsystem": "src/libgcv",
       "lines": 54,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -21088,8 +21142,8 @@
       "path": "src/libgcv/plugins/vrml/vrml_read/vrml1_parser.cpp",
       "subsystem": "src/libgcv",
       "lines": 613,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -21098,8 +21152,8 @@
       "path": "src/libgcv/plugins/vrml/vrml_read/vrml1_parser.h",
       "subsystem": "src/libgcv",
       "lines": 72,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -21108,8 +21162,8 @@
       "path": "src/libgcv/plugins/vrml/vrml_read/vrml1_read.cpp",
       "subsystem": "src/libgcv",
       "lines": 868,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -21118,8 +21172,8 @@
       "path": "src/libgcv/plugins/vrml/vrml_read/vrml1_read.h",
       "subsystem": "src/libgcv",
       "lines": 42,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -21128,28 +21182,32 @@
       "path": "src/libgcv/plugins/vrml/vrml_read/vrml_read.cpp",
       "subsystem": "src/libgcv",
       "lines": 294,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 2033,
       "path": "src/libgcv/plugins/vrml/vrml_write.c",
       "subsystem": "src/libgcv",
       "lines": 1402,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 2034,
       "path": "src/libgcv/plugins/vtk/vtk_read.c",
       "subsystem": "src/libgcv",
       "lines": 2398,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -21158,28 +21216,32 @@
       "path": "src/libgcv/region_end.c",
       "subsystem": "src/libgcv",
       "lines": 250,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 2036,
       "path": "src/libgcv/region_end_mc.c",
       "subsystem": "src/libgcv",
       "lines": 191,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 2037,
       "path": "src/libgcv/soup.h",
       "subsystem": "src/libgcv",
       "lines": 78,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -21188,38 +21250,44 @@
       "path": "src/libgcv/tests/test_bottess.c",
       "subsystem": "src/libgcv",
       "lines": 341,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 2039,
       "path": "src/libgcv/tests/test_context.c",
       "subsystem": "src/libgcv",
       "lines": 86,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 2040,
       "path": "src/libgcv/tri_intersect.c",
       "subsystem": "src/libgcv",
       "lines": 319,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0242"
+      ]
     },
     {
       "id": 2041,
       "path": "src/libgcv/tri_intersect.h",
       "subsystem": "src/libgcv",
       "lines": 48,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-28T01:45:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -35773,5 +35841,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-09-27T21:52:01Z"
+  "last_updated": "2026-09-28T01:45:03Z"
 }

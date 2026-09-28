@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-27 21:52:00 UTC
+**Last Updated:** 2026-09-28 01:45:03 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 670 (19.2%)
-- **Files Pending Review:** 2823
-- **Total Issues Identified:** 241
+- **Files Reviewed:** 781 (22.4%)
+- **Files Pending Review:** 2712
+- **Total Issues Identified:** 242
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 169 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 170 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 49 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 241
+- **Fixed (Committed):** 242
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -91,7 +91,7 @@
 | `src/libbv` | 19 | 19 | 100.0% | 1 |
 | `src/libdm` | 80 | 80 | 100.0% | 1 |
 | `src/libfft` | 8 | 8 | 100.0% | 1 |
-| `src/libgcv` | 111 | 0 | 0.0% | 0 |
+| `src/libgcv` | 111 | 111 | 100.0% | 1 |
 | `src/libged` | 509 | 0 | 0.0% | 0 |
 | `src/libicv` | 34 | 0 | 0.0% | 0 |
 | `src/libnmg` | 54 | 0 | 0.0% | 0 |

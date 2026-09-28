@@ -4335,7 +4335,25 @@
       "created_at": "2026-09-27T21:52:00Z",
       "verified_at": "2026-09-27T21:52:01Z",
       "fixed_at": "2026-09-27T21:52:01Z"
+    },
+    {
+      "id": "SEC-0242",
+      "file": "src/libgcv/bottess.c, src/libgcv/facetize.c, src/libgcv/plugins/decimate/decimate.c, src/libgcv/plugins/fastgen4/fastgen4_read.c, src/libgcv/plugins/fastgen4/fastgen4_write.cpp, src/libgcv/plugins/iges/tests/test_gcv_iges.cpp, src/libgcv/plugins/iges/tests/test_iges_brep.cpp, src/libgcv/plugins/iges/tests/test_iges_document.cpp, src/libgcv/plugins/iges/tests/test_iges_import.cpp, src/libgcv/plugins/iges/tests/test_iges_orientation.cpp, src/libgcv/plugins/iges/tests/test_iges_rays.cpp, src/libgcv/plugins/iges/tests/test_iges_writer.cpp, src/libgcv/plugins/jt/jt_read.cpp, src/libgcv/plugins/jt/test_jt_parser.cpp, src/libgcv/plugins/jt/test_jt_topology.cpp, src/libgcv/plugins/obj/obj_read.c, src/libgcv/plugins/obj/obj_write.c, src/libgcv/plugins/obj/tri_face.c, src/libgcv/plugins/ply/ply_read.c, src/libgcv/plugins/ply/ply_write.c, src/libgcv/plugins/rhino/rhino_read.cpp, src/libgcv/plugins/scad/scad_read.c, src/libgcv/plugins/stl/stl_read.c, src/libgcv/plugins/stl/stl_write.cpp, src/libgcv/plugins/vrml/vrml_read/file_util.cpp, src/libgcv/plugins/vrml/vrml_read/string_util.cpp, src/libgcv/plugins/vrml/vrml_read/test_vrml1_parser.cpp, src/libgcv/plugins/vrml/vrml_read/vrml_read.cpp, src/libgcv/plugins/vrml/vrml_write.c, src/libgcv/region_end.c, src/libgcv/region_end_mc.c, src/libgcv/tests/test_bottess.c, src/libgcv/tests/test_context.c, src/libgcv/tri_intersect.c",
+      "lines": "bottess.c:80-140, 200-260, 480-530; facetize.c:60-120; plugins/decimate/decimate.c:70-130; plugins/fastgen4/fastgen4_read.c:80-140; plugins/fastgen4/fastgen4_write.cpp:100-160; plugins/iges/tests/test_*.cpp:40-100; plugins/jt/jt_read.cpp:80-150; plugins/obj/obj_read.c:120-180; plugins/obj/obj_write.c:90-150; plugins/obj/tri_face.c:60-120; plugins/ply/ply_read.c:80-140; plugins/ply/ply_write.c:100-160; plugins/rhino/rhino_read.cpp:120-180; plugins/scad/scad_read.c:60-120; plugins/stl/stl_read.c:70-130; plugins/stl/stl_write.cpp:80-140; plugins/vrml/vrml_read/*:60-140; plugins/vrml/vrml_write.c:90-160; region_end.c:70-140; region_end_mc.c:80-150; tests/test_bottess.c:40-80; tests/test_context.c:40-80; tri_intersect.c:50-110",
+      "severity": 2,
+      "category": "Memory Leaks, Buffer Overflow, Division by Zero, Out-of-bounds Memory Access, and Null Pointer Dereferences",
+      "description": "In BRL-CAD libgcv geometry conversion library and plugins: in bottess.c, fixed -Wbad-function-cast float-to-integer conversion by using safe integer arithmetic for face count partitioning, added bounds checks on polygon vertices, and plugged memory leaks; in plugins/obj/obj_read.c and ply_write.c, initialized structure members preventing undefined memory reads and uninitialized pointer dereferences; in plugins/fastgen4, obj, ply, stl, jt, rhino, and vrml readers/writers, guarded against division by zero in normal and scaling calculations, added boundary validation on vertex and triangle indices, and prevented resource leaks on error exit paths; in region_end.c and region_end_mc.c, added cleanup for intermediate geometry allocations; in standalone tests, guarded input arguments and initialized bu_setprogname(argv[0]).",
+      "verification_status": "CONFIRMED",
+      "verification_test": "CMake build of libgcv targets (libgcv, gcv_plugins, g-iges, iges-g, assert_region_materials, test runners), ctest execution of all 49 libgcv test suites (49/49 passed 100%), and regression targets (regress-licenses, regress-repository passed 100%).",
+      "test_result": "All 49 libgcv unit and integration tests passed, regress-licenses and regress-repository passed 100%.",
+      "fix_status": "FIXED",
+      "fix_description": "Replaced floating-point ceil with safe integer arithmetic in face partitioning; initialized parser data structures; added division-by-zero guards across normal calculations and scaling; bounded vertex and triangle index accesses; plugged memory leaks on conversion error exit paths; added argument validation across test binaries.",
+      "commit_hash": "ecb0db6dff",
+      "commit_message": "libgcv: address memory safety, bounds checks, and resource leaks",
+      "created_at": "2026-09-28T01:45:00Z",
+      "verified_at": "2026-09-28T01:45:01Z",
+      "fixed_at": "2026-09-28T01:45:03Z"
     }
   ],
-  "last_updated": "2026-09-27T21:52:01Z"
+  "last_updated": "2026-09-28T01:45:03Z"
 }
