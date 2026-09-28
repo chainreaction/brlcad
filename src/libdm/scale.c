@@ -42,6 +42,9 @@ dm_draw_scale(struct dm *dmp,
 	      int       *lineColor,
 	      int       *textColor)
 {
+    if (!dmp || !dmp->i || !lineColor || !textColor)
+	return;
+
     int soffset;
     fastf_t xpos1, xpos2;
     fastf_t ypos1, ypos2;

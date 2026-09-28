@@ -462,6 +462,11 @@ ogl_getmem(struct fb *ifp)
 
     errno = 0;
 
+    if (ifp->i->if_height <= 0 || ifp->i->if_width <= 0)
+	return -1;
+    if ((size_t)ifp->i->if_height > SIZE_MAX / ((size_t)ifp->i->if_width * sizeof(struct fb_pixel)))
+	return -1;
+
     pixsize = ifp->i->if_height * ifp->i->if_width * sizeof(struct fb_pixel);
 
     /* shared memory behaves badly if we try to allocate too much, so
@@ -487,10 +492,14 @@ ogl_getmem(struct fb *ifp)
 	new_mem = 1;
 
     } else {
-	/* The shared memory section never changes size */
-	WIN(ifp)->mi_pixwidth = ifp->i->if_max_width;
+	if (ifp->i->if_max_height <= 0 || ifp->i->if_max_width <= 0)
+	    return -1;
+	if ((size_t)ifp->i->if_max_height > SIZE_MAX / ((size_t)ifp->i->if_max_width * sizeof(struct fb_pixel)))
+	    return -1;
 
 	pixsize = ifp->i->if_max_height * ifp->i->if_max_width * sizeof(struct fb_pixel);
+	if (pixsize > SIZE_MAX - sizeof(struct fb_cmap))
+	    return -1;
 	size = pixsize + sizeof(struct fb_cmap);
 
 	shm_result = bu_shmget(&(WIN(ifp)->mi_shmid), &sp, SHMEM_KEY, size);
@@ -1097,6 +1106,8 @@ fb_ogl_open(struct fb *ifp, const char *file, int width, int height)
     OGLL(ifp) = (char *)oinfo;
     if (!OGL(ifp)) {
 	fb_log("fb_ogl_open:  oglinfo malloc failed\n");
+	free((char *)WINL(ifp));
+	WINL(ifp) = NULL;
 	return -1;
     }
 
@@ -1119,7 +1130,7 @@ fb_ogl_open(struct fb *ifp, const char *file, int width, int height)
 
     /* Attach to shared memory, potentially with a screen repaint */
     if (ogl_getmem(ifp) < 0)
-	return -1;
+	goto fail_open;
 
     WIN(ifp)->mi_curs_on = 1;
 
@@ -1144,7 +1155,7 @@ fb_ogl_open(struct fb *ifp, const char *file, int width, int height)
     OGL(ifp)->dispp = XOpenDisplay(NULL);
     if (!OGL(ifp)->dispp) {
 	fb_log("fb_ogl_open: Failed to open display.  Check DISPLAY environment variable.\n");
-	return -1;
+	goto fail_open;
     }
     ifp->i->if_selfd = ConnectionNumber(OGL(ifp)->dispp);
     if (FB_DEBUG)
@@ -1154,14 +1165,14 @@ fb_ogl_open(struct fb *ifp, const char *file, int width, int height)
     OGL(ifp)->vip = fb_ogl_choose_visual(ifp);
     if (!OGL(ifp)->vip) {
 	fb_log("fb_ogl_open: Couldn't find an appropriate visual.  Exiting.\n");
-	return -1;
+	goto fail_open;
     }
 
     /* Open an OpenGL context with this visual*/
     OGL(ifp)->glxc = glXCreateContext(OGL(ifp)->dispp, OGL(ifp)->vip, 0, GL_TRUE /* direct context */);
     if (!OGL(ifp)->glxc) {
 	fb_log("ERROR: Couldn't create an OpenGL context!\n");
-	return -1;
+	goto fail_open;
     }
 
     if (FB_DEBUG)
@@ -1280,6 +1291,29 @@ fb_ogl_open(struct fb *ifp, const char *file, int width, int height)
 	ogl_do_event(ifp);
 
     return 0;
+
+fail_open:
+    if (OGL(ifp)) {
+	if (OGL(ifp)->glxc && OGL(ifp)->dispp)
+	    glXDestroyContext(OGL(ifp)->dispp, OGL(ifp)->glxc);
+	if (OGL(ifp)->dispp)
+	    XCloseDisplay(OGL(ifp)->dispp);
+	free((char *)OGLL(ifp));
+	OGLL(ifp) = NULL;
+    }
+    if (WINL(ifp)) {
+	if (ifp->i->if_mem) {
+	    if (WIN(ifp)->mi_shmid != -1) {
+		shmdt(ifp->i->if_mem);
+	    } else {
+		free(ifp->i->if_mem);
+	    }
+	    ifp->i->if_mem = NULL;
+	}
+	free((char *)WINL(ifp));
+	WINL(ifp) = NULL;
+    }
+    return -1;
 }
 
 
@@ -1304,6 +1338,8 @@ open_existing(struct fb *ifp, Display *dpy, Window win, Colormap cmap, XVisualIn
     OGLL(ifp) = (char *)oinfo;
     if (!OGL(ifp)) {
 	fb_log("fb_ogl_open:  oglinfo malloc failed\n");
+	free((char *)WINL(ifp));
+	WINL(ifp) = NULL;
 	return -1;
     }
 
@@ -1328,8 +1364,13 @@ open_existing(struct fb *ifp, Display *dpy, Window win, Colormap cmap, XVisualIn
     ifp->i->if_ycenter = height/2;
 
     /* Attach to shared memory, potentially with a screen repaint */
-    if (ogl_getmem(ifp) < 0)
+    if (ogl_getmem(ifp) < 0) {
+	free((char *)OGLL(ifp));
+	OGLL(ifp) = NULL;
+	free((char *)WINL(ifp));
+	WINL(ifp) = NULL;
 	return -1;
+    }
 
     OGL(ifp)->dispp = dpy;
     ifp->i->if_selfd = ConnectionNumber(OGL(ifp)->dispp);
@@ -1392,8 +1433,13 @@ ogl_open_existing(struct fb *ifp, int width, int height, struct fb_platform_spec
 int
 ogl_close_existing(struct fb *ifp)
 {
-    if (OGL(ifp)->cursor)
-	XDestroyWindow(OGL(ifp)->dispp, OGL(ifp)->cursor);
+    if (!ifp || !ifp->i)
+	return -1;
+
+    if (OGL(ifp)) {
+	if (OGL(ifp)->cursor && OGL(ifp)->dispp)
+	    XDestroyWindow(OGL(ifp)->dispp, OGL(ifp)->cursor);
+    }
 
     if (WINL(ifp)) {
 
@@ -1430,6 +1476,9 @@ ogl_close_existing(struct fb *ifp)
 static int
 ogl_final_close(struct fb *ifp)
 {
+    if (!ifp || !ifp->i || !OGL(ifp))
+	return -1;
+
     Display *display = OGL(ifp)->dispp;
     Window window = OGL(ifp)->wind;
     Colormap colormap = OGL(ifp)->xcmap;
@@ -1439,8 +1488,12 @@ ogl_final_close(struct fb *ifp)
 
     ogl_close_existing(ifp);
 
-    XDestroyWindow(display, window);
-    XFreeColormap(display, colormap);
+    if (display) {
+	if (window)
+	    XDestroyWindow(display, window);
+	if (colormap)
+	    XFreeColormap(display, colormap);
+    }
 
     ogl_nwindows--;
     return 0;

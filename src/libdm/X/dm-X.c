@@ -164,14 +164,24 @@ get_color(Display *dpy, Colormap cmap, XColor *color)
 static int
 X_reshape(struct dm *dmp, int width, int height)
 {
+    if (!dmp || !dmp->i)
+	return -1;
+
     struct x_vars *privars = (struct x_vars *)dmp->i->dm_vars.priv_vars;
+    if (!privars)
+	return -1;
+
+    if (width <= 0)
+	width = 1;
+    if (height <= 0)
+	height = 1;
 
     dmp->i->dm_height = height;
     dmp->i->dm_width = width;
     dmp->i->dm_aspect = (fastf_t)dmp->i->dm_width / (fastf_t)dmp->i->dm_height;
 
-    privars->disp_mat[0] = 2. * privars->ppmm_x / dmp->i->dm_width;
-    privars->disp_mat[5] = 2. * privars->ppmm_y / dmp->i->dm_width;
+    privars->disp_mat[0] = 2. * privars->ppmm_x / (fastf_t)dmp->i->dm_width;
+    privars->disp_mat[5] = 2. * privars->ppmm_y / (fastf_t)dmp->i->dm_width;
 
     return 0;
 }
@@ -638,8 +648,10 @@ X_open(void *UNUSED(ctx), void *vinterp, int argc, const char **argv)
      * Might have better luck calling functions instead of macros.
      */
 
-    privars->ppmm_x = screen->width / screen->mwidth;
-    privars->ppmm_y = screen->height / screen->mheight;
+    privars->ppmm_x = (screen->mwidth > 0) ? (screen->width / screen->mwidth) : 1;
+    privars->ppmm_y = (screen->mheight > 0) ? (screen->height / screen->mheight) : 1;
+    if (privars->ppmm_x <= 0) privars->ppmm_x = 1;
+    if (privars->ppmm_y <= 0) privars->ppmm_y = 1;
 
     if (dmp->i->dm_width == 0) {
 	dmp->i->dm_width =
@@ -1601,6 +1613,11 @@ X_getDisplayImage(struct dm *dmp, unsigned char **image, int flip, int alpha)
 	return BRLCAD_ERROR;
     }
 
+    if (ximage_p->width <= 0 || ximage_p->height <= 0) {
+	XDestroyImage(ximage_p);
+	return BRLCAD_ERROR;
+    }
+
     bytes_per_pixel = ximage_p->bytes_per_line / ximage_p->width;
 
     if (bytes_per_pixel == 4) {
@@ -1711,11 +1728,17 @@ X_getDisplayImage(struct dm *dmp, unsigned char **image, int flip, int alpha)
 	    blue_shift = blue_shift - (bpb - blue_bits);
     } else {
 	bu_log("png: %d bytes per pixel is not yet supported\n", bytes_per_pixel);
+	XDestroyImage(ximage_p);
+	return BRLCAD_ERROR;
+    }
+
+    if ((size_t)ximage_p->height > SIZE_MAX / ((size_t)ximage_p->width * bytes_per_pixel_output)) {
+	XDestroyImage(ximage_p);
 	return BRLCAD_ERROR;
     }
 
     rows = (unsigned char **)bu_calloc(ximage_p->height, sizeof(unsigned char *), "rows");
-    idata = (unsigned char *)bu_calloc(ximage_p->height * ximage_p->width, bytes_per_pixel_output, "png data");
+    idata = (unsigned char *)bu_calloc((size_t)ximage_p->height * (size_t)ximage_p->width, bytes_per_pixel_output, "png data");
     *image = idata;
 
     /* for each scanline */
@@ -1910,6 +1933,14 @@ X_write_image(struct bu_vls *msgs, FILE *fp, struct dm *dmp)
 	png_destroy_write_struct(&png_p, &info_p);
 	return -1;
     }
+    if (ximage_p->width <= 0 || ximage_p->height <= 0) {
+	if (msgs) {
+	    bu_vls_printf(msgs, "png: invalid XImage dimensions\n");
+	}
+	XDestroyImage(ximage_p);
+	png_destroy_write_struct(&png_p, &info_p);
+	return -1;
+    }
 
     bytes_per_pixel = ximage_p->bytes_per_line / ximage_p->width;
 
@@ -2023,12 +2054,22 @@ X_write_image(struct bu_vls *msgs, FILE *fp, struct dm *dmp)
 	if (msgs) {
 	    bu_vls_printf(msgs, "png: %d bytes per pixel is not yet supported\n", bytes_per_pixel);
 	}
+	XDestroyImage(ximage_p);
+	png_destroy_write_struct(&png_p, &info_p);
+	return -1;
+    }
+
+    if ((size_t)ximage_p->height > SIZE_MAX / ((size_t)ximage_p->width * 4)) {
+	if (msgs) {
+	    bu_vls_printf(msgs, "png: image dimensions too large\n");
+	}
+	XDestroyImage(ximage_p);
 	png_destroy_write_struct(&png_p, &info_p);
 	return -1;
     }
 
     rows = (unsigned char **)bu_calloc(ximage_p->height, sizeof(unsigned char *), "rows");
-    idata = (unsigned char *)bu_calloc(ximage_p->height * ximage_p->width, 4, "png data");
+    idata = (unsigned char *)bu_calloc((size_t)ximage_p->height * (size_t)ximage_p->width, 4, "png data");
 
     /* for each scanline */
     for (i = ximage_p->height - 1, j = 0; 0 <= i; --i, ++j) {

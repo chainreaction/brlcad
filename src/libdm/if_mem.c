@@ -86,6 +86,9 @@ mem_open(struct fb *ifp, const char *file, int width, int height)
     int alpha;
     struct modeflags *mfp;
 
+    if (!ifp || !ifp->i)
+	return -1;
+
     FB_CK_FB(ifp->i);
 
     /* This function doesn't look like it will work if file
@@ -147,6 +150,7 @@ mem_open(struct fb *ifp, const char *file, int width, int height)
 	/* frame buffer device specified */
 	if ((fbp = fb_open(cp, width, height)) == FB_NULL) {
 	    free(MIL(ifp));
+	    MIL(ifp) = NULL;
 	    return -1;
 	}
 	MI(ifp)->fbp = fbp;
@@ -162,9 +166,27 @@ mem_open(struct fb *ifp, const char *file, int width, int height)
 	if (height > 0)
 	    ifp->i->if_height = height;
     }
-    if ((MI(ifp)->mem = (unsigned char *)calloc(ifp->i->if_width*ifp->i->if_height, 3)) == NULL) {
+
+    if (ifp->i->if_width <= 0 || ifp->i->if_height <= 0 ||
+	(size_t)ifp->i->if_width > (SIZE_MAX / 3) / (size_t)ifp->i->if_height) {
+	fb_log("mem_open: invalid dimensions %dx%d\n", ifp->i->if_width, ifp->i->if_height);
+	if (MI(ifp)->fbp) {
+	    fb_close(MI(ifp)->fbp);
+	    MI(ifp)->fbp = FB_NULL;
+	}
+	free(MIL(ifp));
+	MIL(ifp) = NULL;
+	return -1;
+    }
+
+    if ((MI(ifp)->mem = (unsigned char *)calloc((size_t)ifp->i->if_width * (size_t)ifp->i->if_height, 3)) == NULL) {
 	fb_log("mem_open:  memory buffer malloc failed\n");
-	(void)free(MIL(ifp));
+	if (MI(ifp)->fbp) {
+	    fb_close(MI(ifp)->fbp);
+	    MI(ifp)->fbp = FB_NULL;
+	}
+	free(MIL(ifp));
+	MIL(ifp) = NULL;
 	return -1;
     }
     if ((MI(ifp)->fbp != FB_NULL)
@@ -228,6 +250,9 @@ mem_refresh(struct fb *UNUSED(ifp), int UNUSED(x), int UNUSED(y), int UNUSED(w),
 static int
 mem_close(struct fb *ifp)
 {
+    if (!ifp || !ifp->i || !MIL(ifp))
+	return 0;
+
     /*
      * Flush memory/cmap to attached frame buffer if any
      */
@@ -235,15 +260,19 @@ mem_close(struct fb *ifp)
 	if (MI(ifp)->cmap_dirty) {
 	    fb_wmap(MI(ifp)->fbp, &(MI(ifp)->cmap));
 	}
-	if (MI(ifp)->mem_dirty) {
+	if (MI(ifp)->mem_dirty && MI(ifp)->mem) {
 	    fb_writerect(MI(ifp)->fbp, 0, 0,
 			 ifp->i->if_width, ifp->i->if_height, (unsigned char *)MI(ifp)->mem);
 	}
 	fb_close(MI(ifp)->fbp);
 	MI(ifp)->fbp = FB_NULL;
     }
-    (void)free((char *)MI(ifp)->mem);
+    if (MI(ifp)->mem) {
+	(void)free((char *)MI(ifp)->mem);
+	MI(ifp)->mem = NULL;
+    }
     (void)free((char *)MIL(ifp));
+    MIL(ifp) = NULL;
 
     return 0;
 }
@@ -255,6 +284,9 @@ mem_clear(struct fb *ifp, unsigned char *pp)
     RGBpixel v;
     register int n;
     register unsigned char *cp;
+
+    if (!ifp || !ifp->i || !MIL(ifp) || !MI(ifp)->mem)
+	return -1;
 
     if (pp == RGBPIXEL_NULL) {
 	v[RED] = v[GRN] = v[BLU] = 0;
@@ -292,6 +324,9 @@ mem_read(struct fb *ifp, int x, int y, unsigned char *pixelp, size_t count)
 {
     size_t pixels_to_end;
 
+    if (!ifp || !ifp->i || !MIL(ifp) || !MI(ifp)->mem || !pixelp)
+	return -1;
+
     if (x < 0 || x >= ifp->i->if_width || y < 0 || y >= ifp->i->if_height)
 	return -1;
 
@@ -310,6 +345,9 @@ static ssize_t
 mem_write(struct fb *ifp, int x, int y, const unsigned char *pixelp, size_t count)
 {
     size_t pixels_to_end;
+
+    if (!ifp || !ifp->i || !MIL(ifp) || !MI(ifp)->mem || !pixelp)
+	return -1;
 
     if (x < 0 || x >= ifp->i->if_width || y < 0 || y >= ifp->i->if_height)
 	return -1;

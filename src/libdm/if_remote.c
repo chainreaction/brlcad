@@ -229,6 +229,9 @@ rem_open(register struct fb *ifp, const char *file, int width, int height)
     int port = 0;
     const char *auth_token;
 
+    if (!ifp || !ifp->i)
+	return -1;
+
     FB_CK_FB(ifp->i);
 
     /* Explicit IPC path: if framebuffer spec is "ipc:<addr>", connect
@@ -332,20 +335,29 @@ ipc_connected:
     bu_strlcpy(&buf[2*NET_LONG_LEN], device, 128-2*NET_LONG_LEN);
 
     i = strlen(device)+2*NET_LONG_LEN;
-    if ((size_t)pkg_send(MSG_FBOPEN, buf, i, pc) != i)
+    if ((size_t)pkg_send(MSG_FBOPEN, buf, i, pc) != i) {
+	pkg_close(pc);
+	PCPL(ifp) = NULL;
 	return -5;
+    }
 
     /* return code, max_width, max_height, width, height as longs */
-    if (pkg_waitfor (MSG_RETURN, buf, sizeof(buf), pc) < 5*NET_LONG_LEN)
+    if (pkg_waitfor (MSG_RETURN, buf, sizeof(buf), pc) < 5*NET_LONG_LEN) {
+	pkg_close(pc);
+	PCPL(ifp) = NULL;
 	return -6;
+    }
 
     ifp->i->if_max_width = ntohl(*(uint32_t *)&buf[1*NET_LONG_LEN]);
     ifp->i->if_max_height = ntohl(*(uint32_t *)&buf[2*NET_LONG_LEN]);
     ifp->i->if_width = ntohl(*(uint32_t *)&buf[3*NET_LONG_LEN]);
     ifp->i->if_height = ntohl(*(uint32_t *)&buf[4*NET_LONG_LEN]);
 
-    if (ntohl(*(uint32_t *)&buf[0*NET_LONG_LEN]) != 0)
+    if (ntohl(*(uint32_t *)&buf[0*NET_LONG_LEN]) != 0) {
+	pkg_close(pc);
+	PCPL(ifp) = NULL;
 	return -7;		/* fail */
+    }
 
     return 0;		/* OK */
 }
@@ -392,10 +404,17 @@ static int
 rem_close(struct fb *ifp)
 {
     unsigned char buf[NET_LONG_LEN+1];
+    int ret;
+
+    if (!ifp || !ifp->i || !PCP(ifp))
+	return 0;
 
     /* send a close package to remote */
-    if (pkg_send(MSG_FBCLOSE, (const char *)0, 0, PCP(ifp)) < 0)
+    if (pkg_send(MSG_FBCLOSE, (const char *)0, 0, PCP(ifp)) < 0) {
+	pkg_close(PCP(ifp));
+	PCPL(ifp) = NULL;
 	return -2;
+    }
     /*
      * When some libfb interfaces with a "linger mode" window gets
      * its fb_close() call here, it closes down the network file
@@ -406,10 +425,13 @@ rem_close(struct fb *ifp)
      */
     if (pkg_waitfor (MSG_RETURN, (char *)buf, NET_LONG_LEN, PCP(ifp)) < 1*NET_LONG_LEN) {
 	pkg_close(PCP(ifp));
+	PCPL(ifp) = NULL;
 	return 0;
     }
+    ret = ntohl(*(uint32_t *)&buf[0*NET_LONG_LEN]);
     pkg_close(PCP(ifp));
-    return ntohl(*(uint32_t *)&buf[0*NET_LONG_LEN]);
+    PCPL(ifp) = NULL;
+    return ret;
 }
 
 
@@ -417,14 +439,26 @@ static int
 rem_free(struct fb *ifp)
 {
     unsigned char buf[NET_LONG_LEN+1];
+    int ret;
+
+    if (!ifp || !ifp->i || !PCP(ifp))
+	return 0;
 
     /* send a free package to remote */
-    if (pkg_send(MSG_FBFREE, (const char *)0, 0, PCP(ifp)) < 0)
+    if (pkg_send(MSG_FBFREE, (const char *)0, 0, PCP(ifp)) < 0) {
+	pkg_close(PCP(ifp));
+	PCPL(ifp) = NULL;
 	return -2;
-    if (pkg_waitfor (MSG_RETURN, (char *)buf, NET_LONG_LEN, PCP(ifp)) < 1*NET_LONG_LEN)
+    }
+    if (pkg_waitfor (MSG_RETURN, (char *)buf, NET_LONG_LEN, PCP(ifp)) < 1*NET_LONG_LEN) {
+	pkg_close(PCP(ifp));
+	PCPL(ifp) = NULL;
 	return -3;
+    }
+    ret = ntohl(*(uint32_t *)&buf[0*NET_LONG_LEN]);
     pkg_close(PCP(ifp));
-    return ntohl(*(uint32_t *)&buf[0*NET_LONG_LEN]);
+    PCPL(ifp) = NULL;
+    return ret;
 }
 
 

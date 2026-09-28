@@ -42,6 +42,9 @@
 int
 fb_sim_view(struct fb *ifp, int xcenter, int ycenter, int xzoom, int yzoom)
 {
+    if (!ifp || !ifp->i)
+	return -1;
+
     FB_CK_FB(ifp->i);
 
     ifp->i->if_xcenter = xcenter;
@@ -60,6 +63,9 @@ fb_sim_view(struct fb *ifp, int xcenter, int ycenter, int xzoom, int yzoom)
 int
 fb_sim_getview(struct fb *ifp, int *xcenter, int *ycenter, int *xzoom, int *yzoom)
 {
+    if (!ifp || !ifp->i || !xcenter || !ycenter || !xzoom || !yzoom)
+	return -1;
+
     FB_CK_FB(ifp->i);
 
     *xcenter = ifp->i->if_xcenter;
@@ -78,6 +84,9 @@ fb_sim_getview(struct fb *ifp, int *xcenter, int *ycenter, int *xzoom, int *yzoo
 int
 fb_sim_cursor(struct fb *ifp, int mode, int x, int y)
 {
+    if (!ifp || !ifp->i)
+	return -1;
+
     FB_CK_FB(ifp->i);
 
     ifp->i->if_cursmode = mode;
@@ -95,6 +104,9 @@ fb_sim_cursor(struct fb *ifp, int mode, int x, int y)
 int
 fb_sim_getcursor(struct fb *ifp, int *mode, int *x, int *y)
 {
+    if (!ifp || !ifp->i || !mode || !x || !y)
+	return -1;
+
     FB_CK_FB(ifp->i);
 
     *mode = ifp->i->if_cursmode;
@@ -110,7 +122,7 @@ fb_sim_getcursor(struct fb *ifp, int *mode, int *x, int *y)
 int
 fb_reset(struct fb *ifp)
 {
-    if (ifp) {
+    if (ifp && ifp->i) {
 	FB_CK_FB(ifp->i);
     }
 
@@ -121,7 +133,7 @@ fb_reset(struct fb *ifp)
 int
 fb_viewport(struct fb *ifp, int UNUSED(left), int UNUSED(top), int UNUSED(right), int UNUSED(bottom))
 {
-    if (ifp) {
+    if (ifp && ifp->i) {
 	FB_CK_FB(ifp->i);
     }
 
@@ -135,7 +147,7 @@ fb_window(struct fb *ifp, int x, int y)
     int xcenter, ycenter;
     int xzoom, yzoom;
 
-    if (ifp) {
+    if (ifp && ifp->i) {
       FB_CK_FB(ifp->i);
       fb_getview(ifp, &xcenter, &ycenter, &xzoom, &yzoom);
       xcenter = x;
@@ -153,7 +165,7 @@ fb_zoom(struct fb *ifp, int x, int y)
     int xcenter, ycenter;
     int xzoom, yzoom;
 
-    if (ifp) {
+    if (ifp && ifp->i) {
       FB_CK_FB(ifp->i);
 
       fb_getview(ifp, &xcenter, &ycenter, &xzoom, &yzoom);
@@ -169,7 +181,7 @@ fb_zoom(struct fb *ifp, int x, int y)
 int
 fb_scursor(struct fb *ifp, int UNUSED(mode), int UNUSED(x), int UNUSED(y))
 {
-    if (ifp) {
+    if (ifp && ifp->i) {
 	FB_CK_FB(ifp->i);
     }
 

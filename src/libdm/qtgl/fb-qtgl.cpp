@@ -133,6 +133,8 @@ qtgl_xmit_scanlines(struct fb *ifp, int ybase, int nlines, int xbase, int npix)
 	    printf("Doing sw colormap xmit\n");
 
 	/* Perform software color mapping into temp scanline */
+	if (ifp->i->if_width <= 0)
+	    return;
 	scanline = (struct fb_pixel *)calloc(ifp->i->if_width, sizeof(struct fb_pixel));
 	if (scanline == NULL) {
 	    fb_log("qtgl_getmem: scanline memory malloc failed\n");
@@ -142,9 +144,13 @@ qtgl_xmit_scanlines(struct fb *ifp, int ybase, int nlines, int xbase, int npix)
 	for (n=nlines; n>0; n--, y++) {
 	    qtglp = (struct fb_pixel *)&ifp->i->if_mem[(y*QTGL(ifp)->mi_memwidth) * sizeof(struct fb_pixel)];
 	    for (x=xbase+npix-1; x>=xbase; x--) {
-		scanline[x].red   = CMR(ifp)[qtglp[x].red];
-		scanline[x].green = CMG(ifp)[qtglp[x].green];
-		scanline[x].blue  = CMB(ifp)[qtglp[x].blue];
+		if (ifp->i->if_cmap) {
+		    scanline[x].red   = CMR(ifp)[qtglp[x].red];
+		    scanline[x].green = CMG(ifp)[qtglp[x].green];
+		    scanline[x].blue  = CMB(ifp)[qtglp[x].blue];
+		} else {
+		    scanline[x] = qtglp[x];
+		}
 	    }
 
 	    glPixelStorei(GL_UNPACK_SKIP_PIXELS, xbase);
@@ -181,43 +187,42 @@ qt_destroy(struct qtglinfo *qi)
 static int
 qtgl_getmem(struct fb *ifp)
 {
-    int pixsize;
-    int size;
+    size_t pixsize;
+    size_t size;
     char *sp = (char *)ifp->i->if_mem;
 
     errno = 0;
 
-    {
-	/*
-	 * only malloc as much memory as is needed.
-	 */
-	QTGL(ifp)->mi_memwidth = ifp->i->if_width;
-	pixsize = ifp->i->if_height * ifp->i->if_width * sizeof(struct fb_pixel);
-	size = pixsize + sizeof(struct fb_cmap);
-
-	if (!sp) {
-	    sp = (char *)calloc(1, size);
-	} else {
-	    sp = (char *)bu_realloc(sp, size, "realloc fb memory");
-	    memset(sp, 0, size);
-	}
-	if (sp == 0) {
-	    fb_log("qtgl_getmem: frame buffer memory malloc failed\n");
-	    goto fail;
-	}
-	goto success;
-    }
-
-success:
-    ifp->i->if_mem = sp;
-
-    return 0;
-fail:
-    if ((sp = (char *)calloc(1, size)) == NULL) {
-	fb_log("qtgl_getmem:  malloc failure\n");
+    if (ifp->i->if_height <= 0 || ifp->i->if_width <= 0) {
+	fb_log("qtgl_getmem: invalid dimensions %d x %d\n", ifp->i->if_width, ifp->i->if_height);
 	return -1;
     }
-    goto success;
+    if ((size_t)ifp->i->if_height > SIZE_MAX / (size_t)ifp->i->if_width / sizeof(struct fb_pixel)) {
+	fb_log("qtgl_getmem: dimensions exceed addressable memory\n");
+	return -1;
+    }
+    pixsize = (size_t)ifp->i->if_height * (size_t)ifp->i->if_width * sizeof(struct fb_pixel);
+    if (pixsize > SIZE_MAX - sizeof(struct fb_cmap)) {
+	fb_log("qtgl_getmem: dimensions exceed addressable memory\n");
+	return -1;
+    }
+    size = pixsize + sizeof(struct fb_cmap);
+
+    QTGL(ifp)->mi_memwidth = ifp->i->if_width;
+
+    if (!sp) {
+	sp = (char *)calloc(1, size);
+    } else {
+	sp = (char *)bu_realloc(sp, size, "realloc fb memory");
+	memset(sp, 0, size);
+    }
+    if (sp == NULL) {
+	fb_log("qtgl_getmem: frame buffer memory allocation failed\n");
+	return -1;
+    }
+
+    ifp->i->if_mem = sp;
+    return 0;
 }
 
 
@@ -238,6 +243,13 @@ fb_clipper(struct fb *ifp)
     struct fb_clip *clp;
     int i;
     double pixels;
+
+    if (!ifp || !ifp->i || !QTGL(ifp))
+	return;
+
+    if (ifp->i->if_xzoom <= 0 || ifp->i->if_yzoom <= 0 ||
+	QTGL(ifp)->vp_width <= 0 || QTGL(ifp)->vp_height <= 0)
+	return;
 
     clp = &(QTGL(ifp)->clip);
 
@@ -387,7 +399,7 @@ fb_qtgl_open(struct fb *ifp, const char *UNUSED(file), int width, int height)
     FB_CK_FB(ifp->i);
 
     qi->win_width = qi->vp_width = width;
-    qi->win_height = qi->vp_width = height;
+    qi->win_height = qi->vp_height = height;
 
     qi->qapp = new QApplication(qi->ac, qi->av);
 
@@ -404,8 +416,12 @@ fb_qtgl_open(struct fb *ifp, const char *UNUSED(file), int width, int height)
     // Do the standard libdm attach to get our rendering backend.
     const char *acmd = "attach";
     struct dm *dmp = dm_open((void *)qi->mw->canvas, NULL, "qtgl", 1, &acmd);
-    if (!dmp)
+    if (!dmp) {
+	qt_destroy(qi);
+	free(ifp->i->pp);
+	ifp->i->pp = NULL;
 	return -1;
+    }
     qi->mw->canvas->v->gv_s->gv_fb_mode = 1;
 
     struct fb_platform_specific fbps;
@@ -450,16 +466,20 @@ fb_qtgl_close(struct fb *ifp)
 
     /* if a window was created wait for user input and process events */
     if (qi->qapp) {
-	return qi->qapp->exec();
+	int ret = qi->qapp->exec();
 	qt_destroy(qi);
+	return ret;
     }
 
     return 0;
 }
 
 int
-qtgl_close_existing(struct fb *UNUSED(ifp))
+qtgl_close_existing(struct fb *ifp)
 {
+    if (!ifp || !ifp->i || !QTGL(ifp))
+	return 0;
+    QTGL(ifp)->alive = 0;
     return 0;
 }
 
@@ -493,9 +513,17 @@ qtgl_free(struct fb *ifp)
     if (ifp->i->if_mem != NULL) {
 	/* free up memory associated with image */
 	(void)free(ifp->i->if_mem);
+	ifp->i->if_mem = NULL;
     }
 
     if (QTGLL(ifp) != NULL) {
+	struct qtglinfo *qi = QTGL(ifp);
+	if (qi->av) {
+	    if (qi->av[0])
+		free(qi->av[0]);
+	    free(qi->av);
+	    qi->av = NULL;
+	}
 	(void)free((char *)QTGLL(ifp));
 	QTGLL(ifp) = NULL;
     }

@@ -664,20 +664,24 @@ fb_read_fd(struct fb *ifp, int fd, int file_width, int file_height, int file_xof
 	xstart = scr_xoff;
     }
 
-    if (xout < 0)
+    if (xout <= 0)
 	bu_exit(0, NULL);			/* off screen */
     if ((size_t)xout > (size_t)(file_width-file_xoff))
 	xout = (file_width-file_xoff);
+    if (xout <= 0)
+	bu_exit(0, NULL);
     scanpix = xout;				/* # pixels on scanline */
 
     if (inverse)
 	scr_yoff = (-scr_yoff);
 
     yout = scr_height - scr_yoff;
-    if (yout < 0)
+    if (yout <= 0)
 	bu_exit(0, NULL);			/* off screen */
     if ((size_t)yout > (size_t)(file_height-file_yoff))
 	yout = (file_height-file_yoff);
+    if (yout <= 0)
+	bu_exit(0, NULL);
 
     /* Only in the simplest case use multi-line writes */
     if (!one_line_only
@@ -703,9 +707,12 @@ fb_read_fd(struct fb *ifp, int fd, int file_width, int file_height, int file_xof
     }
     if (zoom) {
 	/* Zoom in, and center the display.  Use square zoom. */
-	int zoomit;
-	zoomit = scr_width/xout;
-	if (scr_height/yout < zoomit) zoomit = scr_height/yout;
+	int zoomit = 1;
+	if (xout > 0 && yout > 0) {
+	    zoomit = scr_width/xout;
+	    if (scr_height/yout < zoomit) zoomit = scr_height/yout;
+	}
+	if (zoomit < 1) zoomit = 1;
 	if (inverse) {
 	    fb_view(ifp,
 		    scr_xoff+xout/2, scr_height-1-(scr_yoff+yout/2),
@@ -727,8 +734,12 @@ fb_read_fd(struct fb *ifp, int fd, int file_width, int file_height, int file_xof
 	    if (n <= 0) break;
 	    height = multiple_lines;
 	    if (n != scanbytes) {
-		height = (n/sizeof(RGBpixel)+xout-1)/xout;
-		if (height <= 0) break;
+		if (xout > 0) {
+		    height = (n/sizeof(RGBpixel)+xout-1)/xout;
+		    if (height <= 0) break;
+		} else {
+		    break;
+		}
 	    }
 	    /* Don't over-write */
 	    if ((size_t)(y + height) > (size_t)(scr_yoff + yout))

@@ -32,6 +32,9 @@
 void
 dm_draw_arrow(struct dm *dmp, point_t A, point_t B, fastf_t tip_length, fastf_t tip_width, fastf_t sf)
 {
+    if (!dmp || !A || !B)
+	return;
+
     point_t points[16];
     point_t BmA;
     point_t offset;
@@ -83,13 +86,14 @@ dm_draw_arrow(struct dm *dmp, point_t A, point_t B, fastf_t tip_length, fastf_t 
 void
 dm_add_arrows(struct dm *dmp, struct bv_scene_obj *s)
 {
+    if (!dmp || !s || !s->s_arrow || !s->s_os)
+	return;
+
     struct bv_vlist *vp = (struct bv_vlist *)&s->s_vlist;
     struct bv_vlist *tvp;
     point_t A = VINIT_ZERO;
     point_t B = VINIT_ZERO;
     int pcnt = 0;
-    if (!s->s_arrow)
-	return;
     if (NEAR_ZERO(s->s_os->s_arrow_tip_length, SMALL_FASTF) || NEAR_ZERO(s->s_os->s_arrow_tip_width, SMALL_FASTF))
        return;
     for (BU_LIST_FOR(tvp, bv_vlist, &vp->l)) {
@@ -130,7 +134,7 @@ dm_draw_arrows(struct dm *dmp, struct bv_data_arrow_state *gdasp, fastf_t sf)
     int saveLineWidth;
     int saveLineStyle;
 
-    if (gdasp->gdas_num_points < 1)
+    if (!dmp || !gdasp || gdasp->gdas_num_points < 1 || !gdasp->gdas_points)
 	return;
 
     saveLineWidth = dm_get_linewidth(dmp);
@@ -249,7 +253,7 @@ dm_draw_polys(struct dm *dmp, bv_data_polygon_state *gdpsp, int mode)
     int saveLineWidth;
     int saveLineStyle;
 
-    if (gdpsp->gdps_polygons.num_polygons < 1)
+    if (!dmp || !gdpsp || gdpsp->gdps_polygons.num_polygons < 1 || !gdpsp->gdps_polygons.polygon)
 	return;
 
     saveLineWidth = dm_get_linewidth(dmp);
@@ -264,7 +268,9 @@ dm_draw_polys(struct dm *dmp, bv_data_polygon_state *gdpsp, int mode)
     }
 
     /* draw the target poly last */
-    DM_DRAW_POLY(dmp, gdpsp, gdpsp->gdps_target_polygon_i, last_poly, mode);
+    if (gdpsp->gdps_target_polygon_i < gdpsp->gdps_polygons.num_polygons) {
+	DM_DRAW_POLY(dmp, gdpsp, gdpsp->gdps_target_polygon_i, last_poly, mode);
+    }
 
     /* Restore the line attributes */
     (void)dm_set_line_attr(dmp, saveLineWidth, saveLineStyle);
@@ -276,7 +282,7 @@ dm_draw_lines(struct dm *dmp, struct bv_data_line_state *gdlsp)
     int saveLineWidth;
     int saveLineStyle;
 
-    if (gdlsp->gdls_num_points < 1)
+    if (!dmp || !gdlsp || gdlsp->gdls_num_points < 1 || !gdlsp->gdls_points)
 	return;
 
     saveLineWidth = dm_get_linewidth(dmp);
@@ -304,6 +310,9 @@ dm_draw_lines(struct dm *dmp, struct bv_data_line_state *gdlsp)
 void
 dm_draw_faceplate(struct bview *v)
 {
+    if (!v || !v->gv_s || !v->dmp)
+	return;
+
     struct dm *dmp = (struct dm *)v->dmp;
 
     /* Center dot */
@@ -339,22 +348,24 @@ dm_draw_faceplate(struct bview *v)
 	fastf_t inv_aspect;
 	fastf_t save_ypos;
 
-	save_ypos = v->gv_s->gv_view_axes.axes_pos[Y];
 	width = dm_get_width(dmp);
 	height = dm_get_height(dmp);
-	inv_aspect = (fastf_t)height / (fastf_t)width;
-	v->gv_s->gv_view_axes.axes_pos[Y] = save_ypos * inv_aspect;
-	dm_draw_hud_axes(dmp,
-		     v->gv_size,
-		     v->gv_rotation,
-		     &v->gv_s->gv_view_axes);
+	if (width > 0) {
+	    save_ypos = v->gv_s->gv_view_axes.axes_pos[Y];
+	    inv_aspect = (fastf_t)height / (fastf_t)width;
+	    v->gv_s->gv_view_axes.axes_pos[Y] = save_ypos * inv_aspect;
+	    dm_draw_hud_axes(dmp,
+			     v->gv_size,
+			     v->gv_rotation,
+			     &v->gv_s->gv_view_axes);
 
-	v->gv_s->gv_view_axes.axes_pos[Y] = save_ypos;
+	    v->gv_s->gv_view_axes.axes_pos[Y] = save_ypos;
+	}
     }
 
 
     /* View scale - TODO view_scale needs its own text color */
-    if (v->gv_s->gv_view_scale.gos_draw)
+    if (v->gv_s->gv_view_scale.gos_draw && !ZERO(v->gv_base2local))
 	dm_draw_scale(dmp,
 		      v->gv_size*v->gv_base2local,
 		      bu_units_string(1/v->gv_base2local),
@@ -425,7 +436,10 @@ dm_draw_faceplate(struct bview *v)
 	if (ps->draw_fps) {
 	    if (bu_vls_strlen(&vls) > 0)
 		bu_vls_printf(&vls, " ");
-	    bu_vls_printf(&vls, "FPS:%.2f", 1/v->gv_s->gv_frametime);
+	    if (!ZERO(v->gv_s->gv_frametime))
+		bu_vls_printf(&vls, "FPS:%.2f", 1/v->gv_s->gv_frametime);
+	    else
+		bu_vls_printf(&vls, "FPS:0.00");
 	}
 
 	// TODO - really should put a rectangle behind this to ensure visibility...
@@ -446,6 +460,9 @@ dm_draw_faceplate(struct bview *v)
 void
 dm_draw_label(struct dm *dmp, struct bv_scene_obj *s)
 {
+    if (!dmp || !s || !s->s_i_data || !s->s_v || !s->s_os)
+	return;
+
     struct bv_label *l = (struct bv_label *)s->s_i_data;
 
     /* set color */
@@ -556,6 +573,9 @@ dm_draw_label(struct dm *dmp, struct bv_scene_obj *s)
 void
 dm_draw_labels(struct dm *dmp, struct bv_data_label_state *gdlsp, matp_t m2vmat)
 {
+    if (!dmp || !gdlsp || !m2vmat || gdlsp->gdls_num_labels <= 0 || !gdlsp->gdls_points || !gdlsp->gdls_labels)
+	return;
+
     /* set color */
     (void)dm_set_fg(dmp,
 		    gdlsp->gdls_color[0],
@@ -642,8 +662,12 @@ void
 dm_draw_viewobjs(struct rt_wdb *wdbp, struct bview *v, struct dm_view_data *vd)
 {
     bv_log(3, "libdm:dm_draw_viewobjs");
+    if (!v || !v->dmp)
+	return;
     struct dm *dmp = (struct dm *)v->dmp;
     int width = dm_get_width(dmp);
+    if (width <= 0)
+	return;
     fastf_t sf = (fastf_t)(v->gv_size) / (fastf_t)width;
 
     if (v->gv_tcl.gv_data_arrows.gdas_draw)
@@ -703,7 +727,7 @@ dm_draw_viewobjs(struct rt_wdb *wdbp, struct bview *v, struct dm_view_data *vd)
 	}
     }
     struct bu_ptbl *local_view_objs = bv_view_objs(v, BV_VIEW_OBJS | BV_LOCAL_OBJS);
-    if (view_objs) {
+    if (local_view_objs) {
 	for (size_t i = 0; i < BU_PTBL_LEN(local_view_objs); i++) {
 	    struct bv_scene_obj *s = (struct bv_scene_obj *)BU_PTBL_GET(local_view_objs, i);
 	    draw_scene_obj(dmp, s, v, s->s_force_draw, (s->s_inherit_settings) ? s->s_os : NULL);
@@ -753,6 +777,9 @@ void
 dm_draw_objs(struct bview *v, void (*dm_draw_custom)(struct bview *, void *), void *u_data)
 {
     bv_log(3, "libdm:dm_draw_objs");
+    if (!v)
+	return;
+
     if (dm_draw_custom) {
 	(*dm_draw_custom)(v, u_data);
 	return;
@@ -773,7 +800,7 @@ dm_draw_objs(struct bview *v, void (*dm_draw_custom)(struct bview *, void *), vo
     // The rest of the drawing layers manipulate the OpenGL view and projection
     // matrices, but the framebuffer is always aligned to the view.  We also
     // can't have the zbuffer enabled or the fb image won't draw correctly.
-    if (v->gv_s->gv_fb_mode && dm_get_fb(dmp)) {
+    if (v->gv_s && v->gv_s->gv_fb_mode && dm_get_fb(dmp)) {
 	int zbuff_restore = dm_get_zbuffer(dmp);
 	dm_set_zbuffer(dmp, 0);
 	fb_refresh(dm_get_fb(dmp), 0, 0, dm_get_width(dmp), dm_get_height(dmp));

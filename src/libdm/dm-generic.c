@@ -176,31 +176,32 @@ dm_event_cmp(struct dm *dmp, dm_event_t type, int event)
 fastf_t
 dm_Xx2Normal(struct dm *dmp, int x)
 {
-    if (UNLIKELY(!dmp)) return 0.0;
+    if (UNLIKELY(!dmp) || UNLIKELY(!dmp->i) || dmp->i->dm_width <= 0) return 0.0;
     return ((x / (fastf_t)dmp->i->dm_width - 0.5) * 2.0);
 }
 
 int
 dm_Normal2Xx(struct dm *dmp, fastf_t f)
 {
-    if (UNLIKELY(!dmp)) return 0.0;
+    if (UNLIKELY(!dmp) || UNLIKELY(!dmp->i)) return 0;
     return (f * 0.5 + 0.5) * dmp->i->dm_width;
 }
 
 fastf_t
 dm_Xy2Normal(struct dm *dmp, int y, int use_aspect)
 {
-    if (UNLIKELY(!dmp)) return 0.0;
-    if (use_aspect)
+    if (UNLIKELY(!dmp) || UNLIKELY(!dmp->i) || dmp->i->dm_height <= 0) return 0.0;
+    if (use_aspect) {
+	if (ZERO(dmp->i->dm_aspect)) return 0.0;
 	return ((0.5 - y / (fastf_t)dmp->i->dm_height) / dmp->i->dm_aspect * 2.0);
-    else
+    } else
 	return ((0.5 - y / (fastf_t)dmp->i->dm_height) * 2.0);
 }
 
 int
 dm_Normal2Xy(struct dm *dmp, fastf_t f, int use_aspect)
 {
-    if (UNLIKELY(!dmp)) return 0.0;
+    if (UNLIKELY(!dmp) || UNLIKELY(!dmp->i)) return 0;
     if (use_aspect)
 	return (0.5 - f * 0.5 * dmp->i->dm_aspect) * dmp->i->dm_height;
     else

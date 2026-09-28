@@ -48,11 +48,26 @@ void
 flip_display_image_vertically(unsigned char *image, size_t width, size_t height, int alpha)
 {
     size_t i, j;
-    int psize = (!alpha) ? 3 : 4;
-    size_t row_bytes = width * psize * sizeof(unsigned char);
-    size_t img_bytes = row_bytes * height;
-    unsigned char *inv_img = (unsigned char *)bu_malloc(img_bytes,
+    int psize;
+    size_t row_bytes;
+    size_t img_bytes;
+    unsigned char *inv_img;
+
+    if (!image || width == 0 || height == 0)
+	return;
+
+    psize = (!alpha) ? 3 : 4;
+    if (width > SIZE_MAX / (size_t)psize)
+	return;
+    row_bytes = width * psize * sizeof(unsigned char);
+    if (height > SIZE_MAX / row_bytes)
+	return;
+    img_bytes = row_bytes * height;
+
+    inv_img = (unsigned char *)bu_malloc(img_bytes,
 	    "inverted image");
+    if (!inv_img)
+	return;
 
     for (i = 0, j = height - 1; i < height; ++i, --j) {
 	memcpy(inv_img + i * row_bytes, image + j * row_bytes, row_bytes);

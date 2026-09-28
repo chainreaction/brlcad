@@ -51,7 +51,7 @@ extern "C" {
 
 #define ENABLE_POINT_SMOOTH 1
 
-#define VIEWFACTOR      (1.0/(*dmp->i->dm_vp))
+#define VIEWFACTOR      ((dmp && dmp->i && dmp->i->dm_vp && !ZERO(*dmp->i->dm_vp)) ? (1.0/(*dmp->i->dm_vp)) : 1.0)
 #define VIEWSIZE        (2.0*(*dmp->i->dm_vp))
 
 /* these are from /usr/include/gl.h could be device dependent */
@@ -154,19 +154,37 @@ swrast_configureWin(struct dm *dmp, int UNUSED(force))
 int
 swrast_close(struct dm *dmp)
 {
-    struct swrast_vars *pv = (struct swrast_vars *)dmp->i->dm_vars.priv_vars;
-    if (pv->fs) {
-	(void)swrast_makeCurrent(dmp);
-	glfonsDelete(pv->fs);
-	pv->fs = NULL;
+    if (!dmp)
+	return BRLCAD_OK;
+    if (!dmp->i) {
+	BU_PUT(dmp, struct dm);
+	return BRLCAD_OK;
     }
-    bu_free(pv->os_b, "OSMesa rendering buffer");
+    struct swrast_vars *pv = (struct swrast_vars *)dmp->i->dm_vars.priv_vars;
+    if (pv) {
+	if (pv->fs) {
+	    (void)swrast_makeCurrent(dmp);
+	    glfonsDelete(pv->fs);
+	    pv->fs = NULL;
+	}
+	if (pv->os_b) {
+	    bu_free(pv->os_b, "OSMesa rendering buffer");
+	    pv->os_b = NULL;
+	}
+	if (pv->ctx) {
+	    OSMesaDestroyContext((OSMesaContext)pv->ctx);
+	    pv->ctx = NULL;
+	}
+	bu_free(dmp->i->dm_vars.priv_vars, "swrast_close: swrast_vars");
+	dmp->i->dm_vars.priv_vars = NULL;
+    }
     bu_vls_free(&dmp->i->dm_dName);
     bu_vls_free(&dmp->i->dm_tkName);
     bu_vls_free(&dmp->i->dm_pathName);
-    OSMesaDestroyContext((OSMesaContext)pv->ctx);
-    bu_free(dmp->i->dm_vars.priv_vars, "swrast_close: swrast_vars");
-    bu_free(dmp->i->dm_vars.pub_vars, "swrast_close: dm_swvars");
+    if (dmp->i->dm_vars.pub_vars) {
+	bu_free(dmp->i->dm_vars.pub_vars, "swrast_close: dm_swvars");
+	dmp->i->dm_vars.pub_vars = NULL;
+    }
     bu_vls_free(&(dmp->i->dm_log));
     BU_PUT(dmp->i, struct dm_impl);
     BU_PUT(dmp, struct dm);
@@ -215,6 +233,14 @@ swrast_open(void *ctx, void *UNUSED(interp), int argc, const char **argv)
 
     BU_ALLOC(dmp->i->dm_vars.priv_vars, struct swrast_vars);
     privars = (struct swrast_vars *)dmp->i->dm_vars.priv_vars;
+    if (!ctx) {
+	bu_free(pubvars, "swrast_open: pubvars");
+	bu_free(privars, "swrast_open: privars");
+	bu_vls_free(&(dmp->i->dm_log));
+	BU_PUT(dmp->i, struct dm_impl);
+	BU_PUT(dmp, struct dm);
+	return DM_NULL;
+    }
     privars->v = (struct bview *)ctx;
     // Note - for Qt, dealing with GL_RGB data display was something of a pain.  This backend
     // was switched to RGBA to make it easier to display the output
@@ -226,8 +252,15 @@ swrast_open(void *ctx, void *UNUSED(interp), int argc, const char **argv)
     privars->os_b = bu_realloc(privars->os_b, width * height * sizeof(GLubyte)*4, "OSMesa rendering buffer");
     if (!OSMesaMakeCurrent(privars->ctx, privars->os_b, GL_UNSIGNED_BYTE, width, height)) {
 	bu_log("OSMesaMakeCurrent failed!\n");
-	bu_free(dmp->i->dm_vars.pub_vars, "swrast_open: dmp->i->dm_vars.pub_vars");
-	bu_free(dmp, "swrast_open: dmp");
+	if (privars->os_b)
+	    bu_free(privars->os_b, "OSMesa rendering buffer");
+	if (privars->ctx)
+	    OSMesaDestroyContext((OSMesaContext)privars->ctx);
+	bu_free(privars, "swrast_open: privars");
+	bu_free(pubvars, "swrast_open: pubvars");
+	bu_vls_free(&(dmp->i->dm_log));
+	BU_PUT(dmp->i, struct dm_impl);
+	BU_PUT(dmp, struct dm);
 	return DM_NULL;
     }
 
@@ -337,8 +370,14 @@ swrast_open(void *ctx, void *UNUSED(interp), int argc, const char **argv)
 static int
 swrast_drawString2D(struct dm *dmp, const char *str, fastf_t ix, fastf_t iy, int UNUSED(size), int use_aspect)
 {
+    if (!dmp || !dmp->i || !str)
+	return BRLCAD_ERROR;
+
     struct gl_vars *mvars = (struct gl_vars *)dmp->i->m_vars;
     struct swrast_vars *privars = (struct swrast_vars *)dmp->i->dm_vars.priv_vars;
+    if (!privars || !mvars)
+	return BRLCAD_ERROR;
+
     if (dmp->i->dm_debugLevel)
 	bu_log("swrast_drawString2D()\n");
 
@@ -415,9 +454,15 @@ swrast_drawString2D(struct dm *dmp, const char *str, fastf_t ix, fastf_t iy, int
 static int
 swrast_String2DBBox(struct dm *dmp, vect2d_t *bmin, vect2d_t *bmax, const char *str, fastf_t ix, fastf_t iy, int UNUSED(size), int use_aspect)
 {
+    if (!dmp || !dmp->i || !str)
+	return BRLCAD_ERROR;
+
     struct swrast_vars *privars = (struct swrast_vars *)dmp->i->dm_vars.priv_vars;
+    if (!privars)
+	return BRLCAD_ERROR;
+
     if (dmp->i->dm_debugLevel)
-	bu_log("qtgl_drawString2D()\n");
+	bu_log("swrast_String2DBBox()\n");
 
     // If the positions are out of range on the positive side, just don't draw -
     // text will go to the right and not be visible
@@ -544,6 +589,14 @@ swrast_write_image(struct bu_vls *UNUSED(msgs), FILE *UNUSED(fp), struct dm *UNU
 int
 swrast_getDisplayImage(struct dm *dmp, unsigned char **image, int flip, int alpha)
 {
+    if (!image)
+	return BRLCAD_ERROR;
+
+    if (!dmp || !dmp->i) {
+	*image = NULL;
+	return BRLCAD_ERROR;
+    }
+
     struct swrast_vars *pv = (struct swrast_vars *)dmp->i->dm_vars.priv_vars;
     if (!pv || !pv->ctx) {
 	bu_log("swrast_getDisplayImage: no context\n");
@@ -575,6 +628,16 @@ swrast_getDisplayImage(struct dm *dmp, unsigned char **image, int flip, int alph
 
     int width = dmp->i->dm_width;
     int height = dmp->i->dm_height;
+    if (width <= 0 || height <= 0) {
+	*image = NULL;
+	return BRLCAD_ERROR;
+    }
+
+    int bytes_per_pixel = alpha ? 4 : 3;
+    if ((size_t)width > SIZE_MAX / (size_t)height / (size_t)bytes_per_pixel) {
+	*image = NULL;
+	return BRLCAD_ERROR;
+    }
 
     /* Get the raw RGBA render buffer directly from OSMesa.  This is the os_b
      * buffer that OSMesaMakeCurrent was called with, which receives all drawing
@@ -595,7 +658,6 @@ swrast_getDisplayImage(struct dm *dmp, unsigned char **image, int flip, int alph
     if (alpha && !flip) {
 	*image = src;
     } else {
-	int bytes_per_pixel = alpha ? 4 : 3;
 	unsigned char *idata = (unsigned char *)bu_calloc(height * width * bytes_per_pixel,
 						       sizeof(unsigned char), "swrast image");
 	if (alpha) {

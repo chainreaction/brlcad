@@ -48,11 +48,18 @@
 extern "C" struct dm *
 dm_open(void *ctx, void *interp, const char *type, int argc, const char *argv[])
 {
+    if (!type)
+	return DM_NULL;
+
     if (BU_STR_EQUIV(type, "nu") || BU_STR_EQUIV(type, "null")) {
+	if (!dm_null.i || !dm_null.i->dm_open)
+	    return DM_NULL;
 	return dm_null.i->dm_open(ctx , interp, argc, argv);
     }
 
     std::map<std::string, const struct dm *> *dmb = (std::map<std::string, const struct dm *> *)dm_backends;
+    if (!dmb)
+	return DM_NULL;
     std::string key(type);
     std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return std::tolower(c); });
     std::map<std::string, const struct dm *>::iterator d_it = dmb->find(key);
@@ -61,6 +68,8 @@ dm_open(void *ctx, void *interp, const char *type, int argc, const char *argv[])
     }
 
     const struct dm *d = d_it->second;
+    if (!d || !d->i || !d->i->dm_open)
+	return DM_NULL;
     struct dm *dmp = d->i->dm_open(ctx, interp, argc, argv);
     return dmp;
 }
@@ -72,6 +81,8 @@ dm_have_graphics()
     int ret = 0;
 
     std::map<std::string, const struct dm *> *dmb = (std::map<std::string, const struct dm *> *)dm_backends;
+    if (!dmb)
+	return 0;
     std::map<std::string, const struct dm *>::iterator d_it;
 
     for (d_it = dmb->begin(); d_it != dmb->end(); d_it++) {
@@ -92,7 +103,12 @@ dm_graphics_system(const char *dmtype)
 {
     const char *ret = NULL;
 
+    if (!dmtype)
+	return NULL;
+
     std::map<std::string, const struct dm *> *dmb = (std::map<std::string, const struct dm *> *)dm_backends;
+    if (!dmb)
+	return NULL;
     std::map<std::string, const struct dm *>::iterator d_it;
 
     for (d_it = dmb->begin(); d_it != dmb->end(); d_it++) {
@@ -183,11 +199,16 @@ dm_list_types(struct bu_vls *list, const char *separator)
 extern "C" int
 dm_validXType(const char *dpy_string, const char *name)
 {
+    if (!name)
+	return 0;
+
     if (BU_STR_EQUIV(name, "nu") || BU_STR_EQUIV(name, "null")) {
 	return 1;
     }
 
     std::map<std::string, const struct dm *> *dmb = (std::map<std::string, const struct dm *> *)dm_backends;
+    if (!dmb)
+	return 0;
     std::string key(name);
     std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return std::tolower(c); });
     std::map<std::string, const struct dm *>::iterator d_it = dmb->find(key);
@@ -204,6 +225,8 @@ dm_validXType(const char *dpy_string, const char *name)
 	return 0;
 
     const struct dm *d = d_it->second;
+    if (!d || !d->i || !d->i->dm_viable)
+	return 0;
     int is_valid = d->i->dm_viable(dpy_string);
 
     return is_valid;
@@ -233,6 +256,9 @@ dm_bestXType(const char *dpy_string)
     std::map<std::string, const struct dm *> *dmb = (std::map<std::string, const struct dm *> *)dm_backends;
     const char *ret = NULL;
 
+    if (!dmb)
+	return "nu";
+
     int i = 0;
     const char *b = priority_list[i];
 
@@ -247,7 +273,7 @@ dm_bestXType(const char *dpy_string)
 	    continue;
 	}
 	const struct dm *d = d_it->second;
-	if (d->i->dm_viable(dpy_string) == 1) {
+	if (d && d->i && d->i->dm_viable && d->i->dm_viable(dpy_string) == 1) {
 	    ret = b;
 	    break;
 	}
@@ -275,6 +301,9 @@ dm_default_type()
 {
     std::map<std::string, const struct dm *> *dmb = (std::map<std::string, const struct dm *> *)dm_backends;
     const char *ret = NULL;
+
+    if (!dmb)
+	return "nu";
 
     int i = 0;
     const char *b = priority_list[i];

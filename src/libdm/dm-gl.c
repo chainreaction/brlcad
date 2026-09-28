@@ -258,7 +258,15 @@ int gl_reshape(struct dm *dmp, int width, int height)
 {
     GLint mm;
 
+    if (!dmp || !dmp->i)
+	return -1;
+
     struct gl_vars *mvars = (struct gl_vars *)dmp->i->m_vars;
+
+    if (width <= 0)
+	width = 1;
+    if (height <= 0)
+	height = 1;
 
     dmp->i->dm_height = height;
     dmp->i->dm_width = width;
@@ -785,8 +793,8 @@ int gl_drawVList(struct dm *dmp, struct bv_vlist *vp)
 		    glLoadIdentity();
 		    glTranslated(tlate[0], tlate[1], tlate[2]);
 		    /* 96 dpi = 3.78 pixel/mm hardcoded */
-		    glScaled(2. * 3.78 / dmp->i->dm_width,
-		             2. * 3.78 / dmp->i->dm_height,
+		    glScaled(2. * 3.78 / (dmp->i->dm_width > 0 ? (fastf_t)dmp->i->dm_width : 1.0),
+		             2. * 3.78 / (dmp->i->dm_height > 0 ? (fastf_t)dmp->i->dm_height : 1.0),
 		             1.);
 		    break;
 		case BV_VLIST_POLY_START:
@@ -905,10 +913,11 @@ int gl_draw_data_axes(struct dm *dmp,
                   fastf_t sf,
                   struct bv_data_axes_state *bndasp)
 {
+    if (!dmp || !dmp->i || !bndasp || bndasp->num_points <= 0 || bndasp->num_points > INT_MAX / 6)
+        return 0;
+
     struct gl_vars *mvars = (struct gl_vars *)dmp->i->m_vars;
     int npoints = bndasp->num_points * 6;
-    if (npoints < 1)
-        return 0;
 
     gl_debug_print(dmp, "gl_draw_data_axes", dmp->i->dm_debugLevel);
 
@@ -1052,7 +1061,7 @@ int gl_hud_end(struct dm *dmp)
 	    /*XXX Need to do something with Viewscale */
 	    fogdepth = 2.2 * (*dmp->i->dm_vp); /* 2.2 is heuristic */
 	    glFogf(GL_FOG_END, fogdepth);
-	    fogdepth = (GLfloat) (0.5*mvars->fogdensity/
+	    fogdepth = ZERO(*dmp->i->dm_vp) ? 0.0f : (GLfloat) (0.5*mvars->fogdensity/
 		    (*dmp->i->dm_vp));
 	    glFogf(GL_FOG_DENSITY, fogdepth);
 	    glFogi(GL_FOG_MODE, dmp->i->dm_perspective ? GL_EXP : GL_LINEAR);
@@ -1610,23 +1619,32 @@ int gl_draw_display_list(struct dm *dmp, struct display_list *obj)
 
 int gl_getDisplayImage(struct dm *dmp, unsigned char **image, int flip, int alpha)
 {
+    if (!dmp || !dmp->i || !image)
+	return BRLCAD_ERROR;
+
     gl_debug_print(dmp, "gl_getDisplayImage", dmp->i->dm_debugLevel);
 
     unsigned char *idata;
     int width;
     int height;
+    size_t bpp = alpha ? 4 : 3;
 
     width = dmp->i->dm_width;
     height = dmp->i->dm_height;
 
+    if (width <= 0 || height <= 0 || (size_t)height > SIZE_MAX / ((size_t)width * bpp)) {
+	*image = NULL;
+	return BRLCAD_ERROR;
+    }
+
     if (!alpha) {
-	idata = (unsigned char*)bu_calloc(height * width * 3, sizeof(unsigned char), "rgb data");
+	idata = (unsigned char*)bu_calloc((size_t)height * (size_t)width * 3, sizeof(unsigned char), "rgb data");
 	glReadBuffer(GL_FRONT);
 	glPixelStorei(GL_PACK_ALIGNMENT, 1);
 	glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, idata);
 	*image = idata;
     } else {
-	idata = (unsigned char*)bu_calloc(height * width * 4, sizeof(unsigned char), "rgba data");
+	idata = (unsigned char*)bu_calloc((size_t)height * (size_t)width * 4, sizeof(unsigned char), "rgba data");
 	glReadBuffer(GL_FRONT);
 	glPixelStorei(GL_PACK_ALIGNMENT, 1);
 	glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, idata);
@@ -1641,6 +1659,9 @@ int gl_getDisplayImage(struct dm *dmp, unsigned char **image, int flip, int alph
 
 int gl_get_internal(struct dm *dmp)
 {
+    if (!dmp || !dmp->i)
+	return -1;
+
     struct gl_vars *mvars = NULL;
     if (!dmp->i->m_vars) {
 	BU_GET(dmp->i->m_vars, struct gl_vars);
@@ -1653,6 +1674,9 @@ int gl_get_internal(struct dm *dmp)
 
 int gl_put_internal(struct dm *dmp)
 {
+    if (!dmp || !dmp->i)
+	return -1;
+
     struct gl_vars *mvars = NULL;
     if (dmp->i->m_vars) {
 	mvars = (struct gl_vars *)dmp->i->m_vars;

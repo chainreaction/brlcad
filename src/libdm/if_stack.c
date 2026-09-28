@@ -55,6 +55,9 @@ stk_open(struct fb *ifp, const char *file, int width, int height)
     const char *cp;
     char devbuf[80];
 
+    if (!ifp || !ifp->i || !file)
+	return -1;
+
     FB_CK_FB(ifp->i);
 
     /* Check for /dev/stack */
@@ -77,6 +80,8 @@ stk_open(struct fb *ifp, const char *file, int width, int height)
     if (*cp == '\0') {
 	fb_log("stack_dopen: No devices specified\n");
 	fb_log("Usage: /dev/stack device_one; device_two; ...\n");
+	free(SIL(ifp));
+	SIL(ifp) = NULL;
 	return -1;
     }
 
@@ -86,14 +91,20 @@ stk_open(struct fb *ifp, const char *file, int width, int height)
     while (i < MAXIF && *cp != '\0') {
 	register char *dp;
 	register struct fb *fbp;
+	size_t len = 0;
 
 	while (*cp != '\0' && (*cp == ' ' || *cp == '\t' || *cp == ';'))
 	    cp++;	/* skip blanks and separators */
 	if (*cp == '\0')
 	    break;
 	dp = devbuf;
-	while (*cp != '\0' && *cp != ';')
-	    *dp++ = *cp++;
+	while (*cp != '\0' && *cp != ';') {
+	    if (len + 1 < sizeof(devbuf)) {
+		*dp++ = *cp;
+		len++;
+	    }
+	    cp++;
+	}
 	*dp = '\0';
 	if ((fbp = fb_open(devbuf, width, height)) != FB_NULL) {
 	    FB_CK_FB(fbp->i);
@@ -111,8 +122,11 @@ stk_open(struct fb *ifp, const char *file, int width, int height)
     }
     if (i > 0)
 	return 0;
-    else
+    else {
+	free(SIL(ifp));
+	SIL(ifp) = NULL;
 	return -1;
+    }
 }
 
 static struct fb_platform_specific *
@@ -157,14 +171,20 @@ stk_refresh(struct fb *UNUSED(ifp), int UNUSED(x), int UNUSED(y), int UNUSED(w),
 static int
 stk_close(struct fb *ifp)
 {
+    if (!ifp || !ifp->i || !SIL(ifp))
+	return 0;
+
     register struct fb **ip = SI(ifp)->if_list;
 
     FB_CK_FB(ifp->i);
     while (*ip != (struct fb *)NULL) {
 	FB_CK_FB(((*ip)->i));
 	fb_close((*ip));
+	*ip = NULL;
 	ip++;
     }
+    free(SIL(ifp));
+    SIL(ifp) = NULL;
 
     return 0;
 }

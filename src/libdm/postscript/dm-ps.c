@@ -313,19 +313,27 @@ NEWPG\n\
 static int
 ps_close(struct dm *dmp)
 {
-    if (!((struct ps_vars *)dmp->i->dm_vars.priv_vars)->ps_fp)
+    if (!dmp || !dmp->i)
 	return BRLCAD_ERROR;
 
-    fputs("%end(plot)\n", ((struct ps_vars *)dmp->i->dm_vars.priv_vars)->ps_fp);
-    (void)fclose(((struct ps_vars *)dmp->i->dm_vars.priv_vars)->ps_fp);
+    struct ps_vars *pv = (struct ps_vars *)dmp->i->dm_vars.priv_vars;
+    if (pv) {
+	if (pv->ps_fp) {
+	    fputs("%end(plot)\n", pv->ps_fp);
+	    (void)fclose(pv->ps_fp);
+	    pv->ps_fp = NULL;
+	}
+	bu_vls_free(&pv->fname);
+	bu_vls_free(&pv->font);
+	bu_vls_free(&pv->title);
+	bu_vls_free(&pv->creator);
+	bu_free((void *)pv, "ps_close: ps_vars");
+	dmp->i->dm_vars.priv_vars = NULL;
+    }
 
     bu_vls_free(&dmp->i->dm_pathName);
     bu_vls_free(&dmp->i->dm_tkName);
-    bu_vls_free(&((struct ps_vars *)dmp->i->dm_vars.priv_vars)->fname);
-    bu_vls_free(&((struct ps_vars *)dmp->i->dm_vars.priv_vars)->font);
-    bu_vls_free(&((struct ps_vars *)dmp->i->dm_vars.priv_vars)->title);
-    bu_vls_free(&((struct ps_vars *)dmp->i->dm_vars.priv_vars)->creator);
-    bu_free((void *)dmp->i->dm_vars.priv_vars, "ps_close: ps_vars");
+    bu_vls_free(&dmp->i->dm_log);
     bu_free((void *)dmp->i, "ps_close: dmp impl");
     bu_free((void *)dmp, "ps_close: dmp");
 
@@ -605,29 +613,33 @@ ps_drawString2D(struct dm *dmp, const char *str, fastf_t x, fastf_t y, int size,
 {
     int sx, sy;
 
-    if (!((struct ps_vars *)dmp->i->dm_vars.priv_vars)->ps_fp)
+    if (!dmp || !dmp->i || !str)
+	return BRLCAD_ERROR;
+
+    struct ps_vars *pv = (struct ps_vars *)dmp->i->dm_vars.priv_vars;
+    if (!pv || !pv->ps_fp)
 	return BRLCAD_ERROR;
 
     switch (size) {
 	default:
 	    /* Smallest */
-	    fprintf(((struct ps_vars *)dmp->i->dm_vars.priv_vars)->ps_fp, "DFntS ");
+	    fprintf(pv->ps_fp, "DFntS ");
 	    break;
 	case 1:
-	    fprintf(((struct ps_vars *)dmp->i->dm_vars.priv_vars)->ps_fp, "DFntM ");
+	    fprintf(pv->ps_fp, "DFntM ");
 	    break;
 	case 2:
-	    fprintf(((struct ps_vars *)dmp->i->dm_vars.priv_vars)->ps_fp, "DFntL ");
+	    fprintf(pv->ps_fp, "DFntL ");
 	    break;
 	case 3:
 	    /* Largest */
-	    fprintf(((struct ps_vars *)dmp->i->dm_vars.priv_vars)->ps_fp, "FntH ");
+	    fprintf(pv->ps_fp, "FntH ");
 	    break;
     }
 
     sx = x * 2047.0 + 2048;
     sy = y * 2047.0 + 2048;
-    fprintf(((struct ps_vars *)dmp->i->dm_vars.priv_vars)->ps_fp,
+    fprintf(pv->ps_fp,
 	    "(%s) %d %d moveto show\n", str, sx, sy);
 
     return BRLCAD_OK;
@@ -640,7 +652,11 @@ ps_drawLine2D(struct dm *dmp, fastf_t xpos1, fastf_t ypos1, fastf_t xpos2, fastf
     int sx1, sy1;
     int sx2, sy2;
 
-    if (!((struct ps_vars *)dmp->i->dm_vars.priv_vars)->ps_fp)
+    if (!dmp || !dmp->i)
+	return BRLCAD_ERROR;
+
+    struct ps_vars *pv = (struct ps_vars *)dmp->i->dm_vars.priv_vars;
+    if (!pv || !pv->ps_fp)
 	return BRLCAD_ERROR;
 
     sx1 = xpos1 * 2047.0 + 2048;
@@ -648,7 +664,7 @@ ps_drawLine2D(struct dm *dmp, fastf_t xpos1, fastf_t ypos1, fastf_t xpos2, fastf
     sy1 = ypos1 * 2047.0 + 2048;
     sy2 = ypos2 * 2047.0 + 2048;
 
-    fprintf(((struct ps_vars *)dmp->i->dm_vars.priv_vars)->ps_fp,
+    fprintf(pv->ps_fp,
 	    "newpath %d %d moveto %d %d lineto stroke\n",
 	    sx1, sy1, sx2, sy2);
 

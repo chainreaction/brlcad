@@ -189,9 +189,12 @@ tkswrast_safe_image_name(struct bu_vls *out, const char *path)
 static int
 tkswrast_configureWin(struct dm *dmp, int force)
 {
+    if (!dmp || !dmp->i)
+	return BRLCAD_ERROR;
+
     struct tkswrast_vars *tv = (struct tkswrast_vars *)dmp->i->dm_udata;
     struct swrast_vars *sv = (struct swrast_vars *)dmp->i->dm_vars.priv_vars;
-    if (!tv || !sv || !sv->v)
+    if (!tv || !sv || !sv->v || !tv->xtkwin)
 	return BRLCAD_ERROR;
 
     int width = Tk_Width(tv->xtkwin);
@@ -244,9 +247,12 @@ tkswrast_configureWin(struct dm *dmp, int force)
 static int
 tkswrast_SwapBuffers(struct dm *dmp)
 {
+    if (!dmp || !dmp->i)
+	return BRLCAD_OK;
+
     struct tkswrast_vars *tv = (struct tkswrast_vars *)dmp->i->dm_udata;
     struct swrast_vars *sv = (struct swrast_vars *)dmp->i->dm_vars.priv_vars;
-    if (!tv || !sv || !sv->ctx)
+    if (!tv || !sv || !sv->ctx || !tv->xtkwin)
 	return BRLCAD_OK;
 
     int ww = Tk_Width(tv->xtkwin);
@@ -417,6 +423,9 @@ tkswrast_doevent(struct dm *dmp, void *UNUSED(vclientData), void *veventPtr)
 static int
 tkswrast_close(struct dm *dmp)
 {
+    if (!dmp || !dmp->i)
+	return BRLCAD_OK;
+
     struct tkswrast_vars *tv = (struct tkswrast_vars *)dmp->i->dm_udata;
     int (*orig_close)(struct dm *) = NULL;
     if (tv) {
@@ -492,6 +501,8 @@ tkswrast_open(void *ctx, void *vinterp, int argc, const char **argv)
     tkswrast_log_startup_windows(dmp, "open-precreate");
 
     if (!tv->xtkwin) {
+	bu_vls_free(&tv->photo_name);
+	bu_vls_free(&tv->label_path);
 	bu_free(tv, "tkswrast vars");
 	dm_close(dmp);
 	return DM_NULL;

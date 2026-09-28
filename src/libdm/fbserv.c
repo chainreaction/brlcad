@@ -70,6 +70,9 @@ _fbs_conn_fb(struct pkg_conn *pcp)
 static void
 drop_client(struct fbserv_obj *fbsp, int sub)
 {
+    if (!fbsp || sub < 0 || sub >= MAX_CLIENTS)
+	return;
+
     if (fbsp->fbs_clients[sub].fbsc_pkg != PKC_NULL) {
 	pkg_close(fbsp->fbs_clients[sub].fbsc_pkg);
 	fbsp->fbs_clients[sub].fbsc_pkg = PKC_NULL;
@@ -81,7 +84,7 @@ drop_client(struct fbserv_obj *fbsp, int sub)
 	 * TCP close handler. */
 	if (fbsp->fbs_clients[sub].fbsc_is_ipc && fbsp->fbs_close_ipc_client_handler)
 	    (*fbsp->fbs_close_ipc_client_handler)(fbsp, sub);
-	else
+	else if (fbsp->fbs_close_client_handler)
 	    (*fbsp->fbs_close_client_handler)(fbsp, sub);
 	fbsp->fbs_clients[sub].fbsc_fd = 0;
     }
@@ -227,6 +230,18 @@ fbs_rfbopen(struct pkg_conn *pcp, char *buf)
 	    if (buf) (void)free(buf);
 	    return;
 	}
+    }
+
+    if (!curr_fbp || !curr_fbp->i) {
+	bu_log("fbserv: MSG_FBOPEN with null framebuffer\n");
+	(void)pkg_plong(&rbuf[0*NET_LONG_LEN], -1);	/* failure */
+	(void)pkg_plong(&rbuf[1*NET_LONG_LEN], 0);
+	(void)pkg_plong(&rbuf[2*NET_LONG_LEN], 0);
+	(void)pkg_plong(&rbuf[3*NET_LONG_LEN], 0);
+	(void)pkg_plong(&rbuf[4*NET_LONG_LEN], 0);
+	pkg_send(MSG_RETURN, rbuf, 5*NET_LONG_LEN, pcp);
+	if (buf) (void)free(buf);
+	return;
     }
 
     /* Don't really open a new framebuffer --- use existing one */
@@ -950,7 +965,8 @@ fbs_open(struct fbserv_obj *fbsp, int port)
 
     fbsp->fbs_listener.fbsl_port = available_port;
 
-    (*fbsp->fbs_open_server_handler)(fbsp);
+    if (fbsp->fbs_open_server_handler)
+	(*fbsp->fbs_open_server_handler)(fbsp);
 
     return BRLCAD_OK;
 }
@@ -961,11 +977,15 @@ fbs_close(struct fbserv_obj *fbsp)
 {
     int i;
 
+    if (!fbsp)
+	return BRLCAD_ERROR;
+
     /* first drop all clients */
     for (i = 0; i < MAX_CLIENTS; ++i)
 	drop_client(fbsp, i);
 
-    (*fbsp->fbs_close_server_handler)(fbsp);
+    if (fbsp->fbs_close_server_handler)
+	(*fbsp->fbs_close_server_handler)(fbsp);
 
     /* Close the TCP listener if one was created by fbs_listen_on_port(). */
     if (fbsp->fbs_listener.fbsl_listener) {

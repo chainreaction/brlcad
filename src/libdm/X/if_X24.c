@@ -744,7 +744,7 @@ x24_setup(struct fb *ifp, int width, int height)
 
 		/* Fill the colormap and the colorcube */
 
-		for (i = 0; i < 255; i++) {
+		for (i = 0; i < 256; i++) {
 		    colors[i].red = i << 8;
 		    colors[i].green = i << 8;
 		    colors[i].blue = i << 8;
@@ -2013,9 +2013,13 @@ X24_getmem(struct fb *ifp)
     size_t size;
     int isnew = 0;
 
-    FB_CK_FB(ifp->i);
-
-    pixsize = ifp->i->if_max_height * ifp->i->if_max_width * sizeof(RGBpixel);
+    if (ifp->i->if_max_height <= 0 || ifp->i->if_max_width <= 0)
+	return -1;
+    if ((size_t)ifp->i->if_max_height > SIZE_MAX / ((size_t)ifp->i->if_max_width * sizeof(RGBpixel)))
+	return -1;
+    pixsize = (size_t)ifp->i->if_max_height * (size_t)ifp->i->if_max_width * sizeof(RGBpixel);
+    if (pixsize > SIZE_MAX - sizeof(ColorMap))
+	return -1;
     size = pixsize + sizeof(ColorMap);
 
     /*
@@ -2688,6 +2692,66 @@ X24_configureWindow(struct fb *ifp, int width, int height)
 }
 
 
+static void
+_X24_cleanup_existing(struct fb *ifp, struct xinfo *xi)
+{
+    if (!xi)
+	return;
+
+    if (ifp && ifp->i && ifp->i->if_mem) {
+	free(ifp->i->if_mem);
+	ifp->i->if_mem = NULL;
+    }
+    if (xi->xi_rgb_cmap && ((xi->xi_mode & MODE10_MASK) == MODE10_MALLOC)) {
+	free(xi->xi_rgb_cmap);
+	xi->xi_rgb_cmap = NULL;
+    }
+    if (xi->xi_redmap) {
+	free(xi->xi_redmap);
+	xi->xi_redmap = NULL;
+    }
+    if (xi->xi_grnmap) {
+	free(xi->xi_grnmap);
+	xi->xi_grnmap = NULL;
+    }
+    if (xi->xi_blumap) {
+	free(xi->xi_blumap);
+	xi->xi_blumap = NULL;
+    }
+    if (xi->xi_andtbl) {
+	free(xi->xi_andtbl);
+	xi->xi_andtbl = NULL;
+    }
+    if (xi->xi_ortbl) {
+	free(xi->xi_ortbl);
+	xi->xi_ortbl = NULL;
+    }
+    if (xi->xi_image) {
+	XDestroyImage(xi->xi_image);
+	xi->xi_image = NULL;
+    }
+    if (xi->xi_reg) {
+	XDestroyRegion(xi->xi_reg);
+	xi->xi_reg = NULL;
+    }
+    if (xi->xi_ccredtbl) {
+	free(xi->xi_ccredtbl);
+	xi->xi_ccredtbl = NULL;
+    }
+    if (xi->xi_ccgrntbl) {
+	free(xi->xi_ccgrntbl);
+	xi->xi_ccgrntbl = NULL;
+    }
+    if (xi->xi_ccblutbl) {
+	free(xi->xi_ccblutbl);
+	xi->xi_ccblutbl = NULL;
+    }
+    free((char *)xi);
+    if (ifp && ifp->i)
+	ifp->i->u1.p = NULL;
+}
+
+
 int
 _X24_open_existing(struct fb *ifp, Display *dpy, const Drawable *drawable, Window cwinp, Colormap cmap, XVisualInfo *vip, int width, int height, GC gc)
 {
@@ -2801,6 +2865,7 @@ _X24_open_existing(struct fb *ifp, Display *dpy, const Drawable *drawable, Windo
 
 	if (!xi->xi_redmap || !xi->xi_grnmap || !xi->xi_blumap) {
 	    fb_log("if_X24: Can't allocate colormap memory\n");
+	    _X24_cleanup_existing(ifp, xi);
 	    return -1;
 	}
     }
@@ -2810,7 +2875,7 @@ _X24_open_existing(struct fb *ifp, Display *dpy, const Drawable *drawable, Windo
 
     /* Allocate backing store (shared memory or local) */
     if ((getmem_stat = X24_getmem(ifp)) == -1) {
-	free((char *)xi);
+	_X24_cleanup_existing(ifp, xi);
 	return -1;
     }
 
@@ -2821,6 +2886,7 @@ _X24_open_existing(struct fb *ifp, Display *dpy, const Drawable *drawable, Windo
     /* this will be reallocated in the call to X24_configureWindow */
     if ((xi->xi_pix = (unsigned char *) calloc(1, 1)) == NULL) {
 	fb_log("X24_open: calloc failed\n");
+	_X24_cleanup_existing(ifp, xi);
 	return -1;
     }
 
@@ -3114,24 +3180,13 @@ X24_close(struct fb *ifp)
 int
 X24_close_existing(struct fb *ifp)
 {
+    if (!ifp || !ifp->i)
+	return -1;
     struct xinfo *xi = XI(ifp);
-    FB_CK_FB(ifp->i);
+    if (!xi)
+	return -1;
 
-    if (xi->xi_image)
-	XDestroyImage(xi->xi_image);
-
-    if (xi->xi_reg)
-	XDestroyRegion(xi->xi_reg);
-
-    if (xi->xi_ccredtbl)
-	free(xi->xi_ccredtbl);
-    if (xi->xi_ccgrntbl)
-	free(xi->xi_ccgrntbl);
-    if (xi->xi_ccblutbl)
-	free(xi->xi_ccblutbl);
-
-    free((char *)xi);
-
+    _X24_cleanup_existing(ifp, xi);
     return 0;
 }
 

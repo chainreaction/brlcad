@@ -49,7 +49,7 @@
 
 #define ENABLE_POINT_SMOOTH 1
 
-#define VIEWFACTOR      (1.0/(*dmp->i->dm_vp))
+#define VIEWFACTOR      ((dmp && dmp->i && dmp->i->dm_vp && !ZERO(*dmp->i->dm_vp)) ? (1.0/(*dmp->i->dm_vp)) : 1.0)
 #define VIEWSIZE        (2.0*(*dmp->i->dm_vp))
 
 /* these are from /usr/include/gl.h could be device dependent */
@@ -88,9 +88,12 @@ wgl_share_dlist(struct dm *dmp1, struct dm *dmp2)
     GLfloat backgnd[4];
     GLfloat vf;
     HGLRC old_glxContext;
-    struct gl_vars *mvars = (struct gl_vars *)dmp1->i->m_vars;
 
-    if (dmp1 == (struct dm *)NULL)
+    if (!dmp1 || !dmp1->i)
+	return BRLCAD_ERROR;
+
+    struct gl_vars *mvars = (struct gl_vars *)dmp1->i->m_vars;
+    if (!mvars)
 	return BRLCAD_ERROR;
 
     if (dmp2 == (struct dm *)NULL) {
@@ -149,7 +152,7 @@ wgl_share_dlist(struct dm *dmp1, struct dm *dmp2)
 	glFogfv(GL_FOG_COLOR, backgnd);
 
 	/*XXX Need to do something about VIEWFACTOR */
-	vf = 1.0/(*dmp1->i->dm_vp);
+	vf = (dmp1->i->dm_vp && !ZERO(*dmp1->i->dm_vp)) ? (1.0/(*dmp1->i->dm_vp)) : 1.0;
 	glFogf(GL_FOG_DENSITY, vf);
 
 	/* Initialize matrices */
@@ -171,6 +174,9 @@ wgl_share_dlist(struct dm *dmp1, struct dm *dmp2)
 	wglDeleteContext(old_glxContext);
     } else {
 	/* dmp1 will share its display lists with dmp2 */
+
+	if (!dmp2 || !dmp2->i)
+	    return BRLCAD_ERROR;
 
 	if (!BU_STR_EQUAL(dmp1->i->dm_name, dmp2->i->dm_name)) {
 	    return BRLCAD_ERROR;
@@ -222,7 +228,7 @@ wgl_share_dlist(struct dm *dmp1, struct dm *dmp2)
 	glFogfv(GL_FOG_COLOR, backgnd);
 
 	/*XXX Need to do something about VIEWFACTOR */
-	vf = 1.0/(*dmp2->i->dm_vp);
+	vf = (dmp2->i->dm_vp && !ZERO(*dmp2->i->dm_vp)) ? (1.0/(*dmp2->i->dm_vp)) : 1.0;
 	glFogf(GL_FOG_DENSITY, vf);
 
 	/* Initialize matrices */
@@ -253,28 +259,45 @@ wgl_share_dlist(struct dm *dmp1, struct dm *dmp2)
 static int
 wgl_close(struct dm *dmp)
 {
+    if (!dmp)
+	return BRLCAD_OK;
+    if (!dmp->i) {
+	bu_free(dmp, "wgl_close: dmp");
+	return BRLCAD_OK;
+    }
     struct dm_wglvars *pubvars = (struct dm_wglvars *)dmp->i->dm_vars.pub_vars;
     struct wgl_vars *privars = (struct wgl_vars *)dmp->i->dm_vars.priv_vars;
-    if (pubvars->dpy) {
-	if (privars->glxc) {
+    if (pubvars && pubvars->dpy) {
+	if (privars && privars->glxc) {
 	    wglMakeCurrent(pubvars->hdc, privars->glxc);
 	    wglDeleteContext(privars->glxc);
+	    privars->glxc = NULL;
 	}
 
-	if (pubvars->cmap)
+	if (pubvars->cmap) {
 	    XFreeColormap(pubvars->dpy, pubvars->cmap);
+	    pubvars->cmap = 0;
+	}
 
 	if (pubvars->xtkwin) {
 	    Tk_DeleteEventHandler(pubvars->xtkwin, VisibilityChangeMask, WGLEventProc, (ClientData)dmp);
 	    Tk_DestroyWindow(pubvars->xtkwin);
+	    pubvars->xtkwin = NULL;
 	}
     }
 
     bu_vls_free(&dmp->i->dm_pathName);
     bu_vls_free(&dmp->i->dm_tkName);
     bu_vls_free(&dmp->i->dm_dName);
-    bu_free(dmp->i->dm_vars.priv_vars, "wgl_close: wgl_vars");
-    bu_free(dmp->i->dm_vars.pub_vars, "wgl_close: dm_wglvars");
+    bu_vls_free(&dmp->i->dm_log);
+    if (dmp->i->dm_vars.priv_vars) {
+	bu_free(dmp->i->dm_vars.priv_vars, "wgl_close: wgl_vars");
+	dmp->i->dm_vars.priv_vars = NULL;
+    }
+    if (dmp->i->dm_vars.pub_vars) {
+	bu_free(dmp->i->dm_vars.pub_vars, "wgl_close: dm_wglvars");
+	dmp->i->dm_vars.pub_vars = NULL;
+    }
     bu_free(dmp->i, "wgl_close: dmpi");
     bu_free(dmp, "wgl_close: dmp");
 
@@ -295,7 +318,13 @@ wgl_viable(const char *UNUSED(dpy_string))
 static int
 wgl_drawString2D(struct dm *dmp, const char *str, fastf_t x, fastf_t y, int size, int use_aspect)
 {
+    if (!dmp || !dmp->i || !str)
+	return BRLCAD_ERROR;
+
     struct wgl_vars *privars = (struct wgl_vars *)dmp->i->dm_vars.priv_vars;
+    if (!privars)
+	return BRLCAD_ERROR;
+
     if (dmp->i->dm_debugLevel)
 	bu_log("wgl_drawString2D()\n");
 
@@ -1092,6 +1121,8 @@ wgl_open(void *UNUSED(ctx), void *vinterp, int argc, const char *argv[])
 	Tcl_DStringAppend(&ds, bu_vls_addr(&dmp->i->dm_pathName), -1);
 	if (Tcl_Eval(interp, Tcl_DStringValue(&ds)) != BRLCAD_OK) {
 	    Tcl_DStringFree(&ds);
+	    bu_vls_free(&init_proc_vls);
+	    (void)wgl_close(dmp);
 	    return DM_NULL;
 	}
 	pubvars->xtkwin = Tk_NameToWindow(interp, bu_vls_addr(&dmp->i->dm_pathName), tkwin);
@@ -1249,7 +1280,7 @@ wgl_open(void *UNUSED(ctx), void *vinterp, int argc, const char *argv[])
 	bu_log("wgl_open: Couldn't release the current context.\n");
 	bu_log("wgl_open: %s", buf);
 	LocalFree(buf);
-
+	(void)wgl_close(dmp);
 	return DM_NULL;
     }
 

@@ -40,11 +40,16 @@ dm_draw_data_axes(struct dm *dmp,
 		  fastf_t sf,
 		  struct bv_data_axes_state *bndasp)
 {
+    if (!dmp || !dmp->i || !bndasp)
+	return;
 
     if (dmp->i->dm_draw_data_axes) {
 	dmp->i->dm_draw_data_axes(dmp, sf, bndasp);
 	return;
     }
+
+    if (bndasp->num_points <= 0 || bndasp->num_points > INT_MAX / 6 || !bndasp->points)
+	return;
 
     int i, j;
     fastf_t halfAxesSize;		/* half the length of an axis */
@@ -54,9 +59,6 @@ dm_draw_data_axes(struct dm *dmp,
     /* Save the line attributes */
     int saveLineWidth = dmp->i->dm_lineWidth;
     int saveLineStyle = dmp->i->dm_lineStyle;
-
-    if (npoints < 1)
-	return;
 
     /* set color */
     dm_set_fg(dmp, bndasp->color[0], bndasp->color[1], bndasp->color[2], 1, 1.0);
@@ -103,7 +105,7 @@ dm_draw_data_axes(struct dm *dmp,
 void
 dm_draw_scene_axes(struct dm *dmp,  struct bv_scene_obj *s)
 {
-    if (!(s->s_type_flags & BV_AXES))
+    if (!dmp || !dmp->i || !s || !(s->s_type_flags & BV_AXES) || !s->s_i_data)
 	return;
 
     struct bv_axes *bndasp = (struct bv_axes *)s->s_i_data;
@@ -147,6 +149,9 @@ dm_draw_hud_axes(struct dm		        *dmp,
 	     const mat_t		rmat,       /* view rotation matrix */
 	     struct bv_axes	 	*bnasp)
 {
+    if (!dmp || !dmp->i || !rmat || !bnasp)
+	return;
+
     fastf_t halfAxesSize;		/* half the length of an axis */
     fastf_t xlx, xly;			/* X axis label position */
     fastf_t ylx, yly;			/* Y axis label position */
@@ -277,8 +282,21 @@ dm_draw_hud_axes(struct dm		        *dmp,
     }
 
     if (bnasp->tick_enabled) {
+	if (ZERO(bnasp->tick_interval) || bnasp->tick_interval < 0.0 ||
+	    ZERO(viewSize) || viewSize < 0.0 ||
+	    ZERO(halfAxesSize) || halfAxesSize < 0.0 ||
+	    dmp->i->dm_width <= 0 || bnasp->ticks_per_major <= 0) {
+	    dm_set_line_attr(dmp, saveLineWidth, saveLineStyle);
+	    return;
+	}
+
 	/* number of ticks in one direction of a coordinate axis */
 	int numTicks = viewSize / bnasp->tick_interval * 0.5 * halfAxesSize;
+	if (numTicks < 0 || numTicks > 10000) {
+	    dm_set_line_attr(dmp, saveLineWidth, saveLineStyle);
+	    return;
+	}
+
 	int doMajorOnly = 0;
 	int i;
 	vect_t xend1 = VINIT_ZERO, xend2 = VINIT_ZERO;

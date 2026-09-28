@@ -68,6 +68,9 @@ clip(fastf_t *xp1, fastf_t *yp1, fastf_t *xp2, fastf_t *yp2)
 {
     char code1, code2;
 
+    if (!xp1 || !yp1 || !xp2 || !yp2)
+	return -1;
+
     code1 = code(*xp1, *yp1);
     code2 = code(*xp2, *yp2);
 
@@ -95,19 +98,31 @@ clip(fastf_t *xp1, fastf_t *yp1, fastf_t *xp2, fastf_t *yp2)
 
 	if (code1 & 01) {
 	    /* Push toward left edge */
-	    *yp1 = *yp1 + (*yp2-*yp1)*(BV_MIN-*xp1)/(*xp2-*xp1);
+	    fastf_t dx = *xp2 - *xp1;
+	    if (ZERO(dx))
+		return -1;
+	    *yp1 = *yp1 + (*yp2-*yp1)*(BV_MIN-*xp1)/dx;
 	    *xp1 = BV_MIN;
 	} else if (code1 & 02) {
 	    /* Push toward right edge */
-	    *yp1 = *yp1 + (*yp2-*yp1)*(BV_MAX-*xp1)/(*xp2-*xp1);
+	    fastf_t dx = *xp2 - *xp1;
+	    if (ZERO(dx))
+		return -1;
+	    *yp1 = *yp1 + (*yp2-*yp1)*(BV_MAX-*xp1)/dx;
 	    *xp1 = BV_MAX;
 	} else if (code1 & 04) {
 	    /* Push toward bottom edge */
-	    *xp1 = *xp1 + (*xp2-*xp1)*(BV_MIN-*yp1)/(*yp2-*yp1);
+	    fastf_t dy = *yp2 - *yp1;
+	    if (ZERO(dy))
+		return -1;
+	    *xp1 = *xp1 + (*xp2-*xp1)*(BV_MIN-*yp1)/dy;
 	    *yp1 = BV_MIN;
 	} else if (code1 & 010) {
 	    /* Push toward top edge */
-	    *xp1 = *xp1 + (*xp2-*xp1)*(BV_MAX-*yp1)/(*yp2-*yp1);
+	    fastf_t dy = *yp2 - *yp1;
+	    if (ZERO(dy))
+		return -1;
+	    *xp1 = *xp1 + (*xp2-*xp1)*(BV_MAX-*yp1)/dy;
 	    *yp1 = BV_MAX;
 	}
 
@@ -133,13 +148,19 @@ clip(fastf_t *xp1, fastf_t *yp1, fastf_t *xp2, fastf_t *yp2)
 int
 vclip(point_t a, point_t b, fastf_t *min, fastf_t *max)
 {
-    static vect_t diff;
-    static double sv;
-    static double st;
-    static double mindist, maxdist;
-    fastf_t *pt = &a[0];
-    fastf_t *dir = &diff[0];
+    vect_t diff;
+    double sv;
+    double st;
+    double mindist, maxdist;
+    fastf_t *pt;
+    fastf_t *dir;
     int i;
+
+    if (!a || !b || !min || !max)
+	return 0;
+
+    pt = &a[0];
+    dir = &diff[0];
 
     mindist = -CLIP_DISTANCE;
     maxdist = CLIP_DISTANCE;

@@ -54,13 +54,19 @@ X_get_pixel(unsigned char r, unsigned char g, unsigned char b, long unsigned int
     int rf, gf, bf;
     int idx;
 
+    if (!pixels || cd <= 0)
+	return 0;
+
     if (r == 0 && g == 0 && b == 0)
 	return pixels[0];
 
-    f = cd >> 8;
-    rf = r * f;
-    gf = g * f;
-    bf = b * f;
+    f = (fastf_t)cd / 256.0;
+    rf = (int)(r * f);
+    gf = (int)(g * f);
+    bf = (int)(b * f);
+    if (rf >= cd) rf = cd - 1;
+    if (gf >= cd) gf = cd - 1;
+    if (bf >= cd) bf = cd - 1;
 
     idx = rf * cd * cd + gf * cd + bf;
 
@@ -75,6 +81,9 @@ X_get_pixel(unsigned char r, unsigned char g, unsigned char b, long unsigned int
 	    idx += 1;
     }
 
+    if (idx < 0 || idx >= cd * cd * cd)
+	idx = 0;
+
     return pixels[idx];
 }
 
@@ -88,11 +97,14 @@ _X_copy_cmap(Display *dpy, Colormap dest, Colormap src, int low, int hi, int sto
     int ncolors;
     XColor *colors;
 
+    if (!dpy || hi <= low)
+	return;
+
     ncolors = hi - low;
     colors = (XColor *)bu_calloc(ncolors, sizeof(XColor), "dm_load_cmap: colors");
 
     for (i = low; i < hi; ++i)
-	colors[i].pixel = i;
+	colors[i - low].pixel = i;
     XQueryColors(dpy, src, colors, ncolors);
 
     if (store) {
@@ -119,6 +131,9 @@ X_allocate_color_cube(Display *dpy, Colormap cmap, long unsigned int *pixels, in
     int i;
     int r, g, b;
     int incr;  /* increment */
+
+    if (!dpy || !pixels || cd <= 1)
+	return;
 
     INIT_XCOLOR(&color);
 

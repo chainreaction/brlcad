@@ -51,6 +51,9 @@ _fb_pgout(register struct fb *ifp)
 {
     size_t scans, first_scan;
 
+    if (!ifp || !ifp->i || ifp->i->if_width <= 0)
+	return -1;
+
     /*fb_log("_fb_pgout(%d)\n", ifp->i->if_pno);*/
 
     if (ifp->i->if_pno < 0)	/* Already paged out, return 1.	*/
@@ -75,6 +78,9 @@ static int
 _fb_pgin(register struct fb *ifp, int pageno)
 {
     size_t scans, first_scan;
+
+    if (!ifp || !ifp->i || ifp->i->if_width <= 0)
+	return -1;
 
     /*fb_log("_fb_pgin(%d)\n", pageno);*/
 
@@ -101,6 +107,9 @@ _fb_pgin(register struct fb *ifp, int pageno)
 static int
 _fb_pgflush(register struct fb *ifp)
 {
+    if (!ifp || !ifp->i)
+	return -1;
+
     if (ifp->i->if_debug & FB_DEBUG_BIO) {
 	fb_log("_fb_pgflush(%p)\n", (void *)ifp);
     }
@@ -122,6 +131,9 @@ _fb_pgflush(register struct fb *ifp)
 int
 fb_ioinit(register struct fb *ifp)
 {
+    if (!ifp || !ifp->i || ifp->i->if_width <= 0 || ifp->i->if_height <= 0)
+	return -1;
+
     if (ifp->i->if_debug & FB_DEBUG_BIO) {
 	fb_log("fb_ioinit(%p)\n", (void *)ifp);
     }
@@ -131,6 +143,8 @@ fb_ioinit(register struct fb *ifp)
     if (ifp->i->if_pbase == PIXEL_NULL) {
 	/* Only allocate buffer once. */
 	ifp->i->if_ppixels = PAGE_PIXELS;	/* Pixels/page.	*/
+	if (ifp->i->if_ppixels < ifp->i->if_width)
+	    ifp->i->if_ppixels = ifp->i->if_width;
 	if (ifp->i->if_ppixels > ifp->i->if_width * ifp->i->if_height)
 	    ifp->i->if_ppixels = ifp->i->if_width * ifp->i->if_height;
 	if ((ifp->i->if_pbase = (unsigned char *)malloc(ifp->i->if_ppixels * sizeof(RGBpixel)))
@@ -150,6 +164,9 @@ fb_seek(register struct fb *ifp, int x, int y)
 {
     long pixelnum;
     long pagepixel;
+
+    if (!ifp || !ifp->i || ifp->i->if_width <= 0 || ifp->i->if_height <= 0 || ifp->i->if_ppixels <= 0)
+	return -1;
 
     if (ifp->i->if_debug & FB_DEBUG_BIO) {
 	fb_log("fb_seek(%p, %d, %d)\n",
@@ -180,6 +197,9 @@ fb_seek(register struct fb *ifp, int x, int y)
 int
 fb_tell(register struct fb *ifp, int *xp, int *yp)
 {
+    if (!ifp || !ifp->i || ifp->i->if_width <= 0 || !xp || !yp)
+	return -1;
+
     *yp = (int) (ifp->i->if_pixcur / ifp->i->if_width);
     *xp = (int) (ifp->i->if_pixcur % ifp->i->if_width);
 
@@ -195,6 +215,9 @@ fb_tell(register struct fb *ifp, int *xp, int *yp)
 int
 fb_wpixel(register struct fb *ifp, unsigned char *pixelp)
 {
+    if (!ifp || !ifp->i || !pixelp || ifp->i->if_ppixels <= 0)
+	return -1;
+
     if (ifp->i->if_pno == -1)
 	if (_fb_pgin(ifp, ifp->i->if_pixcur / ifp->i->if_ppixels) <= -1)
 	    return -1;
@@ -215,6 +238,9 @@ fb_wpixel(register struct fb *ifp, unsigned char *pixelp)
 int
 fb_rpixel(register struct fb *ifp, unsigned char *pixelp)
 {
+    if (!ifp || !ifp->i || !pixelp || ifp->i->if_ppixels <= 0)
+	return -1;
+
     if (ifp->i->if_pno == -1)
 	if (_fb_pgin(ifp, ifp->i->if_pixcur / ifp->i->if_ppixels) <= -1)
 	    return -1;
@@ -235,10 +261,13 @@ fb_rpixel(register struct fb *ifp, unsigned char *pixelp)
 int
 fb_flush(register struct fb *ifp)
 {
+    if (!ifp || !ifp->i)
+	return -1;
+
     _fb_pgflush(ifp);
 
     /* call device specific flush routine */
-    if ((*ifp->i->if_flush)(ifp) <= -1)
+    if (ifp->i->if_flush && (*ifp->i->if_flush)(ifp) <= -1)
 	return -1;
 
     return 0;

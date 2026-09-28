@@ -215,30 +215,38 @@ static struct modeflags {
 static int
 wgl_getmem(struct fb *ifp)
 {
-    int pixsize;
-    int size;
+    size_t pixsize;
+    size_t size;
     int i;
     char *sp;
     int new = 0;
 
     errno = 0;
 
-    {
-	/* In this mode, only malloc as much memory as is needed. */
-	WIN(ifp)->mi_memwidth = ifp->i->if_width;
-	pixsize = ifp->i->if_height * ifp->i->if_width * sizeof(struct fb_pixel);
-	size = pixsize + sizeof(struct fb_cmap);
-
-	sp = calloc(1, size);
-	if (sp == 0) {
-	    fb_log("wgl_getmem: frame buffer memory malloc failed\n");
-	    goto fail;
-	}
-	new = 1;
-	goto success;
+    if (ifp->i->if_height <= 0 || ifp->i->if_width <= 0) {
+	fb_log("wgl_getmem: invalid dimensions %d x %d\n", ifp->i->if_width, ifp->i->if_height);
+	return -1;
     }
+    if ((size_t)ifp->i->if_height > SIZE_MAX / (size_t)ifp->i->if_width / sizeof(struct fb_pixel)) {
+	fb_log("wgl_getmem: dimensions exceed addressable memory\n");
+	return -1;
+    }
+    pixsize = (size_t)ifp->i->if_height * (size_t)ifp->i->if_width * sizeof(struct fb_pixel);
+    if (pixsize > SIZE_MAX - sizeof(struct fb_cmap)) {
+	fb_log("wgl_getmem: dimensions exceed addressable memory\n");
+	return -1;
+    }
+    size = pixsize + sizeof(struct fb_cmap);
 
-success:
+    WIN(ifp)->mi_memwidth = ifp->i->if_width;
+
+    sp = (char *)calloc(1, size);
+    if (sp == NULL) {
+	fb_log("wgl_getmem: frame buffer memory malloc failed\n");
+	return -1;
+    }
+    new = 1;
+
     ifp->i->if_mem = sp;
     ifp->i->if_cmap = sp + pixsize;	/* cmap at end of area */
     i = CMB(ifp)[255];			/* try to deref last word */
@@ -248,14 +256,6 @@ success:
     if (new)
 	wgl_cminit(ifp);
     return 0;
-fail:
-    fb_log("wgl_getmem:  Unable to allocate memory.\n");
-    if ((sp = calloc(1, size)) == NULL) {
-	fb_log("wgl_getmem:  malloc failure\n");
-	return -1;
-    }
-    new = 1;
-    goto success;
 }
 
 
@@ -676,6 +676,8 @@ wgl_open(struct fb *ifp, const char *file, int width, int height)
     }
     if ((WGLL(ifp) = (char *)calloc(1, sizeof(struct wglinfo))) == NULL) {
 	fb_log("wgl_open:  wglinfo malloc failed\n");
+	free((char *)WINL(ifp));
+	WINL(ifp) = NULL;
 	return -1;
     }
 
@@ -714,8 +716,13 @@ wgl_open(struct fb *ifp, const char *file, int width, int height)
     ifp->i->if_ycenter = height/2;
 
     /* Allocate memory, potentially with a screen repaint */
-    if (wgl_getmem(ifp) < 0)
+    if (wgl_getmem(ifp) < 0) {
+	free((char *)WINL(ifp));
+	WINL(ifp) = NULL;
+	free((char *)WGLL(ifp));
+	WGLL(ifp) = NULL;
 	return -1;
+    }
 
     /* Register the frame class */
     wndclass.style         = 0;
@@ -760,6 +767,14 @@ wgl_open(struct fb *ifp, const char *file, int width, int height)
     gotvisual = wgl_choose_visual(ifp);
     if (!gotvisual) {
 	fb_log("wgl_open: Couldn't find an appropriate visual.  Exiting.\n");
+	if (ifp->i->if_mem) {
+	    free(ifp->i->if_mem);
+	    ifp->i->if_mem = NULL;
+	}
+	free((char *)WINL(ifp));
+	WINL(ifp) = NULL;
+	free((char *)WGLL(ifp));
+	WGLL(ifp) = NULL;
 	return -1;
     }
 
@@ -818,6 +833,8 @@ open_existing(struct fb *ifp,
 	      int double_buffer,
 	      int soft_cmap)
 {
+    if (!ifp || !ifp->i)
+	return -1;
 
     /* XXX for now use private memory */
     ifp->i->if_mode = MODE_1MALLOC;
@@ -833,6 +850,8 @@ open_existing(struct fb *ifp,
     }
     if ((WGLL(ifp) = (char *)calloc(1, sizeof(struct wglinfo))) == NULL) {
 	fb_log("wgl_open:  wglinfo malloc failed\n");
+	free(WINL(ifp));
+	WINL(ifp) = NULL;
 	return -1;
     }
 
@@ -855,8 +874,13 @@ open_existing(struct fb *ifp,
     ifp->i->if_ycenter = height/2;
 
     /* Allocate memory, potentially with a screen repaint */
-    if (wgl_getmem(ifp) < 0)
+    if (wgl_getmem(ifp) < 0) {
+	free(WGLL(ifp));
+	WGLL(ifp) = NULL;
+	free(WINL(ifp));
+	WINL(ifp) = NULL;
 	return -1;
+    }
 
     WGL(ifp)->dispp = dpy;
 
@@ -1013,6 +1037,9 @@ wgl_close(struct fb *ifp)
 int
 wgl_close_existing(struct fb *ifp)
 {
+    if (!ifp || !ifp->i)
+	return 0;
+
     /*
       if (WGL(ifp)->cursor)
       XDestroyWindow(WGL(ifp)->dispp, WGL(ifp)->cursor);
@@ -1702,6 +1729,13 @@ fb_clipper(struct fb *ifp)
     struct fb_clip *clp;
     int i;
     double pixels;
+
+    if (!ifp || !ifp->i || !WGL(ifp))
+	return;
+
+    if (ifp->i->if_xzoom <= 0 || ifp->i->if_yzoom <= 0 ||
+	WGL(ifp)->vp_width <= 0 || WGL(ifp)->vp_height <= 0)
+	return;
 
     clp = &(WGL(ifp)->clip);
 

@@ -51,7 +51,7 @@ extern "C" {
 
 #define ENABLE_POINT_SMOOTH 1
 
-#define VIEWFACTOR      (1.0/(*dmp->i->dm_vp))
+#define VIEWFACTOR      (ZERO(*dmp->i->dm_vp) ? 0.0 : (1.0/(*dmp->i->dm_vp)))
 #define VIEWSIZE        (2.0*(*dmp->i->dm_vp))
 
 /* these are from /usr/include/gl.h could be device dependent */
@@ -134,26 +134,40 @@ qtgl_configureWin(struct dm *dmp, int UNUSED(force))
 static int
 qtgl_getDisplayImage(struct dm *dmp, unsigned char **image, int flip, int alpha)
 {
+    if (!dmp || !dmp->i || !image)
+	return BRLCAD_ERROR;
+
     gl_debug_print(dmp, "qgl_getDisplayImage", dmp->i->dm_debugLevel);
 
     struct qtgl_vars *privars = (struct qtgl_vars *)dmp->i->dm_vars.priv_vars;
+    if (!privars || !privars->qw) {
+	*image = NULL;
+	return BRLCAD_ERROR;
+    }
+
     QImage qimg = privars->qw->grabFramebuffer();
     unsigned char *idata;
     int width;
     int height;
+    size_t bpp = alpha ? 4 : 3;
 
     width = dmp->i->dm_width;
     height = dmp->i->dm_height;
 
+    if (width <= 0 || height <= 0 || (size_t)height > SIZE_MAX / ((size_t)width * bpp)) {
+	*image = NULL;
+	return BRLCAD_ERROR;
+    }
+
     if (!alpha) {
 	QImage img32 = qimg.convertToFormat(QImage::Format_RGB888);
-	idata = (unsigned char*)bu_calloc(height * width * 3, sizeof(unsigned char), "rgb data");
-	memcpy(idata, img32.bits(), height * width * 3);
+	idata = (unsigned char*)bu_calloc((size_t)height * (size_t)width * 3, sizeof(unsigned char), "rgb data");
+	memcpy(idata, img32.bits(), (size_t)height * (size_t)width * 3);
 	*image = idata;
     } else {
 	QImage img32 = qimg.convertToFormat(QImage::Format_RGBA8888);
-	idata = (unsigned char*)bu_calloc(height * width * 4, sizeof(unsigned char), "rgba data");
-	memcpy(idata, img32.bits(), height * width * 4);
+	idata = (unsigned char*)bu_calloc((size_t)height * (size_t)width * 4, sizeof(unsigned char), "rgba data");
+	memcpy(idata, img32.bits(), (size_t)height * (size_t)width * 4);
 	*image = idata;
     }
     if (!flip)
@@ -170,18 +184,28 @@ qtgl_getDisplayImage(struct dm *dmp, unsigned char **image, int flip, int alpha)
 int
 qtgl_close(struct dm *dmp)
 {
+    if (!dmp || !dmp->i)
+	return BRLCAD_ERROR;
+
     struct qtgl_vars *pv = (struct qtgl_vars *)dmp->i->dm_vars.priv_vars;
     gl_debug_print(dmp, "qtgl_close", dmp->i->dm_debugLevel);
-    if (pv->fs) {
-	(void)qtgl_makeCurrent(dmp);
-	glfonsDelete(pv->fs);
-	pv->fs = NULL;
+    if (pv) {
+	if (pv->fs) {
+	    (void)qtgl_makeCurrent(dmp);
+	    glfonsDelete(pv->fs);
+	    pv->fs = NULL;
+	}
+	bu_free(dmp->i->dm_vars.priv_vars, "qtgl_close: qtgl_vars");
+	dmp->i->dm_vars.priv_vars = NULL;
     }
     bu_vls_free(&dmp->i->dm_pathName);
     bu_vls_free(&dmp->i->dm_tkName);
     bu_vls_free(&dmp->i->dm_dName);
-    bu_free(dmp->i->dm_vars.priv_vars, "qtgl_close: qtgl_vars");
-    bu_free(dmp->i->dm_vars.pub_vars, "qtgl_close: dm_qtvars");
+    bu_vls_free(&dmp->i->dm_log);
+    if (dmp->i->dm_vars.pub_vars) {
+	bu_free(dmp->i->dm_vars.pub_vars, "qtgl_close: dm_qtvars");
+	dmp->i->dm_vars.pub_vars = NULL;
+    }
     BU_PUT(dmp->i, struct dm_impl);
     BU_PUT(dmp, struct dm);
 
@@ -348,8 +372,13 @@ qtgl_open(void *ctx, void *UNUSED(interp), int argc, const char **argv)
 static int
 qtgl_drawString2D(struct dm *dmp, const char *str, fastf_t ix, fastf_t iy, int UNUSED(size), int use_aspect)
 {
+    if (!dmp || !dmp->i || !str)
+	return BRLCAD_ERROR;
+
     struct gl_vars *mvars = (struct gl_vars *)dmp->i->m_vars;
     struct qtgl_vars *privars = (struct qtgl_vars *)dmp->i->dm_vars.priv_vars;
+    if (!privars || !mvars)
+	return BRLCAD_ERROR;
 
     gl_debug_print(dmp, "qtgl_drawString2D", dmp->i->dm_debugLevel);
 
@@ -447,7 +476,12 @@ qtgl_drawString2D(struct dm *dmp, const char *str, fastf_t ix, fastf_t iy, int U
 static int
 qtgl_String2DBBox(struct dm *dmp, vect2d_t *bmin, vect2d_t *bmax, const char *str, fastf_t ix, fastf_t iy, int UNUSED(size), int use_aspect)
 {
+    if (!dmp || !dmp->i || !str)
+	return BRLCAD_ERROR;
+
     struct qtgl_vars *privars = (struct qtgl_vars *)dmp->i->dm_vars.priv_vars;
+    if (!privars)
+	return BRLCAD_ERROR;
 
     gl_debug_print(dmp, "qtgl_String2DBBox", dmp->i->dm_debugLevel);
 

@@ -52,6 +52,8 @@ dm_label_primitive(struct rt_wdb *wdbp,
     point_t pos_view;
     int npl = 0;
 
+    if (!pl || max_pl <= 0 || !xform || !ip)
+	return;
 
 #define POINT_LABEL(_pt, _char) {		\
 	if (npl+1 < max_pl) {			\
@@ -62,8 +64,11 @@ dm_label_primitive(struct rt_wdb *wdbp,
     }
 
 #define POINT_LABEL_STR(_pt, _str) {				\
-	VMOVE(pl[npl].pt, _pt);					\
-	bu_strlcpy(pl[npl++].str, _str, sizeof(pl[0].str)); }
+	if (npl+1 < max_pl) {					\
+	    VMOVE(pl[npl].pt, _pt);					\
+	    bu_strlcpy(pl[npl++].str, _str, sizeof(pl[0].str));	\
+	}							\
+    }
 
 
     RT_CK_DB_INTERNAL(ip);
@@ -447,11 +452,22 @@ dm_label_primitive(struct rt_wdb *wdbp,
 	    VUNITIZE(Au);
 
 	    cmag = MAGNITUDE(eto->eto_C);
-	    /* get horizontal and vertical components of C and Rd */
-	    cv = VDOT(eto->eto_C, Nu);
-	    ch = sqrt(cmag*cmag - cv*cv);
-	    /* angle between C and Nu */
-	    phi = acos(cv / cmag);
+	    if (ZERO(cmag)) {
+		ch = 0.0;
+		cv = 0.0;
+		phi = 0.0;
+	    } else {
+		fastf_t cdiff;
+		/* get horizontal and vertical components of C and Rd */
+		cv = VDOT(eto->eto_C, Nu);
+		cdiff = cmag*cmag - cv*cv;
+		ch = (cdiff > 0.0) ? sqrt(cdiff) : 0.0;
+		/* angle between C and Nu */
+		fastf_t cos_phi = cv / cmag;
+		if (cos_phi > 1.0) cos_phi = 1.0;
+		else if (cos_phi < -1.0) cos_phi = -1.0;
+		phi = acos(cos_phi);
+	    }
 	    dv = -eto->eto_rd * sin(phi);
 	    dh = eto->eto_rd * cos(phi);
 
@@ -565,8 +581,10 @@ dm_draw_prim_labels(struct dm *dmp,
 			  viewmat, labelsColor,
 			  labelsHookClientdata);
 
-    if (wdbp == (struct rt_wdb *)NULL ||
-	name == (char *)NULL)
+    if (dmp == (struct dm *)NULL ||
+	wdbp == (struct rt_wdb *)NULL ||
+	name == (char *)NULL ||
+	labelsColor == (int *)NULL)
 	return BRLCAD_ERROR;
 
     db_full_path_init(&path);
