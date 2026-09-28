@@ -241,8 +241,10 @@ Convert_part_ascii(struct conversion_state *pstate, char line[MAX_LINE_SIZE])
 	    int tmp_face[3] = {0, 0, 0};
 
 	    while (!endloop) {
-		if (bu_fgets(line1, MAX_LINE_SIZE, pstate->fd_in) == NULL)
-		    bu_exit(EXIT_FAILURE, "Unexpected EOF while reading a loop in a part!\n");
+		if (bu_fgets(line1, MAX_LINE_SIZE, pstate->fd_in) == NULL) {
+		    bu_log("Unexpected EOF while reading a loop in a part!\n");
+		    break;
+		}
 
 		start = (-1);
 		while (isspace((int)line1[++start]));
@@ -266,7 +268,10 @@ Convert_part_ascii(struct conversion_state *pstate, char line[MAX_LINE_SIZE])
 		    x *= pstate->gcv_options->scale_factor;
 		    y *= pstate->gcv_options->scale_factor;
 		    z *= pstate->gcv_options->scale_factor;
-		    tmp_face[vert_no++] = bg_vert_tree_add( pstate->tree,x, y, z, pstate->gcv_options->calculational_tolerance.dist_sq);
+		    if (vert_no < 3)
+			tmp_face[vert_no++] = bg_vert_tree_add( pstate->tree,x, y, z, pstate->gcv_options->calculational_tolerance.dist_sq);
+		    else
+			vert_no++;
 		} else {
 		    bu_log("Unrecognized line: %s\n", line1);
 		}
@@ -623,7 +628,7 @@ stl_can_read(const char *data)
 	return 0;
     }
 
-    if (bu_fgets(ascii_header, 5, fp) != NULL && BU_STR_EQUAL(ascii_header, "solid")) {
+    if (bu_fgets(ascii_header, sizeof(ascii_header), fp) != NULL && BU_STR_EQUAL(ascii_header, "solid")) {
 	/* We've got solid at the beginning, so look for "endsolid" later in the file.
 	 * If we find it, this is probably an ASCII file. */
 	int found_endsolid = 0;

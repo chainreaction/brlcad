@@ -106,6 +106,9 @@ gcv_region_end_mc(struct db_tree_state *tsp, const struct db_full_path *pathp, u
 	char *str_path = db_path_to_string(pathp);
 	bu_log("Region %s appears to be empty.\n", str_path);
 	bu_free(str_path, "str_path");
+	if (tp)
+	    db_free_tree(tp);
+	nmg_km(m);
 	return TREE_NULL;
     }
 
@@ -133,13 +136,17 @@ gcv_region_end_mc(struct db_tree_state *tsp, const struct db_full_path *pathp, u
 	*/
 	s = next_s;
     }
-    if (empty_region)
+    if (empty_region) {
+	nmg_km(m);
 	return _gcv_cleanup(NMG_debug_state, tp);
+    }
 
     /* kill zero length edgeuses */
     empty_model = nmg_kill_zero_length_edgeuses(*tsp->ts_m);
-    if (empty_model)
+    if (empty_model) {
+	nmg_km(m);
 	return _gcv_cleanup(NMG_debug_state, tp);
+    }
 
     if (!BU_SETJUMP) {
 	/* try */
@@ -168,13 +175,13 @@ gcv_region_end_mc(struct db_tree_state *tsp, const struct db_full_path *pathp, u
 
 	/* Now, make a new, clean model structure for next pass. */
 	*tsp->ts_m = nmg_mm();
-	nmg_kr(r);
+	nmg_km(m);
 
 	return _gcv_cleanup(NMG_debug_state, tp);
 
     } BU_UNSETJUMP; /* Relinquish bomb protection */
 
-    nmg_kr(r);
+    nmg_km(m);
 
     return _gcv_cleanup(NMG_debug_state, tp);
 }

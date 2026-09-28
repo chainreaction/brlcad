@@ -277,11 +277,20 @@ bot2soup(struct rt_bot_internal *bot, const struct bn_tol *tol)
     BU_ALLOC(s, struct soup_s);
     s->magic = SOUP_MAGIC;
     s->nfaces = 0;
-    s->maxfaces = ceil(bot->num_faces / (double)faces_per_page) * faces_per_page;
+    {
+	size_t fpp = faces_per_page > 0 ? (size_t)faces_per_page : 128;
+	size_t num_pages = (bot->num_faces + fpp - 1) / fpp;
+	s->maxfaces = num_pages > 0 ? num_pages * fpp : fpp;
+    }
     s->faces = (struct face_s *)bu_malloc(sizeof(struct face_s) * s->maxfaces, "bot soup faces");
 
-    for (i=0;i<bot->num_faces;i++)
+    for (i=0;i<bot->num_faces;i++) {
+	if (bot->faces[i*3+0] < 0 || (size_t)bot->faces[i*3+0] >= bot->num_vertices ||
+	    bot->faces[i*3+1] < 0 || (size_t)bot->faces[i*3+1] >= bot->num_vertices ||
+	    bot->faces[i*3+2] < 0 || (size_t)bot->faces[i*3+2] >= bot->num_vertices)
+	    continue;
 	soup_add_face(s, bot->vertices+3*bot->faces[i*3+0], bot->vertices+3*bot->faces[i*3+1], bot->vertices+3*bot->faces[i*3+2], tol);
+    }
 
     return s;
 }
@@ -289,7 +298,11 @@ bot2soup(struct rt_bot_internal *bot, const struct bn_tol *tol)
 
 void
 free_soup(struct soup_s *s) {
-    bu_free(s->faces, "bot soup faces");
+    if (!s)
+	return;
+    if (s->faces)
+	bu_free(s->faces, "bot soup faces");
+    s->faces = NULL;
     bu_free(s, "bot soup");
     return;
 }
@@ -314,7 +327,7 @@ _tree_invert(union tree *tree)
 	point_t t;
 	VMOVE(t, f->vert[0]);
 	VMOVE(f->vert[0], f->vert[1]);
-	VMOVE(f->vert[0], t);
+	VMOVE(f->vert[1], t);
 	/* flip the inverted bit. */
 	f->foo^=INVERTED;
     }
@@ -347,14 +360,14 @@ split_faces(union tree *left_tree, union tree *right_tree, const struct bn_tol *
 	for (j=0;j<r->nfaces;j++) {
 	    rf = r->faces+j;
 	    /* quick bounding box test */
-	    if (lf->min[X]>rf->max[X] || lf->max[X]>lf->max[X] ||
-		lf->min[Y]>rf->max[Y] || lf->max[Y]>lf->max[Y] ||
-		lf->min[Z]>rf->max[Z] || lf->max[Z]>lf->max[Z])
+	    if (lf->min[X]>rf->max[X] || rf->min[X]>lf->max[X] ||
+		lf->min[Y]>rf->max[Y] || rf->min[Y]>lf->max[Y] ||
+		lf->min[Z]>rf->max[Z] || rf->min[Z]>lf->max[Z])
 		continue;
 	    /* two possibly overlapping faces found */
 	    ret = split_face(l, i, r, j, tol);
-	    if (ret&0x1) i--;
-	    if (ret&0x2) j--;
+	    if (ret&0x1 && i > 0) i--;
+	    if (ret&0x2 && j > 0) j--;
 	}
     }
 }

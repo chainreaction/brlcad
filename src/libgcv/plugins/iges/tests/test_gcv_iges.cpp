@@ -199,7 +199,8 @@ test_exports(const fs::path &fixtures, const fs::path &outputs)
 int
 main(int argc, char **argv)
 {
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
     if (argc != 3)
 	return 1;
     try {

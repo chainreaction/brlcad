@@ -464,6 +464,15 @@ static int
 jt_read(struct gcv_context *context, const struct gcv_opts *options,
 	const void *UNUSED(options_data), const char *source_path)
 {
+    if (!context || !context->dbip || !source_path)
+	return 0;
+
+    struct gcv_opts default_opts;
+    if (!options) {
+	gcv_opts_default(&default_opts);
+	options = &default_opts;
+    }
+
     jt::File file;
     std::string error;
     if (!file.load(source_path, error)) {
@@ -483,6 +492,8 @@ jt_read(struct gcv_context *context, const struct gcv_opts *options,
     const bool verbose = options->verbosity_level > 0 || getenv("JT_VERBOSE") != NULL;
 
     struct rt_wdb *wdb = wdb_dbopen(context->dbip, RT_WDB_TYPE_DB_INMEM);
+    if (!wdb)
+	return 0;
 
     /* Parse the scene graph up front so the model units (JT_PROP_MEASUREMENT_UNITS)
      * can drive both the database's display units and the mm conversion factor. */
@@ -2288,6 +2299,15 @@ int
 jt_write(struct gcv_context *context, const struct gcv_opts *gcv_options,
     const void *options_data, const char *dest_path)
 {
+    if (!context || !context->dbip || !dest_path)
+	return 0;
+
+    struct gcv_opts default_opts;
+    if (!gcv_options) {
+	gcv_opts_default(&default_opts);
+	gcv_options = &default_opts;
+    }
+
     struct jt_write_state state;
     struct db_tree_state tree_state;
     struct gcv_region_end_data gcvwriter;

@@ -47,16 +47,18 @@ gcv_fisect2(
     fastf_t *isect0, fastf_t *isect1,
     point_t *isectpoint0, point_t *isectpoint1)
 {
-    fastf_t tmp=D0/(D0-D1);
+    fastf_t denom1 = D0 - D1;
+    fastf_t tmp = ZERO(denom1) ? 0.0 : D0 / denom1;
     fastf_t diff[3];
 
-    *isect0=VV0+(VV1-VV0)*tmp;
+    *isect0 = VV0 + (VV1 - VV0) * tmp;
     VSUB2(diff, VTX1, VTX0);
     VSCALE(diff, diff, tmp);
     VADD2(*isectpoint0, diff, VTX0);
 
-    tmp=D0/(D0-D2);
-    *isect1=VV0+(VV2-VV0)*tmp;
+    fastf_t denom2 = D0 - D2;
+    tmp = ZERO(denom2) ? 0.0 : D0 / denom2;
+    *isect1 = VV0 + (VV2 - VV0) * tmp;
     VSUB2(diff, VTX2, VTX0);
     VSCALE(diff, diff, tmp);
     VADD2(*isectpoint1, VTX0, diff);

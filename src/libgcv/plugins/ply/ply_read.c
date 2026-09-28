@@ -88,10 +88,12 @@ log_elements(p_ply ply_fp)
     }
 }
 
+static int g_cur_vertex = -1;
+static int g_cur_face = -1;
+
 static int
 vertex_cb(p_ply_argument argument)
 {
-    static int cur_vertex = -1;
     long vert_index;
     struct rt_bot_internal bot;
     struct rt_bot_internal *pbot = &bot;
@@ -100,12 +102,16 @@ vertex_cb(p_ply_argument argument)
 	bu_bomb("Unable to import BOT");
     }
     if (vert_index == 0) {
-	cur_vertex++;
-	pbot->vertices[cur_vertex*3] = botval * scale_factor;
-    } else if (vert_index == 1) {
-	pbot->vertices[cur_vertex*3+1] = botval * scale_factor;
-    } else if (vert_index == 2) {
-	pbot->vertices[cur_vertex*3+2] = botval * scale_factor;
+	g_cur_vertex++;
+    }
+    if (g_cur_vertex >= 0 && (size_t)g_cur_vertex < pbot->num_vertices) {
+	if (vert_index == 0) {
+	    pbot->vertices[g_cur_vertex*3] = botval * scale_factor;
+	} else if (vert_index == 1) {
+	    pbot->vertices[g_cur_vertex*3+1] = botval * scale_factor;
+	} else if (vert_index == 2) {
+	    pbot->vertices[g_cur_vertex*3+2] = botval * scale_factor;
+	}
     }
     return 1;
 }
@@ -137,8 +143,6 @@ color_cb(p_ply_argument argument)
 static int
 face_cb(p_ply_argument argument)
 {
-    static int cur_face = -1;
-    
     long list_len, vert_index;
     struct rt_bot_internal bot;
     struct rt_bot_internal *pbot = &bot;
@@ -155,23 +159,28 @@ face_cb(p_ply_argument argument)
 
     switch (vert_index) {
 	case 0:
-	    cur_face++;
-	    pbot->faces[cur_face*3] = botval;
+	    g_cur_face++;
+	    if (g_cur_face >= 0 && (size_t)g_cur_face < pbot->num_faces)
+		pbot->faces[g_cur_face*3] = botval;
 	    break;
 	case 1:
-	    pbot->faces[cur_face*3+1] = botval;
+	    if (g_cur_face >= 0 && (size_t)g_cur_face < pbot->num_faces)
+		pbot->faces[g_cur_face*3+1] = botval;
 	    break;
 	case 2:
-	    pbot->faces[cur_face*3+2] = botval;
+	    if (g_cur_face >= 0 && (size_t)g_cur_face < pbot->num_faces)
+		pbot->faces[g_cur_face*3+2] = botval;
 	    break;
 	case 3:
 	    /* need to break this into two BOT faces */
 	    pbot->num_faces++;
 	    pbot->faces = (int *)bu_realloc(pbot->faces, pbot->num_faces * 3 * sizeof(int), "bot_faces");
-	    pbot->faces[cur_face*3+3] = botval;
-	    pbot->faces[cur_face*3+4] = pbot->faces[cur_face*3];
-	    pbot->faces[cur_face*3+5] = pbot->faces[cur_face*3+2];
-	    cur_face++;
+	    if (g_cur_face >= 0) {
+		pbot->faces[g_cur_face*3+3] = botval;
+		pbot->faces[g_cur_face*3+4] = pbot->faces[g_cur_face*3];
+		pbot->faces[g_cur_face*3+5] = pbot->faces[g_cur_face*3+2];
+	    }
+	    g_cur_face++;
 	    break;
 	default:
 	    /* will never execute because lists of length > 4 are not allowed */
@@ -228,12 +237,16 @@ convert_input(struct conversion_state* pstate)
     pstate->bot->faces = (int *)bu_calloc(pstate->bot->num_faces * 3, sizeof(int), "bot faces");
     pstate->bot->vertices = (fastf_t *)bu_calloc(pstate->bot->num_vertices * 3, sizeof(fastf_t), "bot vertices");
 
+    g_cur_vertex = -1;
+    g_cur_face = -1;
+
     if (!ply_read(ply_fp)) {
 	bu_log("ERROR: Cannot read PLY file (%s)\n", pstate->input_file);
 	goto free_bot;
     }
 
     ply_close(ply_fp);
+    ply_fp = NULL;
 
     /* convert to .g
      * generate object name by striping input file of slashes and .ply */
@@ -290,6 +303,8 @@ convert_input(struct conversion_state* pstate)
     }
 
 free_bot:
+    if (ply_fp)
+	ply_close(ply_fp);
     if(pstate->bot->faces)
 	bu_free(pstate->bot->faces, "pstate->bot->faces");
     if(pstate->bot->vertices)
@@ -339,8 +354,12 @@ static int
 ply_read_gcv(struct gcv_context* context, const struct gcv_opts* gcv_options, const void* options_data, const char* source_path)
 {
     struct conversion_state state;
+    struct rt_wdb *wdbp;
 
-    struct rt_wdb *wdbp = wdb_dbopen(context->dbip, RT_WDB_TYPE_DB_INMEM);
+    if (!context || !context->dbip || !source_path)
+	return 0;
+
+    wdbp = wdb_dbopen(context->dbip, RT_WDB_TYPE_DB_INMEM);
 
     state.gcv_options = gcv_options;
     state.ply_read_options = (struct ply_read_options*)options_data;
@@ -350,7 +369,7 @@ ply_read_gcv(struct gcv_context* context, const struct gcv_opts* gcv_options, co
     if ((state.fd_in = fopen(source_path, "rb")) == NULL) {
 	bu_log("Cannot open input file (%s)\n", source_path);
 	perror("libgcv");
-	bu_exit(1, NULL);
+	return 0;
     }
 
     mk_id_units(state.fd_out, "Conversion from PLY format", "mm");

@@ -39,13 +39,15 @@ extern "C" b_off_t ftello(FILE *);
 
 //Constructor with filename a parameter
 FileUtil::FileUtil(const char *fname)
+    : filename(fname ? bu_strdup(fname) : NULL), fileinput(NULL)
 {
-    filename = bu_strdup(fname);
 }
 
 FileUtil::~FileUtil()
 {
-    bu_free(filename, "filename");
+    if (filename)
+	bu_free(filename, "filename");
+    delete [] fileinput;
 }
 
 //checks file type to note the format being processed and returns an int corresponding to file type
@@ -53,6 +55,9 @@ int
 FileUtil::getFileType()
 {
     unsigned char format[10];
+
+    if (!filename)
+	return FILEUTIL_TYPE_UNKNOWN;
 
     FILE *fp = fopen(filename, "rb");
 
@@ -82,13 +87,22 @@ FileUtil::getFileType()
 char *
 FileUtil::storeFileInput()
 {
-    int size, i;
+    int size = 0, i;
+    if (!filename)
+	return NULL;
     std::ifstream infile(filename, std::ios::in);
+    if (!infile.is_open())
+	return NULL;
 
     infile.seekg(0, std::ios::end);
     size = infile.tellg();  //Get file size
+    if (size < 0) {
+	infile.close();
+	return NULL;
+    }
     infile.seekg(0, std::ios::beg);
 
+    delete [] fileinput;
     fileinput = new char[(2*size) + 1];
 
     for (i = 0; i < size; i++) {
@@ -112,6 +126,7 @@ void
 FileUtil::freeFileInput()
 {
     delete [] fileinput;
+    fileinput = NULL;
 }
 
 

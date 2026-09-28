@@ -1120,6 +1120,9 @@ int
 rhino_read(gcv_context *context, const gcv_opts *gcv_options,
 	   const void *UNUSED(options_data), const char *source_path)
 {
+    if (!context || !context->dbip || !gcv_options || !source_path)
+	return 0;
+
     std::string root_name;
     {
 	// Extract the root filename from the supplied path.  This will
@@ -1149,6 +1152,9 @@ rhino_read(gcv_context *context, const gcv_opts *gcv_options,
     } catch (const InvalidRhinoModelError &exception) {
 	std::cerr << "invalid input file ('" << exception.what() << "')\n";
 	return 0;
+    } catch (const std::exception &exception) {
+	bu_log("Rhino reader failed: %s\n", exception.what());
+	return 0;
     }
 
     polish_output(*gcv_options, *context->dbip, *wdbp);
@@ -1166,9 +1172,11 @@ rhino_can_read(const char *source_path)
     FILE *fp = ON::OpenFile(source_path,"rb");
     if (!fp) return 0;
     ON_BinaryFile file(ON::archive_mode::read3dm,fp);
-    if (!file.Read3dmStartSection(&fv, mSC)) return 0;
-    if (!file.Read3dmProperties(mprop)) return 0;
-    return 1;
+    int ret = 0;
+    if (file.Read3dmStartSection(&fv, mSC) && file.Read3dmProperties(mprop))
+	ret = 1;
+    ON::CloseFile(fp);
+    return ret;
 }
 
 

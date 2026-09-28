@@ -71,13 +71,13 @@ nextWord(char *inputstring, char *nextwd)
 
 		int count = 0;
 		while (((*strptr) != ' ') && ((*strptr) != '\0') && ((*strptr) != '\n') && ((*strptr) != '\t')&& ((*strptr) != '\r')) {
-		    tempchar[count] = (*strptr);
+		    if (count < MAXSTRSIZE - 1)
+			tempchar[count++] = (*strptr);
 		    strptr++;
-		    count++;
 		}
 
 		tempchar[count] = '\0';
-		bu_strlcpy(nextwd, tempchar, count+1);
+		bu_strlcpy(nextwd, tempchar, MAXSTRSIZE);
 		return strptr;
 	}
     }
@@ -98,12 +98,10 @@ findKeyWord(char *inputstring, int kw)
 void
 stringcopy(std::string &str1, char *str2)
 {
-    int i;
-
-    for (i = 0; str2[i] != '\0'; i++) {
-	str1.push_back(str2[i]);
-    }
-    str1[i] = '\0';
+    if (str2)
+	str1 = str2;
+    else
+	str1.clear();
 }
 
 int

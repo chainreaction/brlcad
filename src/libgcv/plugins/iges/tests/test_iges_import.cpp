@@ -2002,7 +2002,8 @@ test_degenerate_revolution()
 int
 main(int argc, char **argv)
 {
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
     if (argc != 1)
 	return 1;
     ON::Begin();

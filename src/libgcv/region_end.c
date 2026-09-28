@@ -98,7 +98,7 @@ gcv_region_end(struct db_tree_state *tsp, const struct db_full_path *pathp, unio
 
     struct gcv_region_end_data *data = (struct gcv_region_end_data *)client_data;
 
-    if (!tsp || !curtree || !pathp || !client_data) {
+    if (!tsp || !curtree || !pathp || !client_data || !tsp->ts_m || !(*tsp->ts_m) || !tsp->ts_tol || !tsp->ts_ttol) {
 	bu_log("INTERNAL ERROR: gcv_region_end missing parameters\n");
 	return TREE_NULL;
     }
@@ -160,13 +160,14 @@ gcv_region_end(struct db_tree_state *tsp, const struct db_full_path *pathp, unio
 	nmg_isect2d_final_cleanup();
 
 	/* Get rid of (m)any other intermediate structures */
-	if ((*tsp->ts_m)->magic == NMG_MODEL_MAGIC)
+	if (tsp->ts_m && *tsp->ts_m && (*tsp->ts_m)->magic == NMG_MODEL_MAGIC)
 	    nmg_km(*tsp->ts_m);
 	else
 	    bu_log("WARNING: tsp->ts_m pointer corrupted, ignoring it.\n");
 
 	/* Now, make a new, clean model structure for next pass. */
-	*tsp->ts_m = nmg_mm();
+	if (tsp->ts_m)
+	    *tsp->ts_m = nmg_mm();
 
 	return _gcv_cleanup(NMG_debug_state, tp);
     } BU_UNSETJUMP; /* Relinquish bomb protection */
@@ -215,13 +216,14 @@ gcv_region_end(struct db_tree_state *tsp, const struct db_full_path *pathp, unio
 	nmg_isect2d_final_cleanup();
 
 	/* Get rid of (m)any other intermediate structures */
-	if ((*tsp->ts_m)->magic == NMG_MODEL_MAGIC)
+	if (tsp->ts_m && *tsp->ts_m && (*tsp->ts_m)->magic == NMG_MODEL_MAGIC)
 	    nmg_km(*tsp->ts_m);
 	else
 	    bu_log("WARNING: tsp->ts_m pointer corrupted, ignoring it.\n");
 
 	/* Now, make a new, clean model structure for next pass. */
-	*tsp->ts_m = nmg_mm();
+	if (tsp->ts_m)
+	    *tsp->ts_m = nmg_mm();
 	nmg_kr(r);
 
 	return _gcv_cleanup(NMG_debug_state, tp);

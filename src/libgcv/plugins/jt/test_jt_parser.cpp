@@ -1812,7 +1812,8 @@ bool test_jt_checksum_footer()
 int main(int argc, char **argv)
 {
     (void)argc;
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
 
     if (!check_sample(8, 1, false) || !check_sample(9, 5, true) || !check_sample(10, 0, true)) return 1;
 

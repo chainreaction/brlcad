@@ -2878,10 +2878,13 @@ fastgen4_free_opts(void *options_data)
 static int
 fastgen4_read(struct gcv_context *context, const struct gcv_opts *gcv_options, const void *options_data, const char *source_path)
 {
-    const struct fastgen4_read_options * const fg4_read_options =
-	(struct fastgen4_read_options *)options_data;
-
+    const struct fastgen4_read_options *fg4_read_options;
     struct conversion_state state;
+
+    if (!context || !context->dbip || !options_data || !source_path)
+	return 0;
+
+    fg4_read_options = (const struct fastgen4_read_options *)options_data;
 
     fg4_zero_conversion_state(&state);
     state.gcv_options = gcv_options;

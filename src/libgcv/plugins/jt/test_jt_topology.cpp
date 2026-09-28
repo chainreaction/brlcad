@@ -231,7 +231,8 @@ int test_topology_context_indexing()
 int main(int argc, char **argv)
 {
     (void)argc;
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
 
     if (int rc = test_single_triangle())
 	return rc;

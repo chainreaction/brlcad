@@ -255,7 +255,8 @@ write_fixtures(const std::string &database_path, const std::string &iges_path)
 int
 main(int argc, const char **argv)
 {
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
     ON::Begin();
     try {
 	test_boxes();

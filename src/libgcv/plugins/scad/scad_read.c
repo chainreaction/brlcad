@@ -60,6 +60,9 @@ scad_read_create_opts(struct bu_opt_desc **options_desc, void **dest_options_dat
 {
     struct scad_read_options *o;
 
+    if (!options_desc || !dest_options_data)
+	return;
+
     BU_ALLOC(o, struct scad_read_options);
     o->units = NULL;		/* NULL -> "mm" at use */
     o->fn = 0;
@@ -92,7 +95,8 @@ static void
 scad_read_free_opts(void *options_data)
 {
     /* units is a non-owning pointer into caller argv (bu_opt_str) */
-    bu_free(options_data, "scad opts");
+    if (options_data)
+	bu_free(options_data, "scad opts");
 }
 
 
@@ -146,6 +150,9 @@ scad_read(struct gcv_context *context, const struct gcv_opts *gcv_options,
     size_t nprog = 0;
     struct scad_geom *emit_root;
     int ok = 0;
+
+    if (!context || !context->dbip || !source_path)
+	return 0;
 
     memset(&st, 0, sizeof(st));
     st.gcv_options = gcv_options;

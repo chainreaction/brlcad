@@ -317,7 +317,8 @@ int test_evaluate(void)
 int
 main(int UNUSED(argc), const char **argv)
 {
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
 #define TRY(STR, FNC) { int rval = FNC(); printf("RESULT:%18s: \033[1;", STR); if (rval) printf("31m%d\033[m failures\n",  rval); else printf("32mOK\033[m\n"); }
     TRY("tri intersection", test_tri_intersections);
     TRY("single face split", test_face_split_single);

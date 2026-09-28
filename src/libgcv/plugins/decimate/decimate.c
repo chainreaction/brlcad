@@ -35,6 +35,9 @@ decimate_filter(struct gcv_context *context, const struct gcv_opts *gcv_options,
 {
     size_t i;
 
+    if (!context || !context->dbip || !gcv_options)
+	return 0;
+
     for (i = 0; i < gcv_options->num_objects; ++i) {
 	struct directory *dir;
 	struct rt_db_internal internal;
@@ -50,6 +53,8 @@ decimate_filter(struct gcv_context *context, const struct gcv_opts *gcv_options,
 
 	    dir = DB_FULL_PATH_CUR_DIR(&path);
 	    db_free_full_path(&path);
+	    if (!dir)
+		return 0;
 	}
 
 	if (rt_db_get_internal(&internal, dir, context->dbip, NULL) < 0) {
@@ -86,7 +91,6 @@ decimate_filter(struct gcv_context *context, const struct gcv_opts *gcv_options,
 
 	if (rt_db_put_internal(dir, context->dbip, &internal)) {
 	    bu_log("rt_db_put_internal() failed: '%s'\n", dir->d_namep);
-	    rt_db_free_internal(&internal);
 	    return 0;
 	}
     }

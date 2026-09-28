@@ -2480,6 +2480,9 @@ static int
 fastgen4_write(struct gcv_context *context, const struct gcv_opts *gcv_options,
 	       const void *UNUSED(options_data), const char *dest_path)
 {
+    if (!context || !context->dbip || !gcv_options || !dest_path)
+	return 0;
+
     try {
 	const std::set<const directory *> failed_regions =
 	    do_conversion(*context->dbip, *gcv_options, dest_path);
@@ -2491,6 +2494,9 @@ fastgen4_write(struct gcv_context *context, const struct gcv_opts *gcv_options,
 		throw std::runtime_error("failed to convert all regions");
     } catch (const InvalidModelError &exception) {
 	std::cerr << "invalid input model ('" << exception.what() << "')\n";
+	return 0;
+    } catch (const std::exception &exception) {
+	bu_log("FASTGEN4 export failed: %s\n", exception.what());
 	return 0;
     }
 

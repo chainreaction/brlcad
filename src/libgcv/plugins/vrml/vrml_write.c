@@ -1218,17 +1218,27 @@ vrml_write(struct gcv_context *context, const struct gcv_opts *gcv_options, cons
 {
     struct conversion_state state;
     struct db_tree_state tree_state;
-    struct model *the_model;
+    struct model *the_model = NULL;
     struct plate_mode pm;
     size_t i;
     struct region_end_data region_end_data;
+    static const struct vrml_write_options default_opts = {0, 0};
+    char *units_str;
+
+    if (!context || !context->dbip || !gcv_options || !dest_path)
+	return 0;
 
     memset(&state, 0, sizeof(state));
 
     state.gcv_options = gcv_options;
-    state.vrml_write_options = (struct vrml_write_options *)options_data;
+    state.vrml_write_options = options_data ? (struct vrml_write_options *)options_data : (struct vrml_write_options *)&default_opts;
     state.dbip = context->dbip;
     state.nmg_debug = nmg_debug;
+
+    pm.bots = NULL;
+    pm.num_bots = 0;
+    pm.num_nonbots = 0;
+    pm.array_size = 0;
 
     region_end_data.pstate = &state;
     region_end_data.pmp = &pm;
@@ -1259,8 +1269,10 @@ vrml_write(struct gcv_context *context, const struct gcv_opts *gcv_options, cons
 
     region_end_data.vlfree = &rt_vlfree;
 
+    units_str = vrml_write_make_units_str(gcv_options->scale_factor);
     fprintf(state.fp_out, "#VRML V2.0 utf8\n");
-    fprintf(state.fp_out, "#Units are %s\n", vrml_write_make_units_str(gcv_options->scale_factor));
+    fprintf(state.fp_out, "#Units are %s\n", units_str);
+    bu_free(units_str, "units_str");
     /* NOTE: We may want to inquire about bounding boxes for the
      * various groups and add Viewpoints nodes that point the camera
      * to the center and orient for Top, Side, etc. Views. We will add
@@ -1353,14 +1365,18 @@ vrml_write(struct gcv_context *context, const struct gcv_opts *gcv_options, cons
 		       leaf_tess1,
 		       (void *)&region_end_data);	/* in librt/nmg_bool.c */
 
+out:
     /* Release dynamic storage */
-    nmg_km(the_model);
-
-    if (!state.vrml_write_options->eval_all) {
-	bu_free(pm.bots, "pm.bots");
+    if (the_model) {
+	nmg_km(the_model);
+	the_model = NULL;
     }
 
-out:
+    if (pm.bots) {
+	bu_free(pm.bots, "pm.bots");
+	pm.bots = NULL;
+    }
+
     /* Now we need to close each group set */
     fprintf(state.fp_out, "\t]\n}\n");
 

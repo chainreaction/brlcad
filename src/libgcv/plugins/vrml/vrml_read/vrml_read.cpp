@@ -88,14 +88,14 @@ Convert_input(NODE *node)
     int vert_no=0;
     struct bu_vls solid_name = BU_VLS_INIT_ZERO;
     struct bu_vls region_name = BU_VLS_INIT_ZERO;
-    char sname[5];
-    char rname[5];
+    char sname[64];
+    char rname[64];
 
     bot_fcurr = 0;
 
     objnumb++;
-    sprintf(sname, "%d", objnumb);
-    sprintf(rname, "r%d", objnumb);
+    snprintf(sname, sizeof(sname), "%d", objnumb);
+    snprintf(rname, sizeof(rname), "r%d", objnumb);
 
     bu_vls_strcpy(&solid_name, "s");
     bu_vls_strcat(&solid_name, sname);
@@ -121,6 +121,8 @@ Convert_input(NODE *node)
 	}
 	if (face_count == 0) {
 	    objnumb--;
+	    bu_vls_free(&region_name);
+	    bu_vls_free(&solid_name);
 	    return;
 	}
 	mk_bot(fd_out, bu_vls_addr(&solid_name), RT_BOT_SOLID, RT_BOT_UNORIENTED, 0, tree->curr_vert, bot_fcurr,
@@ -136,6 +138,8 @@ Convert_input(NODE *node)
 	mk_ell(fd_out,bu_vls_addr(&solid_name), &allvert[0], &allvert[3], &allvert[6], &allvert[9]);
     } else {
 	objnumb--;
+	bu_vls_free(&region_name);
+	bu_vls_free(&solid_name);
 	return;
     }
 
@@ -208,6 +212,12 @@ vrml_read(struct gcv_context *context, const struct gcv_opts *gcv_options, const
     int type;
     char *fptr;
 
+    if (!context || !context->dbip || !gcv_options || !source_path)
+	return 0;
+
+    objnumb = -1;
+    id_no = 1000;
+
     FileUtil infile(source_path);
 
     type = infile.getFileType();
@@ -255,11 +265,21 @@ vrml_read(struct gcv_context *context, const struct gcv_opts *gcv_options, const
 
     if (objnumb < 0) {
 	bu_log("ERROR: unable to get objects\n");
+	mk_freemembers(&all_head.l);
+	if (bot_faces) {
+	    bu_free(bot_faces, "bot_faces");
+	    bot_faces = NULL;
+	}
 	return 0;
     }
 
     /* make a top level group */
     mk_lcomb(fd_out, "all", &all_head, 0, (char *)NULL, (char *)NULL, (unsigned char *)NULL, 0);
+
+    if (bot_faces) {
+	bu_free(bot_faces, "bot_faces");
+	bot_faces = NULL;
+    }
 
     if (gcv_options->verbosity_level)
 	bu_log("%d objects created\n", objnumb + 1);

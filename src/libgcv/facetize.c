@@ -96,6 +96,9 @@ _gcv_facetize_free_bot(struct rt_bot_internal *bot)
     /* fill in an rt_db_internal so we can free it */
     struct rt_db_internal internal;
 
+    if (!bot)
+	return;
+
     RT_BOT_CK_MAGIC(bot);
 
     RT_DB_INTERNAL_INIT(&internal);
@@ -216,10 +219,12 @@ gcv_facetize(struct db_i *db, const struct db_full_path *path,
 		    struct rt_bot_internal *bots[2];
 		    bots[0] = result;
 		    bots[1] = nmg_bot(current_shell, vlfree, tol);
-		    result = rt_bot_merge(sizeof(bots) / sizeof(bots[0]),
-					  (const struct rt_bot_internal * const *)bots);
-		    _gcv_facetize_free_bot(bots[0]);
-		    _gcv_facetize_free_bot(bots[1]);
+		    if (bots[1]) {
+			result = rt_bot_merge(sizeof(bots) / sizeof(bots[0]),
+					      (const struct rt_bot_internal * const *)bots);
+			_gcv_facetize_free_bot(bots[0]);
+			_gcv_facetize_free_bot(bots[1]);
+		    }
 		}
 	    } else {
 		/* catch */

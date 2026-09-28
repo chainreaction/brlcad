@@ -114,7 +114,8 @@ same_faces(const ON_Brep &source, const ON_Brep &imported)
 int
 main(int argc, const char **argv)
 {
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
     const bool allow_reversal = argc == 6 && BU_STR_EQUAL(argv[5], "allow-global-reversal");
     if (argc != 5 && !allow_reversal)
 	bu_exit(1, "Usage: %s source.g primitive imported.g brep [allow-global-reversal]\n", argv[0]);

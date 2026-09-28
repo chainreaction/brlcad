@@ -90,7 +90,8 @@ struct Model {
 int
 main(int argc, const char **argv)
 {
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
     if (argc != 5)
 	bu_exit(1, "Usage: %s source.g source-object imported.g imported-object\n", argv[0]);
     Model source(argv[1], argv[2]);

@@ -116,6 +116,9 @@ make_model_from_face(const double points[], size_t numPoints, struct bu_list *vl
     struct vertex **verts;
     const double *p;
 
+    if (!points || numPoints < 3)
+	return NULL;
+
     /* make base nmg model */
     model = nmg_mm();
     nmg_mrsv(model);
@@ -154,6 +157,9 @@ make_faceuse_from_face(const double points[], size_t numPoints, struct bu_list *
     struct model *model;
     struct shell *shell;
     struct faceuse *fu = NULL;
+
+    if (!points || numPoints < 3)
+	return NULL;
 
     model = make_model_from_face(points, numPoints, vlfree);
 
@@ -221,19 +227,26 @@ triangulateFace(
     int ref;
     double point[3];
 
+    if (!faces || !numFaces)
+	return;
+
+    *faces = NULL;
+    *numFaces = 0;
+
+    if (!points || numPoints < 3)
+	return;
+
     /* get nmg faceuse that represents the face specified by points */
     fu = make_faceuse_from_face(points, numPoints, vlfree);
 
     if (fu == NULL) {
-	*faces = NULL;
-	*numFaces = 0;
 	return;
     }
 
     /* triangulate face */
     if (nmg_triangulate_fu(fu, vlfree, &tol)) {
-	*faces = NULL;
-	*numFaces = 0;
+	model = get_faceuse_model(fu);
+	nmg_km(model);
 	return;
     }
 
@@ -250,9 +263,11 @@ triangulateFace(
     i = 0;
     for (BU_LIST_FOR(lu, loopuse, &fu->lu_hd)) {
 	for (BU_LIST_FOR(eu, edgeuse, &lu->down_hd)) {
-	    VMOVE(point, eu->vu_p->v_p->vg_p->coord);
-	    ref = getPointReference(point, points, numPoints, tol.dist);
-	    (*faces)[i++] = ref;
+	    if (i < numFaceVertices) {
+		VMOVE(point, eu->vu_p->v_p->vg_p->coord);
+		ref = getPointReference(point, points, numPoints, tol.dist);
+		(*faces)[i++] = ref;
+	    }
 	}
     }
 

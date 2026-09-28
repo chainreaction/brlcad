@@ -788,10 +788,14 @@ obj_write(struct gcv_context *context, const struct gcv_opts *gcv_options, const
     struct model *the_model;
     struct db_tree_state tree_state;
     struct conversion_state state;
+    static const struct obj_write_options default_opts = {0, 0};
+
+    if (!context || !context->dbip || !gcv_options || !dest_path)
+	return 0;
 
     memset(&state, 0, sizeof(state));
     state.gcv_options = gcv_options;
-    state.obj_write_options = (struct obj_write_options *)options_data;
+    state.obj_write_options = options_data ? (const struct obj_write_options *)options_data : &default_opts;
     state.dbip = context->dbip;
     state.nmg_debug = nmg_debug;
     BU_LIST_INIT(&state.material_head);

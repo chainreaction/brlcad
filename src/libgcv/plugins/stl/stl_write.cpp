@@ -200,7 +200,7 @@ nmg_to_stl(struct nmgregion *r, const struct db_full_path *pathp, struct db_tree
 
     /* Write pertinent info for this region */
     if (!pstate->stl_write_options->binary)
-	fprintf(pstate->fp, "solid %s\n", (region_name+1));
+	fprintf(pstate->fp, "solid %s\n", (region_name && *region_name ? region_name + 1 : ""));
 
     /* triangulate model */
     nmg_triangulate_model(m, pstate->vlfree, &pstate->gcv_options->calculational_tolerance);
@@ -269,8 +269,10 @@ nmg_to_stl(struct nmgregion *r, const struct db_full_path *pathp, struct db_tree
 			fprintf(pstate->fp, "      vertex ");
 			fprintf(pstate->fp, "%f %f %f\n", V3ARGS_SCALE(v->vg_p->coord, pstate->gcv_options->scale_factor));
 		    } else {
-			VSET_SCALE(flt_ptr, v->vg_p->coord, pstate->gcv_options->scale_factor);
-			flt_ptr += 3;
+			if (vert_count <= 3) {
+			    VSET_SCALE(flt_ptr, v->vg_p->coord, pstate->gcv_options->scale_factor);
+			    flt_ptr += 3;
+			}
 		    }
 		}
 		if (vert_count > 3)

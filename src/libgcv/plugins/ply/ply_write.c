@@ -146,8 +146,9 @@ nmg_to_ply(struct nmgregion *r, const struct db_full_path *pathp, int UNUSED(reg
 	unsigned int k;
 	char *region_file;
 
-	region_file = (char *) bu_calloc(strlen(region_name) + strlen(pstate->output_file), sizeof(char), "region_file");
-	sprintf(region_file, "%s_%s", region_name+1, pstate->output_file);
+	size_t rflen = strlen(region_name) + strlen(pstate->output_file) + 2;
+	region_file = (char *) bu_calloc(rflen, sizeof(char), "region_file");
+	snprintf(region_file, rflen, "%s_%s", (region_name && *region_name ? region_name + 1 : ""), pstate->output_file);
 	for (k = 0; k < strlen(region_file); k++) {
 	    switch (region_file[k]) {
 		case '/':
@@ -616,10 +617,18 @@ ply_write_gcv(struct gcv_context* context, const struct gcv_opts* gcv_options, c
     struct conversion_state state;
     struct db_tree_state tree_state;
     p_ply ply_fp = NULL;
+    static const struct ply_write_options default_opts = {
+	-1.0, -1.0, -1.0, -1.0,
+	NULL, (char *)"de", 0, 0,
+	NULL, NULL
+    };
+
+    if (!context || !context->dbip || !gcv_options || !dest_path)
+	return 0;
 
     memset(&state, 0, sizeof(state));
     state.gcv_options = gcv_options;
-    state.ply_write_options = (struct ply_write_options*)options_data;
+    state.ply_write_options = options_data ? (const struct ply_write_options*)options_data : &default_opts;
     state.output_file = dest_path;
     if (state.ply_write_options->o_file) {        // check if user explicitly set with -o
         state.output_file = state.ply_write_options->o_file;
@@ -693,8 +702,10 @@ ply_write_gcv(struct gcv_context* context, const struct gcv_opts* gcv_options, c
      * more of them are not, bail
      */
     for (size_t j = 0; j < gcv_options->num_objects; j++) {
-	if (db_lookup(state.dbip, gcv_options->object_names[j], LOOKUP_NOISY) == RT_DIR_NULL)
-	    bu_exit(1, "ERROR: invalid object\n");
+	if (db_lookup(state.dbip, gcv_options->object_names[j], LOOKUP_NOISY) == RT_DIR_NULL) {
+	    bu_log("ERROR: invalid object: %s\n", gcv_options->object_names[j]);
+	    goto free_all;
+	}
     }
 
     /* Quickly get number of regions. I did this over dynamically
@@ -813,14 +824,43 @@ ply_write_gcv(struct gcv_context* context, const struct gcv_opts* gcv_options, c
 
 free_all:
     /* Release dynamic storage */
-    if (state.f_regs)
+    if (state.f_regs) {
+	for (size_t r_i = 0; r_i < state.tot_regions; r_i++) {
+	    if (state.f_regs[r_i]) {
+		if (state.f_sizes) {
+		    for (int f_i = 0; f_i < state.f_sizes[r_i]; f_i++) {
+			if (state.f_regs[r_i][f_i])
+			    bu_free(state.f_regs[r_i][f_i], "v_ind");
+		    }
+		}
+		bu_free(state.f_regs[r_i], "reg_faces");
+	    }
+	}
 	bu_free(state.f_regs, "state.f_regs");
+    }
+    if (state.v_regs) {
+	for (size_t r_i = 0; r_i < state.tot_regions; r_i++) {
+	    if (state.v_regs[r_i]) {
+		if (state.f_sizes) {
+		    for (int v_i = 0; v_i < state.f_sizes[r_i] * 3; v_i++) {
+			if (state.v_regs[r_i][v_i])
+			    bu_free(state.v_regs[r_i][v_i], "v_coords");
+		    }
+		}
+		bu_free(state.v_regs[r_i], "reg_verts");
+	    }
+	}
+	bu_free(state.v_regs, "state.v_regs");
+    }
+    if (state.v_tbl_regs) {
+	for (size_t r_i = 0; r_i < state.tot_regions; r_i++) {
+	    if (state.v_tbl_regs[r_i])
+		bu_hash_destroy(state.v_tbl_regs[r_i]);
+	}
+	bu_free(state.v_tbl_regs, "state.v_tbl_regs");
+    }
     if (state.f_sizes)
 	bu_free(state.f_sizes, "state.f_sizes");
-    if (state.v_regs)
-	bu_free(state.v_regs, "state.v_regs");
-    if (state.v_tbl_regs)
-	bu_free(state.v_tbl_regs, "state.v_tbl_regs");
     if (ply_fp)
         ply_close(ply_fp);
     nmg_km(state.the_model);

@@ -3510,10 +3510,14 @@ do_grouping(struct rt_wdb *wdbp, const struct gcv_opts *gcv_options, const struc
 static int
 obj_read(struct gcv_context *context, const struct gcv_opts *gcv_options, const void *options_data, const char *source_path)
 {
-    const struct obj_read_options * const obj_read_options = (struct obj_read_options *)options_data;
+    const struct obj_read_options *obj_read_options;
     struct ga_t ga;
-
     struct bu_list *vlfree = &rt_vlfree;
+
+    if (!context || !context->dbip || !gcv_options || !options_data || !source_path)
+	return 0;
+
+    obj_read_options = (const struct obj_read_options *)options_data;
 
     if (obj_read_options->open_bot_output_mode == RT_BOT_PLATE || obj_read_options->open_bot_output_mode == RT_BOT_PLATE_NOCOS) {
 	if (!obj_read_options->user_bot_thickness_flag) {
@@ -3594,8 +3598,11 @@ obj_can_read(const char *source_path)
 {
     FILE *fp;
     int ret;
-    obj_contents_t contents; /* obj_fparse */
-    obj_parser_t parser;     /* obj_parser_create */
+    obj_contents_t contents = { NULL }; /* obj_fparse */
+    obj_parser_t parser;                /* obj_parser_create */
+
+    if (!source_path)
+	return 0;
 
     if (obj_parser_create(&parser)) {
 	obj_parser_destroy(parser);
@@ -3607,7 +3614,8 @@ obj_can_read(const char *source_path)
     }
 
     ret = !obj_fparse(fp, parser, &contents);
-    obj_contents_destroy(contents);
+    if (contents.p)
+	obj_contents_destroy(contents);
     obj_parser_destroy(parser);
     fclose(fp);
     return ret;

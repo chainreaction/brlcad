@@ -17,7 +17,8 @@ using namespace brlcad::iges;
 int
 main(int UNUSED(argc), char **argv)
 {
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
     try {
 	ExportOptions options;
 	Writer first(options, {"sphere"});
