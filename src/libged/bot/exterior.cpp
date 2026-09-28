@@ -852,6 +852,9 @@ _bot_cmd_exterior(void *bs, int argc, const char **argv)
 	bu_vls_printf(gb->gedp->ged_result_str,
 		      "%s is a PLATE MODE BoT; exterior classification is unsupported\n",
 		      input_name);
+	rt_db_free_internal(gb->intern);
+	BU_PUT(gb->intern, struct rt_db_internal);
+	gb->intern = NULL;
 	bu_vls_free(&output_name);
 	return BRLCAD_ERROR;
     }
@@ -865,6 +868,9 @@ _bot_cmd_exterior(void *bs, int argc, const char **argv)
 	bu_vls_printf(gb->gedp->ged_result_str,
 		      "Unable to load %s for raytracing\n", input_name);
 	rt_i_destroy(ap.a_rt_i);
+	rt_db_free_internal(gb->intern);
+	BU_PUT(gb->intern, struct rt_db_internal);
+	gb->intern = NULL;
 	bu_vls_free(&output_name);
 	return BRLCAD_ERROR;
     }
@@ -891,6 +897,9 @@ _bot_cmd_exterior(void *bs, int argc, const char **argv)
 	if (n_ext < 0) {
 	    bu_free(face_exterior, "face_exterior");
 	    rt_i_destroy(ap.a_rt_i);
+	    rt_db_free_internal(gb->intern);
+	    BU_PUT(gb->intern, struct rt_db_internal);
+	    gb->intern = NULL;
 	    bu_vls_free(&output_name);
 	    bu_vls_printf(gb->gedp->ged_result_str,
 			  "Flood-fill exterior classification failed\n");
@@ -916,6 +925,9 @@ _bot_cmd_exterior(void *bs, int argc, const char **argv)
     if (!face_exterior || n_ext < 0) {
 	bu_vls_printf(gb->gedp->ged_result_str,
 		      "Exterior face classification failed\n");
+	rt_db_free_internal(gb->intern);
+	BU_PUT(gb->intern, struct rt_db_internal);
+	gb->intern = NULL;
 	bu_vls_free(&output_name);
 	return BRLCAD_ERROR;
     }
@@ -925,6 +937,9 @@ _bot_cmd_exterior(void *bs, int argc, const char **argv)
 	bu_vls_printf(gb->gedp->ged_result_str,
 		      "No exterior faces identified; "
 		      "verify the mesh is a closed solid\n");
+	rt_db_free_internal(gb->intern);
+	BU_PUT(gb->intern, struct rt_db_internal);
+	gb->intern = NULL;
 	bu_vls_free(&output_name);
 	return BRLCAD_ERROR;
     }
@@ -966,6 +981,8 @@ _bot_cmd_exterior(void *bs, int argc, const char **argv)
 			  "Failed to write %s\n", input_name);
 	    ret = BRLCAD_ERROR;
 	}
+	BU_PUT(gb->intern, struct rt_db_internal);
+	gb->intern = NULL;
     } else {
 	struct directory *outdp =
 	    db_diradd(gb->gedp->dbip, bu_vls_cstr(&output_name),
@@ -974,11 +991,19 @@ _bot_cmd_exterior(void *bs, int argc, const char **argv)
 	if (outdp == RT_DIR_NULL) {
 	    bu_vls_printf(gb->gedp->ged_result_str,
 			  "Cannot add %s to directory\n", bu_vls_cstr(&output_name));
+	    rt_db_free_internal(gb->intern);
+	    BU_PUT(gb->intern, struct rt_db_internal);
+	    gb->intern = NULL;
 	    ret = BRLCAD_ERROR;
 	} else if (rt_db_put_internal(outdp, gb->gedp->dbip, gb->intern) < 0) {
 	    bu_vls_printf(gb->gedp->ged_result_str,
 			  "Failed to write %s\n", bu_vls_cstr(&output_name));
+	    BU_PUT(gb->intern, struct rt_db_internal);
+	    gb->intern = NULL;
 	    ret = BRLCAD_ERROR;
+	} else {
+	    BU_PUT(gb->intern, struct rt_db_internal);
+	    gb->intern = NULL;
 	}
     }
 
@@ -1012,7 +1037,13 @@ ged_bot_exterior(struct ged *gedp, int argc, const char *argv[])
     gb.cmds      = NULL;
     gb.gopts     = NULL;
 
-    return _bot_cmd_exterior(&gb, argc, argv);
+    int ret = _bot_cmd_exterior(&gb, argc, argv);
+    if (gb.intern) {
+	rt_db_free_internal(gb.intern);
+	BU_PUT(gb.intern, struct rt_db_internal);
+	gb.intern = NULL;
+    }
+    return ret;
 }
 
 

@@ -109,6 +109,7 @@ _ged_bot_split_object(struct ged *gedp, const char *object_name,
     }
 
     struct rt_db_internal source_internal;
+    RT_DB_INTERNAL_INIT(&source_internal);
     if (rt_db_get_internal(&source_internal, source_dp, gedp->dbip,
 	    bn_mat_identity) < 0) {
 	bu_vls_printf(errors, "Cannot read %s\n", object_name);

@@ -139,6 +139,9 @@ ged_bot_decimate_core(struct ged *gedp, int argc, const char *argv[])
     /* import the current solid */
     RT_DB_INTERNAL_INIT(&intern);
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	return BRLCAD_ERROR;
+    }
     GED_DB_GET_INTERN(gedp, &intern, dp, NULL, BRLCAD_ERROR);
 
     /* make sure this is a BOT solid */

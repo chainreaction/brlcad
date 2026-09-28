@@ -75,7 +75,32 @@ _brep_cmd_edge_pick(void *bs, int argc, const char **argv)
     if (argc && argc != 6) {
 	bu_vls_printf(gib->vls, "need six values for point and direction\n");
 	return BRLCAD_ERROR;
+    } else if (argc == 6) {
+	char *endp;
+	for (int i = 0; i < 3; i++) {
+	    origin[i] = strtod(argv[i], &endp);
+	    if (endp == argv[i]) {
+		bu_vls_printf(gib->vls, "invalid ray value: %s\n", argv[i]);
+		return BRLCAD_ERROR;
+	    }
+	}
+	for (int i = 0; i < 3; i++) {
+	    dir[i] = strtod(argv[3+i], &endp);
+	    if (endp == argv[3+i]) {
+		bu_vls_printf(gib->vls, "invalid ray value: %s\n", argv[3+i]);
+		return BRLCAD_ERROR;
+	    }
+	}
+	if (MAGNITUDE(dir) < SMALL_FASTF) {
+	    bu_vls_printf(gib->vls, "ray direction vector has zero length\n");
+	    return BRLCAD_ERROR;
+	}
+	VUNITIZE(dir);
     } else {
+	if (!gedp->ged_gvp) {
+	    bu_vls_printf(gib->vls, "no viewport available and no ray specified\n");
+	    return BRLCAD_ERROR;
+	}
 	// If not explicitly specified, get the ray from GED
 	VSET(origin, -gedp->ged_gvp->gv_center[MDX], -gedp->ged_gvp->gv_center[MDY], -gedp->ged_gvp->gv_center[MDZ]);
 	VSCALE(origin, origin, gedp->dbip->dbi_base2local);
@@ -137,7 +162,7 @@ _brep_cmd_edge_pick(void *bs, int argc, const char **argv)
     for (int i = 0; i < 3; i++) {
 	ray.o[i] = origin[i];
 	ray.d[i] = dir[i];
-	ray.di[i] = 1/ray.d[i];
+	ray.di[i] = (fabs(ray.d[i]) < SQRT_SMALL_FASTF) ? INFINITY : 1.0 / ray.d[i];
     }
 
     std::set<int> aedges;
@@ -224,7 +249,32 @@ _brep_cmd_face_pick(void *bs, int argc, const char **argv)
     if (argc && argc != 6) {
 	bu_vls_printf(gib->vls, "need six values for point and direction\n");
 	return BRLCAD_ERROR;
+    } else if (argc == 6) {
+	char *endp;
+	for (int i = 0; i < 3; i++) {
+	    origin[i] = strtod(argv[i], &endp);
+	    if (endp == argv[i]) {
+		bu_vls_printf(gib->vls, "invalid ray value: %s\n", argv[i]);
+		return BRLCAD_ERROR;
+	    }
+	}
+	for (int i = 0; i < 3; i++) {
+	    dir[i] = strtod(argv[3+i], &endp);
+	    if (endp == argv[3+i]) {
+		bu_vls_printf(gib->vls, "invalid ray value: %s\n", argv[3+i]);
+		return BRLCAD_ERROR;
+	    }
+	}
+	if (MAGNITUDE(dir) < SMALL_FASTF) {
+	    bu_vls_printf(gib->vls, "ray direction vector has zero length\n");
+	    return BRLCAD_ERROR;
+	}
+	VUNITIZE(dir);
     } else {
+	if (!gedp->ged_gvp) {
+	    bu_vls_printf(gib->vls, "no viewport available and no ray specified\n");
+	    return BRLCAD_ERROR;
+	}
 	// If not explicitly specified, get the ray from GED
 	VSET(origin, -gedp->ged_gvp->gv_center[MDX], -gedp->ged_gvp->gv_center[MDY], -gedp->ged_gvp->gv_center[MDZ]);
 	VSCALE(origin, origin, gedp->dbip->dbi_base2local);
@@ -256,7 +306,7 @@ _brep_cmd_face_pick(void *bs, int argc, const char **argv)
     for (int i = 0; i < 3; i++) {
 	ray.o[i] = origin[i];
 	ray.d[i] = dir[i];
-	ray.di[i] = 1/ray.d[i];
+	ray.di[i] = (fabs(ray.d[i]) < SQRT_SMALL_FASTF) ? INFINITY : 1.0 / ray.d[i];
     }
 
     face_bboxes.plot("tree.plot3");
@@ -286,6 +336,8 @@ _brep_cmd_face_pick(void *bs, int argc, const char **argv)
     for (a_it = afaces.begin(); a_it != afaces.end(); a_it++) {
 	bu_vls_printf(gib->vls, "%d\n", *a_it);
 	ON_BrepLoop *loop = brep->m_F[*a_it].OuterLoop();
+	if (!loop)
+	    continue;
 	ON_3dPoint cedge_pt;
 	double edist = DBL_MAX;
 	for (int i = 0; i < loop->TrimCount(); i++) {
@@ -396,7 +448,32 @@ _brep_cmd_vertex_pick(void *bs, int argc, const char **argv)
     if (argc && argc != 6) {
 	bu_vls_printf(gib->vls, "need six values for point and direction\n");
 	return BRLCAD_ERROR;
+    } else if (argc == 6) {
+	char *endp;
+	for (int i = 0; i < 3; i++) {
+	    origin[i] = strtod(argv[i], &endp);
+	    if (endp == argv[i]) {
+		bu_vls_printf(gib->vls, "invalid ray value: %s\n", argv[i]);
+		return BRLCAD_ERROR;
+	    }
+	}
+	for (int i = 0; i < 3; i++) {
+	    dir[i] = strtod(argv[3+i], &endp);
+	    if (endp == argv[3+i]) {
+		bu_vls_printf(gib->vls, "invalid ray value: %s\n", argv[3+i]);
+		return BRLCAD_ERROR;
+	    }
+	}
+	if (MAGNITUDE(dir) < SMALL_FASTF) {
+	    bu_vls_printf(gib->vls, "ray direction vector has zero length\n");
+	    return BRLCAD_ERROR;
+	}
+	VUNITIZE(dir);
     } else {
+	if (!gedp->ged_gvp) {
+	    bu_vls_printf(gib->vls, "no viewport available and no ray specified\n");
+	    return BRLCAD_ERROR;
+	}
 	// If not explicitly specified, get the ray from GED
 	VSET(origin, -gedp->ged_gvp->gv_center[MDX], -gedp->ged_gvp->gv_center[MDY], -gedp->ged_gvp->gv_center[MDZ]);
 	VSCALE(origin, origin, gedp->dbip->dbi_base2local);
@@ -436,7 +513,7 @@ _brep_cmd_vertex_pick(void *bs, int argc, const char **argv)
 		edge_lens += nc.ControlPolygonLength();
 		edge_cnts++;
 	    }
-	    vlen = edge_lens/((double)edge_cnts);
+	    vlen = (edge_cnts > 0) ? edge_lens/((double)edge_cnts) : brep_bb.Diagonal().Length() * 0.05;
 	}
 
 
@@ -465,7 +542,7 @@ _brep_cmd_vertex_pick(void *bs, int argc, const char **argv)
     for (int i = 0; i < 3; i++) {
 	ray.o[i] = origin[i];
 	ray.d[i] = dir[i];
-	ray.di[i] = 1/ray.d[i];
+	ray.di[i] = (fabs(ray.d[i]) < SQRT_SMALL_FASTF) ? INFINITY : 1.0 / ray.d[i];
     }
 
     std::set<int> averts;

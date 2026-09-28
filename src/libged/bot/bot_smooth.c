@@ -71,10 +71,14 @@ ged_bot_smooth_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
-    while (*argv[arg_index] == '-') {
+    while (arg_index < argc && *argv[arg_index] == '-') {
 	/* this is an option */
 	if (BU_STR_EQUAL(argv[arg_index], "-t")) {
 	    arg_index++;
+	    if (arg_index >= argc) {
+		bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+		return BRLCAD_ERROR;
+	    }
 	    tolerance_angle = atof(argv[arg_index]);
 	} else {
 	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
@@ -83,7 +87,7 @@ ged_bot_smooth_core(struct ged *gedp, int argc, const char *argv[])
 	arg_index++;
     }
 
-    if (arg_index >= argc) {
+    if (argc - arg_index != 2) {
 	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
 	return BRLCAD_ERROR;
     }
@@ -99,6 +103,7 @@ ged_bot_smooth_core(struct ged *gedp, int argc, const char *argv[])
 	dp_new = dp_old;
     }
 
+    RT_DB_INTERNAL_INIT(&intern);
     GED_DB_GET_INTERN(gedp, &intern, dp_old, NULL, BRLCAD_ERROR);
 
     if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD || intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_BOT) {
@@ -117,11 +122,15 @@ ged_bot_smooth_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     if (dp_new == RT_DIR_NULL) {
-	GED_DB_DIRADD(gedp, dp_new, new_bot_name, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&intern.idb_type, BRLCAD_ERROR);
+	dp_new = db_diradd(gedp->dbip, new_bot_name, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&intern.idb_type);
+	if (dp_new == RT_DIR_NULL) {
+	    bu_vls_printf(gedp->ged_result_str, "Unable to add %s to database\n", new_bot_name);
+	    rt_db_free_internal(&intern);
+	    return BRLCAD_ERROR;
+	}
     }
 
     GED_DB_PUT_INTERN(gedp, dp_new, &intern, BRLCAD_ERROR);
-    rt_db_free_internal(&intern);
 
     return BRLCAD_OK;
 }

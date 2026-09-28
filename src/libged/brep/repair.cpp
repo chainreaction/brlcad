@@ -87,6 +87,10 @@ _brep_cmd_edge_curve_repair(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int ei = *e_it;
+	if (ei < 0 || ei >= brep.m_E.Count()) {
+	    bu_vls_printf(gib->vls, "invalid edge %d, skipping\n", ei);
+	    continue;
+	}
 	ON_BrepEdge &edge = brep.m_E[ei];
 	if (edge.m_ti.Count() <= 0) {
 	    bu_log("No associated trims, could not validate edge curve of %d\n", ei);
@@ -96,17 +100,20 @@ _brep_cmd_edge_curve_repair(void *bs, int argc, const char **argv)
 	const ON_BrepTrim *trim = NULL;
 	const ON_Curve *trimCurve = NULL;
 	for (int j = 0; j < edge.m_ti.Count(); j++) {
-	    trim = &brep.m_T[edge.m_ti[j]];
+	    int ti = edge.m_ti[j];
+	    if (ti < 0 || ti >= brep.m_T.Count())
+		continue;
+	    trim = &brep.m_T[ti];
 	    trimCurve = trim->TrimCurveOf();
 	    if (trimCurve)
 		break;
 	}
-	if (!trimCurve) {
+	if (!trimCurve || !trim) {
 	    bu_log("No associated trim curve found, could not validate edge curve of %d\n", ei);
 	    continue;
 	}
 	const ON_BrepFace *f = trim->Face();
-	if (!trimCurve) {
+	if (!f) {
 	    bu_log("No associated trim face found, could not validate edge curve of %d\n", ei);
 	    continue;
 	}
@@ -117,6 +124,10 @@ _brep_cmd_edge_curve_repair(void *bs, int argc, const char **argv)
 	}
 
 	const ON_Curve *c3 = edge.EdgeCurveOf();
+	if (!c3) {
+	    bu_log("No edge curve found for %d\n", ei);
+	    continue;
+	}
 	ON_3dPoint ep = c3->PointAt(c3->Domain().Min());
 
 	ON_Interval tdom = trimCurve->Domain();

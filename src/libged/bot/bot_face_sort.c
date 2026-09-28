@@ -77,6 +77,7 @@ ged_bot_face_sort_core(struct ged *gedp, int argc, const char *argv[])
 	    continue;
 	}
 
+	RT_DB_INTERNAL_INIT(&intern);
 	GED_DB_GET_INTERN(gedp, &intern, dp, bn_mat_identity, BRLCAD_ERROR);
 
 	if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD || intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_BOT) {

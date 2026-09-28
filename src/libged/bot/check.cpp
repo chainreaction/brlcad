@@ -207,7 +207,9 @@ non_unique_face_edges(struct bg_trimesh_faces faces, struct rt_bot_internal *bot
     struct bg_trimesh_edges *edges = make_edges(faces.count * 3);
 
     for (i = 0; i < faces.count; ++i) {
-	append_face_edges(edges, &bot->faces[faces.faces[i] * 3]);
+	if (faces.faces[i] >= 0 && (size_t)faces.faces[i] < bot->num_faces) {
+	    append_face_edges(edges, &bot->faces[faces.faces[i] * 3]);
+	}
     }
     bu_sort(edges->edges, edges->count, sizeof(int) * 2, edge_cmp, NULL);
     return edges;
@@ -269,8 +271,10 @@ draw_edges(struct ged *gedp, struct rt_bot_internal *bot, int num_edges, int edg
 {
     struct bu_list *vhead;
     point_t a,b;
-    unsigned char draw_color[3];
-    bu_color_to_rgb_chars(color, draw_color);
+    unsigned char draw_color[3] = {255, 255, 255};
+    if (color) {
+	bu_color_to_rgb_chars(color, draw_color);
+    }
     struct bv_vlblock *vbp;
     struct bu_list local_vlist;
 
@@ -280,6 +284,8 @@ draw_edges(struct ged *gedp, struct rt_bot_internal *bot, int num_edges, int edg
     for (int curr_edge = 0; curr_edge < num_edges; curr_edge++) {
 	int p1 = edges[curr_edge*2];
 	int p2 = edges[curr_edge*2+1];
+	if (p1 < 0 || (size_t)p1 >= bot->num_vertices || p2 < 0 || (size_t)p2 >= bot->num_vertices)
+	    continue;
 	VSET(a, bot->vertices[p1*3], bot->vertices[p1*3+1], bot->vertices[p1*3+2]);
 	VSET(b, bot->vertices[p2*3], bot->vertices[p2*3+1], bot->vertices[p2*3+2]);
 	vhead = bv_vlblock_find(vbp, draw_color[0], draw_color[1], draw_color[2]);

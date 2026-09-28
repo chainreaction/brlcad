@@ -47,6 +47,7 @@ main(int argc, char *argv[])
     void *parser;
     struct ssx *curr;
     struct dplot_data data;
+    memset(&data, 0, sizeof(data));
 
     if (argc != 2) {
 	bu_exit(1, "usage: %s input\n", argv[0]);
@@ -81,7 +82,9 @@ main(int argc, char *argv[])
 
 	i = data.ssx_count - 1;
 	while (BU_LIST_WHILE(curr, ssx, &data.ssx_list)) {
-	    data.ssx[i--] = *curr;
+	    if (i >= 0) {
+		data.ssx[i--] = *curr;
+	    }
 	    BU_LIST_DEQUEUE(&curr->l);
 	    BU_PUT(curr, struct ssx);
 	}

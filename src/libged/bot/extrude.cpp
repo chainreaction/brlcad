@@ -196,6 +196,11 @@ _bot_cmd_extrude(void *bs, int argc, const char **argv)
     }
 
     // Check for at least 1 non-zero thickness, or there's no volume to define
+    if (!bot->thickness) {
+	if (!quiet_mode)
+	    bu_vls_printf(gb->gedp->ged_result_str, "bot %s has no face thicknesses\n", gb->solid_name.c_str());
+	return BRLCAD_OK;
+    }
     bool have_solid = false;
     for (size_t i = 0; i < bot->num_faces; i++) {
 	if (bot->thickness[i] > VUNITIZE_TOL) {
@@ -292,6 +297,12 @@ _bot_cmd_extrude(void *bs, int argc, const char **argv)
     // interpreted as both directions of ARB6 extrusion getting the full length
     // from the surface.
     struct rt_wdb *wdbp = wdb_dbopen(gb->gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	if (!quiet_mode)
+	    bu_vls_printf(gb->gedp->ged_result_str, "Failed to open wdb\n");
+	bu_vls_free(&comb_name);
+	return BRLCAD_ERROR;
+    }
     struct bu_vls prim_name = BU_VLS_INIT_ZERO;
 
     // Collect the active vertices and edges
@@ -347,6 +358,8 @@ _bot_cmd_extrude(void *bs, int argc, const char **argv)
 		continue;
 	}
 
+	if (verts_fcnt[*v_it] <= 0)
+	    continue;
 	point_t v;
 	double r = ((double)verts_thickness[*v_it]/(double)(verts_fcnt[*v_it]));
 	// Make a sph at the vertex point with a radius based on the thickness
@@ -362,6 +375,8 @@ _bot_cmd_extrude(void *bs, int argc, const char **argv)
 		continue;
 	}
 
+	if (edges_fcnt[*e_it] <= 0)
+	    continue;
 	double r = ((double)edges_thickness[*e_it]/(double)(edges_fcnt[*e_it]));
 	// Make an rcc along the edge a radius based on the thickness
 	point_t b, v;

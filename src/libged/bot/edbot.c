@@ -89,7 +89,12 @@ ged_bot_edge_split(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
+    RT_DB_INTERNAL_INIT(&intern);
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "%s: failed to open wdb", argv[0]);
+	return BRLCAD_ERROR;
+    }
     if (wdb_import_from_path2(gedp->ged_result_str, &intern, last, wdbp, mat) & BRLCAD_ERROR) {
 	bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s", argv[0], argv[1]);
 	return BRLCAD_ERROR;
@@ -174,7 +179,6 @@ ged_bot_edge_split(struct ged *gedp, int argc, const char *argv[])
     }
 
     GED_DB_PUT_INTERN(gedp, dp, &intern, BRLCAD_ERROR);
-    rt_db_free_internal(&intern);
     return BRLCAD_OK;
 }
 
@@ -232,7 +236,12 @@ ged_bot_face_split(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
+    RT_DB_INTERNAL_INIT(&intern);
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "%s: failed to open wdb", argv[0]);
+	return BRLCAD_ERROR;
+    }
     if (wdb_import_from_path2(gedp->ged_result_str, &intern, last, wdbp, mat) == BRLCAD_ERROR) {
 	bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s", argv[0], argv[1]);
 	return BRLCAD_ERROR;
@@ -287,7 +296,6 @@ ged_bot_face_split(struct ged *gedp, int argc, const char *argv[])
     bu_vls_printf(gedp->ged_result_str, "%zu", last_vi);
 
     GED_DB_PUT_INTERN(gedp, dp, &intern, BRLCAD_ERROR);
-    rt_db_free_internal(&intern);
     return BRLCAD_OK;
 }
 
@@ -318,7 +326,12 @@ ged_get_bot_edges_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
+    RT_DB_INTERNAL_INIT(&intern);
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "%s: failed to open wdb", argv[0]);
+	return BRLCAD_ERROR;
+    }
     if (wdb_import_from_path2(gedp->ged_result_str, &intern, argv[1], wdbp, mat) == BRLCAD_ERROR) {
 	bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s", argv[0], argv[1]);
 	return BRLCAD_ERROR;
@@ -418,7 +431,12 @@ ged_bot_move_pnt(struct ged *gedp, int argc, const char *argv[])
 
     VSCALE(pt, pt, gedp->dbip->dbi_local2base);
 
+    RT_DB_INTERNAL_INIT(&intern);
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "%s: failed to open wdb", argv[0]);
+	return BRLCAD_ERROR;
+    }
     if (wdb_import_from_path2(gedp->ged_result_str, &intern, argv[1], wdbp, mat) == BRLCAD_ERROR) {
 	bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s", argv[0], argv[1]);
 	return BRLCAD_ERROR;
@@ -459,7 +477,6 @@ ged_bot_move_pnt(struct ged *gedp, int argc, const char *argv[])
     }
 
     GED_DB_PUT_INTERN(gedp, dp, &intern, BRLCAD_ERROR);
-    rt_db_free_internal(&intern);
 
     return BRLCAD_OK;
 }
@@ -520,7 +537,12 @@ ged_bot_move_pnts(struct ged *gedp, int argc, const char *argv[])
 
     VSCALE(vec, vec, gedp->dbip->dbi_local2base);
 
+    RT_DB_INTERNAL_INIT(&intern);
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "%s: failed to open wdb", argv[0]);
+	return BRLCAD_ERROR;
+    }
     if (wdb_import_from_path2(gedp->ged_result_str, &intern, argv[1], wdbp, mat) == BRLCAD_ERROR) {
 	bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s", argv[0], argv[1]);
 	return BRLCAD_ERROR;
@@ -563,7 +585,6 @@ ged_bot_move_pnts(struct ged *gedp, int argc, const char *argv[])
     }
 
     GED_DB_PUT_INTERN(gedp, dp, &intern, BRLCAD_ERROR);
-    rt_db_free_internal(&intern);
 
     return BRLCAD_OK;
 }
@@ -606,7 +627,12 @@ ged_find_bot_edge_nearest_pnt_core(struct ged *gedp, int argc, const char *argv[
     }
     VMOVE(view, scan); /* convert double to fastf_t */
 
+    RT_DB_INTERNAL_INIT(&intern);
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "%s: failed to open wdb", argv[0]);
+	return BRLCAD_ERROR;
+    }
     if (wdb_import_from_path2(gedp->ged_result_str, &intern, argv[1], wdbp, mat) == BRLCAD_ERROR) {
 	bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s", argv[0], argv[1]);
 	return BRLCAD_ERROR;
@@ -664,7 +690,12 @@ ged_find_bot_pnt_nearest_pnt_core(struct ged *gedp, int argc, const char *argv[]
 	return BRLCAD_ERROR;
     }
 
+    RT_DB_INTERNAL_INIT(&intern);
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "%s: failed to open wdb", argv[0]);
+	return BRLCAD_ERROR;
+    }
     if (wdb_import_from_path2(gedp->ged_result_str, &intern, argv[1], wdbp, mat) == BRLCAD_ERROR) {
 	bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s", argv[0], argv[1]);
 	return BRLCAD_ERROR;

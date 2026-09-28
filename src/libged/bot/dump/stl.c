@@ -100,20 +100,26 @@ stl_finish(struct _ged_bot_dump_client_data *d)
     if (d->binary) {
 	unsigned char tot_buffer[4];
 
-	/* Re-position pointer to 80th byte */
-	bu_lseek(d->fd, 80, SEEK_SET);
+	if (d->fd >= 0) {
+	    /* Re-position pointer to 80th byte */
+	    bu_lseek(d->fd, 80, SEEK_SET);
 
-	/* Write out number of triangles */
-	*(uint32_t *)tot_buffer = htonl((unsigned long)d->total_faces);
-	lswap((unsigned int *)tot_buffer);
-	ret = write(d->fd, tot_buffer, 4);
-	if (ret < 0) {
-	    perror("write");
+	    /* Write out number of triangles */
+	    *(uint32_t *)tot_buffer = htonl((unsigned long)d->total_faces);
+	    lswap((unsigned int *)tot_buffer);
+	    ret = write(d->fd, tot_buffer, 4);
+	    if (ret < 0) {
+		perror("write");
+	    }
+
+	    close(d->fd);
+	    d->fd = -1;
 	}
-
-	close(d->fd);
     } else {
-	fclose(d->fp);
+	if (d->fp) {
+	    fclose(d->fp);
+	    d->fp = NULL;
+	}
     }
 
     return (ret != BRLCAD_OK) ? BRLCAD_ERROR : BRLCAD_OK;
@@ -152,7 +158,11 @@ stl_write_bot(struct _ged_bot_dump_client_data *d, struct rt_bot_internal *bot, 
 	} else {
 	    VCROSS(norm, CmA, BmA);
 	}
-	VUNITIZE(norm);
+	if (MAGNITUDE(norm) > VUNITIZE_TOL) {
+	    VUNITIZE(norm);
+	} else {
+	    VSETALL(norm, 0.0);
+	}
 
 	if (d->full_precision) {
 	    fprintf(fp, "  facet normal %0.17f %0.17f %0.17f\n", V3ARGS(norm));
@@ -213,7 +223,11 @@ stl_write_bot_binary(struct _ged_bot_dump_client_data *d, struct rt_bot_internal
 	} else {
 	    VCROSS(norm, CmA, BmA);
 	}
-	VUNITIZE(norm);
+	if (MAGNITUDE(norm) > VUNITIZE_TOL) {
+	    VUNITIZE(norm);
+	} else {
+	    VSETALL(norm, 0.0);
+	}
 
 	VSCALE(A, A, d->cfactor);
 	VSCALE(B, B, d->cfactor);

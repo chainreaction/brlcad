@@ -74,6 +74,11 @@ _brep_cmd_topo_create_edge(void *bs, int argc, const char **argv)
     int c = atoi(argv[2]);
     int edge = brep_edge_create(b_ip->brep, v1, v2, c);
 
+    if (edge < 0) {
+	bu_vls_printf(gib->gb->gedp->ged_result_str, "failed to create edge\n");
+	return BRLCAD_ERROR;
+    }
+
     if (_brep_write_edit(gib->gb) != BRLCAD_OK) {
 	return BRLCAD_ERROR;
     }
@@ -249,10 +254,19 @@ const struct bu_cmdtab _brep_topo_cmds[] = {
 
 int brep_topo(struct _ged_brep_info *gb, int argc, const char **argv)
 {
+    if (!gb || !gb->gedp) {
+	return BRLCAD_ERROR;
+    }
+
     struct _ged_brep_itopo gib;
     gib.gb = gb;
     gib.vls = gb->gedp->ged_result_str;
     gib.cmds = _brep_topo_cmds;
+
+    if (!gb->intern.idb_ptr || gb->intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_BREP) {
+	bu_vls_printf(gib.vls, "not a brep object\n");
+	return BRLCAD_ERROR;
+    }
 
     const ON_Brep *brep = ((struct rt_brep_internal *)(gb->intern.idb_ptr))->brep;
     if (brep == NULL) {

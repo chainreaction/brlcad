@@ -59,7 +59,7 @@ ged_bot_flip_core(struct ged *gedp, int argc, const char *argv[])
 
     for (i = 1; i < argc; ++i) {
 	/* Skip past any path elements */
-	char *obj = (char *)bu_calloc(strlen(argv[i]), sizeof(char), "ged_bot_flip obj");
+	char *obj = (char *)bu_calloc(strlen(argv[i]) + 1, sizeof(char), "ged_bot_flip obj");
 	bu_path_basename(argv[i], obj);
 
 	if (BU_STR_EQUAL(obj, ".")) {
@@ -71,10 +71,16 @@ ged_bot_flip_core(struct ged *gedp, int argc, const char *argv[])
 	if ((dp = db_lookup(gedp->dbip, obj, LOOKUP_QUIET)) == RT_DIR_NULL) {
 	    bu_vls_printf(gedp->ged_result_str, "%s: db_lookup(%s) error\n", argv[0], obj);
 	} else {
-	    GED_DB_GET_INTERN(gedp, &intern, dp, bn_mat_identity, BRLCAD_ERROR);
+	    RT_DB_INTERNAL_INIT(&intern);
+	    if (rt_db_get_internal(&intern, dp, gedp->dbip, bn_mat_identity) < 0) {
+		bu_vls_printf(gedp->ged_result_str, "Database read failure.");
+		bu_free(obj, "free obj");
+		return BRLCAD_ERROR;
+	    }
 
 	    if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD || intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_BOT) {
 		bu_vls_printf(gedp->ged_result_str, "%s: %s is not a BOT solid!\n", argv[0], obj);
+		rt_db_free_internal(&intern);
 	    } else {
 		bot = (struct rt_bot_internal *)intern.idb_ptr;
 		rt_bot_flip(bot);

@@ -62,9 +62,10 @@ dxf_finish(struct _ged_bot_dump_client_data *d)
     if (!d)
 	return BRLCAD_ERROR;
 
-    if (!bu_vls_strlen(&d->output_directory)) {
+    if (!bu_vls_strlen(&d->output_directory) && d->fp) {
 	fprintf(d->fp, "0\nENDSEC\n0\nEOF\n");
 	fclose(d->fp);
+	d->fp = NULL;
     }
 
     return BRLCAD_OK;

@@ -173,7 +173,11 @@ _bot_cmd_subd(void* bs, int argc, const char** argv)
 	bu_vls_sprintf(&output_bot_name, "%s-out_subd.bot", input_bot_name);
     }
 
-    GED_CHECK_EXISTS(gedp, bu_vls_cstr(&output_bot_name), LOOKUP_QUIET, BRLCAD_ERROR);
+    if (db_lookup(gedp->dbip, bu_vls_cstr(&output_bot_name), LOOKUP_QUIET) != RT_DIR_NULL) {
+	bu_vls_printf(gedp->ged_result_str, "%s: already exists", bu_vls_cstr(&output_bot_name));
+	bu_vls_free(&output_bot_name);
+	return BRLCAD_ERROR;
+    }
 
     struct rt_bot_internal *input_bot = (struct rt_bot_internal*)gb->intern->idb_ptr;
     RT_BOT_CK_MAGIC(input_bot);
@@ -199,12 +203,12 @@ _bot_cmd_subd(void* bs, int argc, const char** argv)
     struct directory *dp = db_diradd(dbip, bu_vls_cstr(&output_bot_name), RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&intern.idb_type);
     if (dp == RT_DIR_NULL) {
 	bu_vls_free(&output_bot_name);
+	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
     bu_vls_free(&output_bot_name);
 
     if (rt_db_put_internal(dp, dbip, &intern) < 0) {
-	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 

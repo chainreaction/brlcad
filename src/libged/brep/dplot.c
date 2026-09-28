@@ -69,10 +69,10 @@ struct dplot_info {
 };
 
 #define CLEANUP \
-    fclose(info.logfile); \
+    if (info.logfile) { fclose(info.logfile); info.logfile = NULL; } \
     bu_free(info.prefix, "prefix"); \
     info.prefix = NULL; \
-    if (info.fdata.ssx) bu_free(info.fdata.ssx, "ssx array");
+    if (info.fdata.ssx) { bu_free(info.fdata.ssx, "ssx array"); info.fdata.ssx = NULL; }
 
 #define RETURN_MORE \
     CLEANUP \
@@ -712,7 +712,12 @@ ged_dplot_core(struct ged *gedp, int argc, const char *argv[])
 	    RETURN_ERROR;
 	}
     }
-    if (info.fdata.ssx_count > 0) {
+    if (info.fdata.ssx_count > 0 && info.fdata.ssx) {
+	if (info.ssx_idx < 0 || info.ssx_idx >= info.fdata.ssx_count) {
+	    bu_vls_printf(info.gedp->ged_result_str, "no surface pair %d (valid range is [0, %d])\n",
+			  info.ssx_idx, info.fdata.ssx_count - 1);
+	    RETURN_ERROR;
+	}
 	info.brep1_surf_idx = info.fdata.ssx[info.ssx_idx].brep1_surface;
 	info.brep2_surf_idx = info.fdata.ssx[info.ssx_idx].brep2_surface;
 	info.event_count = info.fdata.ssx[info.ssx_idx].final_curve_events;
@@ -724,7 +729,7 @@ ged_dplot_core(struct ged *gedp, int argc, const char *argv[])
     info.brep1_surf_count = info.fdata.brep1_surface_count;
     info.brep2_surf_count = info.fdata.brep2_surface_count;
 
-    if (info.mode == DPLOT_ISOCSX_EVENTS && info.fdata.ssx_count > 0) {
+    if (info.mode == DPLOT_ISOCSX_EVENTS && info.fdata.ssx_count > 0 && info.fdata.ssx) {
 	int *isocsx_events = info.fdata.ssx[info.ssx_idx].isocsx_events;
 
 	info.event_count = 0;

@@ -801,6 +801,7 @@ ged_bot_dump_core(struct ged *gedp, int argc, const char *argv[])
 	    }
 
 	    if (i != ID_BOT) {
+		rt_db_free_internal(&intern);
 		continue;
 	    }
 
@@ -818,6 +819,9 @@ ged_bot_dump_core(struct ged *gedp, int argc, const char *argv[])
 	av[1] = (char *)0;
 
 	struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+	if (!wdbp) {
+	    return BRLCAD_ERROR;
+	}
 	for (i = 0; i < argc; ++i) {
 	    av[0] = (char *)argv[i];
 	    ret = db_walk_tree(gedp->dbip,

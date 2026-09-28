@@ -289,7 +289,7 @@ _bot_cmd_remesh(void *bs, int argc, const char **argv)
 	return BRLCAD_ERROR;
     }
 
-    struct directory *dp_input = RT_DIR_NULL;
+    struct directory *dp_input = gb->dp;
     struct directory *dp_output = RT_DIR_NULL;
 
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
@@ -350,13 +350,12 @@ _bot_cmd_remesh(void *bs, int argc, const char **argv)
 
 	if (rt_db_put_internal(dp, gedp->dbip, &intern) < 0) {
 	    bu_vls_printf(gedp->ged_result_str, "Failed to write out new BoT %s\n", rname);
-	    rt_db_free_internal(&intern);
 	    bu_vls_free(&output_bot_name);
 	    return BRLCAD_ERROR;
 	}
 
-	rt_db_free_internal(&intern);
 	bu_vls_printf(gedp->ged_result_str, "Remesh complete\n");
+	bu_vls_free(&output_bot_name);
 	return BRLCAD_OK;
     }
 
@@ -368,7 +367,15 @@ _bot_cmd_remesh(void *bs, int argc, const char **argv)
 	GED_DB_DIRADD(gedp, dp_output, bu_vls_cstr(&output_bot_name), RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&gb->intern->idb_type, BRLCAD_ERROR);
     }
 
-    GED_DB_PUT_INTERN(gedp, dp_output, gb->intern, BRLCAD_ERROR);
+    if (rt_db_put_internal(dp_output, gedp->dbip, gb->intern) < 0) {
+	bu_vls_printf(gedp->ged_result_str, "Failed to write out new BoT %s\n", bu_vls_cstr(&output_bot_name));
+	BU_PUT(gb->intern, struct rt_db_internal);
+	gb->intern = NULL;
+	bu_vls_free(&output_bot_name);
+	return BRLCAD_ERROR;
+    }
+    BU_PUT(gb->intern, struct rt_db_internal);
+    gb->intern = NULL;
 
     bu_vls_free(&output_bot_name);
 

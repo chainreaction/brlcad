@@ -170,12 +170,24 @@ _bot_cmd_face_info(void *bs, int argc, const char **argv)
 	int v2 = bot->faces[3*fi+2];
 
 	bu_vls_printf(gib->vls, "F[%d]: V[%d] -> V[%d] -> V[%d]\n", fi, v0, v1, v2);
-	bu_vls_printf(gib->vls, "   V[%d]: %g %g %g\n", v0,
-		      bot->vertices[3*v0+0], bot->vertices[3*v0+1], bot->vertices[3*v0+2]);
-	bu_vls_printf(gib->vls, "   V[%d]: %g %g %g\n", v1,
-		      bot->vertices[3*v1+0], bot->vertices[3*v1+1], bot->vertices[3*v1+2]);
-	bu_vls_printf(gib->vls, "   V[%d]: %g %g %g\n", v2,
-		      bot->vertices[3*v2+0], bot->vertices[3*v2+1], bot->vertices[3*v2+2]);
+	if (v0 >= 0 && (size_t)v0 < bot->num_vertices) {
+	    bu_vls_printf(gib->vls, "   V[%d]: %g %g %g\n", v0,
+			  bot->vertices[3*v0+0], bot->vertices[3*v0+1], bot->vertices[3*v0+2]);
+	} else {
+	    bu_vls_printf(gib->vls, "   V[%d]: (invalid index)\n", v0);
+	}
+	if (v1 >= 0 && (size_t)v1 < bot->num_vertices) {
+	    bu_vls_printf(gib->vls, "   V[%d]: %g %g %g\n", v1,
+			  bot->vertices[3*v1+0], bot->vertices[3*v1+1], bot->vertices[3*v1+2]);
+	} else {
+	    bu_vls_printf(gib->vls, "   V[%d]: (invalid index)\n", v1);
+	}
+	if (v2 >= 0 && (size_t)v2 < bot->num_vertices) {
+	    bu_vls_printf(gib->vls, "   V[%d]: %g %g %g\n", v2,
+			  bot->vertices[3*v2+0], bot->vertices[3*v2+1], bot->vertices[3*v2+2]);
+	} else {
+	    bu_vls_printf(gib->vls, "   V[%d]: (invalid index)\n", v2);
+	}
     }
 
     return BRLCAD_OK;

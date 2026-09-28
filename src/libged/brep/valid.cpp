@@ -93,6 +93,11 @@ _brep_cmd_curve_2d_valid(void *bs, int argc, const char **argv)
 	}
 
 	const ON_Curve *curve = brep->m_C2[ci];
+	if (!curve) {
+	    bu_vls_printf(gvb->vls, "m_C2[%d] is NULL\n", ci);
+	    valid = false;
+	    continue;
+	}
 	ON_wString wstr;
 	ON_TextLog dump(wstr);
 	dump.Print("m_C2[%d] invalid:\n", ci);
@@ -145,6 +150,11 @@ _brep_cmd_curve_3d_valid(void *bs, int argc, const char **argv)
 	}
 
 	const ON_Curve *curve = brep->m_C3[ci];
+	if (!curve) {
+	    bu_vls_printf(gvb->vls, "m_C3[%d] is NULL\n", ci);
+	    valid = false;
+	    continue;
+	}
 	ON_wString wstr;
 	ON_TextLog dump(wstr);
 	dump.Print("m_C3[%d] invalid:\n", ci);
@@ -346,13 +356,16 @@ _brep_cmd_surface_valid(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int si = *e_it;
-	ON_wString wonstr;
-	ON_TextLog info_output(wonstr);
 	if (!((si >= 0) && (si < brep->m_S.Count()))) {
+	    bu_vls_printf(gvb->vls, "Invalid index: %d\n", si);
 	    return BRLCAD_ERROR;
 	}
 	const ON_Surface* srf = brep->m_S[si];
-	if (!srf) continue;
+	if (!srf) {
+	    bu_vls_printf(gvb->vls, "m_S[%d] is NULL\n", si);
+	    valid = false;
+	    continue;
+	}
 	ON_wString wstr;
 	ON_TextLog dump(wstr);
 	dump.Print("m_S[%d] invalid:\n", si);
@@ -399,6 +412,7 @@ _brep_cmd_trim_valid(void *bs, int argc, const char **argv)
 
 	int ti = *e_it;
 	if (!((ti >= 0) && (ti < brep->m_T.Count()))) {
+	    bu_vls_printf(gvb->vls, "Invalid index: %d\n", ti);
 	    return BRLCAD_ERROR;
 	}
 	const ON_BrepTrim &trim = brep->m_T[ti];
@@ -450,6 +464,7 @@ _brep_cmd_vertex_valid(void *bs, int argc, const char **argv)
 	int vi = *e_it;
 
 	if (!((vi >= 0) && (vi < brep->m_V.Count()))) {
+	    bu_vls_printf(gvb->vls, "Invalid index: %d\n", vi);
 	    return BRLCAD_ERROR;
 	}
 	const ON_BrepVertex &vertex = brep->m_V[vi];
@@ -506,9 +521,19 @@ const struct bu_cmdtab _brep_valid_cmds[] = {
 int
 brep_valid(struct bu_vls *vls, struct rt_db_internal *intern, int argc, const char **argv)
 {
+    if (!vls || !intern || intern->idb_minor_type != DB5_MINORTYPE_BRLCAD_BREP || !intern->idb_ptr) {
+	if (vls) {
+	    bu_vls_printf(vls, "not a brep object\n");
+	}
+	return BRLCAD_ERROR;
+    }
+    struct rt_brep_internal *bi = (struct rt_brep_internal*)intern->idb_ptr;
+    if (!bi->brep) {
+	bu_vls_printf(vls, "not a brep object\n");
+	return BRLCAD_ERROR;
+    }
     struct _ged_brep_ivalid gvb;
     gvb.vls = vls;
-    struct rt_brep_internal *bi = (struct rt_brep_internal*)intern->idb_ptr;
     gvb.brep = bi->brep;
     gvb.cmds = _brep_valid_cmds;
 

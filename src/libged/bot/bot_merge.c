@@ -51,9 +51,9 @@ ged_bot_merge_core(struct ged *gedp, int argc, const char *argv[])
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
-    if (argc == 1) {
+    if (argc < 3) {
 	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
-	return GED_HELP;
+	return (argc == 1) ? GED_HELP : BRLCAD_ERROR;
     }
 
     bots = (struct rt_bot_internal **)bu_calloc(argc - 1, sizeof(struct rt_bot_internal *), "bot internal");
@@ -64,7 +64,11 @@ ged_bot_merge_core(struct ged *gedp, int argc, const char *argv[])
 	    continue;
 	}
 
-	GED_DB_GET_INTERN(gedp, &intern, dp, bn_mat_identity, BRLCAD_ERROR);
+	RT_DB_INTERNAL_INIT(&intern);
+	if (rt_db_get_internal(&intern, dp, gedp->dbip, bn_mat_identity) < 0) {
+	    bu_vls_printf(gedp->ged_result_str, "Database read failure.");
+	    goto fail_cleanup;
+	}
 
 	if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD || intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_BOT) {
 	    bu_vls_printf(gedp->ged_result_str, "%s: %s is not a BOT solid!  Skipping.\n", argv[0], argv[i]);
@@ -93,8 +97,17 @@ ged_bot_merge_core(struct ged *gedp, int argc, const char *argv[])
     intern.idb_minor_type = DB5_MINORTYPE_BRLCAD_BOT;
     intern.idb_meth = &OBJ[ID_BOT];
     intern.idb_ptr = rt_bot_merge(idx, (const struct rt_bot_internal * const *)(bots));
+    if (!intern.idb_ptr) {
+	bu_vls_printf(gedp->ged_result_str, "%s: rt_bot_merge failed\n", argv[0]);
+	goto fail_cleanup;
+    }
 
-    GED_DB_DIRADD(gedp, new_dp, argv[1], RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&intern.idb_type, BRLCAD_ERROR);
+    new_dp = db_diradd(gedp->dbip, argv[1], RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&intern.idb_type);
+    if (new_dp == RT_DIR_NULL) {
+	bu_vls_printf(gedp->ged_result_str, "Unable to add %s to database\n", argv[1]);
+	rt_db_free_internal(&intern);
+	goto fail_cleanup;
+    }
     GED_DB_PUT_INTERN(gedp, new_dp, &intern, BRLCAD_ERROR);
 
     for (i = 0; i < idx; ++i) {
@@ -112,6 +125,20 @@ ged_bot_merge_core(struct ged *gedp, int argc, const char *argv[])
     bu_free(bots, "bots");
 
     return BRLCAD_OK;
+
+fail_cleanup:
+    for (i = 0; i < idx; ++i) {
+	struct rt_db_internal internal;
+	RT_DB_INTERNAL_INIT(&internal);
+	internal.idb_major_type = DB5_MAJORTYPE_BRLCAD;
+	internal.idb_minor_type = ID_BOT;
+	internal.idb_meth = &OBJ[ID_BOT];
+	internal.idb_ptr = bots[i];
+
+	rt_db_free_internal(&internal);
+    }
+    bu_free(bots, "bots");
+    return BRLCAD_ERROR;
 }
 
 /*

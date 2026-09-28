@@ -73,7 +73,15 @@ struct botDataAdapter {
     size_t vertexCount(size_t /*polygon*/) const { return 3; }
 
     void getIndexSpacePoint(size_t n, size_t v, openvdb::Vec3d &pos) const {
+	if (!bot || n >= bot->num_faces || v >= 3) {
+	    pos[X] = pos[Y] = pos[Z] = 0.0;
+	    return;
+	}
 	int idx = bot->faces[(n * 3) + v];
+	if (idx < 0 || (size_t)idx >= bot->num_vertices) {
+	    pos[X] = pos[Y] = pos[Z] = 0.0;
+	    return;
+	}
 	pos[X] = bot->vertices[(idx * 3) + X];
 	pos[Y] = bot->vertices[(idx * 3) + Y];
 	pos[Z] = bot->vertices[(idx * 3) + Z];
@@ -363,6 +371,9 @@ openvdb::BoolGrid::Ptr
 rt_rtip_to_occupancy_grid(struct rt_i *rtip, double voxel_size,
 			  int *nx, int *ny, int *nz)
 {
+    if (!rtip || !nx || !ny || !nz || voxel_size <= 0.0 || ZERO(voxel_size))
+	return openvdb::BoolGrid::Ptr();
+
     int nx_m = (int)std::ceil((rtip->mdl_max[X] - rtip->mdl_min[X]) / voxel_size);
     int ny_m = (int)std::ceil((rtip->mdl_max[Y] - rtip->mdl_min[Y]) / voxel_size);
     int nz_m = (int)std::ceil((rtip->mdl_max[Z] - rtip->mdl_min[Z]) / voxel_size);

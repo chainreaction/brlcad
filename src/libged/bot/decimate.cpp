@@ -232,8 +232,13 @@ _bot_cmd_decimate(void* bs, int argc, const char** argv)
     bu_vls_free(&output_bot_name);
 
     if (rt_db_put_internal(dp, dbip, gb->intern) < 0) {
+	BU_PUT(gb->intern, struct rt_db_internal);
+	gb->intern = NULL;
 	return BRLCAD_ERROR;
     }
+    BU_PUT(gb->intern, struct rt_db_internal);
+    gb->intern = NULL;
+
     struct rt_db_internal intern;
     RT_DB_INTERNAL_INIT(&intern);
     GED_DB_GET_INTERN(gedp, &intern, dp, NULL, BRLCAD_ERROR);
@@ -247,7 +252,6 @@ _bot_cmd_decimate(void* bs, int argc, const char** argv)
 
     // Write decimation to disk
     if (rt_db_put_internal(dp, dbip, &intern) < 0) {
-	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 

@@ -164,8 +164,6 @@ ged_bot_fuse_core(struct ged *gedp, int argc, const char **argv)
     struct model *m;
     struct nmgregion *r;
     int ret, c, i;
-    struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
-    struct bn_tol *tol = &wdbp->wdb_tol;
     int total = 0;
     volatile int out_type = 0; /* open edge output type: 0 = none, 1 = show, 2 = plot */
     size_t open_cnt;
@@ -178,6 +176,12 @@ ged_bot_fuse_core(struct ged *gedp, int argc, const char **argv)
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+
+    struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	return BRLCAD_ERROR;
+    }
+    struct bn_tol *tol = &wdbp->wdb_tol;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -217,11 +221,13 @@ ged_bot_fuse_core(struct ged *gedp, int argc, const char **argv)
 
     bu_log("%s: start\n", argv[0]);
 
-    GED_DB_LOOKUP(gedp, old_dp, argv[i+1], LOOKUP_NOISY, BRLCAD_ERROR & GED_QUIET);
+    RT_DB_INTERNAL_INIT(&intern);
+    GED_DB_LOOKUP(gedp, old_dp, argv[i+1], LOOKUP_NOISY, BRLCAD_ERROR);
     GED_DB_GET_INTERN(gedp, &intern, old_dp, bn_mat_identity, BRLCAD_ERROR);
 
     if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD || intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_BOT) {
 	bu_vls_printf(gedp->ged_result_str, "%s: %s is not a BOT solid!\n", argv[0], argv[i+1]);
+	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
@@ -304,6 +310,7 @@ ged_bot_fuse_core(struct ged *gedp, int argc, const char **argv)
 	/* catch */
 	BU_UNSETJUMP;
 	bu_vls_printf(gedp->ged_result_str, "%s: %s fuse failed (2).\n", argv[0], argv[i+1]);
+	nmg_km(m);
 	return BRLCAD_ERROR;
     } BU_UNSETJUMP;
 
@@ -313,7 +320,12 @@ ged_bot_fuse_core(struct ged *gedp, int argc, const char **argv)
     intern2.idb_meth = &OBJ[ID_BOT];
     intern2.idb_ptr = (void *)bot;
 
-    GED_DB_DIRADD(gedp, new_dp, argv[i], RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&intern2.idb_type, BRLCAD_ERROR);
+    new_dp = db_diradd(gedp->dbip, argv[i], RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&intern2.idb_type);
+    if (new_dp == RT_DIR_NULL) {
+	bu_vls_printf(gedp->ged_result_str, "Unable to add %s to database\n", argv[i]);
+	rt_db_free_internal(&intern2);
+	return BRLCAD_ERROR;
+    }
     GED_DB_PUT_INTERN(gedp, new_dp, &intern2, BRLCAD_ERROR);
 
     bu_log("%s: Created new BOT (%s)\n", argv[0], argv[i]);

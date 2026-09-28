@@ -65,23 +65,17 @@ _bot_face_specifiers(std::set<int> &elements, struct bu_vls *vls, int argc, cons
 	    // May have a range - find out
 	    std::string s2 = s1.substr(0, pos_dash);
 	    s1.erase(0, pos_dash + 1);
-	    char *n1 = bu_strdup(s1.c_str());
-	    char *n2 = bu_strdup(s2.c_str());
+	    const char *n1 = s1.c_str();
+	    const char *n2 = s2.c_str();
 	    int val1, val2, vtmp;
-	    if (bu_opt_int(NULL, 1, (const char **)&n1, &val1) < 0) {
-		bu_vls_printf(vls, "Invalid index specification: %s\n", n1);
-		bu_free(n1, "n1");
-		bu_free(n2, "n2");
+	    if (bu_opt_int(NULL, 1, &n1, &val1) < 0) {
+		bu_vls_printf(vls, "Invalid index specification: %s\n", s1.c_str());
 		return BRLCAD_ERROR;
 	    }
-	    if (bu_opt_int(NULL, 1, (const char **)&n2, &val2) < 0) {
-		bu_vls_printf(vls, "Invalid index specification: %s\n", n2);
-		bu_free(n1, "n1");
-		bu_free(n2, "n2");
+	    if (bu_opt_int(NULL, 1, &n2, &val2) < 0) {
+		bu_vls_printf(vls, "Invalid index specification: %s\n", s2.c_str());
 		return BRLCAD_ERROR;
 	    }
-	    bu_free(n1, "n1");
-	    bu_free(n2, "n2");
 	    if (val1 > val2) {
 		vtmp = val2;
 		val2 = val1;
@@ -96,11 +90,10 @@ _bot_face_specifiers(std::set<int> &elements, struct bu_vls *vls, int argc, cons
 	    // May have a set - find out
 	    while (pos_comma != std::string::npos) {
 		std::string ss = s1.substr(0, pos_comma);
-		char *n1 = bu_strdup(ss.c_str());
+		const char *n1 = ss.c_str();
 		int val1;
-		if (bu_opt_int(NULL, 1, (const char **)&n1, &val1) < 0) {
-		    bu_vls_printf(vls, "Invalid index specification: %s\n", n1);
-		    bu_free(n1, "n1");
+		if (bu_opt_int(NULL, 1, &n1, &val1) < 0) {
+		    bu_vls_printf(vls, "Invalid index specification: %s\n", ss.c_str());
 		    return BRLCAD_ERROR;
 		} else {
 		    elements.insert(val1);
@@ -109,11 +102,10 @@ _bot_face_specifiers(std::set<int> &elements, struct bu_vls *vls, int argc, cons
 		pos_comma = s1.find_first_of(",/;", 0);
 	    }
 	    if (s1.length()) {
-		char *n1 = bu_strdup(s1.c_str());
+		const char *n1 = s1.c_str();
 		int val1;
-		if (bu_opt_int(NULL, 1, (const char **)&n1, &val1) < 0) {
-		    bu_vls_printf(vls, "Invalid index specification: %s\n", n1);
-		    bu_free(n1, "n1");
+		if (bu_opt_int(NULL, 1, &n1, &val1) < 0) {
+		    bu_vls_printf(vls, "Invalid index specification: %s\n", s1.c_str());
 		    return BRLCAD_ERROR;
 		}
 		elements.insert(val1);
@@ -153,13 +145,23 @@ _bot_obj_setup(struct _ged_bot_info *gb, const char *name)
 
     gb->solid_name = std::string(name);
 
+    if (gb->intern) {
+	rt_db_free_internal(gb->intern);
+	BU_PUT(gb->intern, struct rt_db_internal);
+	gb->intern = NULL;
+    }
+
     BU_GET(gb->intern, struct rt_db_internal);
+    RT_DB_INTERNAL_INIT(gb->intern);
 
     GED_DB_GET_INTERN(gb->gedp, gb->intern, gb->dp, bn_mat_identity, BRLCAD_ERROR);
     RT_CK_DB_INTERNAL(gb->intern);
 
     if (gb->intern->idb_minor_type != DB5_MINORTYPE_BRLCAD_BOT) {
 	bu_vls_printf(gb->gedp->ged_result_str, ": object %s is not of type bot\n", gb->solid_name.c_str());
+	rt_db_free_internal(gb->intern);
+	BU_PUT(gb->intern, struct rt_db_internal);
+	gb->intern = NULL;
 	return BRLCAD_ERROR;
     }
 
@@ -213,6 +215,11 @@ _bot_cmd_get(void *bs, int argc, const char **argv)
     if (BU_STR_EQUAL(argv[0], "thickness")) {
 	if (bot->mode != RT_BOT_PLATE && bot->mode != RT_BOT_PLATE_NOCOS) {
 	    bu_vls_printf(gedp->ged_result_str, "BoT is not plate mode - thicknesses can only be set on plate-mode BoTs");
+	    return BRLCAD_ERROR;
+	}
+
+	if (!bot->thickness || bot->num_faces == 0) {
+	    bu_vls_printf(gedp->ged_result_str, "No thickness information available");
 	    return BRLCAD_ERROR;
 	}
 
@@ -417,6 +424,11 @@ _bot_cmd_set(void *bs, int argc, const char **argv)
 		bu_free(targ, "targ");
 		return BRLCAD_ERROR;
 	    }
+	    if (!bot->thickness || face_id < 0 || (size_t)face_id >= bot->num_faces) {
+		bu_vls_printf(gedp->ged_result_str, "Invalid face index: %d\n", face_id);
+		bu_free(targ, "targ");
+		return BRLCAD_ERROR;
+	    }
 	    bot->thickness[face_id] = thickness;
 	} else {
 	    if (bu_opt_fastf_t(NULL, 1, (const char **)&targ, &thickness) < 0) {
@@ -438,8 +450,12 @@ _bot_cmd_set(void *bs, int argc, const char **argv)
 
     if (rt_db_put_internal(gb->dp, gedp->dbip, gb->intern) < 0) {
 	bu_vls_printf(gedp->ged_result_str, "Failed to update BoT");
+	BU_PUT(gb->intern, struct rt_db_internal);
+	gb->intern = NULL;
 	return BRLCAD_ERROR;
     }
+    BU_PUT(gb->intern, struct rt_db_internal);
+    gb->intern = NULL;
 
     return BRLCAD_OK;
 }
@@ -496,6 +512,12 @@ _bot_cmd_chull(void *bs, int argc, const char **argv)
     }
 
     struct rt_wdb *wdbp = wdb_dbopen(gb->gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_free(&out_name);
+	bu_free(faces, "free faces");
+	bu_free(vert_array, "free verts");
+	return BRLCAD_ERROR;
+    }
     retval = mk_bot(wdbp, bu_vls_cstr(&out_name), RT_BOT_SOLID, RT_BOT_CCW, err, vc, fc, (fastf_t *)vert_array, faces, NULL, NULL);
 
     bu_vls_free(&out_name);
@@ -559,8 +581,12 @@ _bot_cmd_flip(void *bs, int argc, const char **argv)
 
     if (rt_db_put_internal(gb->dp, gb->gedp->dbip, gb->intern) < 0) {
 	bu_vls_printf(gb->gedp->ged_result_str, "Failed to update BoT");
+	BU_PUT(gb->intern, struct rt_db_internal);
+	gb->intern = NULL;
 	return BRLCAD_ERROR;
     }
+    BU_PUT(gb->intern, struct rt_db_internal);
+    gb->intern = NULL;
 
     bu_vls_printf(gb->gedp->ged_result_str, "BoT faces flipped");
     return BRLCAD_OK;
@@ -649,8 +675,12 @@ _bot_cmd_sync(void *bs, int argc, const char **argv)
 
     if (rt_db_put_internal(gb->dp, gb->gedp->dbip, gb->intern) < 0) {
 	bu_vls_printf(gb->gedp->ged_result_str, "Failed to update BoT");
+	BU_PUT(gb->intern, struct rt_db_internal);
+	gb->intern = NULL;
 	return BRLCAD_ERROR;
     }
+    BU_PUT(gb->intern, struct rt_db_internal);
+    gb->intern = NULL;
 
     bu_vls_printf(gb->gedp->ged_result_str, "Performed %d face flipping operations", flip_cnt);
     return BRLCAD_OK;
@@ -703,13 +733,30 @@ _bot_cmd_plot(void *bs, int argc, const char **argv)
 
     struct rt_bot_internal *bot = (struct rt_bot_internal *)(gb->intern->idb_ptr);
 
+    if (!vbp) {
+	GED_CHECK_DRAWABLE(gb->gedp, BRLCAD_ERROR);
+	gb->vbp = bv_vlblock_init(gb->vlfree, 32);
+	vbp = gb->vbp;
+    }
+
     struct bu_list *vhead = bv_vlblock_find(vbp, (int)rgb[0], (int)rgb[1], (int)rgb[2]);
 
     std::set<int>::iterator f_it;
     for (f_it = elements.begin(); f_it != elements.end(); ++f_it) {
+	if (*f_it < 0 || (size_t)*f_it >= bot->num_faces)
+	    continue;
 	point_t v[3];
-	for (int i = 0; i < 3; i++)
-          VMOVE(v[i], &bot->vertices[bot->faces[*f_it*3+i]*3]);
+	int bad_face = 0;
+	for (int i = 0; i < 3; i++) {
+	    int vi = bot->faces[*f_it*3+i];
+	    if (vi < 0 || (size_t)vi >= bot->num_vertices) {
+		bad_face = 1;
+		break;
+	    }
+	    VMOVE(v[i], &bot->vertices[vi*3]);
+	}
+	if (bad_face)
+	    continue;
 	BV_ADD_VLIST(vlfree, vhead, v[0], BV_VLIST_LINE_MOVE);
 	BV_ADD_VLIST(vlfree, vhead, v[1], BV_VLIST_LINE_DRAW);
 	BV_ADD_VLIST(vlfree, vhead, v[2], BV_VLIST_LINE_DRAW);
@@ -946,7 +993,7 @@ _bot_cmd_strip(void *bs, int argc, const char **argv)
 	return BRLCAD_ERROR;
     }
 
-    if (db_lookup(gb->gedp->dbip, argv[2], LOOKUP_QUIET) != RT_DIR_NULL) {
+    if (db_lookup(gb->gedp->dbip, argv[1], LOOKUP_QUIET) != RT_DIR_NULL) {
 	bu_vls_printf(gb->gedp->ged_result_str, "Object %s already exists!\n", argv[1]);
 	return BRLCAD_ERROR;
     }
@@ -1010,6 +1057,7 @@ bot_output(struct bu_tbl *table, struct db_i *dbip, struct directory *dp)
     }
     if (intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_BOT) {
 	bu_free_external(&ext);
+	rt_db_free_internal(&intern);
 	return;
     }
     struct rt_bot_internal *bot = (struct rt_bot_internal *)intern.idb_ptr;
@@ -1092,6 +1140,8 @@ bot_output(struct bu_tbl *table, struct db_i *dbip, struct directory *dp)
     bu_tbl_style(table, BU_TBL_ROW_END);
 
     // Have what we need - clean up
+    bu_vls_free(&str);
+    rt_db_free_internal(&intern);
     bu_free_external(&ext);
 }
 
@@ -1358,6 +1408,10 @@ ged_bot_core(struct ged *gedp, int argc, const char *argv[])
     int opt_ret = bu_opt_parse(NULL, acnt, argv, d);
 
     if (help) {
+	if (color) {
+	    BU_PUT(color, struct bu_color);
+	    color = NULL;
+	}
 	if (cmd_pos >= 0) {
 	    argc = argc - cmd_pos;
 	    argv = &argv[cmd_pos];
@@ -1370,12 +1424,20 @@ ged_bot_core(struct ged *gedp, int argc, const char *argv[])
 
     // Must have a subcommand
     if (cmd_pos == -1) {
+	if (color) {
+	    BU_PUT(color, struct bu_color);
+	    color = NULL;
+	}
 	bu_vls_printf(gedp->ged_result_str, ": no valid subcommand specified\n");
 	_ged_subcmd_help(gedp, boptd, bcmds, "bot", b_args, &gb, 0, NULL);
 	return BRLCAD_ERROR;
     }
 
     if (opt_ret < 0) {
+	if (color) {
+	    BU_PUT(color, struct bu_color);
+	    color = NULL;
+	}
 	_ged_subcmd_help(gedp, boptd, bcmds, "bot", b_args, &gb, 0, NULL);
 	return BRLCAD_ERROR;
     }
@@ -1386,8 +1448,15 @@ ged_bot_core(struct ged *gedp, int argc, const char *argv[])
     }
     argc = argc - cmd_pos;
 
-    GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
-    if (gb.visualize || BU_STR_EQUAL(argv[cmd_pos], "plot")) {
+    if (gedp->dbip == DBI_NULL) {
+	bu_vls_printf(gedp->ged_result_str, "Database not open\n");
+	if (color) {
+	    BU_PUT(color, struct bu_color);
+	    color = NULL;
+	}
+	return BRLCAD_ERROR;
+    }
+    if (gb.visualize || (argc > 0 && BU_STR_EQUAL(argv[0], "plot"))) {
 	GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
 	gb.vbp = bv_vlblock_init(gb.vlfree, 32);
     }
@@ -1404,13 +1473,15 @@ bot_cleanup:
     if (gb.intern) {
 	rt_db_free_internal(gb.intern);
 	BU_PUT(gb.intern, struct rt_db_internal);
+	gb.intern = NULL;
     }
-    if (gb.visualize) {
+    if (gb.vbp) {
 	bv_vlblock_free(gb.vbp);
 	gb.vbp = (struct bv_vlblock *)NULL;
     }
     if (color) {
 	BU_PUT(color, struct bu_color);
+	color = NULL;
     }
     return ret;
 }

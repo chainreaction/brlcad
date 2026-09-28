@@ -47,6 +47,9 @@ ged_bot_vertex_fuse_core(struct ged *gedp, int argc, const char *argv[])
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	return BRLCAD_ERROR;
+    }
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -62,11 +65,13 @@ ged_bot_vertex_fuse_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
-    GED_DB_LOOKUP(gedp, old_dp, argv[2], LOOKUP_NOISY, BRLCAD_ERROR & GED_QUIET);
+    RT_DB_INTERNAL_INIT(&intern);
+    GED_DB_LOOKUP(gedp, old_dp, argv[2], LOOKUP_NOISY, BRLCAD_ERROR);
     GED_DB_GET_INTERN(gedp, &intern, old_dp, bn_mat_identity, BRLCAD_ERROR);
 
     if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD || intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_BOT) {
 	bu_vls_printf(gedp->ged_result_str, "%s: %s is not a BOT solid!\n", argv[0], argv[2]);
+	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
@@ -76,7 +81,12 @@ ged_bot_vertex_fuse_core(struct ged *gedp, int argc, const char *argv[])
     count = rt_bot_vertex_fuse(bot, &wdbp->wdb_tol);
     bu_vls_printf(gedp->ged_result_str, "Fused %d vertices\n", count);
 
-    GED_DB_DIRADD(gedp, new_dp, argv[1], RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&intern.idb_type, BRLCAD_ERROR);
+    new_dp = db_diradd(gedp->dbip, argv[1], RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&intern.idb_type);
+    if (new_dp == RT_DIR_NULL) {
+	bu_vls_printf(gedp->ged_result_str, "Unable to add %s to the database.", argv[1]);
+	rt_db_free_internal(&intern);
+	return BRLCAD_ERROR;
+    }
     GED_DB_PUT_INTERN(gedp, new_dp, &intern, BRLCAD_ERROR);
 
     return BRLCAD_OK;

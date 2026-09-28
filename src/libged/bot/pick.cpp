@@ -115,6 +115,10 @@ _bot_pick_ray(struct _ged_bot_ipick *gib, int argc, const char **argv,
 		return BRLCAD_ERROR;
 	    }
 	}
+	if (MAGNITUDE(dir) < SMALL_FASTF) {
+	    bu_vls_printf(gib->vls, "ray direction vector has zero length\n");
+	    return BRLCAD_ERROR;
+	}
 	VUNITIZE(dir);
     } else {
 	/* Get ray from GED viewport */
@@ -313,6 +317,8 @@ _bot_cmd_edge_pick(void *bs, int argc, const char **argv)
 	v[0] = bot->faces[3*fi+0];
 	v[1] = bot->faces[3*fi+1];
 	v[2] = bot->faces[3*fi+2];
+	if ((size_t)v[0] >= bot->num_vertices || (size_t)v[1] >= bot->num_vertices || (size_t)v[2] >= bot->num_vertices)
+	    continue;
 	for (int k = 0; k < 3; k++) {
 	    int ea = v[k];
 	    int eb = v[(k+1)%3];
@@ -351,7 +357,7 @@ _bot_cmd_edge_pick(void *bs, int argc, const char **argv)
     for (int i = 0; i < 3; i++) {
 	ray.o[i] = origin[i];
 	ray.d[i] = dir[i];
-	ray.di[i] = 1.0 / ray.d[i];
+	ray.di[i] = (fabs(ray.d[i]) < SQRT_SMALL_FASTF) ? INFINITY : 1.0 / ray.d[i];
     }
 
     std::set<int> aedges;
@@ -499,6 +505,8 @@ _bot_cmd_face_pick(void *bs, int argc, const char **argv)
 	int vi0 = bot->faces[3*fi+0];
 	int vi1 = bot->faces[3*fi+1];
 	int vi2 = bot->faces[3*fi+2];
+	if ((size_t)vi0 >= bot->num_vertices || (size_t)vi1 >= bot->num_vertices || (size_t)vi2 >= bot->num_vertices)
+	    continue;
 
 	const double *v0 = &bot->vertices[3*vi0];
 	const double *v1 = &bot->vertices[3*vi1];
@@ -523,7 +531,7 @@ _bot_cmd_face_pick(void *bs, int argc, const char **argv)
     for (int i = 0; i < 3; i++) {
 	ray.o[i] = origin[i];
 	ray.d[i] = dir[i];
-	ray.di[i] = 1.0 / ray.d[i];
+	ray.di[i] = (fabs(ray.d[i]) < SQRT_SMALL_FASTF) ? INFINITY : 1.0 / ray.d[i];
     }
 
     std::set<int> afaces;
@@ -541,10 +549,15 @@ _bot_cmd_face_pick(void *bs, int argc, const char **argv)
 
     for (std::set<int>::iterator it = afaces.begin(); it != afaces.end(); it++) {
 	int fi = *it;
+	int vi0 = bot->faces[3*fi+0];
+	int vi1 = bot->faces[3*fi+1];
+	int vi2 = bot->faces[3*fi+2];
+	if ((size_t)vi0 >= bot->num_vertices || (size_t)vi1 >= bot->num_vertices || (size_t)vi2 >= bot->num_vertices)
+	    continue;
 	point_t v0, v1, v2;
-	VMOVE(v0, &bot->vertices[3*bot->faces[3*fi+0]]);
-	VMOVE(v1, &bot->vertices[3*bot->faces[3*fi+1]]);
-	VMOVE(v2, &bot->vertices[3*bot->faces[3*fi+2]]);
+	VMOVE(v0, &bot->vertices[3*vi0]);
+	VMOVE(v1, &bot->vertices[3*vi1]);
+	VMOVE(v2, &bot->vertices[3*vi2]);
 
 	point_t isect;
 	if (bg_isect_tri_ray(origin, dir, v0, v1, v2, &isect)) {
@@ -568,6 +581,8 @@ _bot_cmd_face_pick(void *bs, int argc, const char **argv)
 	    int vi0 = bot->faces[3*fi+0];
 	    int vi1 = bot->faces[3*fi+1];
 	    int vi2 = bot->faces[3*fi+2];
+	    if ((size_t)vi0 >= bot->num_vertices || (size_t)vi1 >= bot->num_vertices || (size_t)vi2 >= bot->num_vertices)
+		continue;
 
 	    point_t centroid;
 	    centroid[X] = (bot->vertices[3*vi0+0] + bot->vertices[3*vi1+0] + bot->vertices[3*vi2+0]) / 3.0;

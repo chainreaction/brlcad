@@ -81,8 +81,8 @@ brep_intersect_point_curve(struct rt_db_internal *intern1, struct rt_db_internal
     const ON_Brep *brep1 = bi1->brep;
     const ON_Brep *brep2 = bi2->brep;
 
-    if (i < 0 || i >= brep1->m_V.Count() || j < 0 || j >= brep2->m_C3.Count()) {
-	bu_log("Out of range: \n");
+    if (i < 0 || i >= brep1->m_V.Count() || j < 0 || j >= brep2->m_C3.Count() || !brep2->m_C3[j]) {
+	bu_log("Out of range or null curve: \n");
 	bu_log("\t0 <= i <= %d\n", brep1->m_V.Count() - 1);
 	bu_log("\t0 <= j <= %d\n", brep2->m_C3.Count() - 1);
 	return -1;
@@ -119,8 +119,8 @@ brep_intersect_point_surface(struct rt_db_internal *intern1, struct rt_db_intern
     const ON_Brep *brep1 = bi1->brep;
     const ON_Brep *brep2 = bi2->brep;
 
-    if (i < 0 || i >= brep1->m_V.Count() || j < 0 || j >= brep2->m_S.Count()) {
-	bu_log("Out of range: \n");
+    if (i < 0 || i >= brep1->m_V.Count() || j < 0 || j >= brep2->m_S.Count() || !brep2->m_S[j]) {
+	bu_log("Out of range or null surface: \n");
 	bu_log("\t0 <= i <= %d\n", brep1->m_V.Count() - 1);
 	bu_log("\t0 <= j <= %d\n", brep2->m_S.Count() - 1);
 	return -1;
@@ -157,8 +157,8 @@ brep_intersect_curve_curve(struct rt_db_internal *intern1, struct rt_db_internal
     const ON_Brep *brep1 = bi1->brep;
     const ON_Brep *brep2 = bi2->brep;
 
-    if (i < 0 || i >= brep1->m_C3.Count() || j < 0 || j >= brep2->m_C3.Count()) {
-	bu_log("Out of range: \n");
+    if (i < 0 || i >= brep1->m_C3.Count() || j < 0 || j >= brep2->m_C3.Count() || !brep1->m_C3[i] || !brep2->m_C3[j]) {
+	bu_log("Out of range or null curve: \n");
 	bu_log("\t0 <= i <= %d\n", brep1->m_C3.Count() - 1);
 	bu_log("\t0 <= j <= %d\n", brep2->m_C3.Count() - 1);
 	return -1;
@@ -195,8 +195,8 @@ brep_intersect_curve_surface(struct rt_db_internal *intern1, struct rt_db_intern
     const ON_Brep *brep1 = bi1->brep;
     const ON_Brep *brep2 = bi2->brep;
 
-    if (i < 0 || i >= brep1->m_C3.Count() || j < 0 || j >= brep2->m_S.Count()) {
-	bu_log("Out of range: \n");
+    if (i < 0 || i >= brep1->m_C3.Count() || j < 0 || j >= brep2->m_S.Count() || !brep1->m_C3[i] || !brep2->m_S[j]) {
+	bu_log("Out of range or null curve/surface: \n");
 	bu_log("\t0 <= i <= %d\n", brep1->m_C3.Count() - 1);
 	bu_log("\t0 <= j <= %d\n", brep2->m_S.Count() - 1);
 	return -1;
@@ -237,8 +237,8 @@ brep_intersect_surface_surface(struct rt_db_internal *intern1, struct rt_db_inte
     ON_NurbsSurface surf1;
     ON_NurbsSurface surf2;
 
-    if (i < 0 || i >= brep1->m_S.Count() || j < 0 || j >= brep2->m_S.Count()) {
-	bu_log("Out of range: \n");
+    if (i < 0 || i >= brep1->m_S.Count() || j < 0 || j >= brep2->m_S.Count() || !brep1->m_S[i] || !brep2->m_S[j]) {
+	bu_log("Out of range or null surface: \n");
 	bu_log("\t0 <= i <= %d\n", brep1->m_S.Count() - 1);
 	bu_log("\t0 <= j <= %d\n", brep2->m_S.Count() - 1);
 	return -1;
@@ -262,9 +262,12 @@ brep_intersect_surface_surface(struct rt_db_internal *intern1, struct rt_db_inte
 	    case ON_SSX_EVENT::ssx_overlap:
 	    case ON_SSX_EVENT::ssx_tangent:
 	    case ON_SSX_EVENT::ssx_transverse:
-		plotcurveonsurface(events[k].m_curveA, &surf1, vlfree, vbp, 1000, PEACH);
-		plotcurveonsurface(events[k].m_curveB, &surf2, vlfree, vbp, 1000, DARKVIOLET);
-		plotcurve(*(events[k].m_curve3d), vlfree, vbp, 1000, GREEN);
+		if (events[k].m_curveA)
+		    plotcurveonsurface(events[k].m_curveA, &surf1, vlfree, vbp, 1000, PEACH);
+		if (events[k].m_curveB)
+		    plotcurveonsurface(events[k].m_curveB, &surf2, vlfree, vbp, 1000, DARKVIOLET);
+		if (events[k].m_curve3d)
+		    plotcurve(*(events[k].m_curve3d), vlfree, vbp, 1000, GREEN);
 		break;
 	    case ON_SSX_EVENT::ssx_tangent_point:
 	    case ON_SSX_EVENT::ssx_transverse_point:

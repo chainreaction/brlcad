@@ -128,12 +128,15 @@ bot_flood_exterior_classify(struct rt_i *rtip,
 	return -1;
 
     /* Auto-size: aim for ~100 voxels along the shortest dimension. */
-    if (voxel_size <= 0.0) {
+    if (voxel_size <= 0.0 || ZERO(voxel_size)) {
 	double dx = rtip->mdl_max[X] - rtip->mdl_min[X];
 	double dy = rtip->mdl_max[Y] - rtip->mdl_min[Y];
 	double dz = rtip->mdl_max[Z] - rtip->mdl_min[Z];
 	double min_dim = std::min({dx, dy, dz});
 	voxel_size = (min_dim > 0.0) ? (min_dim / 100.0) : 1.0;
+    }
+    if (voxel_size <= 0.0 || ZERO(voxel_size)) {
+	voxel_size = 1.0;
     }
 
     int nx = 0, ny = 0, nz = 0;
@@ -144,11 +147,15 @@ bot_flood_exterior_classify(struct rt_i *rtip,
     /* Step 1: voxelise the model into a solid-occupancy grid. */
     bu_log("bot flood exterior: voxel_size=%.4g\n", voxel_size);
     openvdb::BoolGrid::Ptr solid = rt_rtip_to_occupancy_grid(rtip, voxel_size, &nx, &ny, &nz);
+    if (!solid)
+	return -1;
     bu_log("bot flood exterior: grid %dx%dx%d\n", nx, ny, nz);
 
     /* Step 2: BFS flood fill to find exterior (water-reachable) voxels. */
     long long n_ext_vox = 0;
     openvdb::BoolGrid::Ptr exterior = flood_fill_exterior(solid, nx, ny, nz, &n_ext_vox);
+    if (!exterior)
+	return -1;
     bu_log("bot flood exterior: %lld exterior voxels\n", n_ext_vox);
 
     /* Step 3: For each face, mark it exterior if any face-adjacent voxel
@@ -166,6 +173,13 @@ bot_flood_exterior_classify(struct rt_i *rtip,
 	int vi0 = bot->faces[fi*3+0];
 	int vi1 = bot->faces[fi*3+1];
 	int vi2 = bot->faces[fi*3+2];
+
+	if (vi0 < 0 || (size_t)vi0 >= bot->num_vertices ||
+	    vi1 < 0 || (size_t)vi1 >= bot->num_vertices ||
+	    vi2 < 0 || (size_t)vi2 >= bot->num_vertices) {
+	    face_exterior[fi] = 0;
+	    continue;
+	}
 
 	/* Face centroid. */
 	double cx = (bot->vertices[vi0*3+X] + bot->vertices[vi1*3+X] + bot->vertices[vi2*3+X]) / 3.0;

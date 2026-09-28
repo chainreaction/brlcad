@@ -72,23 +72,17 @@ _brep_indices(std::set<int> &elements, struct bu_vls *vls, int argc, const char 
 	    // May have a range - find out
 	    std::string s2 = s1.substr(0, pos_dash);
 	    s1.erase(0, pos_dash + 1);
-	    char *n1 = bu_strdup(s1.c_str());
-	    char *n2 = bu_strdup(s2.c_str());
+	    const char *n1 = s1.c_str();
+	    const char *n2 = s2.c_str();
 	    int val1, val2, vtmp;
-	    if (bu_opt_int(NULL, 1, (const char **)&n1, &val1) < 0) {
-		bu_vls_printf(vls, "Invalid index specification: %s\n", n1);
-		bu_free(n1, "n1");
-		bu_free(n2, "n2");
-		return BRLCAD_ERROR;
-	    } 
-	    if (bu_opt_int(NULL, 1, (const char **)&n2, &val2) < 0) {
-		bu_vls_printf(vls, "Invalid index specification: %s\n", n2);
-		bu_free(n1, "n1");
-		bu_free(n2, "n2");
+	    if (bu_opt_int(NULL, 1, &n1, &val1) < 0) {
+		bu_vls_printf(vls, "Invalid index specification: %s\n", s1.c_str());
 		return BRLCAD_ERROR;
 	    }
-	    bu_free(n1, "n1");
-	    bu_free(n2, "n2");
+	    if (bu_opt_int(NULL, 1, &n2, &val2) < 0) {
+		bu_vls_printf(vls, "Invalid index specification: %s\n", s2.c_str());
+		return BRLCAD_ERROR;
+	    }
 	    if (val1 > val2) {
 		vtmp = val2;
 		val2 = val1;
@@ -103,11 +97,10 @@ _brep_indices(std::set<int> &elements, struct bu_vls *vls, int argc, const char 
 	    // May have a set - find out
 	    while (pos_comma != std::string::npos) {
 		std::string ss = s1.substr(0, pos_comma);
-		char *n1 = bu_strdup(ss.c_str());
+		const char *n1 = ss.c_str();
 		int val1;
-		if (bu_opt_int(NULL, 1, (const char **)&n1, &val1) < 0) {
-		    bu_vls_printf(vls, "Invalid index specification: %s\n", n1);
-		    bu_free(n1, "n1");
+		if (bu_opt_int(NULL, 1, &n1, &val1) < 0) {
+		    bu_vls_printf(vls, "Invalid index specification: %s\n", ss.c_str());
 		    return BRLCAD_ERROR;
 		} else {
 		    elements.insert(val1);
@@ -116,13 +109,12 @@ _brep_indices(std::set<int> &elements, struct bu_vls *vls, int argc, const char 
 		pos_comma = s1.find_first_of(",/;", 0);
 	    }
 	    if (s1.length()) {
-		char *n1 = bu_strdup(s1.c_str());
+		const char *n1 = s1.c_str();
 		int val1;
-		if (bu_opt_int(NULL, 1, (const char **)&n1, &val1) < 0) {
-		    bu_vls_printf(vls, "Invalid index specification: %s\n", n1);
-		    bu_free(n1, "n1");
+		if (bu_opt_int(NULL, 1, &n1, &val1) < 0) {
+		    bu_vls_printf(vls, "Invalid index specification: %s\n", s1.c_str());
 		    return BRLCAD_ERROR;
-		} 
+		}
 		elements.insert(val1);
 	    }
 	    continue;
@@ -179,13 +171,13 @@ _brep_cmd_boolean(void *bs, int argc, const char **argv)
     }
 
 
-    // We've already looked up the first sold, get the second
+    // We've already looked up the first solid, get the second
     struct directory *dp2 = db_lookup(gedp->dbip, argv[2], LOOKUP_NOISY);
     if (dp2 == RT_DIR_NULL) {
-	bu_vls_printf(gedp->ged_result_str, ": %s is not a solid or does not exist in database", argv[3]);
+	bu_vls_printf(gedp->ged_result_str, ": %s is not a solid or does not exist in database", argv[2]);
 	return BRLCAD_ERROR;
     } else {
-	int real_flag = (gb->dp->d_addr == RT_DIR_PHONY_ADDR) ? 0 : 1;
+	int real_flag = (dp2->d_addr == RT_DIR_PHONY_ADDR) ? 0 : 1;
 	if (!real_flag) {
 	    /* solid doesn't exist */
 	    bu_vls_printf(gedp->ged_result_str, ": %s is not a real solid", argv[2]);
@@ -200,6 +192,7 @@ _brep_cmd_boolean(void *bs, int argc, const char **argv)
     op = db_str2op(argv[1]);
     if (op == DB_OP_NULL) {
 	bu_vls_printf(gedp->ged_result_str, ": invalid boolean operation specified: %s", argv[1]);
+	rt_db_free_internal(&intern2);
 	return BRLCAD_ERROR;
     }
 
@@ -207,6 +200,12 @@ _brep_cmd_boolean(void *bs, int argc, const char **argv)
     rt_brep_boolean(&intern_res, &gb->intern, &intern2, op);
     struct rt_brep_internal *bip = (struct rt_brep_internal *)intern_res.idb_ptr;
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, ": failed to open wdb\n");
+	rt_db_free_internal(&intern2);
+	rt_db_free_internal(&intern_res);
+	return BRLCAD_ERROR;
+    }
     mk_brep(wdbp, argv[3], (void *)(bip->brep));
     rt_db_free_internal(&intern2);
     rt_db_free_internal(&intern_res);
@@ -1150,8 +1149,10 @@ _brep_write_edit(struct _ged_brep_info *gb)
     if (rt_db_put_internal(gb->dp, gb->gedp->dbip, &gb->intern) < 0) {
 	bu_vls_printf(gb->gedp->ged_result_str, "Could not write edited BRep %s\n",
 	    gb->solid_name.c_str());
+	RT_DB_INTERNAL_INIT(&gb->intern);
 	return BRLCAD_ERROR;
     }
+    RT_DB_INTERNAL_INIT(&gb->intern);
     return BRLCAD_OK;
 }
 
@@ -1515,6 +1516,10 @@ ged_brep_core(struct ged *gedp, int argc, const char *argv[])
     int opt_ret = bu_opt_parse(NULL, acnt, argv, d);
 
     if (help) {
+	if (color) {
+	    BU_PUT(color, struct bu_color);
+	    color = NULL;
+	}
 	if (cmd_pos >= 0) {
 	    argc = argc - cmd_pos;
 	    argv = &argv[cmd_pos];
@@ -1527,6 +1532,10 @@ ged_brep_core(struct ged *gedp, int argc, const char *argv[])
 
     // Must have a subcommand
     if (cmd_pos == -1) {
+	if (color) {
+	    BU_PUT(color, struct bu_color);
+	    color = NULL;
+	}
 	bu_vls_printf(gedp->ged_result_str, ": no valid subcommand specified\n");
 	_ged_subcmd_help(gedp, bdesc, bcmds, "brep", bargs_help, &gb, 0, NULL);
 	return BRLCAD_ERROR;
@@ -1538,16 +1547,33 @@ ged_brep_core(struct ged *gedp, int argc, const char *argv[])
 	bu_vls_printf(gedp->ged_result_str, "brep [options] <objname> subcommand [args]\n");
 	if (color) {
 	    BU_PUT(color, struct bu_color);
+	    color = NULL;
 	}
 	return BRLCAD_ERROR;
     }
 
+    if (!gedp->dbip) {
+	bu_vls_printf(gedp->ged_result_str, "Database not open\n");
+	if (color) {
+	    BU_PUT(color, struct bu_color);
+	    color = NULL;
+	}
+	return BRLCAD_ERROR;
+    }
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
     gb.gedp = gedp;
     gb.wdbp = wdb_dbopen(gb.gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!gb.wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "failed to open wdb\n");
+	if (color) {
+	    BU_PUT(color, struct bu_color);
+	    color = NULL;
+	}
+	return BRLCAD_ERROR;
+    }
     gb.cmds = _brep_cmds;
     gb.solid_name = std::string(argv[0]);
     gb.dp = db_lookup(gedp->dbip, gb.solid_name.c_str(), LOOKUP_NOISY);
@@ -1555,6 +1581,7 @@ ged_brep_core(struct ged *gedp, int argc, const char *argv[])
 	bu_vls_printf(gedp->ged_result_str, ": %s is not a solid or does not exist in database", gb.solid_name.c_str());
 	if (color) {
 	    BU_PUT(color, struct bu_color);
+	    color = NULL;
 	}
 	return BRLCAD_ERROR;
     } else {
@@ -1564,6 +1591,7 @@ ged_brep_core(struct ged *gedp, int argc, const char *argv[])
 	    bu_vls_printf(gedp->ged_result_str, ": %s is not a real solid", gb.solid_name.c_str());
 	    if (color) {
 		BU_PUT(color, struct bu_color);
+		color = NULL;
 	    }
 	    return BRLCAD_ERROR;
 	}
@@ -1580,18 +1608,23 @@ ged_brep_core(struct ged *gedp, int argc, const char *argv[])
     argc = argc - cmd_pos;
     argv = &argv[cmd_pos];
 
-    int ret;
-    if (bu_cmd(_brep_cmds, argc, argv, 0, (void *)&gb, &ret) == BRLCAD_OK) {
-	rt_db_free_internal(&gb.intern);
-	return ret;
-    } else {
+    int ret = BRLCAD_OK;
+    int cmd_ret = bu_cmd(_brep_cmds, argc, argv, 0, (void *)&gb, &ret);
+    if (cmd_ret != BRLCAD_OK) {
 	bu_vls_printf(gedp->ged_result_str, "subcommand %s not defined", argv[0]);
+	ret = BRLCAD_ERROR;
     }
 
-    bv_vlblock_free(gb.vbp);
-    gb.vbp = (struct bv_vlblock *)NULL;
+    if (color) {
+	BU_PUT(color, struct bu_color);
+	color = NULL;
+    }
+    if (gb.vbp) {
+	bv_vlblock_free(gb.vbp);
+	gb.vbp = (struct bv_vlblock *)NULL;
+    }
     rt_db_free_internal(&gb.intern);
-    return BRLCAD_ERROR;
+    return ret;
 }
 
 #include "../include/plugin.h"

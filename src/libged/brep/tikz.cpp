@@ -36,6 +36,9 @@ static int
 tikz_tree(struct ged *gedp, struct bu_vls *tikz, const union tree *oldtree, struct bu_vls *color, int *cnt)
 {
     int ret = 0;
+    if (!oldtree) {
+	return 0;
+    }
     switch (oldtree->tr_op) {
 	case OP_UNION:
 	case OP_INTERSECT:
@@ -61,21 +64,26 @@ tikz_tree(struct ged *gedp, struct bu_vls *tikz, const union tree *oldtree, stru
 			// TODO - support wireframes from other primitive types...
 			struct rt_db_internal bintern;
 			struct rt_brep_internal *b_ip = NULL;
-			RT_DB_INTERNAL_INIT(&bintern)
+			RT_DB_INTERNAL_INIT(&bintern);
 			if (rt_db_get_internal(&bintern, dir, gedp->dbip, NULL) < 0) {
 			    return BRLCAD_ERROR;
 			}
-			if (bintern.idb_minor_type == DB5_MINORTYPE_BRLCAD_BREP) {
+			if (bintern.idb_minor_type == DB5_MINORTYPE_BRLCAD_BREP && bintern.idb_ptr) {
 			    ON_String s;
 			    struct bu_vls cntstr = BU_VLS_INIT_ZERO;
 			    (*cnt)++;
 			    bu_vls_sprintf(&cntstr, "OBJ%d", *cnt);
 			    b_ip = (struct rt_brep_internal *)bintern.idb_ptr;
-			    (void)ON_BrepTikz(s, b_ip->brep, bu_vls_addr(color), bu_vls_addr(&cntstr));
-			    const char *str = s.Array();
-			    bu_vls_strcat(tikz, str);
+			    if (b_ip->brep) {
+				(void)ON_BrepTikz(s, b_ip->brep, bu_vls_addr(color), bu_vls_addr(&cntstr));
+				const char *str = s.Array();
+				if (str) {
+				    bu_vls_strcat(tikz, str);
+				}
+			    }
 			    bu_vls_free(&cntstr);
 			}
+			rt_db_free_internal(&bintern);
 		    }
 		}
 	    }
@@ -96,25 +104,32 @@ tikz_comb(struct ged *gedp, struct bu_vls *tikz, struct directory *dp, struct bu
 
     bu_vls_sprintf(&color_backup, "%s", bu_vls_addr(color));
 
-    RT_DB_INTERNAL_INIT(&intern)
+    RT_DB_INTERNAL_INIT(&intern);
 
     if (rt_db_get_internal(&intern, dp, gedp->dbip, NULL) < 0) {
+	bu_vls_free(&color_backup);
 	return;
     }
 
-    RT_CK_COMB(intern.idb_ptr);
+    if (intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_COMBINATION || !intern.idb_ptr) {
+	rt_db_free_internal(&intern);
+	bu_vls_free(&color_backup);
+	return;
+    }
+
     comb_internal = (struct rt_comb_internal *)intern.idb_ptr;
 
     if (comb_internal->tree == NULL) {
 	// Empty tree
+	rt_db_free_internal(&intern);
+	bu_vls_free(&color_backup);
 	return;
     }
     RT_CK_TREE(comb_internal->tree);
     union tree *t = comb_internal->tree;
 
-
     // Get color
-    if (comb_internal->rgb[0] > 0 || comb_internal->rgb[1] > 0 || comb_internal->rgb[1] > 0) {
+    if (comb_internal->rgb[0] > 0 || comb_internal->rgb[1] > 0 || comb_internal->rgb[2] > 0) {
 	bu_vls_sprintf(color, "color={rgb:red,%d;green,%d;blue,%d}", comb_internal->rgb[0], comb_internal->rgb[1], comb_internal->rgb[2]);
     }
 
@@ -122,6 +137,7 @@ tikz_comb(struct ged *gedp, struct bu_vls *tikz, struct directory *dp, struct bu
 
     bu_vls_sprintf(color, "%s", bu_vls_addr(&color_backup));
     bu_vls_free(&color_backup);
+    rt_db_free_internal(&intern);
 }
 
 extern "C" int
@@ -130,6 +146,10 @@ brep_tikz(struct _ged_brep_info *gb, const char *outfile)
     int cnt = 0;
     struct bu_vls color = BU_VLS_INIT_ZERO;
     struct bu_vls tikz = BU_VLS_INIT_ZERO;
+
+    if (!gb || !gb->gedp || !gb->dp) {
+	return BRLCAD_ERROR;
+    }
 
     struct ged *gedp = gb->gedp;
     struct rt_brep_internal *brep_ip = NULL;
@@ -155,17 +175,28 @@ brep_tikz(struct _ged_brep_info *gb, const char *outfile)
     for(size_t i = 0; i < BU_PTBL_LEN(&breps); i++) {
 	struct rt_db_internal bintern;
 	struct rt_brep_internal *b_ip = NULL;
-	RT_DB_INTERNAL_INIT(&bintern)
+	RT_DB_INTERNAL_INIT(&bintern);
 	struct directory *d = (struct directory *)BU_PTBL_GET(&breps, i);
 	if (rt_db_get_internal(&bintern, d, gedp->dbip, NULL) < 0) {
+	    bu_ptbl_free(&breps);
+	    bu_vls_free(&tikz);
+	    bu_vls_free(&color);
 	    return BRLCAD_ERROR;
 	}
-	b_ip = (struct rt_brep_internal *)bintern.idb_ptr;
-	b_ip->brep->GetBBox(bbox[0], bbox[1], true);
+	if (bintern.idb_minor_type == DB5_MINORTYPE_BRLCAD_BREP && bintern.idb_ptr) {
+	    b_ip = (struct rt_brep_internal *)bintern.idb_ptr;
+	    if (b_ip->brep) {
+		b_ip->brep->GetBBox(bbox[0], bbox[1], true);
+	    }
+	}
+	rt_db_free_internal(&bintern);
     }
+    bu_ptbl_free(&breps);
+
     // Get things roughly down to page size - not perfect, but establishes a ballpark that can be fine tuned
     // by hand after generation
-    double scale = 100/bbox.Diagonal().Length();
+    double dlen = bbox.Diagonal().Length();
+    double scale = (dlen > 0.0) ? (100.0 / dlen) : 1.0;
 
     bu_vls_printf(&tikz, "\\begin{tikzpicture}[scale=%f,tdplot_main_coords]\n", scale);
 
@@ -175,35 +206,45 @@ brep_tikz(struct _ged_brep_info *gb, const char *outfile)
 	tikz_comb(gedp, &tikz, gb->dp, &color, &cnt);
     } else {
 	ON_String s;
-	if (gb->intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_BREP) {
+	if (gb->intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_BREP || !gb->intern.idb_ptr) {
 	    bu_vls_printf(gedp->ged_result_str, "%s is not a B-Rep - aborting\n", gb->dp->d_namep);
+	    bu_vls_free(&tikz);
+	    bu_vls_free(&color);
 	    return 1;
 	} else {
 	    brep_ip = (struct rt_brep_internal *)gb->intern.idb_ptr;
 	}
 	RT_BREP_CK_MAGIC(brep_ip);
 	const ON_Brep *brep = brep_ip->brep;
-	(void)ON_BrepTikz(s, brep, NULL, NULL);
-	const char *str = s.Array();
-	bu_vls_strcat(&tikz, str);
+	if (brep) {
+	    (void)ON_BrepTikz(s, brep, NULL, NULL);
+	    const char *str = s.Array();
+	    if (str) {
+		bu_vls_strcat(&tikz, str);
+	    }
+	}
     }
 
     bu_vls_printf(&tikz, "\\end{tikzpicture}\n\n");
     bu_vls_printf(&tikz, "\\end{document}\n");
 
+    int ret = BRLCAD_OK;
     if (outfile) {
 	FILE *fp = fopen(outfile, "w");
-	fprintf(fp, "%s", bu_vls_addr(&tikz));
-	fclose(fp);
-	bu_vls_free(&tikz);
-	bu_vls_sprintf(gedp->ged_result_str, "Output written to file %s", outfile);
+	if (!fp) {
+	    bu_vls_sprintf(gedp->ged_result_str, "Failed to open output file %s", outfile);
+	    ret = BRLCAD_ERROR;
+	} else {
+	    fprintf(fp, "%s", bu_vls_addr(&tikz));
+	    fclose(fp);
+	    bu_vls_sprintf(gedp->ged_result_str, "Output written to file %s", outfile);
+	}
     } else {
-
 	bu_vls_sprintf(gedp->ged_result_str, "%s", bu_vls_addr(&tikz));
-	bu_vls_free(&tikz);
     }
+    bu_vls_free(&color);
     bu_vls_free(&tikz);
-    return BRLCAD_OK;
+    return ret;
 }
 
 // Local Variables:

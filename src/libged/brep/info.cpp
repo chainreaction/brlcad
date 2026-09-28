@@ -92,11 +92,15 @@ _brep_cmd_curve_2d_info(void *bs, int argc, const char **argv)
 	    return BRLCAD_ERROR;
 	}
 	const ON_Curve *curve = brep->m_C2[ci];
-	ON_NurbsCurve* nc2 = ON_NurbsCurve::New();
-	curve->GetNurbForm(*nc2, 0.0);
-	dump.Print("m_C2[%d]: NURBS form of 2d_curve\n", ci);
-	nc2->Dump(dump);
-	delete nc2;
+	if (!curve) {
+	    dump.Print("m_C2[%d]: NULL curve\n", ci);
+	} else {
+	    ON_NurbsCurve* nc2 = ON_NurbsCurve::New();
+	    curve->GetNurbForm(*nc2, 0.0);
+	    dump.Print("m_C2[%d]: NURBS form of 2d_curve\n", ci);
+	    nc2->Dump(dump);
+	    delete nc2;
+	}
 
 	ON_String ss = wstr;
 	bu_vls_printf(gib->vls, "%s\n", ss.Array());
@@ -144,11 +148,15 @@ _brep_cmd_curve_3d_info(void *bs, int argc, const char **argv)
 	    return BRLCAD_ERROR;
 	}
 	const ON_Curve *curve = brep->m_C3[ci];
-	ON_NurbsCurve* nc3 = ON_NurbsCurve::New();
-	curve->GetNurbForm(*nc3, 0.0);
-	dump.Print("m_C3[%d]: NURBS form of 3d_curve(edge)\n", ci);
-	nc3->Dump(dump);
-	delete nc3;
+	if (!curve) {
+	    dump.Print("m_C3[%d]: NULL curve\n", ci);
+	} else {
+	    ON_NurbsCurve* nc3 = ON_NurbsCurve::New();
+	    curve->GetNurbForm(*nc3, 0.0);
+	    dump.Print("m_C3[%d]: NURBS form of 3d_curve(edge)\n", ci);
+	    nc3->Dump(dump);
+	    delete nc3;
+	}
 
 	ON_String ss = wstr;
 	bu_vls_printf(gib->vls, "%s\n", ss.Array());
@@ -198,8 +206,10 @@ _brep_cmd_edge_info(void *bs, int argc, const char **argv)
 	const ON_BrepEdge &edge = brep->m_E[ei];
 	int trim_cnt = edge.m_ti.Count();
 	const ON_Curve* c3 = edge.EdgeCurveOf();
-	ON_NurbsCurve* nc3 = ON_NurbsCurve::New();
-	c3->GetNurbForm(*nc3, 0.0);
+	ON_NurbsCurve* nc3 = c3 ? ON_NurbsCurve::New() : NULL;
+	if (c3) {
+	    c3->GetNurbForm(*nc3, 0.0);
+	}
 	ON_3dPoint edge_start, edge_end;
 	dump.Print("edge[%2d]: for ", ei);
 	for (int i = 0; i < trim_cnt; ++i) {
@@ -216,9 +226,11 @@ _brep_cmd_edge_info(void *bs, int argc, const char **argv)
 	    dump.Print("\tdomain(%g, %g) start(?, ?) end(?, ?)\n", edge.Domain()[0], edge.Domain()[1]);
 	}
 	dump.PopIndent();
-	dump.Print("NURBS form of 3d_curve(edge) \n");
-	nc3->Dump(dump);
-	delete nc3;
+	if (nc3) {
+	    dump.Print("NURBS form of 3d_curve(edge) \n");
+	    nc3->Dump(dump);
+	    delete nc3;
+	}
 
 	ON_String ss = wstr;
 	bu_vls_printf(gib->vls, "%s\n", ss.Array());
@@ -313,8 +325,6 @@ _brep_cmd_face_info(void *bs, int argc, const char **argv)
 		const char* sTrimType = "?";
 		const char* sTrimIso = "-?";
 		const ON_Curve* c2 = trim.TrimCurveOf();
-		ON_NurbsCurve* nc2 = ON_NurbsCurve::New();
-		c2->GetNurbForm(*nc2, 0.0);
 		ON_3dPoint trim_start, trim_end;
 		switch (trim.m_type) {
 		    case ON_BrepTrim::unknown:
@@ -641,8 +651,10 @@ _brep_cmd_trim_info(void *bs, int argc, const char **argv)
 	const char *sTrimType = NULL;
 	const char *sTrimIso = NULL;
 	const ON_Curve* c2 = trim.TrimCurveOf();
-	ON_NurbsCurve* nc2 = ON_NurbsCurve::New();
-	c2->GetNurbForm(*nc2, 0.0);
+	ON_NurbsCurve* nc2 = c2 ? ON_NurbsCurve::New() : NULL;
+	if (c2) {
+	    c2->GetNurbForm(*nc2, 0.0);
+	}
 	ON_3dPoint trim_start, trim_end;
 	dump.Print("trim[%2d]: surface(%2d) faces(%2d) loops(%2d)\n", ti, face.m_si, face.m_face_index, loop.m_loop_index);
 	switch (trim.m_type) {
@@ -710,9 +722,11 @@ _brep_cmd_trim_info(void *bs, int argc, const char **argv)
 	    dump.Print("\tdomain(%g, %g) start(?, ?) end(?, ?)\n", trim.Domain()[0], trim.Domain()[1]);
 	}
 	dump.PopIndent();
-	dump.Print("NURBS form of 2d_curve(trim)\n");
-	nc2->Dump(dump);
-	delete nc2;
+	if (nc2) {
+	    dump.Print("NURBS form of 2d_curve(trim)\n");
+	    nc2->Dump(dump);
+	    delete nc2;
+	}
 
 	ON_String ss = wstr;
 	bu_vls_printf(gib->vls, "%s\n", ss.Array());
@@ -759,6 +773,12 @@ _brep_cmd_trim_bezier_info(void *bs, int argc, const char **argv)
 	}
 	const ON_BrepTrim &trim = brep->m_T[ti];
 	const ON_Curve* c2 = trim.TrimCurveOf();
+	if (!c2) {
+	    dump.Print("trim[%2d]: NULL curve\n", ti);
+	    ON_String ss = wstr;
+	    bu_vls_printf(gib->vls, "%s\n", ss.Array());
+	    continue;
+	}
 	ON_NurbsCurve* nc2 = ON_NurbsCurve::New();
 	c2->GetNurbForm(*nc2, 0.0);
 	int knotlength = nc2->m_order + nc2->m_cv_count - 2;
@@ -827,8 +847,11 @@ _brep_cmd_vertex_info(void *bs, int argc, const char **argv)
 	ON_3dPoint p = vertex.Point();
 	bu_vls_printf(gib->vls, "m_V[%d]: %g %g %g  Used by %d edges\n", vi, p.x, p.y, p.z, vertex.EdgeCount());
 	for (int i = 0; i < vertex.EdgeCount(); i++) {
-	    const ON_BrepEdge &edge = brep->m_E[vertex.m_ei[i]];
-	    bu_vls_printf(gib->vls, "   m_E[%d]: %d -> %d\n", vertex.m_ei[i], edge.m_vi[0], edge.m_vi[1]);
+	    int ei = vertex.m_ei[i];
+	    if (ei >= 0 && ei < brep->m_E.Count()) {
+		const ON_BrepEdge &edge = brep->m_E[ei];
+		bu_vls_printf(gib->vls, "   m_E[%d]: %d -> %d\n", ei, edge.m_vi[0], edge.m_vi[1]);
+	    }
 	}
     }
     return BRLCAD_OK;

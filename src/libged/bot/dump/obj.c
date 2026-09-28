@@ -140,14 +140,18 @@ obj_finish(struct _ged_bot_dump_client_data *d)
     if (!d)
 	return BRLCAD_ERROR;
 
-    if (!bu_vls_strlen(&d->output_directory))
+    if (!bu_vls_strlen(&d->output_directory) && d->fp) {
 	fclose(d->fp);
+	d->fp = NULL;
+    }
 
     if (d->material_info) {
 	bu_vls_free(&d->obj.obj_materials_file);
 	obj_free_materials(&d->obj);
-	if (d->obj.obj_materials_fp)
+	if (d->obj.obj_materials_fp) {
 	    fclose(d->obj.obj_materials_fp);
+	    d->obj.obj_materials_fp = NULL;
+	}
     }
 
     return BRLCAD_OK;
@@ -222,7 +226,11 @@ obj_write_bot(struct _ged_bot_dump_client_data *d, struct rt_bot_internal *bot, 
 	    } else {
 		VCROSS(norm, CmA, BmA);
 	    }
-	    VUNITIZE(norm);
+	    if (MAGNITUDE(norm) > VUNITIZE_TOL) {
+		VUNITIZE(norm);
+	    } else {
+		VSETALL(norm, 0.0);
+	    }
 
 	    if (d->full_precision) {
 		fprintf(fp, "vn %0.17f %0.17f %0.17f\n", V3ARGS(norm));

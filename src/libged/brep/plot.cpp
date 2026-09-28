@@ -56,13 +56,16 @@ plottrim(const ON_BrepTrim &trim, struct bu_list *vlfree, struct bv_vlblock *vbp
     struct bu_list *vhead;
     const ON_Surface *surf = trim.SurfaceOf();
 
-    ON_TextLog tl(stderr);
+    const ON_Curve* trimCurve = trim.TrimCurveOf();
+    if (!trimCurve)
+	return;
+    if (dim3d && !surf)
+	return;
+    if (plotres <= 0)
+	plotres = 20;
 
     vhead = bv_vlblock_find(vbp, red, green, blue);
-
-    const ON_Curve* trimCurve = trim.TrimCurveOf();
     ON_Interval dom = trimCurve->Domain();
-    //trimCurve->Dump(tl);
 
     fastf_t pt[3];
     for (int k = 0; k <= plotres; ++k) {
@@ -79,24 +82,6 @@ plottrim(const ON_BrepTrim &trim, struct bu_list *vlfree, struct bv_vlblock *vbp
 	}
     }
  
-#if 0
-    fastf_t pt1[3], pt2[3];
-    for (int k = 1; k <= plotres; k++) {
-	ON_3dPoint p = trimCurve->PointAt(dom.ParameterAt((double) (k - 1) / (double) plotres));
-	if (dim3d) {
-	    p = surf->PointAt(p.x, p.y);
-	}
-	VMOVE(pt1, p);
-	p = trimCurve->PointAt(dom.ParameterAt((double) k / (double) plotres));
-	if (dim3d) {
-	    p = surf->PointAt(p.x, p.y);
-	}
-	VMOVE(pt2, p);
-	BV_ADD_VLIST(vlfree, vhead, pt1, BV_VLIST_LINE_MOVE);
-	BV_ADD_VLIST(vlfree, vhead, pt2, BV_VLIST_LINE_DRAW);
-    }
-#endif
-
     return;
 }
 
@@ -110,14 +95,6 @@ plotcurve(const ON_Curve &curve, struct bu_list *vlfree, struct bv_vlblock *vbp,
     vhead = bv_vlblock_find(vbp, red, green, blue);
 
     if (curve.IsLinear()) {
-	/*
-	  ON_BrepVertex& v1 = face.Brep()->m_V[trim.m_vi[0]];
-	  ON_BrepVertex& v2 = face.Brep()->m_V[trim.m_vi[1]];
-	  VMOVE(pt1, v1.Point());
-	  VMOVE(pt2, v2.Point());
-	  LINE_PLOT(pt1, pt2);
-	*/
-
 	int knotcnt = curve.SpanCount();
 	fastf_t *knots = new fastf_t[knotcnt + 1];
 
@@ -130,10 +107,12 @@ plotcurve(const ON_Curve &curve, struct bu_list *vlfree, struct bv_vlblock *vbp,
 	    BV_ADD_VLIST(vlfree, vhead, pt1, BV_VLIST_LINE_MOVE);
 	    BV_ADD_VLIST(vlfree, vhead, pt2, BV_VLIST_LINE_DRAW);
 	}
+	delete[] knots;
 
     } else {
 	ON_Interval dom = curve.Domain();
-	// XXX todo: dynamically sample the curve
+	if (plotres <= 0)
+	    plotres = 20;
 	for (int i = 1; i <= plotres; i++) {
 	    ON_3dPoint p = curve.PointAt(dom.ParameterAt((double) (i - 1)
 							/ (double)plotres));
@@ -158,8 +137,10 @@ void plotcurveonsurface(const ON_Curve *curve,
 			const int green = 255,
 			const int blue = 0)
 {
-    if (curve->Dimension() != 2)
+    if (!curve || !surface || curve->Dimension() != 2)
 	return;
+    if (plotres <= 0)
+	plotres = 20;
     struct bu_list *vhead;
     vhead = bv_vlblock_find(vbp, red, green, blue);
 
@@ -235,6 +216,8 @@ plotface(const ON_BrepFace &face, struct bu_list *vlfree, struct bv_vlblock *vbp
 {
     struct bu_list *vhead;
     const ON_Surface* surf = face.SurfaceOf();
+    if (!surf)
+	return;
     fastf_t umin, umax;
     fastf_t pt1[3], pt2[3];
 
@@ -245,10 +228,17 @@ plotface(const ON_BrepFace &face, struct bu_list *vlfree, struct bv_vlblock *vbp
     surf->GetDomain(0, &umin, &umax);
     for (int i = 0; i < face.LoopCount(); i++) {
 	const ON_BrepLoop* loop = face.Loop(i);
+	if (!loop)
+	    continue;
 	// for each trim
 	for (int j = 0; j < loop->m_ti.Count(); j++) {
-	    const ON_BrepTrim& trim = face.Brep()->m_T[loop->m_ti[j]];
+	    int ti = loop->m_ti[j];
+	    if (ti < 0 || ti >= face.Brep()->m_T.Count())
+		continue;
+	    const ON_BrepTrim& trim = face.Brep()->m_T[ti];
 	    const ON_Curve* trimCurve = trim.TrimCurveOf();
+	    if (!trimCurve)
+		continue;
 	    //trimCurve->Dump(tl);
 
 	    ON_Interval dom = trimCurve->Domain();
@@ -274,8 +264,12 @@ plotface(const ON_BrepFace &face, struct bu_list *vlfree, struct bv_vlblock *vbp
 static void
 plotUVDomain2d(ON_BrepFace *face, struct bu_list *vlfree, struct bv_vlblock *vbp)
 {
-    struct bu_list *vhead;
+    if (!face)
+	return;
     const ON_Surface* surf = face->SurfaceOf();
+    if (!surf)
+	return;
+    struct bu_list *vhead;
     fastf_t umin, umax, urange;
     fastf_t vmin, vmax, vrange;
     fastf_t pt1[3], pt2[3];
@@ -822,6 +816,8 @@ plottrimdirection(const ON_BrepFace &face, struct bu_list *vlfree, struct bv_vlb
 {
     struct bu_list *vhead;
     const ON_Surface* surf = face.SurfaceOf();
+    if (!surf)
+	return;
     fastf_t umin, umax;
     fastf_t pt1[3], pt2[3];
 
@@ -832,10 +828,17 @@ plottrimdirection(const ON_BrepFace &face, struct bu_list *vlfree, struct bv_vlb
     surf->GetDomain(0, &umin, &umax);
     for (int i = 0; i < face.LoopCount(); i++) {
 	const ON_BrepLoop* loop = face.Loop(i);
+	if (!loop)
+	    continue;
 	// for each trim
 	for (int j = 0; j < loop->m_ti.Count(); j++) {
-	    const ON_BrepTrim& trim = face.Brep()->m_T[loop->m_ti[j]];
+	    int ti = loop->m_ti[j];
+	    if (ti < 0 || ti >= face.Brep()->m_T.Count())
+		continue;
+	    const ON_BrepTrim& trim = face.Brep()->m_T[ti];
 	    const ON_Curve* trimCurve = trim.TrimCurveOf();
+	    if (!trimCurve)
+		continue;
 	    //trimCurve->Dump(tl);
 
 	    int knotcnt = trimCurve->SpanCount();
@@ -870,6 +873,7 @@ plottrimdirection(const ON_BrepFace &face, struct bu_list *vlfree, struct bv_vlb
 		    BV_ADD_VLIST(vlfree, vhead, pt2, BV_VLIST_LINE_DRAW);
 		}
 	    }
+	    delete[] knots;
 	}
     }
 
@@ -950,6 +954,8 @@ plotsurfaceknots(ON_Surface &surf, struct bu_list *vlfree, struct bv_vlblock *vb
 	    }
 	}
     }
+    delete[] spanu;
+    delete[] spanv;
     return;
 }
 
@@ -1060,6 +1066,10 @@ _brep_cmd_curve_2d_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int ci = *e_it;
+	if (ci < 0 || ci >= brep->m_C2.Count() || !brep->m_C2[ci]) {
+	    bu_vls_printf(gib->vls, "invalid or null curve %d, skipping\n", ci);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -1121,6 +1131,10 @@ _brep_cmd_curve_3d_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int ci = *e_it;
+	if (ci < 0 || ci >= brep->m_C3.Count() || !brep->m_C3[ci]) {
+	    bu_vls_printf(gib->vls, "invalid or null curve %d, skipping\n", ci);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -1179,6 +1193,10 @@ _brep_cmd_edge_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int ei = *e_it;
+	if (ei < 0 || ei >= brep->m_E.Count()) {
+	    bu_vls_printf(gib->vls, "invalid edge %d, skipping\n", ei);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -1189,7 +1207,7 @@ _brep_cmd_edge_plot(void *bs, int argc, const char **argv)
 	    continue;
 	}
 	const ON_Curve* curve = edge.EdgeCurveOf();
-	if (!curve->IsValid(NULL)) {
+	if (!curve || !curve->IsValid(NULL)) {
 	    bu_vls_printf(gib->vls, "curve %d associated with edge %d is not valid, skipping", edge.m_c3i, ei);
 	    continue;
 	}
@@ -1243,6 +1261,10 @@ _brep_cmd_face_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int fi = *e_it;
+	if (fi < 0 || fi >= brep->m_F.Count()) {
+	    bu_vls_printf(gib->vls, "invalid face %d, skipping\n", fi);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -1302,6 +1324,10 @@ _brep_cmd_face_2d_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int fi = *e_it;
+	if (fi < 0 || fi >= brep->m_F.Count()) {
+	    bu_vls_printf(gib->vls, "invalid face %d, skipping\n", fi);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -1362,17 +1388,25 @@ _brep_cmd_face_surface_bbox_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int fi = *e_it;
+	if (fi < 0 || fi >= brep->m_F.Count()) {
+	    bu_vls_printf(gib->vls, "invalid face %d, skipping\n", fi);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
 
 	ON_BrepFace *face = brep->Face(fi);
-	if (!face->IsValid(NULL)) {
+	if (!face || !face->IsValid(NULL)) {
 	    bu_vls_printf(gib->vls, "face %d is not valid, skipping", fi);
 	    continue;
 	}
 
 	const ON_Surface *s = face->SurfaceOf();
+	if (!s) {
+	    bu_vls_printf(gib->vls, "surface for face %d is null, skipping", fi);
+	    continue;
+	}
 	double surface_width,surface_height;
 	if (s->GetSurfaceSize(&surface_width,&surface_height)) {
 	    // reparameterization of the face's surface and transforms the "u"
@@ -1428,17 +1462,25 @@ _brep_cmd_face_surface_bbox_2d_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int fi = *e_it;
+	if (fi < 0 || fi >= brep->m_F.Count()) {
+	    bu_vls_printf(gib->vls, "invalid face %d, skipping\n", fi);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
 
 	ON_BrepFace *face = brep->Face(fi);
-	if (!face->IsValid(NULL)) {
+	if (!face || !face->IsValid(NULL)) {
 	    bu_vls_printf(gib->vls, "face %d is not valid, skipping", fi);
 	    continue;
 	}
 
 	const ON_Surface *s = face->SurfaceOf();
+	if (!s) {
+	    bu_vls_printf(gib->vls, "surface for face %d is null, skipping", fi);
+	    continue;
+	}
 	double surface_width,surface_height;
 	if (s->GetSurfaceSize(&surface_width,&surface_height)) {
 	    // reparameterization of the face's surface and transforms the "u"
@@ -1494,6 +1536,10 @@ _brep_cmd_face_trim_bbox_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int fi = *e_it;
+	if (fi < 0 || fi >= brep->m_F.Count()) {
+	    bu_vls_printf(gib->vls, "invalid face %d, skipping\n", fi);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -1550,6 +1596,10 @@ _brep_cmd_face_trim_bbox_2d_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int fi = *e_it;
+	if (fi < 0 || fi >= brep->m_F.Count()) {
+	    bu_vls_printf(gib->vls, "invalid face %d, skipping\n", fi);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -1608,6 +1658,10 @@ _brep_cmd_face_trim_direction_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int fi = *e_it;
+	if (fi < 0 || fi >= brep->m_F.Count()) {
+	    bu_vls_printf(gib->vls, "invalid face %d, skipping\n", fi);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -1663,6 +1717,10 @@ _brep_cmd_isosurface_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int fi = *e_it;
+	if (fi < 0 || fi >= brep->m_F.Count()) {
+	    bu_vls_printf(gib->vls, "invalid face %d, skipping\n", fi);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -1721,6 +1779,10 @@ _brep_cmd_loop_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int li = *e_it;
+	if (li < 0 || li >= brep->m_L.Count()) {
+	    bu_vls_printf(gib->vls, "invalid loop %d, skipping\n", li);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -1733,7 +1795,10 @@ _brep_cmd_loop_plot(void *bs, int argc, const char **argv)
 	}
 
 	for (int ti = 0; ti < loop->m_ti.Count(); ti++) {
-	    const ON_BrepTrim& trim = brep->m_T[loop->m_ti[ti]];
+	    int ti_idx = loop->m_ti[ti];
+	    if (ti_idx < 0 || ti_idx >= brep->m_T.Count())
+		continue;
+	    const ON_BrepTrim& trim = brep->m_T[ti_idx];
 	    if (color) {
 		plottrim(trim, vlfree, vbp, plotres, true, (int)rgb[0], (int)rgb[1], (int)rgb[2]);
 	    } else {
@@ -1785,6 +1850,10 @@ _brep_cmd_loop_2d_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int li = *e_it;
+	if (li < 0 || li >= brep->m_L.Count()) {
+	    bu_vls_printf(gib->vls, "invalid loop %d, skipping\n", li);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -1796,7 +1865,10 @@ _brep_cmd_loop_2d_plot(void *bs, int argc, const char **argv)
 	}
 
 	for (int ti = 0; ti < loop->m_ti.Count(); ti++) {
-	    const ON_BrepTrim& trim = brep->m_T[loop->m_ti[ti]];
+	    int ti_idx = loop->m_ti[ti];
+	    if (ti_idx < 0 || ti_idx >= brep->m_T.Count())
+		continue;
+	    const ON_BrepTrim& trim = brep->m_T[ti_idx];
 	    if (color) {
 		plottrim(trim, vlfree, vbp, plotres, false, (int)rgb[0], (int)rgb[1], (int)rgb[2]);
 	    } else {
@@ -1847,6 +1919,10 @@ _brep_cmd_surface_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int si = *e_it;
+	if (si < 0 || si >= brep->m_S.Count() || !brep->m_S[si]) {
+	    bu_vls_printf(gib->vls, "invalid surface %d, skipping\n", si);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -1908,6 +1984,10 @@ _brep_cmd_surface_control_verts_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int si = *e_it;
+	if (si < 0 || si >= brep->m_S.Count() || !brep->m_S[si]) {
+	    bu_vls_printf(gib->vls, "invalid surface %d, skipping\n", si);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -1924,6 +2004,7 @@ _brep_cmd_surface_control_verts_plot(void *bs, int argc, const char **argv)
 	ucount = ns->m_cv_count[0];
 	vcount = ns->m_cv_count[1];
 	plot_nurbs_cv(vlfree, vbp, ucount, vcount, ns);
+	delete ns;
     }
 
     struct bu_vls sname = BU_VLS_INIT_ZERO;
@@ -1968,6 +2049,10 @@ _brep_cmd_surface_knot_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int si = *e_it;
+	if (si < 0 || si >= brep->m_S.Count() || !brep->m_S[si]) {
+	    bu_vls_printf(gib->vls, "invalid surface %d, skipping\n", si);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -2022,6 +2107,10 @@ _brep_cmd_surface_knot_2d_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int si = *e_it;
+	if (si < 0 || si >= brep->m_S.Count() || !brep->m_S[si]) {
+	    bu_vls_printf(gib->vls, "invalid surface %d, skipping\n", si);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -2077,6 +2166,10 @@ _brep_cmd_surface_normal_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int si = *e_it;
+	if (si < 0 || si >= brep->m_S.Count() || !brep->m_S[si]) {
+	    bu_vls_printf(gib->vls, "invalid surface %d, skipping\n", si);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -2135,6 +2228,10 @@ _brep_cmd_surface_uv_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int si = *e_it;
+	if (si < 0 || si >= brep->m_S.Count() || !brep->m_S[si]) {
+	    bu_vls_printf(gib->vls, "invalid surface %d, skipping\n", si);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -2231,7 +2328,7 @@ _brep_cmd_surface_uv_point_plot(void *bs, int argc, const char **argv)
 	return BRLCAD_ERROR;
     }
 
-    if (si < 0 || si >= brep->m_S.Count()) {
+    if (si < 0 || si >= brep->m_S.Count() || !brep->m_S[si]) {
 	bu_vls_printf(gib->vls, "surface id %d is not valid", si);
 	return BRLCAD_ERROR;
     }
@@ -2305,6 +2402,10 @@ _brep_cmd_trim_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int ti = *e_it;
+	if (ti < 0 || ti >= brep->m_T.Count()) {
+	    bu_vls_printf(gib->vls, "invalid trim %d, skipping\n", ti);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -2365,6 +2466,10 @@ _brep_cmd_trim_2d_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int ti = *e_it;
+	if (ti < 0 || ti >= brep->m_T.Count()) {
+	    bu_vls_printf(gib->vls, "invalid trim %d, skipping\n", ti);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -2424,6 +2529,10 @@ _brep_cmd_vertex_plot(void *bs, int argc, const char **argv)
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
 
 	int vi = *e_it;
+	if (vi < 0 || vi >= brep->m_V.Count()) {
+	    bu_vls_printf(gib->vls, "invalid vertex %d, skipping\n", vi);
+	    continue;
+	}
 
 	unsigned char rgb[3];
 	bu_color_to_rgb_chars(color, rgb);
@@ -2482,7 +2591,12 @@ _brep_cmd_face_cdt_plot(void *bs, int argc, const char **argv)
 
     std::set<int>::iterator e_it;
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
-	brep_facecdt_plot(gib->vls, solid_name, ttol, tol, brep, NULL, vbp, vlfree, *e_it, 0, -1);
+	int fi = *e_it;
+	if (fi < 0 || fi >= brep->m_F.Count()) {
+	    bu_vls_printf(gib->vls, "invalid face %d, skipping\n", fi);
+	    continue;
+	}
+	brep_facecdt_plot(gib->vls, solid_name, ttol, tol, brep, NULL, vbp, vlfree, fi, 0, -1);
     }
 
     struct bu_vls sname = BU_VLS_INIT_ZERO;
@@ -2527,7 +2641,12 @@ _brep_cmd_face_cdt_2d_plot(void *bs, int argc, const char **argv)
 
     std::set<int>::iterator e_it;
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
-	brep_facecdt_plot(gib->vls, solid_name, ttol, tol, brep, NULL, vbp, vlfree, *e_it, 2, -1);
+	int fi = *e_it;
+	if (fi < 0 || fi >= brep->m_F.Count()) {
+	    bu_vls_printf(gib->vls, "invalid face %d, skipping\n", fi);
+	    continue;
+	}
+	brep_facecdt_plot(gib->vls, solid_name, ttol, tol, brep, NULL, vbp, vlfree, fi, 2, -1);
     }
 
     struct bu_vls sname = BU_VLS_INIT_ZERO;
@@ -2572,7 +2691,12 @@ _brep_cmd_face_cdt_m2d_plot(void *bs, int argc, const char **argv)
 
     std::set<int>::iterator e_it;
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
-	brep_facecdt_plot(gib->vls, solid_name, ttol, tol, brep, NULL, vbp, vlfree, *e_it, 3, -1);
+	int fi = *e_it;
+	if (fi < 0 || fi >= brep->m_F.Count()) {
+	    bu_vls_printf(gib->vls, "invalid face %d, skipping\n", fi);
+	    continue;
+	}
+	brep_facecdt_plot(gib->vls, solid_name, ttol, tol, brep, NULL, vbp, vlfree, fi, 3, -1);
     }
 
     struct bu_vls sname = BU_VLS_INIT_ZERO;
@@ -2617,7 +2741,12 @@ _brep_cmd_face_cdt_p2d_plot(void *bs, int argc, const char **argv)
 
     std::set<int>::iterator e_it;
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
-	brep_facecdt_plot(gib->vls, solid_name, ttol, tol, brep, NULL, vbp, vlfree, *e_it, 4, -1);
+	int fi = *e_it;
+	if (fi < 0 || fi >= brep->m_F.Count()) {
+	    bu_vls_printf(gib->vls, "invalid face %d, skipping\n", fi);
+	    continue;
+	}
+	brep_facecdt_plot(gib->vls, solid_name, ttol, tol, brep, NULL, vbp, vlfree, fi, 4, -1);
     }
 
     struct bu_vls sname = BU_VLS_INIT_ZERO;
@@ -2662,7 +2791,12 @@ _brep_cmd_face_cdt_wireframe_plot(void *bs, int argc, const char **argv)
 
     std::set<int>::iterator e_it;
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
-	brep_facecdt_plot(gib->vls, solid_name, ttol, tol, brep, NULL, vbp, vlfree, *e_it, 1, -1);
+	int fi = *e_it;
+	if (fi < 0 || fi >= brep->m_F.Count()) {
+	    bu_vls_printf(gib->vls, "invalid face %d, skipping\n", fi);
+	    continue;
+	}
+	brep_facecdt_plot(gib->vls, solid_name, ttol, tol, brep, NULL, vbp, vlfree, fi, 1, -1);
     }
 
     struct bu_vls sname = BU_VLS_INIT_ZERO;
@@ -2714,6 +2848,10 @@ _brep_cmd_face_cdt2_plot(void *bs, int argc, const char **argv)
 	int *faces = (int *)bu_calloc(elements.size()+1, sizeof(int), "face array");
 	std::set<int>::iterator e_it;
 	for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
+	    if (*e_it < 0 || *e_it >= brep->m_F.Count()) {
+		bu_vls_printf(gib->vls, "invalid face %d, skipping\n", *e_it);
+		continue;
+	    }
 	    faces[face_cnt] = *e_it;
 	    face_cnt++;
 	}
@@ -2772,6 +2910,10 @@ _brep_cmd_face_cdt2_2d_plot(void *bs, int argc, const char **argv)
     int *faces = (int *)bu_calloc(elements.size()+1, sizeof(int), "face array");
     std::set<int>::iterator e_it;
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
+	if (*e_it < 0 || *e_it >= brep->m_F.Count()) {
+	    bu_vls_printf(gib->vls, "invalid face %d, skipping\n", *e_it);
+	    continue;
+	}
 	faces[face_cnt] = *e_it;
 	face_cnt++;
     }
@@ -2833,6 +2975,10 @@ _brep_cmd_face_cdt2_wireframe_plot(void *bs, int argc, const char **argv)
     int *faces = (int *)bu_calloc(elements.size()+1, sizeof(int), "face array");
     std::set<int>::iterator e_it;
     for (e_it = elements.begin(); e_it != elements.end(); e_it++) {
+	if (*e_it < 0 || *e_it >= brep->m_F.Count()) {
+	    bu_vls_printf(gib->vls, "invalid face %d, skipping\n", *e_it);
+	    continue;
+	}
 	faces[face_cnt] = *e_it;
 	face_cnt++;
     }

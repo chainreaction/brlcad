@@ -51,8 +51,11 @@ sat_write_header(FILE *fp)
     fprintf(fp, "400 0 1 0\n");
 
     time(&now);
+    const char *timestr = ctime(&now);
+    if (!timestr)
+	timestr = "Unknown\n";
     fprintf(fp, "%ld BRL-CAD(%s)-bot_dump 16 ACIS 8.0 Unknown %ld %s",
-	    (long)strlen(brlcad_version())+18, brlcad_version(), (long)strlen(ctime(&now)) - 1, ctime(&now));
+	    (long)strlen(brlcad_version())+18, brlcad_version(), (long)strlen(timestr) - 1, timestr);
 
     /* FIXME: this includes abs tolerance info, should probably output ours */
     fprintf(fp, "1 9.9999999999999995e-007 1e-010\n");
@@ -87,9 +90,10 @@ sat_finish(struct _ged_bot_dump_client_data *d)
     if (!d)
 	return BRLCAD_ERROR;
 
-    if (!bu_vls_strlen(&d->output_directory)) {
+    if (!bu_vls_strlen(&d->output_directory) && d->fp) {
 	fprintf(d->fp, "End-of-ACIS-data\n");
 	fclose(d->fp);
+	d->fp = NULL;
     }
 
     return BRLCAD_OK;
