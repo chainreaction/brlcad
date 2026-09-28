@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-28 02:00:02 UTC
+**Last Updated:** 2026-09-28 03:00:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 815 (23.3%)
-- **Files Pending Review:** 2678
-- **Total Issues Identified:** 243
+- **Files Reviewed:** 866 (24.8%)
+- **Files Pending Review:** 2627
+- **Total Issues Identified:** 244
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 171 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 172 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 49 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 243
+- **Fixed (Committed):** 244
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -92,7 +92,7 @@
 | `src/libdm` | 80 | 80 | 100.0% | 1 |
 | `src/libfft` | 8 | 8 | 100.0% | 1 |
 | `src/libgcv` | 111 | 111 | 100.0% | 1 |
-| `src/libged` | 509 | 34 | 6.7% | 1 |
+| `src/libged` | 509 | 85 | 16.7% | 2 |
 | `src/libicv` | 34 | 0 | 0.0% | 0 |
 | `src/libnmg` | 54 | 0 | 0.0% | 0 |
 | `src/liboptical` | 46 | 0 | 0.0% | 0 |
@@ -356,6 +356,11 @@
 | `SEC-0237` | **Sev 2** | Buffer Bounds, Resource Leaks, Null Dereferences, and Out-of-Bounds Memory Access | `src/art/tile.cpp, src/art/brlcadplugin.h, src/art/brlcadplugin.cpp, src/art/art.cpp` | `FIXED` | In art Appleseed integration: missing frame/fbp checks and row offset calculation in tile.cpp, missing rt_i_destroy and thread index clamping in brlcadplugin.cpp, leaked ged instances and open dbip in art.cpp, and leaked temporary vls buffers. |
 | `SEC-0238` | **Sev 2** | Buffer Overflow, Out-of-bounds Array Access, Null Pointer Dereference, and Input Validation | `src/launcher/launcher.c, src/launcher/registry.c, src/launcher/launch.c, src/launcher/fbtext.c, src/launcher/ui_fb.c, src/launcher/ui_text.c` | `FIXED` | In launcher: unchecked argc/argv in main, null pointer dereference in list_apps, unchecked registry growth and bu_dir results, framebuffer vertical row bounds checks in draw_char, and button action index bounds checks in ui_fb.c. |
 | `SEC-0239` | **Sev 2** | Buffer Overflow, Memory Leaks, Division by Zero, Null Pointer Dereference, and Out-of-Bounds Memory Access | `src/isst/gfile.h, src/isst/gfile.cpp, src/isst/isstgl.h, src/isst/isstgl.cpp, src/isst/main.cpp, src/isst/main_window.cpp, src/isst/isstapp.cpp` | `FIXED` | In isst: uninitialized GFile members and memory leaks in closedb(), static gcvwriter global state, out-of-bounds array write in nmg_to_adrt_internal, out-of-bounds vertex indexing and leaked intern in nmg_to_adrt_regstart, leaked db_path_to_string buffers, uninitialized camera in TIERenderer, division by zero in resize(), null tie dereference in render(), missing render mutex in set_tie(), and unchecked argc/argv in main. |
+| `SEC-0240` | **Sev 1** | Memory Leaks, Buffer Overflow, Division by Zero, Out-of-bounds Array Access, and Null Pointer Dereferences | `src/libbv/*` | `FIXED` | In libbv: fixed display list and scene object leaks, division by zero in camera and knob math, and array bounds in polygon and clipping routines. |
+| `SEC-0241` | **Sev 1** | Memory Leaks, Buffer Overflow, Division by Zero, Out-of-bounds Memory Access, and Null Pointer Dereferences | `src/libdm/*` | `FIXED` | In libdm: fixed color map out-of-bounds write risks, integer overflow in getmem, division by zero in reshape/aspect, and resource leaks across display manager backends. |
+| `SEC-0242` | **Sev 2** | Memory Leaks, Buffer Overflow, Division by Zero, Out-of-bounds Memory Access, and Null Pointer Dereferences | `src/libgcv/*` | `FIXED` | In libgcv: fixed float-to-integer conversion in bottess, uninitialized memory reads in OBJ/PLY plugins, division by zero across converters, and intermediate geometry leaks. |
+| `SEC-0243` | **Sev 2** | Memory Leaks, Buffer Overflow, Division by Zero, Out-of-bounds Memory Access, and Null Pointer Dereferences | `src/libged (Batch 1)` | `FIXED` | In libged Batch 1: fixed memory leaks and double-free hazards on wdb_put_internal, stack buffer overflow in adc, division by zero across analyze/arot/arrange, and ARS/ARB bounds checks. |
+| `SEC-0244` | **Sev 2** | Memory Leaks, Buffer Overflow, Division by Zero, Out-of-bounds Memory Access, and Null Pointer Dereferences | `src/libged (Batch 2: bot, brep)` | `FIXED` | In libged Batch 2: fixed rt_db_internal initialization/free leaks and double-frees, array bounds on vertices/faces/trims, division by zero in normals/decimation/scale, and NULL pointer checks across bot and brep subcommands. |
 
 
 
