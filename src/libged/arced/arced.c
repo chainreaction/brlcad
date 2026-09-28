@@ -120,7 +120,8 @@ ged_arced_core(struct ged *gedp, int argc, const char *argv[])
 
     if (rt_db_put_internal(dp, gedp->dbip, &intern) < 0) {
 	bu_vls_printf(gedp->ged_result_str, "Database write error, aborting");
-	goto fail;
+	db_free_1anim(anp);
+	return BRLCAD_ERROR;
     }
     db_free_1anim(anp);
     return BRLCAD_OK;

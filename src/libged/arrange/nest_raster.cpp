@@ -38,6 +38,8 @@ word_index(const Raster &raster, int x, int y, int z)
 int
 voxel_count(double minimum, double maximum, double size)
 {
+    if (size <= 0.0 || ZERO(size))
+        return 1;
     double ratio = (maximum - minimum) / size;
     int count = static_cast<int>(ratio) + 1;
     if (EQUAL(static_cast<double>(count - 1), ratio))

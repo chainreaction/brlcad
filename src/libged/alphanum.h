@@ -58,6 +58,10 @@ static int alphanum_impl(const char *l, const char *r, void *UNUSED(arg))
 {
     enum alphanum_mode_t { STRING, NUMBER } mode=STRING;
 
+    if (!l && !r) return 0;
+    if (!l) return -1;
+    if (!r) return 1;
+
     while(*l && *r)
     {
 	if(mode == STRING)
@@ -84,7 +88,7 @@ static int alphanum_impl(const char *l, const char *r, void *UNUSED(arg))
 		// if only the right character is a digit, we have a result
 		if(r_digit) return +1;
 		// compute the difference of both characters
-		const int diff = l_char - r_char;
+		const int diff = (unsigned char)l_char - (unsigned char)r_char;
 		// if they differ we have a result
 		if(diff != 0) return diff;
 		// otherwise process the next characters
@@ -104,7 +108,7 @@ static int alphanum_impl(const char *l, const char *r, void *UNUSED(arg))
 		// on char comparison
 		char l_char=*l;
 		char r_char=*r;
-		const int diff = l_char - r_char;
+		const int diff = (unsigned char)l_char - (unsigned char)r_char;
 		if(diff != 0) return diff;
 		++l;
 		++r;
@@ -112,10 +116,9 @@ static int alphanum_impl(const char *l, const char *r, void *UNUSED(arg))
 		// Numerical conversion successful - proceed
 		l=lend;
 		r=rend;
-		// if the difference is not equal to zero, we have a comparison result
-		const long diff=l_int-r_int;
-		if(diff != 0)
-		    return diff;
+		// Compare numerical values directly to avoid unsigned wrap-around and int truncation
+		if (l_int < r_int) return -1;
+		if (l_int > r_int) return 1;
 	    }
 
 	    // otherwise we process the next substring in STRING mode

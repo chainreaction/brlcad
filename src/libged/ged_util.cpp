@@ -931,7 +931,12 @@ ged_arot_args(struct ged *gedp, int argc, const char *argv[], mat_t rmat)
 	return BRLCAD_ERROR;
     }
 
-    VUNITIZE(axis);
+    fastf_t mag = MAGNITUDE(axis);
+    if (ZERO(mag)) {
+	bu_vls_printf(gedp->ged_result_str, "%s: rotation axis cannot be zero length\n", argv[0]);
+	return BRLCAD_ERROR;
+    }
+    VSCALE(axis, axis, 1.0 / mag);
     VMOVE(axisv, axis);
     bn_mat_arb_rot(rmat, pt, axisv, angle*DEG2RAD);
 

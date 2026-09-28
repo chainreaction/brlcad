@@ -248,7 +248,11 @@ ged_3ptarb_core(struct ged *gedp, int argc, const char *argv[])
 	VJOIN1(aip->pt[i+4], aip->pt[i], thick, norm);
     }
 
-    GED_DB_DIRADD(gedp, dp, argv[1], RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&internal.idb_type, BRLCAD_ERROR);
+    if (((dp) = db_diradd(gedp->dbip, argv[1], RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&internal.idb_type)) == RT_DIR_NULL) {
+	bu_vls_printf(gedp->ged_result_str, "Unable to add %s to the database.", argv[1]);
+	rt_db_free_internal(&internal);
+	return BRLCAD_ERROR;
+    }
 
     GED_DB_PUT_INTERN(gedp, dp, &internal, BRLCAD_ERROR);
 

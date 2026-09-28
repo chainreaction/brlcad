@@ -38,6 +38,9 @@
 void
 analyze_superell(struct ged *gedp, const struct rt_db_internal *ip)
 {
+    if (!gedp || !gedp->dbip || !ip || !ip->idb_ptr)
+	return;
+
     struct rt_superell_internal *superell = (struct rt_superell_internal *)ip->idb_ptr;
 
     RT_SUPERELL_CK_MAGIC(superell);
@@ -102,7 +105,15 @@ analyze_superell(struct ged *gedp, const struct rt_db_internal *ip)
 		bu_vls_printf(gedp->ged_result_str, "   Cannot find surface area\n");
 		return;
 	    }
-    ecc = sqrt(major_mag*major_mag - minor_mag*minor_mag) / major_mag;
+    if (ZERO(major_mag)) {
+	sur_area = 0.0;
+	goto print_results;
+    }
+    ecc = sqrt(fabs(major_mag*major_mag - minor_mag*minor_mag)) / major_mag;
+    if (ZERO(ecc) || ecc >= 1.0) {
+	sur_area = 4.0 * M_PI * major_mag * minor_mag;
+	goto print_results;
+    }
     if (type == PROLATE) {
 	sur_area = M_2PI * minor_mag * minor_mag +
 	(M_2PI * (major_mag*minor_mag/ecc) * asin(ecc));

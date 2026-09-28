@@ -24,11 +24,15 @@
 extern "C" int
 _arb_cmd_repair(void *bs, int argc, const char **argv)
 {
+    if (!bs)
+	return BRLCAD_ERROR;
+
     struct _ged_arb_info *gb = (struct _ged_arb_info *)bs;
     struct ged *gedp = gb->gedp;
-    (void)gedp;
+    if (!gedp)
+	return BRLCAD_ERROR;
 
-    int ret = ged_repair(gb->gedp, argc, argv);
+    int ret = ged_repair(gedp, argc, argv);
     return ret;
 }
 

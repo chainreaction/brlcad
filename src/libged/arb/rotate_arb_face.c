@@ -152,6 +152,11 @@ ged_rotate_arb_face_core(struct ged *gedp, int argc, const char *argv[])
     RT_ARB_CK_MAGIC(arb);
 
     arb_type = rt_arb_std_type(&intern, &wdbp->wdb_tol);
+    if (arb_type < 4 || arb_type > 8) {
+	bu_vls_printf(gedp->ged_result_str, "bad ARB type");
+	rt_db_free_internal(&intern);
+	return BRLCAD_ERROR;
+    }
 
     if (rt_arb_calc_planes(gedp->ged_result_str, arb, arb_type, planes, &wdbp->wdb_tol)) {
 	rt_db_free_internal(&intern);
@@ -218,7 +223,6 @@ ged_rotate_arb_face_core(struct ged *gedp, int argc, const char *argv[])
 	GED_DB_PUT_INTERN(gedp, dp, &intern, BRLCAD_ERROR);
     }
 
-    rt_db_free_internal(&intern);
     return BRLCAD_OK;
 }
 

@@ -401,8 +401,17 @@ op_pnts_vol(
 
     if (output_pnts_obj) {
 	opnts->count = pntcnt;
-	GED_DB_DIRADD(gedp, dp, output_pnts_obj, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&internal.idb_type, BRLCAD_ERROR);
-	GED_DB_PUT_INTERN(gedp, dp, &internal, BRLCAD_ERROR);
+	if (((dp) = db_diradd(gedp->dbip, output_pnts_obj, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&internal.idb_type)) == RT_DIR_NULL) {
+	    bu_vls_printf(gedp->ged_result_str, "Unable to add %s to the database.", output_pnts_obj);
+	    rt_db_free_internal(&internal);
+	    pntcnt = -1;
+	    goto pnts_internal_memfree;
+	}
+	if (rt_db_put_internal(dp, gedp->dbip, &internal) < 0) {
+	    bu_vls_printf(gedp->ged_result_str, "Database write failure.");
+	    pntcnt = -1;
+	    goto pnts_internal_memfree;
+	}
 
 	bu_vls_printf(gedp->ged_result_str, "Generated pnts object %s\n", output_pnts_obj);
     }
@@ -446,6 +455,10 @@ pnt_inside_vol(
     ap->a_overlap = NULL;
     ap->a_logoverlap = rt_silent_logoverlap;
     if ((rt_gettree(rtip, dp->d_namep) < 0)) {
+	rt_clean_resource(rtip, resp);
+	rt_i_destroy(rtip);
+	BU_PUT(resp, struct resource);
+	BU_PUT(ap, struct application);
 	return -1;
     }
     ncpus = bu_avail_cpus();

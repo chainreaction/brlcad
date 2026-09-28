@@ -38,6 +38,13 @@ ged_arot_core(struct ged *gedp, int argc, const char *argv[])
     int ret;
     mat_t rmat;
 
+    GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
+    GED_CHECK_VIEW(gedp, BRLCAD_ERROR);
+    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+
+    if (!gedp->ged_gvp)
+	return BRLCAD_ERROR;
+
     if ((ret = ged_arot_args(gedp, argc, argv, rmat)) != BRLCAD_OK)
 	return ret;
 

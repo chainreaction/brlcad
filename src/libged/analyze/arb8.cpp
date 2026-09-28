@@ -56,17 +56,25 @@ void
 analyze_edge(struct ged *gedp, const int edge, const struct rt_arb_internal *arb,
 	     const int type, row_t *row)
 {
+    if (!gedp || !gedp->dbip || !arb || !row)
+	return;
+
+    if (type < 0 || type >= 5 || edge < 0 || edge >= 12) {
+	row->nfields = 0;
+	return;
+    }
+
     int a = nedge[type][edge*2];
     int b = nedge[type][edge*2+1];
 
-    if (b == -1) {
+    if (b == -1 || a < 0 || a >= 8 || b >= 8) {
 	row->nfields = 0;
 	return;
     }
 
     row->nfields = 2;
-    row->fields[0].nchars = sprintf(row->fields[0].buf, "%d%d", a + 1, b + 1);
-    row->fields[1].nchars = sprintf(row->fields[1].buf, "%10.8f",
+    row->fields[0].nchars = snprintf(row->fields[0].buf, sizeof(row->fields[0].buf), "%d%d", a + 1, b + 1);
+    row->fields[1].nchars = snprintf(row->fields[1].buf, sizeof(row->fields[1].buf), "%10.8f",
 				    DIST_PNT_PNT(arb->pt[a], arb->pt[b])*gedp->dbip->dbi_base2local);
 }
 
@@ -82,13 +90,20 @@ analyze_arb8(struct ged *gedp, const struct rt_db_internal *ip)
     point_t center_pt = VINIT_ZERO;
     struct poly_face face = POLY_FACE_INIT_ZERO;
     struct rt_arb_internal earb;
+
+    if (!gedp || !gedp->dbip || !ip || !ip->idb_ptr)
+	return;
+
     struct rt_arb_internal *arb = (struct rt_arb_internal *)ip->idb_ptr;
     const int arb_faces[5][24] = rt_arb_faces;
     RT_ARB_CK_MAGIC(arb);
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp)
+	return;
 
     /* find the specific arb type, in GIFT order. */
-    if ((cgtype = rt_arb_std_type(ip, &wdbp->wdb_tol)) == 0) {
+    cgtype = rt_arb_std_type(ip, &wdbp->wdb_tol);
+    if (cgtype < 4 || cgtype > 8) {
 	bu_vls_printf(gedp->ged_result_str, "analyze_arb: bad ARB\n");
 	return;
     }

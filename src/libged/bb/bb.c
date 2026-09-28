@@ -203,12 +203,13 @@ ged_bb_core(struct ged *gedp, int argc, const char *argv[])
 	    dp = db_diradd(gedp->dbip, bbname, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&new_intern.idb_type);
 	    if (dp == RT_DIR_NULL) {
 		bu_vls_printf(gedp->ged_result_str, "Cannot add %s to directory\n", bbname);
+		rt_db_free_internal(&new_intern);
 		return BRLCAD_ERROR;
 	    }
 
 	    if (rt_db_put_internal(dp, gedp->dbip, &new_intern) < 0) {
-		rt_db_free_internal(&new_intern);
 		bu_vls_printf(gedp->ged_result_str, "Database write error, aborting.\n");
+		return BRLCAD_ERROR;
 	    }
 	}
     } else {
@@ -285,16 +286,14 @@ ged_bb_core(struct ged *gedp, int argc, const char *argv[])
 	    dp = db_diradd(gedp->dbip, bbname, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&new_intern.idb_type);
 	    if (dp == RT_DIR_NULL) {
 		bu_vls_printf(gedp->ged_result_str, "Cannot add %s to directory\n", bbname);
+		rt_db_free_internal(&new_intern);
 		return BRLCAD_ERROR;
 	    }
 
 	    if (rt_db_put_internal(dp, gedp->dbip, &new_intern) < 0) {
-		rt_db_free_internal(&new_intern);
 		bu_vls_printf(gedp->ged_result_str, "Database write error, aborting.\n");
 		return BRLCAD_ERROR;
 	    }
-	    rt_db_free_internal(&new_intern);
-
 	}
     }
 

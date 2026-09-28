@@ -44,11 +44,16 @@ extern "C" {
 void get_dashes(field_t *f, const int ndashes)
 {
     int i;
-    f->buf[0] = '\0';
-    for (i = 0; i < ndashes; ++i) {
-	bu_strlcat(f->buf, "-", FBUFSIZ);
+    int n = ndashes;
+    if (n < 0)
+	n = 0;
+    if (n >= FBUFSIZ)
+	n = FBUFSIZ - 1;
+    for (i = 0; i < n; ++i) {
+	f->buf[i] = '-';
     }
-    f->nchars = ndashes;
+    f->buf[n] = '\0';
+    f->nchars = n;
 }
 
 void
@@ -93,8 +98,8 @@ print_edges_table(struct ged *gedp, table_t *table)
 	field = 1;
 	if (maxwidth[tcol+1] < table->rows[i].fields[field].nchars)
 	    maxwidth[tcol+1] = table->rows[i].fields[field].nchars;
-	if (maxwidth[tcol] < llen)
-	    maxwidth[tcol] = llen;
+	if (maxwidth[tcol+1] < llen)
+	    maxwidth[tcol+1] = llen;
 
 	/* iterate on columns */
 	tcol += 2;
@@ -281,7 +286,9 @@ print_faces_table(struct ged *gedp, table_t *table)
 
     /* get max fields widths */
     for (i = 0; i < table->nrows; ++i) {
-	for (j = 0; j < table->rows[i].nfields; ++j) {
+	if (table->rows[i].nfields <= 0)
+	    continue;
+	for (j = 0; j < table->rows[i].nfields && j < 8; ++j) {
 	    if (table->rows[i].fields[j].nchars > maxwidth[j])
 		maxwidth[j] = table->rows[i].fields[j].nchars;
 	}

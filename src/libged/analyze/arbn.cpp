@@ -40,10 +40,19 @@ analyze_arbn(struct ged *gedp, const struct rt_db_internal *ip)
     table_t table;
     struct poly_face *faces;
     struct bu_vls tmpstr = BU_VLS_INIT_ZERO;
+
+    if (!gedp || !gedp->dbip || !ip || !ip->idb_ptr)
+	return;
+
     struct rt_arbn_internal *aip = (struct rt_arbn_internal *)ip->idb_ptr;
+    if (aip->neqn < 4) {
+	bu_vls_printf(gedp->ged_result_str, "analyze_arbn: arbn has fewer than 4 equations\n");
+	return;
+    }
+
     size_t *npts = (size_t *)bu_calloc(aip->neqn, sizeof(size_t), "analyze_arbn: npts");
     point_t **tmp_pts = (point_t **)bu_calloc(aip->neqn, sizeof(point_t *), "analyze_arbn: tmp_pts");
-    plane_t *eqs= (plane_t *)bu_calloc(aip->neqn, sizeof(plane_t), "analyze_arbn: eqs");
+    plane_t *eqs = (plane_t *)bu_calloc(aip->neqn, sizeof(plane_t), "analyze_arbn: eqs");
 
     /* allocate array of face structs */
     faces = (struct poly_face *)bu_calloc(aip->neqn, sizeof(struct poly_face), "analyze_arbn: faces");

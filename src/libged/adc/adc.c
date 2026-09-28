@@ -156,6 +156,11 @@ ged_adc_core(struct ged *gedp,
 	argp += 2;
     }
 
+    if (argc > 3) {
+	adc_usage(gedp->ged_result_str, command);
+	return BRLCAD_ERROR;
+    }
+
     for (i = 0; i < argc; ++i) {
 	if (sscanf(argp[i], "%lf", &scanval) != 1) {
 	    adc_usage(gedp->ged_result_str, command);
@@ -231,6 +236,10 @@ ged_adc_core(struct ged *gedp,
 	    return BRLCAD_OK;
 	} else if (argc == 1) {
 	    if (!gedp->ged_gvp->gv_s->gv_adc.anchor_dst) {
+		if (ZERO(gv_scale)) {
+		    bu_vls_printf(gedp->ged_result_str, "%s: view scale is zero\n", command);
+		    return BRLCAD_ERROR;
+		}
 		if (incr_flag)
 		    gedp->ged_gvp->gv_s->gv_adc.dst += user_pt[0] / gv_scale;
 		else
@@ -270,6 +279,10 @@ ged_adc_core(struct ged *gedp,
     if (BU_STR_EQUAL(parameter, "dh")) {
 	if (argc == 1) {
 	    if (!gedp->ged_gvp->gv_s->gv_adc.anchor_pos) {
+		if (ZERO(gv_scale)) {
+		    bu_vls_printf(gedp->ged_result_str, "%s: view scale is zero\n", command);
+		    return BRLCAD_ERROR;
+		}
 		gedp->ged_gvp->gv_s->gv_adc.pos_grid[X] += user_pt[0] / gv_scale;
 		adc_grid_to_adc_view(&(gedp->ged_gvp->gv_s->gv_adc), gedp->ged_gvp->gv_view2model, BV_MAX);
 		MAT4X3PNT(gedp->ged_gvp->gv_s->gv_adc.pos_model, gedp->ged_gvp->gv_view2model, gedp->ged_gvp->gv_s->gv_adc.pos_view);
@@ -285,6 +298,10 @@ ged_adc_core(struct ged *gedp,
     if (BU_STR_EQUAL(parameter, "dv")) {
 	if (argc == 1) {
 	    if (!gedp->ged_gvp->gv_s->gv_adc.anchor_pos) {
+		if (ZERO(gv_scale)) {
+		    bu_vls_printf(gedp->ged_result_str, "%s: view scale is zero\n", command);
+		    return BRLCAD_ERROR;
+		}
 		gedp->ged_gvp->gv_s->gv_adc.pos_grid[Y] += user_pt[0] / gv_scale;
 		adc_grid_to_adc_view(&(gedp->ged_gvp->gv_s->gv_adc), gedp->ged_gvp->gv_view2model, BV_MAX);
 		MAT4X3PNT(gedp->ged_gvp->gv_s->gv_adc.pos_model, gedp->ged_gvp->gv_view2model, gedp->ged_gvp->gv_s->gv_adc.pos_view);
@@ -305,6 +322,10 @@ ged_adc_core(struct ged *gedp,
 	    return BRLCAD_OK;
 	} else if (argc == 2) {
 	    if (!gedp->ged_gvp->gv_s->gv_adc.anchor_pos) {
+		if (ZERO(gv_scale)) {
+		    bu_vls_printf(gedp->ged_result_str, "%s: view scale is zero\n", command);
+		    return BRLCAD_ERROR;
+		}
 		if (incr_flag) {
 		    gedp->ged_gvp->gv_s->gv_adc.pos_grid[X] += user_pt[X] / gv_scale;
 		    gedp->ged_gvp->gv_s->gv_adc.pos_grid[Y] += user_pt[Y] / gv_scale;
@@ -315,7 +336,7 @@ ged_adc_core(struct ged *gedp,
 
 		gedp->ged_gvp->gv_s->gv_adc.pos_grid[Z] = 0.0;
 		adc_grid_to_adc_view(&(gedp->ged_gvp->gv_s->gv_adc), gedp->ged_gvp->gv_view2model, BV_MAX);
-		MAT4X3PNT(gedp->ged_gvp->gv_s->gv_adc.pos_model, gedp->ged_gvp->gv_view2model, gedp->ged_gvp->gv_s->gv_adc.pos_model);
+		MAT4X3PNT(gedp->ged_gvp->gv_s->gv_adc.pos_model, gedp->ged_gvp->gv_view2model, gedp->ged_gvp->gv_s->gv_adc.pos_view);
 	    }
 
 	    return BRLCAD_OK;

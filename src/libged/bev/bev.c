@@ -186,6 +186,20 @@ ged_bev_core(struct ged *gedp, int argc, const char *argv[])
 	    union tree *new_tree;
 	    db_op_t op = db_str2op(opstr);
 
+	    if (op != DB_OP_UNION && op != DB_OP_SUBTRACT && op != DB_OP_INTERSECT) {
+		bu_vls_printf(gedp->ged_result_str, "%s: Unrecognized operator: (%c)\nAborting\n",
+			      cmdname, opstr[0]);
+		if (tmp_tree)
+		    db_free_tree(tmp_tree);
+		tmp_tree = (union tree *)NULL;
+		if (bev_facetize_tree)
+		    db_free_tree(bev_facetize_tree);
+		bev_facetize_tree = (union tree *)NULL;
+		nmg_km(bev_nmg_model);
+		bev_nmg_model = (struct model *)NULL;
+		return BRLCAD_ERROR;
+	    }
+
 	    BU_ALLOC(new_tree, union tree);
 	    RT_TREE_INIT(new_tree);
 
@@ -203,13 +217,8 @@ ged_bev_core(struct ged *gedp, int argc, const char *argv[])
 		case DB_OP_INTERSECT:
 		    new_tree->tr_op = OP_INTERSECT;
 		    break;
-		default: {
-		    bu_vls_printf(gedp->ged_result_str, "%s: Unrecognized operator: (%c)\nAborting\n",
-				  argv[0], opstr[0]);
-		    db_free_tree(bev_facetize_tree);
-		    nmg_km(bev_nmg_model);
-		    return BRLCAD_ERROR;
-		}
+		default:
+		    break;
 	    }
 
 	    tmp_tree = new_tree;
@@ -292,8 +301,23 @@ ged_bev_core(struct ged *gedp, int argc, const char *argv[])
     intern.idb_ptr = (void *)bev_nmg_model;
     bev_nmg_model = (struct model *)NULL;
 
-    GED_DB_DIRADD(gedp, dp, newname, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&intern.idb_type, BRLCAD_ERROR);
-    GED_DB_PUT_INTERN(gedp, dp, &intern, BRLCAD_ERROR);
+    if (((dp) = db_diradd(gedp->dbip, newname, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&intern.idb_type)) == RT_DIR_NULL) {
+	bu_vls_printf(gedp->ged_result_str, "Unable to add %s to the database.", newname);
+	rt_db_free_internal(&intern);
+	if (tmp_tree) {
+	    tmp_tree->tr_d.td_r = (struct nmgregion *)NULL;
+	    db_free_tree(tmp_tree);
+	}
+	return BRLCAD_ERROR;
+    }
+    if (rt_db_put_internal(dp, gedp->dbip, &intern) < 0) {
+	bu_vls_printf(gedp->ged_result_str, "Database write failure.");
+	if (tmp_tree) {
+	    tmp_tree->tr_d.td_r = (struct nmgregion *)NULL;
+	    db_free_tree(tmp_tree);
+	}
+	return BRLCAD_ERROR;
+    }
 
     tmp_tree->tr_d.td_r = (struct nmgregion *)NULL;
 

@@ -44,9 +44,19 @@ analyze_ars(struct ged *gedp, const struct rt_db_internal *ip)
     plane_t old_plane = HINIT_ZERO;
     struct bu_vls tmpstr = BU_VLS_INIT_ZERO;
     struct poly_face face = POLY_FACE_INIT_ZERO;
+    if (!gedp || !gedp->dbip || !ip || !ip->idb_ptr)
+	return;
+
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp)
+	return;
     struct rt_ars_internal *arip = (struct rt_ars_internal *)ip->idb_ptr;
     RT_ARS_CK_MAGIC(arip);
+
+    if (arip->ncurves < 2 || arip->pts_per_curve < 3) {
+	bu_vls_printf(gedp->ged_result_str, "analyze_ars: insufficient curves or points per curve\n");
+	return;
+    }
 
     /* allocate pts array, max 3 pts per triangular face */
     face.pts = (point_t *)bu_calloc(3, sizeof(point_t), "analyze_ars: pts");
@@ -57,7 +67,7 @@ analyze_ars(struct ged *gedp, const struct rt_db_internal *ip)
     for (i = 0; i < arip->ncurves - 1; i++) {
 	int double_ended = k != 1 && VEQUAL(&arip->curves[i][ELEMENTS_PER_VECT], &arip->curves[i][k * ELEMENTS_PER_VECT]);
 
-	for (j = 0; j < arip->pts_per_curve; j++) {
+	for (j = 0; j < arip->pts_per_curve - 1; j++) {
 	    vect_t tmp;
 
 	    if (double_ended && i != 0 && (j == 0 || j == k || j == arip->pts_per_curve - 1)) continue;

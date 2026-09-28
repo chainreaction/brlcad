@@ -36,6 +36,9 @@
 static int
 bo_decode_input_type(unsigned int *input_type, const char *type_string)
 {
+    if (!input_type || !type_string)
+	return -1;
+
     const char *type = type_string;
     unsigned int order = 0;
     unsigned int minor_type;
@@ -235,7 +238,15 @@ ged_bo_core(struct ged *gedp, int argc, const char *argv[])
 	    return BRLCAD_ERROR;
 	}
 
-	if (fwrite(bip->u.int8, bip->count * db5_type_sizeof_h_binu(bip->type),
+	size_t item_size = db5_type_sizeof_h_binu(bip->type);
+	if (item_size == 0 || (size_t)bip->count > SIZE_MAX / item_size) {
+	    bu_vls_printf(gedp->ged_result_str, "Integer overflow in binary object size calculation");
+	    fclose(fp);
+	    rt_db_free_internal(&intern);
+	    return BRLCAD_ERROR;
+	}
+
+	if (fwrite(bip->u.int8, (size_t)bip->count * item_size,
 		   1, fp) != 1) {
 	    bu_vls_printf(gedp->ged_result_str, "Error writing contents to file");
 	    fclose(fp);
