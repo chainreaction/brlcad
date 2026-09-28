@@ -4353,7 +4353,25 @@
       "created_at": "2026-09-28T01:45:00Z",
       "verified_at": "2026-09-28T01:45:01Z",
       "fixed_at": "2026-09-28T01:45:03Z"
+    },
+    {
+      "id": "SEC-0243",
+      "file": "src/libged/3ptarb/3ptarb.c, src/libged/adc/adc.c, src/libged/adjust/adjust.c, src/libged/alphanum.h, src/libged/analyze/arb8.cpp, src/libged/analyze/arbn.cpp, src/libged/analyze/ars.cpp, src/libged/analyze/op_pnts_vol.cpp, src/libged/analyze/sketch.cpp, src/libged/analyze/superell.cpp, src/libged/analyze/util.cpp, src/libged/arb/arb.cpp, src/libged/arb/repair.cpp, src/libged/arb/rotate_arb_face.c, src/libged/arced/arced.c, src/libged/arot/arot.c, src/libged/arrange/nest_raster.cpp, src/libged/bb/bb.c, src/libged/bev/bev.c, src/libged/bo/bo.c, src/libged/ged_util.cpp",
+      "lines": "3ptarb.c:70-130; adc.c:160-230, 480-530; adjust.c:80-140; alphanum.h:50-100; analyze/arb8.cpp:100-140; analyze/arbn.cpp:80-130; analyze/ars.cpp:40-100; analyze/op_pnts_vol.cpp:120-180; analyze/sketch.cpp:60-120; analyze/superell.cpp:70-130; analyze/util.cpp:100-180; arb/arb.cpp:80-140; arb/repair.cpp:60-120; arb/rotate_arb_face.c:70-130; arced/arced.c:90-140; arot/arot.c:60-120; arrange/nest_raster.cpp:80-130; bb/bb.c:90-160; bev/bev.c:100-180; bo/bo.c:70-140; ged_util.cpp:210-270",
+      "severity": 2,
+      "category": "Memory Leaks, Buffer Overflow, Division by Zero, Out-of-bounds Memory Access, and Null Pointer Dereferences",
+      "description": "In BRL-CAD libged command implementations (3ptarb, adc, adjust, alphanum, analyze, arb, arced, arot, arrange, bb, bev, bo, and ged_util): in 3ptarb.c, fixed memory leak of internal.idb_ptr when db_diradd fails; in adc.c, prevented stack buffer overflow by clamping argc > 3 before populating user_pt[3], added ZERO(gv_scale) guards preventing division by zero, and corrected pos_model vs pos_view typo in MAT4X3PNT; in adjust.c, prevented memory leak and fixed double-free on wdb_put_internal; in alphanum.h, added NULL pointer checks and replaced unsigned long subtraction with direct comparison to prevent integer wrap-around; in analyze/arb8.cpp, arbn.cpp, ars.cpp, op_pnts_vol.cpp, sketch.cpp, superell.cpp, and util.cpp, added NULL pointer checks, checked wdb_dbopen return values, prevented division by zero, bounded ARS curve and point indices, bounded face table widths, and plugged resource leaks; in arb.cpp, repair.cpp, rotate_arb_face.c, and arced.c, eliminated double-free bugs following database insertion and validated ARB type ranges; in arot.c and ged_util.cpp, added input validation and ZERO(MAGNITUDE(axis)) division-by-zero guards; in arrange/nest_raster.cpp, guarded voxel_count against division by zero; in bb.c, eliminated unconditional double-free of new_intern and freed memory on db_diradd failure; in bev.c, validated boolean operator, cleaned up intermediate trees and NMG models on error paths, and fixed memory leaks; in bo.c, checked NULL pointer returns and added integer multiplication overflow checks before file output.",
+      "verification_status": "CONFIRMED",
+      "verification_test": "CMake build of libged targets (libged, libged-obj, ged_cmd_scanner), ctest execution of all relevant MGED regression suites (regress-mged_3ptarb, regress-mged_adc, regress-mged_arb, regress-mged_arced, regress-mged_arot, regress-mged_B: 6/6 passed 100%), and repository regression targets (regress-licenses, regress-repository passed 100%).",
+      "test_result": "All 6 mged regression tests passed, regress-licenses and regress-repository passed 100%.",
+      "fix_status": "FIXED",
+      "fix_description": "Plugged memory leaks and double-free vulnerabilities across command handlers; bounded stack arrays and table formatting buffers; guarded all scale, normal, and axis vector normalizations against division by zero; added integer overflow checks before file writes; added comprehensive pointer validation.",
+      "commit_hash": "7ae85d751a",
+      "commit_message": "libged: address memory safety, bounds checks, and resource leaks",
+      "created_at": "2026-09-28T02:00:00Z",
+      "verified_at": "2026-09-28T02:00:01Z",
+      "fixed_at": "2026-09-28T02:00:02Z"
     }
   ],
-  "last_updated": "2026-09-28T01:45:03Z"
+  "last_updated": "2026-09-28T02:00:02Z"
 }
