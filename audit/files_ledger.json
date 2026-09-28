@@ -19166,28 +19166,32 @@
       "path": "src/libdm/X/color.c",
       "subsystem": "src/libdm",
       "lines": 163,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1844,
       "path": "src/libdm/X/dm-X.c",
       "subsystem": "src/libdm",
       "lines": 2293,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1845,
       "path": "src/libdm/X/dm-X.h",
       "subsystem": "src/libdm",
       "lines": 108,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19196,8 +19200,8 @@
       "path": "src/libdm/X/fb_X.h",
       "subsystem": "src/libdm",
       "lines": 62,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19206,18 +19210,20 @@
       "path": "src/libdm/X/if_X24.c",
       "subsystem": "src/libdm",
       "lines": 3666,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1848,
       "path": "src/libdm/adc.c",
       "subsystem": "src/libdm",
       "lines": 249,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19226,8 +19232,8 @@
       "path": "src/libdm/asize.c",
       "subsystem": "src/libdm",
       "lines": 219,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19236,48 +19242,56 @@
       "path": "src/libdm/axes.c",
       "subsystem": "src/libdm",
       "lines": 559,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1851,
       "path": "src/libdm/clip.c",
       "subsystem": "src/libdm",
       "lines": 203,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1852,
       "path": "src/libdm/dm-generic.c",
       "subsystem": "src/libdm",
       "lines": 1148,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1853,
       "path": "src/libdm/dm-gl.c",
       "subsystem": "src/libdm",
       "lines": 1855,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1854,
       "path": "src/libdm/dm-gl.h",
       "subsystem": "src/libdm",
       "lines": 223,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19286,8 +19300,8 @@
       "path": "src/libdm/dm-gl_lod.cpp",
       "subsystem": "src/libdm",
       "lines": 839,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19296,8 +19310,8 @@
       "path": "src/libdm/dm_init.cpp",
       "subsystem": "src/libdm",
       "lines": 247,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19306,38 +19320,44 @@
       "path": "src/libdm/dm_plugins.cpp",
       "subsystem": "src/libdm",
       "lines": 572,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1858,
       "path": "src/libdm/dm_util.c",
       "subsystem": "src/libdm",
       "lines": 72,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1859,
       "path": "src/libdm/fb_generic.c",
       "subsystem": "src/libdm",
       "lines": 1255,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1860,
       "path": "src/libdm/fb_log.c",
       "subsystem": "src/libdm",
       "lines": 60,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19346,18 +19366,20 @@
       "path": "src/libdm/fb_paged_io.c",
       "subsystem": "src/libdm",
       "lines": 256,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1862,
       "path": "src/libdm/fb_rect.c",
       "subsystem": "src/libdm",
       "lines": 180,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19366,28 +19388,32 @@
       "path": "src/libdm/fb_util.c",
       "subsystem": "src/libdm",
       "lines": 191,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1864,
       "path": "src/libdm/fbserv.c",
       "subsystem": "src/libdm",
       "lines": 1263,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1865,
       "path": "src/libdm/fontstash/fontstash.h",
       "subsystem": "src/libdm",
       "lines": 1877,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19396,8 +19422,8 @@
       "path": "src/libdm/fontstash/glfontstash.h",
       "subsystem": "src/libdm",
       "lines": 189,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19406,8 +19432,8 @@
       "path": "src/libdm/glx/dm-ogl.c",
       "subsystem": "src/libdm",
       "lines": 1558,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19416,8 +19442,8 @@
       "path": "src/libdm/glx/dm-ogl.h",
       "subsystem": "src/libdm",
       "lines": 78,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19426,8 +19452,8 @@
       "path": "src/libdm/glx/dm_ogl_probe.c",
       "subsystem": "src/libdm",
       "lines": 184,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19436,8 +19462,8 @@
       "path": "src/libdm/glx/fb_ogl.h",
       "subsystem": "src/libdm",
       "lines": 85,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19446,18 +19472,20 @@
       "path": "src/libdm/glx/if_ogl.c",
       "subsystem": "src/libdm",
       "lines": 2410,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1872,
       "path": "src/libdm/grid.c",
       "subsystem": "src/libdm",
       "lines": 130,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19466,8 +19494,8 @@
       "path": "src/libdm/if_TEMPLATE.c",
       "subsystem": "src/libdm",
       "lines": 256,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19476,8 +19504,8 @@
       "path": "src/libdm/if_disk.c",
       "subsystem": "src/libdm",
       "lines": 440,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19486,38 +19514,44 @@
       "path": "src/libdm/if_mem.c",
       "subsystem": "src/libdm",
       "lines": 548,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1876,
       "path": "src/libdm/if_remote.c",
       "subsystem": "src/libdm",
       "lines": 926,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1877,
       "path": "src/libdm/if_stack.c",
       "subsystem": "src/libdm",
       "lines": 513,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1878,
       "path": "src/libdm/include/calltable.h",
       "subsystem": "src/libdm",
       "lines": 277,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19526,8 +19560,8 @@
       "path": "src/libdm/include/private.h",
       "subsystem": "src/libdm",
       "lines": 223,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19536,8 +19570,8 @@
       "path": "src/libdm/include/x11_font.h",
       "subsystem": "src/libdm",
       "lines": 26,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19546,18 +19580,20 @@
       "path": "src/libdm/labels.c",
       "subsystem": "src/libdm",
       "lines": 621,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1882,
       "path": "src/libdm/null/dm-Null.c",
       "subsystem": "src/libdm",
       "lines": 549,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19566,8 +19602,8 @@
       "path": "src/libdm/null/dm-Null.h",
       "subsystem": "src/libdm",
       "lines": 348,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19576,8 +19612,8 @@
       "path": "src/libdm/null/if_null.c",
       "subsystem": "src/libdm",
       "lines": 332,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19586,8 +19622,8 @@
       "path": "src/libdm/options.c",
       "subsystem": "src/libdm",
       "lines": 94,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19596,8 +19632,8 @@
       "path": "src/libdm/plot/dm-plot.c",
       "subsystem": "src/libdm",
       "lines": 900,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19606,8 +19642,8 @@
       "path": "src/libdm/plot/dm-plot.h",
       "subsystem": "src/libdm",
       "lines": 73,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19616,18 +19652,20 @@
       "path": "src/libdm/postscript/dm-ps.c",
       "subsystem": "src/libdm",
       "lines": 972,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1889,
       "path": "src/libdm/postscript/dm-ps.h",
       "subsystem": "src/libdm",
       "lines": 71,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19636,18 +19674,20 @@
       "path": "src/libdm/qtgl/dm-qtgl.cpp",
       "subsystem": "src/libdm",
       "lines": 724,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1891,
       "path": "src/libdm/qtgl/dm-qtgl.h",
       "subsystem": "src/libdm",
       "lines": 106,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19656,18 +19696,20 @@
       "path": "src/libdm/qtgl/fb-qtgl.cpp",
       "subsystem": "src/libdm",
       "lines": 1048,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1893,
       "path": "src/libdm/qtgl/qtglwin.cpp",
       "subsystem": "src/libdm",
       "lines": 43,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19676,8 +19718,8 @@
       "path": "src/libdm/qtgl/qtglwin.h",
       "subsystem": "src/libdm",
       "lines": 53,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19686,8 +19728,8 @@
       "path": "src/libdm/rect.c",
       "subsystem": "src/libdm",
       "lines": 79,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19696,28 +19738,32 @@
       "path": "src/libdm/scale.c",
       "subsystem": "src/libdm",
       "lines": 99,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1897,
       "path": "src/libdm/swrast/dm-swrast.cpp",
       "subsystem": "src/libdm",
       "lines": 772,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1898,
       "path": "src/libdm/swrast/dm-swrast.h",
       "subsystem": "src/libdm",
       "lines": 95,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19726,18 +19772,20 @@
       "path": "src/libdm/swrast/fb-swrast.cpp",
       "subsystem": "src/libdm",
       "lines": 1054,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1900,
       "path": "src/libdm/swrast/swrastwin.cpp",
       "subsystem": "src/libdm",
       "lines": 43,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19746,8 +19794,8 @@
       "path": "src/libdm/swrast/swrastwin.h",
       "subsystem": "src/libdm",
       "lines": 53,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19756,8 +19804,8 @@
       "path": "src/libdm/tests/dm_test.c",
       "subsystem": "src/libdm",
       "lines": 82,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19766,8 +19814,8 @@
       "path": "src/libdm/tests/fontstash_test.c",
       "subsystem": "src/libdm",
       "lines": 300,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19776,8 +19824,8 @@
       "path": "src/libdm/tests/test_dlist_sensor.c",
       "subsystem": "src/libdm",
       "lines": 275,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19786,8 +19834,8 @@
       "path": "src/libdm/tests/test_fb_disk_fd.c",
       "subsystem": "src/libdm",
       "lines": 62,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19796,8 +19844,8 @@
       "path": "src/libdm/tests/test_fb_standard_stream.c",
       "subsystem": "src/libdm",
       "lines": 59,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19806,18 +19854,20 @@
       "path": "src/libdm/tkswrast/dm-tkswrast.cpp",
       "subsystem": "src/libdm",
       "lines": 681,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1908,
       "path": "src/libdm/txt/dm-txt.c",
       "subsystem": "src/libdm",
       "lines": 599,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19826,8 +19876,8 @@
       "path": "src/libdm/txt/if_debug.c",
       "subsystem": "src/libdm",
       "lines": 447,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19836,8 +19886,8 @@
       "path": "src/libdm/vers.c",
       "subsystem": "src/libdm",
       "lines": 50,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19846,28 +19896,32 @@
       "path": "src/libdm/view.c",
       "subsystem": "src/libdm",
       "lines": 858,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1912,
       "path": "src/libdm/wgl/dm-wgl.c",
       "subsystem": "src/libdm",
       "lines": 1304,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1913,
       "path": "src/libdm/wgl/dm-wgl.h",
       "subsystem": "src/libdm",
       "lines": 111,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19876,8 +19930,8 @@
       "path": "src/libdm/wgl/fb_wgl.h",
       "subsystem": "src/libdm",
       "lines": 62,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19886,18 +19940,20 @@
       "path": "src/libdm/wgl/if_wgl.c",
       "subsystem": "src/libdm",
       "lines": 2146,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0241"
+      ]
     },
     {
       "id": 1916,
       "path": "src/libdm/wgl/wintk/tkInt.h",
       "subsystem": "src/libdm",
       "lines": 1389,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19906,8 +19962,8 @@
       "path": "src/libdm/wgl/wintk/tkIntDecls.h",
       "subsystem": "src/libdm",
       "lines": 1235,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19916,8 +19972,8 @@
       "path": "src/libdm/wgl/wintk/tkIntPlatDecls.h",
       "subsystem": "src/libdm",
       "lines": 802,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19926,8 +19982,8 @@
       "path": "src/libdm/wgl/wintk/tkPort.h",
       "subsystem": "src/libdm",
       "lines": 31,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19936,8 +19992,8 @@
       "path": "src/libdm/wgl/wintk/tkWin.h",
       "subsystem": "src/libdm",
       "lines": 81,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19946,8 +20002,8 @@
       "path": "src/libdm/wgl/wintk/tkWinInt.h",
       "subsystem": "src/libdm",
       "lines": 245,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -19956,8 +20012,8 @@
       "path": "src/libdm/wgl/wintk/tkWinPort.h",
       "subsystem": "src/libdm",
       "lines": 137,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-27T21:52:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -35717,5 +35773,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-09-20T02:28:00Z"
+  "last_updated": "2026-09-27T21:52:01Z"
 }
