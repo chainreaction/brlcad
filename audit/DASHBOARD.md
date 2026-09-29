@@ -3,20 +3,20 @@
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 955 (27.3%)
-- **Files Pending Review:** 2538
-- **Total Issues Identified:** 247
+- **Files Reviewed:** 966 (27.7%)
+- **Files Pending Review:** 2527
+- **Total Issues Identified:** 248
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 175 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 176 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 49 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 247
+- **Fixed (Committed):** 248
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -92,7 +92,7 @@
 | `src/libdm` | 80 | 80 | 100.0% | 1 |
 | `src/libfft` | 8 | 8 | 100.0% | 1 |
 | `src/libgcv` | 111 | 111 | 100.0% | 1 |
-| `src/libged` | 509 | 174 | 34.2% | 5 |
+| `src/libged` | 509 | 185 | 36.3% | 6 |
 | `src/libicv` | 34 | 0 | 0.0% | 0 |
 | `src/libnmg` | 54 | 0 | 0.0% | 0 |
 | `src/liboptical` | 46 | 0 | 0.0% | 0 |
@@ -364,6 +364,7 @@
 | `SEC-0245` | **Sev 2** | Memory Leaks, Double-Free, Division by Zero, Infinite Loop, Array Out-of-Bounds, and File Descriptor Leaks | `src/libged (Batch 3: cc, check, coil, color, columns, comb, comb_std, combmem, concat, constraint, copymat, cpi, dbi_state, debug2c)` | `FIXED` | In libged Batch 3: fixed double-frees following rt_db_put_internal and freed internal representation on db_diradd failures across cc, cpi, comb, comb_std, and copymat; added NULL guards, division-by-zero checks on units, heap VLS frees, and plot file descriptor leak fixes in check; plugged memory leaks of sections, validated sscanf, and prevented division by zero in coil; fixed cnt != 5 typo and temp file leak in color; added NULL checks in columns; freed rt_tree_array in combmem and fixed infinite loop on paren evaluation in comb_std; guarded argv bounds and closed dbip on error exits in concat and constraint; cleaned up view_states and aborted failed transactions in dbi_state; and added file check in debug2c. |
 | `SEC-0246` | **Sev 2** | Memory Leaks, Buffer Overflow, Division by Zero, Out-of-bounds Memory Access, and Null Pointer Dereferences | `src/libged (Batch 4: decompose, delay, display_list, dm, draw, dsp, dump, dup, eac, edcodes)` | `FIXED` | In libged Batch 4: fixed memory leaks on non-NMG solids and db_lookup/db_diradd failures, replaced sprintf with snprintf, and eliminated double-free of new_m in decompose; validated sec/usec in delay; added NULL checks across display list erase/hash helpers and handled invent_solid failure; guarded argc > 0, freed dm_name leaks, and corrected return status in dm; guarded division by zero in aspect ratio, fixed loop index typo, and freed bu_vls in ert; freed dm_name on help path, added ndmp NULL guard, fixed argv bounds, and freed idata on failure in screengrab; guarded division by zero, plugged db_intern leaks in csg_wireframe_update and brep_adaptive_plot, and cleaned up draw_scene error paths in draw; resolved TODO by freeing dgcdp, plugged ap leak, and prevented duplicate ptbl initializations in bigE; freed brep_intern and obj_path in draw.c; guarded dbi_state and corrected view state lookup loop in draw2; prevented size_t underflows, freed tcl_argv, fixed orientation quaternion bounds, and guarded against division by zero in loadview; prevented buffer overflow in ged_cm_tree, checked argc >= 2 before fopen, and freed gd_rt_cmd and ged_tmp_uptrs in preview; validated xy argument count, fixed off-by-one bounds check, fixed intern2 typo in diff subcommand, and freed intern on lookup/read errors in dsp; used wdb_close in dump; enforced max_entries check to prevent array bounds overflow in dup; freed vls on read error, checked ID_COMBINATION, and used rt_db_free_internal in eac; added NULL pointer checks in comparisons, checked argc >= 2, freed av on fopen error, and used rt_db_free_internal in edcodes. |
 | `SEC-0247` | **Sev 2** | Memory Leaks, Double-Free, Dangling Pointer, Division by Zero, Out-of-bounds Memory Access, and Null Pointer Dereferences | `src/libged (Batch 5: edit)` | `FIXED` | In libged Batch 5 (edit commands): eliminated double-free hazards where rt_db_free_internal was called after GED_DB_PUT_INTERN in edarb and facedef; added ARB edge bounds check and validated argc in facedef; scoped bn_tol to function scope in cmd_checkpoint::exec to prevent dangling s->tol; freed intern and container struct on all paths and prevented double-free of pintern in cmd_perturb; guarded attribute NULL pointers and empty strings across rotate_*, scale_*, and translate_*; prevented floating-point division by zero on vector magnitudes across scale_* commands; and guarded uri constructor against NULL text pointer. |
+| `SEC-0248` | **Sev 2** | Memory Leaks, Out-of-bounds Memory Access, Logic Errors, and Null Pointer Dereferences | `src/libged (Batch 6: editit, edmater, env, env2c, erase, erase2, exec, exists, expand, eye_pos)` | `FIXED` | In libged Batch 6: fixed bu_opt_desc array indexing collision (d[0]..d[4]) and option parse error handling in editit; corrected argc passed to wmater, guarded argc <= 1, and aligned malloc tags in edmater; guarded NULL gedp and validated argc in env; validated argc range, checked bu_opt_parse return, and caught std::exception in env2c; plugged new_argv and bu_vls memory leaks, guarded avs bounds, and corrected option skipping in erase; checked bu_opt_parse, guarded argc <= 0 and bvs NULL in erase2; guarded argv[0] NULL dereference, checked gedp->i->i, and unwound recursion counters and exec_stack on recursion limit exceeded in exec; guarded out-of-bounds pointer advances and NULL dereferences in exists grammar and token lexer; reset backslash state per argument, used bu_vls_putc, and guarded string NULLs in expand; and corrected unit conversion factor from dbi_base2local to dbi_local2base when setting eye position in eye_pos. |
 
 
 
