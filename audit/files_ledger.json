@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 384,
-    "pending_files": 3109,
-    "last_updated": "2026-09-29T02:35:00Z",
-    "total_issues": 246,
-    "reviewed_count": 384
+    "reviewed_files": 455,
+    "pending_files": 2495,
+    "last_updated": "2026-09-29T04:40:00Z",
+    "total_issues": 250,
+    "reviewed_count": 455
   },
   "files": [
     {
@@ -23664,100 +23664,120 @@
       "path": "src/libged/fb2pix/fb2pix.c",
       "subsystem": "src/libged",
       "lines": 185,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0250"
+      ]
     },
     {
       "id": 2250,
       "path": "src/libged/fbclear/fbclear.c",
       "subsystem": "src/libged",
       "lines": 120,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0250"
+      ]
     },
     {
       "id": 2251,
       "path": "src/libged/form/form.c",
       "subsystem": "src/libged",
       "lines": 86,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0250"
+      ]
     },
     {
       "id": 2252,
       "path": "src/libged/fracture/fracture.c",
       "subsystem": "src/libged",
       "lines": 232,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0250"
+      ]
     },
     {
       "id": 2253,
       "path": "src/libged/garbage_collect/garbage_collect.cpp",
       "subsystem": "src/libged",
       "lines": 389,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0250"
+      ]
     },
     {
       "id": 2254,
       "path": "src/libged/gdiff/gdiff.c",
       "subsystem": "src/libged",
       "lines": 448,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0250"
+      ]
     },
     {
       "id": 2255,
       "path": "src/libged/ged.cpp",
       "subsystem": "src/libged",
       "lines": 988,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0250"
+      ]
     },
     {
       "id": 2256,
       "path": "src/libged/ged_cmd_scanner.cpp",
       "subsystem": "src/libged",
       "lines": 353,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0250"
+      ]
     },
     {
       "id": 2257,
       "path": "src/libged/ged_exec.cpp",
       "subsystem": "src/libged",
       "lines": 111,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0250"
+      ]
     },
     {
       "id": 2258,
       "path": "src/libged/ged_init.cpp",
       "subsystem": "src/libged",
       "lines": 295,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0250"
+      ]
     },
     {
       "id": 2259,
@@ -36141,5 +36161,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-09-28T03:30:00Z"
+  "last_updated": "2026-09-29T04:40:00Z"
 }
