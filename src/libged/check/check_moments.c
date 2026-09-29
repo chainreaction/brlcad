@@ -43,6 +43,7 @@ int check_moments(struct ged *gedp, struct current_state *state,
 	analyze_moments(state, tobjtab[i], moments);
 	bu_vls_printf(&title, "Moments and Products of Inertia For %s", tobjtab[i]);
 	bn_mat_print_vls(bu_vls_addr(&title), moments, gedp->ged_result_str);
+	bu_vls_free(&title);
     }
     analyze_moments_total(state, moments);
     bn_mat_print_vls("For the Moments and Products of Inertia For\n\tAll Specified Objects",

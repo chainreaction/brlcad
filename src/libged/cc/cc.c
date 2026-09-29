@@ -72,8 +72,16 @@ ged_cc_core(struct ged *gedp, int argc, const char *argv[])
     bu_vls_init(&(con_ip->expression));
     bu_vls_strcat(&(con_ip->expression), argv[2]);
 
-    GED_DB_DIRADD(gedp, dp, argv[1], RT_DIR_PHONY_ADDR, 0, RT_DIR_NON_GEOM , (void *)&internal.idb_type, BRLCAD_ERROR);
-    GED_DB_PUT_INTERN(gedp, dp, &internal, BRLCAD_ERROR);
+    dp = db_diradd(gedp->dbip, argv[1], RT_DIR_PHONY_ADDR, 0, RT_DIR_NON_GEOM, (void *)&internal.idb_type);
+    if (dp == RT_DIR_NULL) {
+	bu_vls_printf(gedp->ged_result_str, "Database add failure: %s", argv[1]);
+	rt_db_free_internal(&internal);
+	return BRLCAD_ERROR;
+    }
+    if (rt_db_put_internal(dp, gedp->dbip, &internal) < 0) {
+	bu_vls_printf(gedp->ged_result_str, "Database write failure.");
+	return BRLCAD_ERROR;
+    }
 
     bu_vls_printf(gedp->ged_result_str, "Constraint saved");
     return BRLCAD_OK;

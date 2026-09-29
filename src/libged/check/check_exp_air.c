@@ -40,6 +40,9 @@ exposed_air(const struct partition *pp,
 	    void* callback_data)
 {
     struct exp_air_context *context = (struct exp_air_context*) callback_data;
+    if (!context || !pp || !pp->pt_regionp || !pp->pt_outhit || !pp->pt_inhit)
+	return;
+
     /* this shouldn't be air */
     bu_semaphore_acquire(BU_SEM_GENERAL);
     add_to_list(context->exposedAirList,
@@ -87,6 +90,8 @@ int check_exp_air(struct ged *gedp, struct current_state *state,
 
     if (perform_raytracing(state, dbip, tobjtab, tnobjs, ANALYSIS_EXP_AIR)) {
 	clear_list(&exposedAirList);
+	if (plot_exp_air)
+	    fclose(plot_exp_air);
 	return BRLCAD_ERROR;
     }
 

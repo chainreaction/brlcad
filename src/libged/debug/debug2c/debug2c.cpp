@@ -150,6 +150,7 @@ main(int argc, const char *argv[])
     fs.open(argv[1]);
     if (!fs.is_open()) {
 	std::cerr << "Unable to open file list " << argv[1] << "\n";
+	return -1;
     }
     while (std::getline(fs, sfile)) {
 	if (process_file(sfile, entries, verbose)) {

@@ -90,6 +90,7 @@ ged_cpi_core(struct ged *gedp, int argc, const char *argv[])
     dp = db_diradd(gedp->dbip, argv[2], RT_DIR_PHONY_ADDR, 0, proto->d_flags, &proto->d_minor_type);
     if (dp == RT_DIR_NULL) {
 	bu_vls_printf(gedp->ged_result_str, "%s: An error has occurred while adding a new object to the database.\n", argv[0]);
+	rt_db_free_internal(&internal);
 	return BRLCAD_ERROR;
     }
 

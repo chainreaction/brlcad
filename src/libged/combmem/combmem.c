@@ -473,6 +473,9 @@ combmem_get(struct ged *gedp, int argc, const char *argv[], enum etypes etype)
     else \
 	(_final_tree) = TREE_NULL; \
     \
+    if (_rt_tree_array) \
+	bu_free((void *)(_rt_tree_array), "rt_tree_array"); \
+    \
     RT_DB_INTERNAL_INIT(&(_intern)); \
     (_intern).idb_major_type = DB5_MAJORTYPE_BRLCAD; \
     (_intern).idb_type = ID_COMBINATION; \

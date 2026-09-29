@@ -164,12 +164,14 @@ _edcolor(struct ged *gedp, int argc, const char *argv[])
 
     if (!_ged_editit(gedp, editstring, (const char *)tmpfil)) {
 	bu_vls_printf(gedp->ged_result_str, "%s: editor returned bad status. Aborted\n", argv[0]);
+	bu_file_delete(tmpfil);
 	return BRLCAD_ERROR;
     }
 
     /* Read file and process it */
     fp = fopen(tmpfil, "r");
     if (fp == NULL) {
+	bu_file_delete(tmpfil);
 	perror(tmpfil);
 	return BRLCAD_ERROR;
     }
@@ -178,6 +180,7 @@ _edcolor(struct ged *gedp, int argc, const char *argv[])
 	line[0] != hdr[0]) {
 	bu_vls_printf(gedp->ged_result_str, "%s: Header line damaged, aborting\n", argv[0]);
 	(void)fclose(fp);
+	bu_file_delete(tmpfil);
 	return BRLCAD_ERROR;
     }
 
@@ -197,7 +200,7 @@ _edcolor(struct ged *gedp, int argc, const char *argv[])
 	    /* character-separated numbers (ideally a space) */
 	    cnt = sscanf(line, "%d%*c%d%*c%d%*c%d%*c%d",
 			 &low, &hi, &r, &g, &b);
-	    if (cnt != 9) {
+	    if (cnt != 5) {
 		bu_vls_printf(gedp->ged_result_str, "%s: Discarding %s\n", argv[0], line);
 		continue;
 	    }

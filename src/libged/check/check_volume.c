@@ -34,8 +34,10 @@ int check_volume(struct ged *gedp, struct current_state *state,
     int i;
     FILE *plot_volume = NULL;
     char *name = "volume.plot3";
+    double vval = (options && options->units[VOL] && !ZERO(options->units[VOL]->val)) ? options->units[VOL]->val : 1.0;
+    const char *vname = (options && options->units[VOL]) ? options->units[VOL]->name : "";
 
-    if (options->plot_files) {
+    if (options && options->plot_files) {
 	plot_volume = fopen(name, "wb");
 	if (plot_volume == (FILE *)NULL) {
 	    bu_vls_printf(gedp->ged_result_str, "cannot open plot file %s\n", name);
@@ -43,7 +45,12 @@ int check_volume(struct ged *gedp, struct current_state *state,
 	analyze_set_volume_plotfile(state, plot_volume);
     }
 
-    if (perform_raytracing(state, dbip, tobjtab, tnobjs, ANALYSIS_VOLUME)) return BRLCAD_ERROR;
+    if (perform_raytracing(state, dbip, tobjtab, tnobjs, ANALYSIS_VOLUME)) {
+	if (plot_volume) {
+	    fclose(plot_volume);
+	}
+	return BRLCAD_ERROR;
+    }
 
     print_verbose_debug(gedp, options);
     bu_vls_printf(gedp->ged_result_str, "Volume:\n");
@@ -51,12 +58,12 @@ int check_volume(struct ged *gedp, struct current_state *state,
     for (i=0; i < tnobjs; i++){
 	fastf_t volume = 0;
 	volume = analyze_volume(state, tobjtab[i]);
-	bu_vls_printf(gedp->ged_result_str, "\t%s %g %s\n", tobjtab[i], volume / options->units[VOL]->val, options->units[VOL]->name);
+	bu_vls_printf(gedp->ged_result_str, "\t%s %g %s\n", tobjtab[i], volume / vval, vname);
     }
 
-    bu_vls_printf(gedp->ged_result_str, "\n  Average total volume: %g %s\n", analyze_total_volume(state) / options->units[VOL]->val, options->units[VOL]->name);
+    bu_vls_printf(gedp->ged_result_str, "\n  Average total volume: %g %s\n", analyze_total_volume(state) / vval, vname);
 
-    if (options->print_per_region_stats) {
+    if (options && options->print_per_region_stats) {
 	int num_regions = analyze_get_num_regions(state);
 	bu_vls_printf(gedp->ged_result_str, "\tregions:\n");
 	for (i = 0; i < num_regions; i++) {
@@ -66,10 +73,10 @@ int check_volume(struct ged *gedp, struct current_state *state,
 	    analyze_volume_region(state, i, &reg_name, &volume, &high, &low);
 	    bu_vls_printf(gedp->ged_result_str, "\t%s volume:%g %s +(%g) -(%g)\n",
 			  reg_name,
-			  volume/options->units[VOL]->val,
-			  options->units[VOL]->name,
-			  high/options->units[VOL]->val,
-			  low/options->units[VOL]->val);
+			  volume/vval,
+			  vname,
+			  high/vval,
+			  low/vval);
 	}
     }
 
@@ -78,7 +85,7 @@ int check_volume(struct ged *gedp, struct current_state *state,
 	bu_vls_printf(gedp->ged_result_str, "\nplot file saved as %s",name);
     }
 
-    return 0;
+    return BRLCAD_OK;
 }
 
 /*

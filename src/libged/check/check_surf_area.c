@@ -32,7 +32,12 @@ int check_surf_area(struct ged *gedp, struct current_state *state,
 		    struct check_parameters *options)
 {
     int i;
-    double units = options->units[LINE]->val*options->units[LINE]->val;
+    double lval = (options && options->units[LINE] && !ZERO(options->units[LINE]->val)) ? options->units[LINE]->val : 1.0;
+    double units = lval * lval;
+    const char *uname = (options && options->units[LINE]) ? options->units[LINE]->name : "";
+    if (ZERO(units))
+	units = 1.0;
+
     if (perform_raytracing(state, dbip, tobjtab, tnobjs, ANALYSIS_SURF_AREA)) return BRLCAD_ERROR;
 
     print_verbose_debug(gedp, options);
@@ -45,12 +50,12 @@ int check_surf_area(struct ged *gedp, struct current_state *state,
 	bu_vls_printf(gedp->ged_result_str, "\t%s %g %s^2\n",
 		      tobjtab[i],
 		      surf_area/units,
-		      options->units[LINE]->name);
+		      uname);
     }
 
-    bu_vls_printf(gedp->ged_result_str, "\n  Average total surface area: %g %s^2\n", analyze_total_surf_area(state)/units, options->units[LINE]->name);
+    bu_vls_printf(gedp->ged_result_str, "\n  Average total surface area: %g %s^2\n", analyze_total_surf_area(state)/units, uname);
 
-    if (options->print_per_region_stats) {
+    if (options && options->print_per_region_stats) {
 	int num_regions = analyze_get_num_regions(state);
 	bu_vls_printf(gedp->ged_result_str, "\tregions:\n");
 	for (i = 0; i < num_regions; i++) {
@@ -61,7 +66,7 @@ int check_surf_area(struct ged *gedp, struct current_state *state,
 	    bu_vls_printf(gedp->ged_result_str, "\t%s surf_area:%g %s^2 +(%g) -(%g)\n",
 			  reg_name,
 			  surf_area/units,
-			  options->units[LINE]->name,
+			  uname,
 			  high/units,
 			  low/units);
 	}

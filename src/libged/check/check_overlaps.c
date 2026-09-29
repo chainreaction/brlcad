@@ -83,7 +83,6 @@ check_log_overlaps(struct ged *gedp, const char *reg1, const char *reg2, double 
 	 * against it.
 	 */
     } else {
-	BU_GET(new_op, struct overlap_list);
 	bu_semaphore_acquire(callbackdata->sem_stats);
 	for (BU_LIST_FOR(op, overlap_list, &(olist->l))) {
 	    if ((BU_STR_EQUAL(reg1, op->reg1)) && (BU_STR_EQUAL(reg2, op->reg2))) {
@@ -91,7 +90,6 @@ check_log_overlaps(struct ged *gedp, const char *reg1, const char *reg2, double 
 		if (depth > op->maxdepth)
 		    op->maxdepth = depth;
 		bu_semaphore_release(callbackdata->sem_stats);
-		bu_free((char *) new_op, "overlap list");
 		return;
 	    }
 	}
@@ -105,6 +103,7 @@ check_log_overlaps(struct ged *gedp, const char *reg1, const char *reg2, double 
 	}
 
 	/* we have a new overlapping region pair */
+	BU_GET(new_op, struct overlap_list);
 	callbackdata->overlap_count++;
 	callbackdata->unique_overlap_count++;
 	new_op->reg1 = (char *)bu_malloc(strlen(reg1)+1, "reg1");
@@ -166,13 +165,16 @@ printOverlaps(struct ged *gedp, void *context, struct check_parameters *options)
 		 * reverse pair */
 	    }
 
+	    double lval = (options && options->units[LINE] && !ZERO(options->units[LINE]->val)) ? options->units[LINE]->val : 1.0;
+	    const char *lname = (options && options->units[LINE]) ? options->units[LINE]->name : "";
+
 	    bu_vls_printf(&str, "\t<%s, %s>: %zu overlap%c detected, maximum depth is %g %s\n",
-			  op->reg1, op->reg2, op->count, op->count>1 ? 's' : (char) 0, op->maxdepth/options->units[LINE]->val, options->units[LINE]->name);
+			  op->reg1, op->reg2, op->count, op->count>1 ? 's' : (char) 0, op->maxdepth / lval, lname);
 	    if (nextop && BU_LIST_NOT_HEAD(nextop, &(olist->l))) {
 		    bu_vls_printf(&str,
 				  "\t<%s, %s>: %zu overlap%c detected, maximum depth is %g %s\n",
 				  nextop->reg1, nextop->reg2, nextop->count,
-				  nextop->count > 1 ? 's' : (char)0, nextop->maxdepth/options->units[LINE]->val, options->units[LINE]->name);
+				  nextop->count > 1 ? 's' : (char)0, nextop->maxdepth / lval, lname);
 		    /* counter the decrement below to account for
 		 * the matched reverse pair
 		 */
@@ -246,6 +248,9 @@ overlap(const struct xray *ray,
 	void* callback_data)
 {
     struct overlaps_context *context = (struct overlaps_context*) callback_data;
+    if (!context || !ray || !pp || !reg1 || !reg2 || !pp->pt_inhit || !pp->pt_outhit)
+	return;
+
     struct ged *gedp = context->gedp;
     struct hit *ihitp = pp->pt_inhit;
     struct hit *ohitp = pp->pt_outhit;
@@ -255,7 +260,7 @@ overlap(const struct xray *ray,
     VJOIN1(ihit, ray->r_pt, ihitp->hit_dist, ray->r_dir);
     VJOIN1(ohit, ray->r_pt, ohitp->hit_dist, ray->r_dir);
 
-    if (context->overlaps_overlay_flag) {
+    if (context->overlaps_overlay_flag && context->overlaps_overlay_plot && context->overlaps_overlay_plot->vbp) {
 	bu_semaphore_acquire(context->sem_stats);
 	BV_ADD_VLIST(context->overlaps_overlay_plot->vbp->free_vlist_hd, context->overlaps_overlay_plot->vhead, ihit, BV_VLIST_LINE_MOVE);
 	BV_ADD_VLIST(context->overlaps_overlay_plot->vbp->free_vlist_hd, context->overlaps_overlay_plot->vhead, ohit, BV_VLIST_LINE_DRAW);
@@ -267,8 +272,10 @@ overlap(const struct xray *ray,
     bu_semaphore_release(context->sem_lists);
 
     if (context->plot_overlaps) {
+	bu_semaphore_acquire(BU_SEM_SYSCALL);
 	pl_color(context->plot_overlaps, V3ARGS(context->overlap_color));
 	pdv_3line(context->plot_overlaps, ihit, ohit);
+	bu_semaphore_release(BU_SEM_SYSCALL);
     }
 }
 
@@ -332,6 +339,12 @@ int check_overlaps(struct ged *gedp, struct current_state *state,
 
 	    BU_LIST_DEQUEUE(&(op->l));
 	    BU_PUT(op, struct overlap_list);
+	}
+	if (options->overlaps_overlay_flag && check_plot.vbp) {
+	    bv_vlblock_free(check_plot.vbp);
+	}
+	if (plot_overlaps) {
+	    fclose(plot_overlaps);
 	}
 	return BRLCAD_ERROR;
     }

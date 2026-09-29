@@ -39,11 +39,14 @@ static void
 adj_air(const struct xray* ray, const struct partition *pp, point_t pt, void* callback_data)
 {
     struct adj_air_context *context = (struct adj_air_context*) callback_data;
+    if (!context || !pp || !pp->pt_back || !pp->pt_back->pt_regionp || !pp->pt_regionp)
+	return;
+
     bu_semaphore_acquire(BU_SEM_GENERAL);
     add_to_list(context->adjAirList, pp->pt_back->pt_regionp->reg_name, pp->pt_regionp->reg_name, 0.0, pt);
     bu_semaphore_release(BU_SEM_GENERAL);
 
-    if (context->plot_adjair) {
+    if (context->plot_adjair && pp->pt_outhit && pp->pt_inhit && ray) {
 	double d = pp->pt_outhit->hit_dist - pp->pt_inhit->hit_dist;
 	point_t aapt;
 	d *= 0.25;
@@ -86,6 +89,8 @@ int check_adj_air(struct ged *gedp, struct current_state *state,
 
     if (perform_raytracing(state, dbip, tobjtab, tnobjs, ANALYSIS_ADJ_AIR)) {
 	clear_list(&adjAirList);
+	if (plot_adjair)
+	    fclose(plot_adjair);
 	return BRLCAD_ERROR;
     }
 

@@ -33,8 +33,11 @@ constraint_set(void *datap, int argc, const char *argv[])
     struct bu_vls expression = BU_VLS_INIT_ZERO;
     struct ged *gedp = (struct ged *)datap;
 
-    if (!gedp || argc < 3 || !argv)
+    if (!gedp || argc < 4 || !argv) {
+	if (gedp)
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s set constraint_name attribute_name [expression]\n", argv ? argv[0] : "constraint");
 	return BRLCAD_ERROR;
+    }
 
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
 
@@ -77,8 +80,11 @@ constraint_get(void *datap, int argc, const char *argv[])
 
     struct ged *gedp = (struct ged *)datap;
 
-    if (!gedp || argc < 1 || !argv)
+    if (!gedp || argc < 3 || !argv) {
+	if (gedp)
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s get constraint_name1 [constraint_name2 ...]\n", argv ? argv[0] : "constraint");
 	return BRLCAD_ERROR;
+    }
 
     /* multiple arguments assumed to be multiple objects */
     for (obj = 0; 2+obj < (size_t)argc; obj++) {
@@ -119,8 +125,11 @@ constraint_show(void *datap, int argc, const char *argv[])
 
     struct ged *gedp = (struct ged *)datap;
 
-    if (!gedp || argc < 1 || !argv)
+    if (!gedp || argc < 3 || !argv) {
+	if (gedp)
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s show constraint_name1 [constraint_name2 ...]\n", argv ? argv[0] : "constraint");
 	return BRLCAD_ERROR;
+    }
 
     /* multiple arguments assumed to be multiple objects */
     for (obj = 0; 2+obj < (size_t)argc; obj++) {
@@ -162,8 +171,11 @@ constraint_eval(void *datap, int argc, const char *argv[])
 
     struct ged *gedp = (struct ged *)datap;
 
-    if (!gedp || argc < 1 || !argv)
+    if (!gedp || argc < 3 || !argv) {
+	if (gedp)
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s eval constraint_name1 [constraint_name2 ...]\n", argv ? argv[0] : "constraint");
 	return BRLCAD_ERROR;
+    }
 
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
 

@@ -402,22 +402,30 @@ add_to_list(struct regions_list *list,
 {
     struct regions_list *rp, *rpair;
 
+    if (!list || !r1)
+	return;
+
     /* look for it in our list */
     for (BU_LIST_FOR (rp, regions_list, &list->l)) {
-
-	if ((BU_STR_EQUAL(r1, rp->region1) && BU_STR_EQUAL(r2, rp->region2)) || (BU_STR_EQUAL(r1, rp->region2) && BU_STR_EQUAL(r2, rp->region1))) {
-	    /* we already have an entry for this region pair, we
-	     * increase the counter, check the depth and update
-	     * thickness maximum and entry point if need be and
-	     * return.
-	     */
-	    rp->count++;
-
-	    if (dist > rp->max_dist) {
-		rp->max_dist = dist;
-		VMOVE(rp->coord, pt);
+	if (rp->region2 && r2) {
+	    if ((BU_STR_EQUAL(r1, rp->region1) && BU_STR_EQUAL(r2, rp->region2)) ||
+		(BU_STR_EQUAL(r1, rp->region2) && BU_STR_EQUAL(r2, rp->region1))) {
+		rp->count++;
+		if (dist > rp->max_dist) {
+		    rp->max_dist = dist;
+		    VMOVE(rp->coord, pt);
+		}
+		return;
 	    }
-	    return;
+	} else if (!rp->region2 && !r2) {
+	    if (BU_STR_EQUAL(r1, rp->region1)) {
+		rp->count++;
+		if (dist > rp->max_dist) {
+		    rp->max_dist = dist;
+		    VMOVE(rp->coord, pt);
+		}
+		return;
+	    }
 	}
     }
     /* didn't find it in the list.  Add it */
@@ -425,8 +433,8 @@ add_to_list(struct regions_list *list,
     rpair->region1 = (char *)bu_malloc(strlen(r1)+1, "region1");
     bu_strlcpy(rpair->region1, r1, strlen(r1)+1);
     if (r2) {
-    rpair->region2 = (char *)bu_malloc(strlen(r2)+1, "region2");
-    bu_strlcpy(rpair->region2, r2, strlen(r2)+1);
+	rpair->region2 = (char *)bu_malloc(strlen(r2)+1, "region2");
+	bu_strlcpy(rpair->region2, r2, strlen(r2)+1);
     } else {
 	rpair->region2 = (char *) NULL;
     }
@@ -448,8 +456,10 @@ void
 print_list(struct ged *gedp, struct regions_list *list, const struct cvt_tab *units[3], char* name)
 {
     struct regions_list *rp;
+    double lunit = (units && units[LINE] && !ZERO(units[LINE]->val)) ? units[LINE]->val : 1.0;
+    const char *lname = (units && units[LINE]) ? units[LINE]->name : "";
 
-    if (BU_LIST_IS_EMPTY(&list->l)) {
+    if (!list || BU_LIST_IS_EMPTY(&list->l)) {
 	bu_vls_printf(gedp->ged_result_str, "No %s\n", name);
 	return;
     }
@@ -460,11 +470,11 @@ print_list(struct ged *gedp, struct regions_list *list, const struct cvt_tab *un
 	if (rp->region2) {
 	    bu_vls_printf(gedp->ged_result_str, "\t%s %s count: %lu dist: %g%s @ (%g %g %g)\n",
 			  rp->region1, rp->region2 ,rp->count,
-			  rp->max_dist / units[LINE]->val, units[LINE]->name, V3ARGS(rp->coord));
+			  rp->max_dist / lunit, lname, V3ARGS(rp->coord));
 	} else {
 	    bu_vls_printf(gedp->ged_result_str, "\t%s count: %lu dist: %g%s @ (%g %g %g)\n",
 			  rp->region1, rp->count,
-			  rp->max_dist / units[LINE]->val, units[LINE]->name, V3ARGS(rp->coord));
+			  rp->max_dist / lunit, lname, V3ARGS(rp->coord));
 	}
     }
 }
@@ -474,10 +484,12 @@ void
 clear_list(struct regions_list *list)
 {
     struct regions_list *rp;
+    if (!list)
+	return;
     for (BU_LIST_FOR (rp, regions_list, &(list->l))) {
 	bu_free(rp->region1, "reg1 name");
 	if (rp->region2 != (char*)NULL)
-	    bu_free(rp->region2, "reg1 name");
+	    bu_free(rp->region2, "reg2 name");
     }
     bu_list_free(&list->l);
 }
@@ -673,12 +685,19 @@ int ged_check_core(struct ged *gedp, int argc, const char *argv[])
     }
 
 freemem:
-    bu_free(tobjtab, "free tobjtab");
-    tobjtab = NULL;
+    if (tobjtab) {
+	for (i = 0; i < tnobjs; i++) {
+	    if (tobjtab[i]) {
+		bu_free(tobjtab[i], "free tobjtab str");
+	    }
+	}
+	bu_free(tobjtab, "free tobjtab");
+	tobjtab = NULL;
+    }
     analyze_free_current_state(state);
     state = NULL;
-    if (options.verbose) bu_vls_free(options.verbose_str);
-    if (options.debug) bu_vls_free(options.debug_str);
+    if (options.verbose) bu_vls_vlsfree(options.verbose_str);
+    if (options.debug) bu_vls_vlsfree(options.debug_str);
     return (error) ? BRLCAD_ERROR : BRLCAD_OK;
 }
 

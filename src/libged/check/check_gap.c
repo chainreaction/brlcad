@@ -39,13 +39,16 @@ static void
 gaps(const struct xray* ray, const struct partition *pp, double gap_dist, point_t pt, void* callback_data)
 {
     struct gap_context *context = (struct gap_context*) callback_data;
+    if (!context || !pp || !pp->pt_regionp || !pp->pt_back || !pp->pt_back->pt_regionp)
+	return;
+
     /* we only want to report unique pairs */
     bu_semaphore_acquire(BU_SEM_GENERAL);
     add_to_list(context->gapList, pp->pt_regionp->reg_name, pp->pt_back->pt_regionp->reg_name, gap_dist, pt);
     bu_semaphore_release(BU_SEM_GENERAL);
 
     /* let's plot */
-    if (context->plot_gaps) {
+    if (context->plot_gaps && ray) {
 	vect_t gapEnd;
 	VJOIN1(gapEnd, pt, -gap_dist, ray->r_dir);
 	bu_semaphore_acquire(BU_SEM_SYSCALL);
@@ -85,6 +88,8 @@ int check_gap(struct ged *gedp, struct current_state *state,
 
     if (perform_raytracing(state, dbip, tobjtab, tnobjs, ANALYSIS_GAP)) {
 	clear_list(&gapList);
+	if (plot_gaps)
+	    fclose(plot_gaps);
 	return BRLCAD_ERROR;
     }
 

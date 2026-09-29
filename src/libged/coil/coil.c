@@ -247,6 +247,12 @@ make_coil(struct rt_wdb (*file), char *prefix, struct bu_list *sections, int sta
     BU_LIST_INIT(&coil_subtractions.l);
     mk_pipe_init(&head);
 
+    if (BU_LIST_IS_EMPTY(sections)) {
+	bu_vls_free(&str);
+	mk_pipe_free(&head);
+	return;
+    }
+
     s_data = BU_LIST_FIRST(coil_data_t, &(*sections));
     e_data = BU_LIST_LAST(coil_data_t, &(*sections));
 
@@ -322,6 +328,19 @@ coil_usage(struct ged *gedp)
 }
 
 
+static void
+free_sections(struct bu_list *sections)
+{
+    struct coil_data_t *cd;
+    if (!sections)
+	return;
+    while (BU_LIST_WHILE(cd, coil_data_t, sections)) {
+	BU_LIST_DEQUEUE(&(cd->l));
+	bu_free(cd, "coil_data");
+    }
+}
+
+
 /* Process command line arguments */
 int
 ReadArgs(struct ged *gedp, int argc, const char *argv[], struct bu_vls *name, struct bu_list *sections, fastf_t *mean_outer_diameter, fastf_t *wire_diameter, fastf_t *helix_angle, fastf_t *pitch, int *nt, int *start_cap_type, int *end_cap_type, fastf_t *overall_length, int *lhf)
@@ -337,6 +356,7 @@ ReadArgs(struct ged *gedp, int argc, const char *argv[], struct bu_vls *name, st
     struct coil_data_t *coil_data;
 
     usedefaults = (argc == 1) ;
+    bu_optind = 1;
 
     while ((c=bu_getopt(argc, (char * const *)argv, options)) != -1) {
 	switch (c) {
@@ -378,7 +398,11 @@ ReadArgs(struct ged *gedp, int argc, const char *argv[], struct bu_vls *name, st
 		break;
 	    case 'S':
 		BU_ALLOC(coil_data, struct coil_data_t);
-		sscanf(bu_optarg, "%d%c%f%c%f%c%f%c%f%c%d", &d1, &s1, &d2, &s2, &d3, &s3, &d4, &s4, &d5, &s5, &d6);
+		if (sscanf(bu_optarg, "%d%c%f%c%f%c%f%c%f%c%d", &d1, &s1, &d2, &s2, &d3, &s3, &d4, &s4, &d5, &s5, &d6) != 11) {
+		    bu_free(coil_data, "coil_data");
+		    coil_usage(gedp);
+		    return BRLCAD_ERROR;
+		}
 		coil_data->nt = d1;
 		coil_data->od = d2;
 		coil_data->wd = d3;
@@ -440,6 +464,8 @@ ged_coil_core(struct ged *gedp, int argc, const char *argv[])
 
     /* Process arguments */
     if (ReadArgs(gedp, argc, argv, &name, &sections, &mean_outer_diameter, &wire_diameter, &helix_angle, &pitch, &nt, &start_cap_type, &end_cap_type, &overall_length, &lhf) != BRLCAD_OK) {
+	free_sections(&sections);
+	bu_vls_free(&name);
 	return BRLCAD_ERROR;
     }
 
@@ -451,7 +477,9 @@ ged_coil_core(struct ged *gedp, int argc, const char *argv[])
 	    bu_vls_printf(gedp->ged_result_str, "Creating %s with default parameters.\n", bu_vls_addr(&name));
 
 	if (mean_outer_diameter < 0 || wire_diameter < 0 || helix_angle < 0 || pitch < 0 || nt < 0 || start_cap_type < 0 || end_cap_type < 0) {
-	    bu_vls_printf(gedp->ged_result_str, "negative value in one or more arguments supplied to coil");
+	    bu_vls_printf(gedp->ged_result_str, "negative value in one or more arguments supplied to coil\n");
+	    free_sections(&sections);
+	    bu_vls_free(&name);
 	    return BRLCAD_ERROR;
 	}
 
@@ -493,6 +521,12 @@ ged_coil_core(struct ged *gedp, int argc, const char *argv[])
     /* If hard clamping the length, have to check some things and maybe clamp some values */
 
     if (!ZERO(overall_length)) {
+	if (overall_length < 0) {
+	    bu_vls_printf(gedp->ged_result_str, "negative overall length supplied to coil\n");
+	    free_sections(&sections);
+	    bu_vls_free(&name);
+	    return BRLCAD_ERROR;
+	}
 	bu_vls_printf(gedp->ged_result_str, "Note:  Length clamping overrides other specified values. If supplied values are\n"
 	       "inconsistent with specified length, they will be overridden in this order:\n\n"
 	       "When Shrinking:  pitch, number of turns, wire diameter\n"
@@ -519,6 +553,8 @@ ged_coil_core(struct ged *gedp, int argc, const char *argv[])
 	    nominal_length = coil_data->wd + coil_data->p * coil_data->nt;
 	    if (nominal_length > overall_length) {
 		/* Something has to give - start with pitch */
+		if (coil_data->nt <= 0)
+		    coil_data->nt = 1;
 		coil_data->p = (overall_length - coil_data->wd)/coil_data->nt;
 		while (coil_data->p < coil_data->wd) {
 		    /* That didn't work, start knocking off turns*/
@@ -530,6 +566,7 @@ ged_coil_core(struct ged *gedp, int argc, const char *argv[])
 			/* THAT didn't work, change the wire diameter */
 			coil_data->wd = overall_length/2;
 			coil_data->p = coil_data->wd ;
+			break;
 		    }
 		}
 	    } else {
@@ -540,6 +577,8 @@ ged_coil_core(struct ged *gedp, int argc, const char *argv[])
 			nominal_length = coil_data->wd + coil_data->p * coil_data->nt;
 		    }
 		    coil_data->nt--;
+		    if (coil_data->nt <= 0)
+			coil_data->nt = 1;
 		    coil_data->p = (overall_length - coil_data->wd)/coil_data->nt;
 		}
 	    }
@@ -550,6 +589,7 @@ ged_coil_core(struct ged *gedp, int argc, const char *argv[])
     struct rt_wdb *db_fp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
     make_coil(db_fp, bu_vls_addr(&name), &sections, start_cap_type, end_cap_type);
 
+    free_sections(&sections);
     bu_vls_free(&name);
 
     return BRLCAD_OK;

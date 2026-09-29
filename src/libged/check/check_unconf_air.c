@@ -42,6 +42,12 @@ unconf_air(const struct xray *ray,
     struct unconf_air_context *context = (struct unconf_air_context*) callback_data;
     point_t ihit, ohit;
     double depth;
+
+    if (!context || !ray || !ipart || !opart || !ipart->pt_inhit || !opart->pt_outhit ||
+	!ipart->pt_regionp || !opart->pt_regionp) {
+	return;
+    }
+
     VJOIN1(ihit, ray->r_pt, ipart->pt_inhit->hit_dist, ray->r_dir);
     VJOIN1(ohit, ray->r_pt, opart->pt_outhit->hit_dist, ray->r_dir);
     depth = ipart->pt_inhit->hit_dist - opart->pt_outhit->hit_dist;
@@ -83,7 +89,7 @@ int check_unconf_air(struct ged *gedp, struct current_state *state,
     struct regions_list unconfAirList;
     BU_LIST_INIT(&(unconfAirList.l));
 
-    if (options->plot_files) {
+    if (options && options->plot_files) {
 	plot_unconf_air = fopen(name, "wb");
 	if (plot_unconf_air == (FILE *)NULL) {
 	    bu_vls_printf(gedp->ged_result_str, "cannot open plot file %s\n", name);
@@ -92,17 +98,20 @@ int check_unconf_air(struct ged *gedp, struct current_state *state,
 
     callbackdata.unconfAirList = &unconfAirList;
     callbackdata.plot_unconf_air = plot_unconf_air;
-    callbackdata.tolerance = options->overlap_tolerance;
+    callbackdata.tolerance = options ? options->overlap_tolerance : 0.0;
     VMOVE(callbackdata.unconfAir_color,unconfAir_color);
 
     analyze_register_unconf_air_callback(state, unconf_air, &callbackdata);
     if (perform_raytracing(state, dbip, tobjtab, tnobjs, ANALYSIS_UNCONF_AIR)) {
+	if (plot_unconf_air) {
+	    fclose(plot_unconf_air);
+	}
 	clear_list(&unconfAirList);
 	return BRLCAD_ERROR;
     }
 
     print_verbose_debug(gedp, options);
-    print_list(gedp, &unconfAirList, options->units, "Unconfined Air");
+    print_list(gedp, &unconfAirList, options ? options->units : NULL, "Unconfined Air");
     clear_list(&unconfAirList);
 
     if (plot_unconf_air) {

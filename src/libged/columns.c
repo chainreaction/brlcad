@@ -47,6 +47,9 @@ vls_col_item(
     struct bu_vls *str,
     const char *cp)
 {
+    if (!str || !cp)
+	return;
+
     /* Output newline if last column printed. */
     if (col_count >= COLUMNS || (col_len+NAMESIZE-1) >= TERMINAL_WIDTH) {
 	/* line now full */
@@ -73,6 +76,9 @@ vls_col_item(
 void
 vls_col_eol(struct bu_vls *str)
 {
+    if (!str)
+	return;
+
     if (col_count != 0)		/* partial line */
 	bu_vls_putc(str, '\n');
     col_count = 0;

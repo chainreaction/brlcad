@@ -282,6 +282,7 @@ copy_object(struct ged *gedp,
 	new_name = cc_data->name_map[std::string(input_dp->d_namep)];
 	if (!new_name.length()) {
 	    bu_log("Error - no mapped name for %s\n", input_dp->d_namep);
+	    rt_db_free_internal(&ip);
 	    return BRLCAD_ERROR;
 	}
     }
@@ -308,6 +309,7 @@ copy_object(struct ged *gedp,
 	bu_vls_printf(gedp->ged_result_str,
 		"Failed to add new object name (%s) to directory - aborting!!\n",
 		new_name.c_str());
+	rt_db_free_internal(&ip);
 	return BRLCAD_ERROR;
     }
 
@@ -401,19 +403,21 @@ ged_concat_core(struct ged *gedp, int argc, const char *argv[])
     }
     if (db_version(cc_data.incoming_dbip) != db_version(gedp->dbip)) {
 	bu_vls_printf(gedp->ged_result_str, "%s: databases are incompatible, use dbupgrade on %s first", commandName, incoming_file);
+	db_close(cc_data.incoming_dbip);
 	return BRLCAD_ERROR;
     }
 
     db_dirbuild(cc_data.incoming_dbip);
 
     // If we have an affix, set it
-    if (argc > 1)
+    if (argc > 1) {
 	cc_data.affix = std::string(argv[1]);
 
-    // For compatibility (and because '/' isn't a sane character to use for obj
-    // names in any case) clear if such a character was supplied.
-    if (BU_STR_EQUAL(argv[1], "/"))
-	cc_data.affix = std::string("");
+	// For compatibility (and because '/' isn't a sane character to use for obj
+	// names in any case) clear if such a character was supplied.
+	if (BU_STR_EQUAL(argv[1], "/"))
+	    cc_data.affix = std::string("");
+    }
 
     // For all incoming objects, compare their names against the current
     // database.  In case of any collisions, generate a new unique name based
@@ -424,6 +428,7 @@ ged_concat_core(struct ged *gedp, int argc, const char *argv[])
 	    continue;
 	if (uniq_name(dp->d_namep, &cc_data) != BRLCAD_OK) {
 	    bu_vls_printf(gedp->ged_result_str, "Name mapping failed for %s, aborting", dp->d_namep);
+	    db_close(cc_data.incoming_dbip);
 	    return BRLCAD_ERROR;
 	}
     } FOR_ALL_DIRECTORY_END;
@@ -439,10 +444,12 @@ ged_concat_core(struct ged *gedp, int argc, const char *argv[])
 	struct directory *iglobal_dp = db_lookup(i_dbip, DB5_GLOBAL_OBJECT_NAME, LOOKUP_NOISY);
 	if (!tglobal_dp) {
 	    bu_vls_printf(gedp->ged_result_str, "%s: Can't get global attributes from %s", commandName, t_fname);
+	    db_close(cc_data.incoming_dbip);
 	    return BRLCAD_ERROR;
 	}
 	if (!iglobal_dp) {
 	    bu_vls_printf(gedp->ged_result_str, "%s: Can't get global attributes from %s", commandName, i_fname);
+	    db_close(cc_data.incoming_dbip);
 	    return BRLCAD_ERROR;
 	}
 
@@ -451,6 +458,7 @@ ged_concat_core(struct ged *gedp, int argc, const char *argv[])
 	    const char *title = (cc_data.use_title) ? i_dbip->dbi_title : t_dbip->dbi_title;
 	    if (db_update_ident(t_dbip, title, l2mm) < 0) {
 		bu_vls_printf(gedp->ged_result_str, "%s: db_update_ident failed (%s)", commandName, i_fname);
+		db_close(cc_data.incoming_dbip);
 		return BRLCAD_ERROR;
 	    }
 	}
@@ -461,6 +469,7 @@ ged_concat_core(struct ged *gedp, int argc, const char *argv[])
 	    if (!cp) {
 		bu_vls_printf(gedp->ged_result_str, "%s: Can't get regionid_colortable from %s", commandName, i_fname);
 		bu_avs_free(&g_avs);
+		db_close(cc_data.incoming_dbip);
 		return BRLCAD_ERROR;
 	    }
 	    char *colorTab = bu_strdup(cp);

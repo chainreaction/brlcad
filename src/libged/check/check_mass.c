@@ -32,6 +32,8 @@ int check_mass(struct ged *gedp, struct current_state *state,
 		 struct check_parameters *options)
 {
     int i;
+    double mval = (options && options->units[MASS] && !ZERO(options->units[MASS]->val)) ? options->units[MASS]->val : 1.0;
+    const char *mname = (options && options->units[MASS]) ? options->units[MASS]->name : "";
 
     if (perform_raytracing(state, dbip, tobjtab, tnobjs, ANALYSIS_MASS)) return BRLCAD_ERROR;
 
@@ -41,10 +43,10 @@ int check_mass(struct ged *gedp, struct current_state *state,
     for (i=0; i < tnobjs; i++){
 	fastf_t mass = 0;
 	mass = analyze_mass(state, tobjtab[i]);
-	bu_vls_printf(gedp->ged_result_str, "\t%s %g %s\n", tobjtab[i], mass / options->units[MASS]->val, options->units[MASS]->name);
+	bu_vls_printf(gedp->ged_result_str, "\t%s %g %s\n", tobjtab[i], mass / mval, mname);
     }
 
-    bu_vls_printf(gedp->ged_result_str, "\n  Average total mass: %g %s\n", analyze_total_mass(state) / options->units[MASS]->val, options->units[MASS]->name);
+    bu_vls_printf(gedp->ged_result_str, "\n  Average total mass: %g %s\n", analyze_total_mass(state) / mval, mname);
 
     if (options->print_per_region_stats) {
 	int num_regions = analyze_get_num_regions(state);
@@ -56,10 +58,10 @@ int check_mass(struct ged *gedp, struct current_state *state,
 	    analyze_mass_region(state, i, &reg_name, &mass, &high, &low);
 	    bu_vls_printf(gedp->ged_result_str, "\t%s mass:%g %s +(%g) -(%g)\n",
 			  reg_name,
-			  mass/options->units[MASS]->val,
-			  options->units[MASS]->name,
-			  high/options->units[MASS]->val,
-			  low/options->units[MASS]->val);
+			  mass / mval,
+			  mname,
+			  high / mval,
+			  low / mval);
 	}
     }
 

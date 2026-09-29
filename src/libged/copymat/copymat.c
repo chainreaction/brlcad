@@ -92,6 +92,7 @@ ged_copymat_core(struct ged *gedp, int argc, const char *argv[])
 	|| db_follow_path_for_state(&ts, &(anp.an_path), argv[1], LOOKUP_NOISY) < 0)
     {
 	bu_vls_printf(gedp->ged_result_str, "%s: cannot follow path for arc: '%s'\n", argv[0], argv[1]);
+	db_free_full_path(&anp.an_path);
 	return BRLCAD_ERROR;
     }
 
@@ -111,8 +112,10 @@ ged_copymat_core(struct ged *gedp, int argc, const char *argv[])
 	    /* fall through */
 	default:
 	    bu_vls_printf(gedp->ged_result_str, "%s: Object '%s' is not a combination\n", argv[0], parent);
+	    rt_db_free_internal(&intern);
 	    /* fall through */
 	case ID_NULL:
+	    db_free_full_path(&anp.an_path);
 	    bu_vls_free(&pvls);
 	    return BRLCAD_ERROR;
     }
@@ -123,6 +126,7 @@ ged_copymat_core(struct ged *gedp, int argc, const char *argv[])
     if (tp == TREE_NULL) {
 	bu_vls_printf(gedp->ged_result_str, "%s: unable to find instance of '%s' in combination '%s'\n",
 		      argv[0], child, dp->d_namep);
+	rt_db_free_internal(&intern);
 	status = BRLCAD_ERROR;
 	goto wrapup;
     }
@@ -150,9 +154,8 @@ ged_copymat_core(struct ged *gedp, int argc, const char *argv[])
 
 wrapup:
 
+    db_free_full_path(&anp.an_path);
     bu_vls_free(&pvls);
-    if (status & BRLCAD_ERROR)
-	rt_db_free_internal(&intern);
     return status;
 }
 

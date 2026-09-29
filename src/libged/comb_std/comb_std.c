@@ -332,15 +332,21 @@ do_paren(struct bu_list *hp)
 static union tree *
 eval_bool(struct bu_list *hp)
 {
-    int done=0;
+    int done = 0;
     union tree *final_tree;
     struct tokens *tok;
 
-    while (done != 1) {
+    while (!done) {
 	do_inter(hp);
 	do_union_subtr(hp);
 	done = do_paren(hp);
+	if (done < 0) {
+	    return NULL;
+	}
     }
+
+    if (BU_LIST_IS_EMPTY(hp))
+	return NULL;
 
     tok = BU_LIST_NEXT(tokens, hp);
     final_tree = tok->tp;
@@ -608,6 +614,11 @@ ged_comb_std_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     final_tree = eval_bool(&tok_hd.l);
+    if (!final_tree) {
+	free_tokens(&tok_hd.l);
+	bu_vls_printf(gedp->ged_result_str, "Error evaluating boolean expression\n");
+	return BRLCAD_ERROR;
+    }
 
     {
 	int flags;
@@ -648,7 +659,11 @@ ged_comb_std_core(struct ged *gedp, int argc, const char *argv[])
 	intern.idb_meth = &OBJ[ID_COMBINATION];
 	intern.idb_ptr = (void *)comb;
 
-	GED_DB_DIRADD(gedp, dp, comb_name, RT_DIR_PHONY_ADDR, 0, flags, (void *)&intern.idb_type, BRLCAD_ERROR);
+	if ((dp = db_diradd(gedp->dbip, comb_name, RT_DIR_PHONY_ADDR, 0, flags, (void *)&intern.idb_type)) == RT_DIR_NULL) {
+	    bu_vls_printf(gedp->ged_result_str, "Unable to add %s to the database.", comb_name);
+	    rt_db_free_internal(&intern);
+	    return BRLCAD_ERROR;
+	}
 	GED_DB_PUT_INTERN(gedp, dp, &intern, BRLCAD_ERROR);
     }
 

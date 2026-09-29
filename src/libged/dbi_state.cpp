@@ -241,6 +241,7 @@ cache_write(struct ged_draw_cache *c, unsigned long long hash, const char *compo
     mdb_data[1].mv_data = NULL;
     mdb_put(c->txn, c->dbi, &mdb_key, mdb_data, 0);
     mdb_txn_commit(c->txn);
+    c->txn = NULL;
     bu_free(keycstr, "keycstr");
     bu_free(bdata, "buffer data");
 }
@@ -269,6 +270,8 @@ cache_get(struct ged_draw_cache *c, void **data, unsigned long long hash, const 
     if (rc) {
 	bu_free(keycstr, "keycstr");
 	(*data) = NULL;
+	mdb_txn_abort(c->txn);
+	c->txn = NULL;
 	return 0;
     }
     bu_free(keycstr, "keycstr");
@@ -293,14 +296,16 @@ cache_del(struct ged_draw_cache *c, unsigned long long hash, const char *compone
     mdb_key.mv_data = (void *)keystr.c_str();
     mdb_del(c->txn, c->dbi, &mdb_key, NULL);
     mdb_txn_commit(c->txn);
+    c->txn = NULL;
 }
 
 static void
 cache_done(struct ged_draw_cache *c)
 {
-    if (!c)
+    if (!c || !c->txn)
 	return;
     mdb_txn_commit(c->txn);
+    c->txn = NULL;
 }
 
 
@@ -454,6 +459,10 @@ DbiState::~DbiState()
     std::unordered_map<std::string, BSelectState *>::iterator ss_it;
     for (ss_it = selected_sets.begin(); ss_it != selected_sets.end(); ss_it++) {
 	delete ss_it->second;
+    }
+    std::unordered_map<struct bview *, BViewState *>::iterator vs_it;
+    for (vs_it = view_states.begin(); vs_it != view_states.end(); vs_it++) {
+	delete vs_it->second;
     }
     delete shared_vs;
     rt_clean_resource_basic(NULL, res);

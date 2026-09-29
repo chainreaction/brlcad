@@ -111,10 +111,8 @@ comb_tree_clear(struct ged *gedp, struct directory *dp)
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
     if (wdb_put_internal(wdbp, dp->d_namep, &intern, 1.0) < 0) {
 	bu_vls_printf(gedp->ged_result_str, "wdb_export(%s) failure", dp->d_namep);
-	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
-    rt_db_free_internal(&intern);
     return BRLCAD_OK;
 }
 
@@ -492,7 +490,11 @@ comb_decimate(struct ged *gedp, struct directory *dp)
 	fastf_t avg_thickness;
 	fastf_t fs;
 	struct directory *bot_dp = (struct directory *)BU_PTBL_GET(bot_dps, i);
-	GED_DB_GET_INTERN(gedp, &intern, bot_dp, bn_mat_identity, BRLCAD_ERROR);
+	if (rt_db_get_internal(&intern, bot_dp, gedp->dbip, bn_mat_identity) < 0) {
+	    bu_vls_printf(gedp->ged_result_str, "Database read failure for %s.", bot_dp->d_namep);
+	    ret = BRLCAD_ERROR;
+	    goto comb_decimate_memfree;
+	}
 	bot = (struct rt_bot_internal *)intern.idb_ptr;
 	RT_BOT_CK_MAGIC(bot);
 	rt_obj_bounds(gedp->ged_result_str, gedp->dbip, 1, (const char **)&bot_dp->d_namep, 0, obj_min, obj_max);
@@ -531,15 +533,16 @@ comb_decimate(struct ged *gedp, struct directory *dp)
 	    }
 	}
 
-	if (edges_removed >= 0) {
-	    if (not_solid) {
-		bu_log("Unable to create a valid version of %s via decimation\n", bot_dp->d_namep);
-	    } else {
-		struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
-		if (wdb_put_internal(wdbp, bot_dp->d_namep, &intern, 1.0) < 0) {
-		    bu_log("Failed to write decimated version of %s back to database\n", bot_dp->d_namep);
-		}
+	if (edges_removed >= 0 && !not_solid) {
+	    struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+	    if (wdb_put_internal(wdbp, bot_dp->d_namep, &intern, 1.0) < 0) {
+		bu_log("Failed to write decimated version of %s back to database\n", bot_dp->d_namep);
 	    }
+	} else {
+	    if (edges_removed >= 0) {
+		bu_log("Unable to create a valid version of %s via decimation\n", bot_dp->d_namep);
+	    }
+	    rt_db_free_internal(&intern);
 	}
     }
 
