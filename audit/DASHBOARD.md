@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-29 05:00:00 UTC
+**Last Updated:** 2026-09-29 05:25:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 1008 (28.9%)
-- **Files Pending Review:** 2485
-- **Total Issues Identified:** 251
+- **Files Reviewed:** 1018 (29.1%)
+- **Files Pending Review:** 2475
+- **Total Issues Identified:** 252
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 179 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 180 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 49 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 251
+- **Fixed (Committed):** 252
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -92,7 +92,7 @@
 | `src/libdm` | 80 | 80 | 100.0% | 1 |
 | `src/libfft` | 8 | 8 | 100.0% | 1 |
 | `src/libgcv` | 111 | 111 | 100.0% | 1 |
-| `src/libged` | 509 | 227 | 44.6% | 9 |
+| `src/libged` | 509 | 237 | 46.6% | 10 |
 | `src/libicv` | 34 | 0 | 0.0% | 0 |
 | `src/libnmg` | 54 | 0 | 0.0% | 0 |
 | `src/liboptical` | 46 | 0 | 0.0% | 0 |
