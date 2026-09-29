@@ -62,46 +62,15 @@ static struct track_solid {
 } sol;
 
 
-/*
- * convert integer to ascii wd format
- */
 static void
-track_itoa(struct bu_vls *log_str,
-     int n,
-     char s[],
-     int w) {
-    int c, i, j, sign;
-
-    if ((sign = n) < 0) n = -n;
-    i = 0;
-    do s[i++] = n % 10 + '0';	while ((n /= 10) > 0);
-    if (sign < 0) s[i++] = '-';
-
-    /* blank fill array
-     */
-    for (j = i; j < w; j++) s[j] = ' ';
-    if (i > w)
-	bu_vls_printf(log_str, "track_itoa: field length too small\n");
-    s[w] = '\0';
-    /* reverse the array
-     */
-    for (i = 0, j = w - 1; i < j; i++, j--) {
-	c    = s[i];
-	s[i] = s[j];
-	s[j] =    c;
-    }
-}
-
-
-static void
-crname(struct bu_vls *log_str,
+crname(struct bu_vls *UNUSED(log_str),
        char name[],
        int pos,
        int maxlen)
 {
-    char temp[4];
+    char temp[32];
 
-    track_itoa(log_str, pos, temp, 1);
+    snprintf(temp, sizeof(temp), "%d", pos);
     bu_strlcat(name, temp, maxlen);
 }
 
@@ -534,7 +503,6 @@ wrobj(struct bu_vls *log_str,
     }
 
     if (rt_db_put_internal(tdp, wdbp->dbip, &intern) < 0) {
-	rt_db_free_internal(&intern);
 	bu_vls_printf(log_str, "write error\n");
 	bu_vls_printf(log_str, "The in-memory table of contents may not match the status of the on-disk\ndatabase.  The on-disk database should still be intact.  For safety, \nyou should exit now, and resolve the I/O problem, before continuing.\n");
 	return BRLCAD_ERROR;
@@ -546,26 +514,30 @@ static void
 tancir(struct bu_vls *log_str,
        fastf_t cir1[],
        fastf_t cir2[]) {
-    static fastf_t mag;
     vect_t work;
-    fastf_t f;
-    static fastf_t temp, tempp, ang, angc;
+    fastf_t mag, f;
+    fastf_t temp, tempp, ang, angc;
+    fastf_t a1, a2;
 
     work[0] = cir2[0] - cir1[0];
     work[2] = cir2[1] - cir1[1];
     work[1] = 0.0;
     mag = MAGNITUDE(work);
-    if (mag > 1.0e-20 || mag < -1.0e-20) {
+    if (mag >= VDIVIDE_TOL) {
 	f = 1.0/mag;
     } else {
 	bu_vls_printf(log_str, "tancir():  0-length vector!\n");
 	return;
     }
     VSCALE(work, work, f);
-    temp = acos(work[0]);
+    a1 = work[0];
+    CLAMP(a1, -1.0, 1.0);
+    temp = acos(a1);
     if (work[2] < 0.0)
-	temp = 6.28318512717958646 - temp;
-    tempp = acos((cir1[2] - cir2[2]) * f);
+	temp = 2.0 * M_PI - temp;
+    a2 = (cir1[2] - cir2[2]) * f;
+    CLAMP(a2, -1.0, 1.0);
+    tempp = acos(a2);
     ang = temp + tempp;
     angc = temp - tempp;
     if ((cir1[1] + cir1[2] * sin(ang)) >
@@ -619,6 +591,10 @@ slope(struct bu_vls *log_str,
     del[0] = plano[0] - plant[0];
     del[2] = plano[1] - plant[1];
     mag = MAGNITUDE(del);
+    if (mag < VDIVIDE_TOL || fabs(del[0]) < VDIVIDE_TOL || fabs(del[2]) < VDIVIDE_TOL) {
+	bu_vls_printf(log_str, "slope: degenerate geometry in wheel alignment\n");
+	return;
+    }
     work[0] = -1.0 * t[2] * del[2] / mag;
     if (del[0] < 0.0)
 	work[0] *= -1.0;
@@ -803,7 +779,7 @@ ged_track2(struct bu_vls *log_str, struct rt_wdb *wdbp, const char *argv[])
     arg = 1;
     grpname = bu_strdup(argv[arg]);
     grpname_len = (int)strlen(grpname);
-    len = grpname_len + 1 + extraChars;
+    len = grpname_len + 32;
     solname = (char *)bu_malloc(len, "solid name");
     regname = (char *)bu_malloc(len, "region name");
     sol.s_name = (char *)bu_malloc(len, "sol.s_name");
@@ -886,7 +862,7 @@ ged_track2(struct bu_vls *log_str, struct rt_wdb *wdbp, const char *argv[])
 
     /* track MIN Y */
     ++arg;
-    tr[2] = tr[0] = atof(argv[arg]) * wdbp->dbip->dbi_local2base;
+    tr[0] = atof(argv[arg]) * wdbp->dbip->dbi_local2base;
 
     /* track MAX Y */
     ++arg;
@@ -899,8 +875,9 @@ ged_track2(struct bu_vls *log_str, struct rt_wdb *wdbp, const char *argv[])
     }
     if (tr[0] > tr[1]) {
 	bu_vls_printf(log_str, "MIN > MAX .... will switch\n");
-	tr[1] = tr[0];
-	tr[0] = tr[2];
+	fastf_t tmp = tr[0];
+	tr[0] = tr[1];
+	tr[1] = tmp;
     }
 
     /* track thickness */
@@ -973,8 +950,10 @@ ged_track2(struct bu_vls *log_str, struct rt_wdb *wdbp, const char *argv[])
     bu_strlcpy(sol.s_name, solname, len);
 
     sol.s_type = ID_ARB8;
-    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID))
-	return BRLCAD_ERROR;
+    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID)) {
+	edit_result = BRLCAD_ERROR;
+	goto end;
+    }
 
     solname[grpname_len + extraTypeChars] = '\0';
 
@@ -986,8 +965,10 @@ ged_track2(struct bu_vls *log_str, struct rt_wdb *wdbp, const char *argv[])
     trcurve(iw, tr);
     crname(log_str, solname, 1, len);
     bu_strlcpy(sol.s_name, solname, len);
-    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID))
-	return BRLCAD_ERROR;
+    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID)) {
+	edit_result = BRLCAD_ERROR;
+	goto end;
+    }
     solname[grpname_len + extraTypeChars] = '\0';
     /* idler dummy rcc */
     sol.s_values[6] = iw[2];
@@ -997,8 +978,10 @@ ged_track2(struct bu_vls *log_str, struct rt_wdb *wdbp, const char *argv[])
     /* solid 2 */
     crname(log_str, solname, 2, len);
     bu_strlcpy(sol.s_name, solname, len);
-    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID))
-	return BRLCAD_ERROR;
+    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID)) {
+	edit_result = BRLCAD_ERROR;
+	goto end;
+    }
     solname[grpname_len + extraTypeChars] = '\0';
 
     /* solid 3 */
@@ -1009,8 +992,10 @@ ged_track2(struct bu_vls *log_str, struct rt_wdb *wdbp, const char *argv[])
     bu_strlcpy(sol.s_name, solname, len);
     sol.s_type = ID_ARB8;
     crdummy(iw, tr, 1);
-    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID))
-	return BRLCAD_ERROR;
+    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID)) {
+	edit_result = BRLCAD_ERROR;
+	goto end;
+    }
     solname[grpname_len + extraTypeChars] = '\0';
 
     /* solid 4 */
@@ -1021,8 +1006,10 @@ ged_track2(struct bu_vls *log_str, struct rt_wdb *wdbp, const char *argv[])
     VMOVE(temp1, &sol.s_values[0]);
     crname(log_str, solname, 4, len);
     bu_strlcpy(sol.s_name, solname, len);
-    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID))
-	return BRLCAD_ERROR;
+    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID)) {
+	edit_result = BRLCAD_ERROR;
+	goto end;
+    }
     solname[grpname_len + extraTypeChars] = '\0';
 
     /* solid 5 */
@@ -1033,8 +1020,10 @@ ged_track2(struct bu_vls *log_str, struct rt_wdb *wdbp, const char *argv[])
     trcurve(dw, tr);
     crname(log_str, solname, 5, len);
     bu_strlcpy(sol.s_name, solname, len);
-    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID))
-	return BRLCAD_ERROR;
+    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID)) {
+	edit_result = BRLCAD_ERROR;
+	goto end;
+    }
     solname[grpname_len + extraTypeChars] = '\0';
 
     /* solid 6 */
@@ -1045,8 +1034,10 @@ ged_track2(struct bu_vls *log_str, struct rt_wdb *wdbp, const char *argv[])
     VMOVE(&sol.s_values[15], &sol.s_values[9]);
     crname(log_str, solname, 6, len);
     bu_strlcpy(sol.s_name, solname, len);
-    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID))
-	return BRLCAD_ERROR;
+    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID)) {
+	edit_result = BRLCAD_ERROR;
+	goto end;
+    }
     solname[grpname_len + extraTypeChars] = '\0';
 
     /* solid 7 */
@@ -1057,8 +1048,10 @@ ged_track2(struct bu_vls *log_str, struct rt_wdb *wdbp, const char *argv[])
     bu_strlcpy(sol.s_name, solname, len);
     sol.s_type = ID_ARB8;
     crdummy(dw, tr, 2);
-    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID))
-	return BRLCAD_ERROR;
+    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID)) {
+	edit_result = BRLCAD_ERROR;
+	goto end;
+    }
     solname[grpname_len + extraTypeChars] = '\0';
 
     /* solid 8 */
@@ -1067,8 +1060,10 @@ ged_track2(struct bu_vls *log_str, struct rt_wdb *wdbp, const char *argv[])
     bottom(temp1, temp2, tr);
     crname(log_str, solname, 8, len);
     bu_strlcpy(sol.s_name, solname, len);
-    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID))
-	return BRLCAD_ERROR;
+    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID)) {
+	edit_result = BRLCAD_ERROR;
+	goto end;
+    }
     solname[grpname_len + extraTypeChars] = '\0';
 
     /* solid 9 */
@@ -1081,8 +1076,10 @@ ged_track2(struct bu_vls *log_str, struct rt_wdb *wdbp, const char *argv[])
     top(temp1, temp2, tr);
     crname(log_str, solname, 9, len);
     bu_strlcpy(sol.s_name, solname, len);
-    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID))
-	return BRLCAD_ERROR;
+    if (wrobj(log_str, wdbp, solname, RT_DIR_SOLID)) {
+	edit_result = BRLCAD_ERROR;
+	goto end;
+    }
     solname[grpname_len + extraTypeChars] = '\0';
 
     /* add the regions */
@@ -1180,6 +1177,7 @@ ged_track2(struct bu_vls *log_str, struct rt_wdb *wdbp, const char *argv[])
     return edit_result;
 
 end:
+    track_mk_freemembers(&head);
     bu_free((void *)solname, "solid name");
     bu_free((void *)regname, "region name");
     bu_free((void *)grpname, "group name");

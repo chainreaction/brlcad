@@ -347,6 +347,8 @@ ged_results_count(struct ged_results *results)
 const char *
 ged_results_get(struct ged_results *results, size_t index)
 {
+    if (UNLIKELY(!results || !results->results_tbl || index >= (size_t)BU_PTBL_LEN(results->results_tbl)))
+	return NULL;
     return (const char *)BU_PTBL_GET(results->results_tbl, index);
 }
 
@@ -532,14 +534,15 @@ _ged_cmd_help(struct ged *gedp, const char *usage, struct bu_opt_desc *d)
 int
 _ged_sort_existing_objs(struct db_i *dbip, int argc, const char *argv[], struct directory **dpa)
 {
+    if (dbip == DBI_NULL || argc <= 0 || !argv)
+	return BRLCAD_ERROR;
+
     int i = 0;
     int exist_cnt = 0;
     int nonexist_cnt = 0;
     struct directory *dp;
     const char **exists = (const char **)bu_calloc(argc, sizeof(const char *), "obj exists array");
     const char **nonexists = (const char **)bu_calloc(argc, sizeof(const char *), "obj nonexists array");
-    if (dbip == DBI_NULL)
-	return BRLCAD_ERROR;
     for (i = 0; i < argc; i++) {
 	dp = db_lookup(dbip, argv[i], LOOKUP_QUIET);
 	if (dp == RT_DIR_NULL) {
@@ -615,13 +618,14 @@ _ged_densities_from_file(struct analyze_densities **dens, char **den_src, struct
     bu_vls_free(&msgs);
     bu_close_mapped_file(dfile);
 
-    (*dens) = densities;
     if (ret > 0) {
+	(*dens) = densities;
 	if (den_src) {
 	    (*den_src) = bu_strdup(name);
 	}
     } else {
-	if (ret == 0 && densities) {
+	(*dens) = NULL;
+	if (densities) {
 	    analyze_densities_destroy(densities);
 	}
     }
@@ -770,6 +774,11 @@ ged_dbcopy(struct ged *from_gedp, struct ged *to_gedp, const char *from, const c
     }
 
     struct rt_wdb *wdbp = wdb_dbopen(to_gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_free_external(&external);
+	bu_vls_printf(from_gedp->ged_result_str, "Failed to open destination database for writing\n");
+	return BRLCAD_ERROR;
+    }
     if (wdb_export_external(wdbp, &external, to,
 			    from_dp->d_flags,  from_dp->d_minor_type) < 0) {
 	bu_free_external(&external);
@@ -792,11 +801,15 @@ ged_dbcopy(struct ged *from_gedp, struct ged *to_gedp, const char *from, const c
 	bu_avs_init_empty(&avs);
 	if (db5_get_attributes(to_gedp->dbip, &avs, to_dp)) {
 	    bu_vls_printf(from_gedp->ged_result_str, "Cannot get attributes for object %s\n", to_dp->d_namep);
+	    bu_avs_free(&avs);
 	    return BRLCAD_ERROR;
 	}
 
-	if ((val = bu_avs_get(&avs, "title")) != NULL)
+	if ((val = bu_avs_get(&avs, "title")) != NULL) {
+	    if (to_gedp->dbip->dbi_title)
+		bu_free(to_gedp->dbip->dbi_title, "dbi_title");
 	    to_gedp->dbip->dbi_title = bu_strdup(val);
+	}
 
 	if ((val = bu_avs_get(&avs, "units")) != NULL) {
 	    double loc2mm;
@@ -1008,7 +1021,7 @@ int
 ged_scale_args(struct ged *gedp, int argc, const char *argv[], fastf_t *sf1, fastf_t *sf2, fastf_t *sf3)
 {
     static const char *usage = "sf (or) sfx sfy sfz";
-    int ret = BRLCAD_OK, args_read;
+    int ret = BRLCAD_OK;
     double scan;
 
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
@@ -1041,24 +1054,24 @@ ged_scale_args(struct ged *gedp, int argc, const char *argv[], fastf_t *sf1, fas
 	}
 	*sf1 = scan;
     } else {
-	args_read = bu_sscanf(argv[1], "%lf", &scan);
-	if (!sf1 || args_read != 1) {
+	if (!sf1 || !sf2 || !sf3)
+	    return BRLCAD_ERROR;
+
+	if (bu_sscanf(argv[1], "%lf", &scan) != 1) {
 	    bu_vls_printf(gedp->ged_result_str, "\nbad x scale factor '%s'", argv[1]);
-	    ret = BRLCAD_ERROR;
+	    return BRLCAD_ERROR;
 	}
 	*sf1 = scan;
 
-	args_read = bu_sscanf(argv[2], "%lf", &scan);
-	if (!sf2 || args_read != 1) {
+	if (bu_sscanf(argv[2], "%lf", &scan) != 1) {
 	    bu_vls_printf(gedp->ged_result_str, "\nbad y scale factor '%s'", argv[2]);
-	    ret = BRLCAD_ERROR;
+	    return BRLCAD_ERROR;
 	}
 	*sf2 = scan;
 
-	args_read = bu_sscanf(argv[3], "%lf", &scan);
-	if (!sf3 || args_read != 1) {
+	if (bu_sscanf(argv[3], "%lf", &scan) != 1) {
 	    bu_vls_printf(gedp->ged_result_str, "\nbad z scale factor '%s'", argv[3]);
-	    ret = BRLCAD_ERROR;
+	    return BRLCAD_ERROR;
 	}
 	*sf3 = scan;
     }
@@ -1683,7 +1696,10 @@ void
 _ged_rt_set_eye_model(struct ged *gedp,
 		      vect_t eye_model)
 {
-    if (gedp->ged_gvp->gv_s->gv_zclip || gedp->ged_gvp->gv_perspective > 0) {
+    if (!gedp || !gedp->ged_gvp || !eye_model)
+	return;
+
+    if ((gedp->ged_gvp->gv_s && gedp->ged_gvp->gv_s->gv_zclip) || gedp->ged_gvp->gv_perspective > 0) {
 	vect_t temp;
 
 	VSET(temp, 0.0, 0.0, 1.0);
@@ -2140,6 +2156,9 @@ _ged_combadd(struct ged *gedp,
     int ac = 1;
     const char *av[2];
 
+    if (!objp || !objp->d_namep)
+	return RT_DIR_NULL;
+
     av[0] = objp->d_namep;
     av[1] = NULL;
 
@@ -2240,6 +2259,7 @@ _ged_combadd2(struct ged *gedp,
 
     if (region_flag && !comb->region_flag) {
 	bu_vls_printf(gedp->ged_result_str, "%s: not a region\n", dp->d_namep);
+	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
@@ -2307,7 +2327,7 @@ addmembers:
     }
 
     /* rebuild the tree */
-    comb->tree = (union tree *)db_mkgift_tree(tree_list, node_count);
+    comb->tree = (curr_count > 0) ? (union tree *)db_mkgift_tree(tree_list, curr_count) : TREE_NULL;
 
     /* and finally, write it out */
     GED_DB_PUT_INTERN(gedp, dp, &intern, 0);

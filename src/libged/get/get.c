@@ -64,11 +64,17 @@ ged_get_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "Database open failure for %s", argv[1]);
+	return BRLCAD_ERROR;
+    }
     if (wdb_import_from_path(gedp->ged_result_str, &intern, argv[1], wdbp) & BRLCAD_ERROR) {
 	return BRLCAD_ERROR;
     }
 
-    if (!intern.idb_meth->ft_get) {
+    if (!intern.idb_meth || !intern.idb_meth->ft_get) {
+	bu_vls_printf(gedp->ged_result_str, "Object type does not support get operation\n");
+	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 

@@ -49,17 +49,13 @@ ged_get_autoview_core(struct ged *gedp, int argc, const char *argv[])
     int c;
     double sval = (gedp->dbip) ? gedp->dbip->dbi_base2local : 1.0;
 
+    static const char *usage = "[-p]";
+
     GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
-
-    /* must be wanting help */
-    if (argc != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s", argv[0]);
-	return GED_HELP;
-    }
 
     /* Parse options. */
     bu_optind = 1;
@@ -69,11 +65,21 @@ ged_get_autoview_core(struct ged *gedp, int argc, const char *argv[])
 		pflag = 1;
 		break;
 	    default: {
-		bu_vls_printf(gedp->ged_result_str, "Usage: %s", argv[0]);
+		bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
 		return BRLCAD_ERROR;
 	    }
 	}
     }
+    argc -= bu_optind;
+    argv += bu_optind;
+
+    if (argc != 0) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	return BRLCAD_ERROR;
+    }
+
+    if (!gedp->i || !gedp->i->ged_gdp)
+	return BRLCAD_ERROR;
 
     is_empty = dl_bounding_sph(gedp->i->ged_gdp->gd_headDisplay, &min, &max, pflag);
 

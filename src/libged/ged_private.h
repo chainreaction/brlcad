@@ -505,7 +505,7 @@ GED_EXPORT extern void _ged_cmd_help(struct ged *gedp, const char *usage, struct
  */
 GED_EXPORT extern int _ged_read_densities(struct analyze_densities **dens, char **den_src, struct ged *gedp, const char *filename, int fault_tolerant);
 
-#define GED_DB_DENSITY_OBJECT "_DENSITIES" 
+#define GED_DB_DENSITY_OBJECT "_DENSITIES"
 
 /**
  * Routine for checking argc/argv list for existing objects and sorting anything

@@ -50,6 +50,7 @@ ged_get_obj_bounds(struct ged *gedp,
                    point_t rpp_min,
                    point_t rpp_max)
 {
+    GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     return rt_obj_bounds(gedp->ged_result_str, gedp->dbip, argc, argv, use_air, rpp_min, rpp_max);
 }
 
@@ -249,7 +250,8 @@ _ged_obj_tight_bounds(struct ged *gedp,
     vect_t span;
 
     /* Start from the loose bound (this also validates the object list). */
-    if (rt_obj_bounds(gedp->ged_result_str, gedp->dbip, argc, argv, use_air, loose_min, loose_max) & BRLCAD_ERROR)
+    if (!gedp || !gedp->dbip || argc <= 0 || !argv
+	|| (rt_obj_bounds(gedp->ged_result_str, gedp->dbip, argc, argv, use_air, loose_min, loose_max) & BRLCAD_ERROR))
 	return BRLCAD_ERROR;
 
     VMOVE(rpp_min, loose_min);
@@ -292,8 +294,9 @@ _ged_obj_oriented_bounds(struct ged *gedp,
     point_t loose_min, loose_max;
     point_t *corner_ptrs[8];
 
-    if (!corners || rt_obj_bounds(gedp->ged_result_str, gedp->dbip, argc, argv,
-		use_air, loose_min, loose_max) & BRLCAD_ERROR)
+    if (!corners || !gedp || !gedp->dbip || argc <= 0 || !argv
+	|| (rt_obj_bounds(gedp->ged_result_str, gedp->dbip, argc, argv,
+		use_air, loose_min, loose_max) & BRLCAD_ERROR))
 	return BRLCAD_ERROR;
 
     VSETALL(st.tmin, INFINITY);
@@ -331,6 +334,9 @@ get_objpath_mat(struct ged *gedp,
 {
     int i, pos_in;
 
+    if (!gedp || !gedp->dbip || argc <= 0 || !argv || !gtdp)
+	return BRLCAD_ERROR;
+
     /*
      * paths are matched up to last input member
      * ANY path the same up to this point is considered as matching
@@ -351,18 +357,27 @@ get_objpath_mat(struct ged *gedp,
 	av0 = bu_strdup(argv[0]);
 	tok = strtok(av0, "/");
 	while (tok) {
+	    if (gtdp->gtd_objpos >= _GED_TRACE_MAX_LEVELS) {
+		bu_vls_printf(gedp->ged_result_str, "get_objpath_mat: Path exceeds maximum depth (%d)", _GED_TRACE_MAX_LEVELS);
+		bu_free(av0, "av0");
+		return BRLCAD_ERROR;
+	    }
 	    if ((gtdp->gtd_obj[gtdp->gtd_objpos++] =
 		 db_lookup(gedp->dbip, tok, LOOKUP_NOISY)) == RT_DIR_NULL) {
 		bu_vls_printf(gedp->ged_result_str, "get_objpath_mat: Failed to find %s", tok);
-		free(av0);
+		bu_free(av0, "av0");
 		return BRLCAD_ERROR;
 	    }
 
 	    tok = strtok((char *)0, "/");
 	}
 
-	free(av0);
+	bu_free(av0, "av0");
     } else {
+	if (argc > _GED_TRACE_MAX_LEVELS) {
+	    bu_vls_printf(gedp->ged_result_str, "get_objpath_mat: Path exceeds maximum depth (%d)", _GED_TRACE_MAX_LEVELS);
+	    return BRLCAD_ERROR;
+	}
 	gtdp->gtd_objpos = argc;
 
 	/* build directory pointer array for desired path */
@@ -374,6 +389,9 @@ get_objpath_mat(struct ged *gedp,
 	    }
 	}
     }
+
+    if (gtdp->gtd_objpos <= 0)
+	return BRLCAD_ERROR;
 
     MAT_IDN(gtdp->gtd_xform);
     ged_trace(gtdp->gtd_obj[0], 0, bn_mat_identity, gtdp, 1);
@@ -404,16 +422,26 @@ _ged_get_obj_bounds2(struct ged *gedp,
     VSETALL(rpp_min, MAX_FASTF);
     VREVERSE(rpp_max, rpp_min);
 
+    if (!gedp || !gedp->dbip || argc <= 0 || !argv || !gtdp)
+	return BRLCAD_ERROR;
+
     if (get_objpath_mat(gedp, argc, argv, gtdp) & BRLCAD_ERROR)
 	return BRLCAD_ERROR;
 
+    if (gtdp->gtd_objpos <= 0)
+	return BRLCAD_ERROR;
+
     dp = gtdp->gtd_obj[gtdp->gtd_objpos-1];
+    if (!dp)
+	return BRLCAD_ERROR;
+
     GED_DB_GET_INTERN(gedp, &intern, dp, gtdp->gtd_xform, BRLCAD_ERROR);
 
     /* Make a new rt_i instance from the existing db_i structure */
     rtip = rt_i_create(gedp->dbip);
     if (rtip == RTI_NULL) {
 	bu_vls_printf(gedp->ged_result_str, "rt_i_create failure for %s", gedp->dbip->dbi_filename);
+	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
@@ -429,7 +457,7 @@ _ged_get_obj_bounds2(struct ged *gedp,
     /* Get bounds from internal object */
     VMOVE(st.st_min, rpp_min);
     VMOVE(st.st_max, rpp_max);
-    if (intern.idb_meth->ft_prep)
+    if (intern.idb_meth && intern.idb_meth->ft_prep)
 	intern.idb_meth->ft_prep(&st, &intern, rtip);
     VMOVE(rpp_min, st.st_min);
     VMOVE(rpp_max, st.st_max);

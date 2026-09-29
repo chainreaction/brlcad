@@ -46,7 +46,7 @@ get_comb_print_matrix(struct bu_vls *vls, matp_t matrix)
 	return;
 
     for (k = 0; k < 16; k++) {
-	sprintf(buf, "%g", matrix[k]);
+	snprintf(buf, sizeof(buf), "%g", matrix[k]);
 	tmp = atof(buf);
 	if (ZERO(tmp - matrix[k]))
 	    bu_vls_printf(vls, " %g", matrix[k]);
@@ -63,10 +63,11 @@ ged_get_comb_core(struct ged *gedp, int argc, const char *argv[])
     struct directory *dp;
     struct rt_db_internal intern;
     struct rt_comb_internal *comb;
-    struct rt_tree_array *rt_tree_array;
+    struct rt_tree_array *rt_tree_array = NULL;
     size_t i;
     size_t node_count;
     size_t actual_count;
+    int ret = BRLCAD_OK;
     static const char *usage = "comb";
 
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
@@ -106,6 +107,7 @@ ged_get_comb_core(struct ged *gedp, int argc, const char *argv[])
 	    db_non_union_push(comb->tree);
 	    if (db_ck_v4gift_tree(comb->tree) < 0) {
 		bu_vls_printf(gedp->ged_result_str, "Cannot flatten tree for editing\n");
+		rt_db_free_internal(&intern);
 		return BRLCAD_ERROR;
 	    }
 	}
@@ -156,13 +158,29 @@ ged_get_comb_core(struct ged *gedp, int argc, const char *argv[])
 		    break;
 		default:
 		    bu_vls_printf(gedp->ged_result_str, "\nIllegal op code in tree\n");
-		    return BRLCAD_ERROR;
+		    ret = BRLCAD_ERROR;
+		    break;
 	    }
+
+	    if (ret != BRLCAD_OK)
+		break;
 
 	    bu_vls_printf(gedp->ged_result_str, " %c %s\t", op, rt_tree_array[i].tl_tree->tr_l.tl_name);
 	    get_comb_print_matrix(gedp->ged_result_str, rt_tree_array[i].tl_tree->tr_l.tl_mat);
 	    bu_vls_printf(gedp->ged_result_str, "\n");
 	    db_free_tree(rt_tree_array[i].tl_tree);
+	    rt_tree_array[i].tl_tree = NULL;
+	}
+
+	if (ret != BRLCAD_OK) {
+	    for (; i < actual_count; i++) {
+		if (rt_tree_array[i].tl_tree)
+		    db_free_tree(rt_tree_array[i].tl_tree);
+	    }
+	    if (rt_tree_array)
+		bu_free(rt_tree_array, "tree list");
+	    rt_db_free_internal(&intern);
+	    return BRLCAD_ERROR;
 	}
 
 	bu_vls_printf(gedp->ged_result_str, "}");
@@ -174,14 +192,18 @@ ged_get_comb_core(struct ged *gedp, int argc, const char *argv[])
 	    bu_vls_printf(gedp->ged_result_str, " No");
 	}
 
+	if (rt_tree_array)
+	    bu_free(rt_tree_array, "tree list");
+	rt_db_free_internal(&intern);
+
     } else {
 	struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
 	bu_vls_printf(gedp->ged_result_str, "%s {} {} No {} Yes %d %d %d %d",
 		      argv[1],
-		      wdbp->wdb_item_default,
-		      wdbp->wdb_air_default,
-		      wdbp->wdb_mat_default,
-		      wdbp->wdb_los_default);
+		      wdbp ? wdbp->wdb_item_default : 0,
+		      wdbp ? wdbp->wdb_air_default : 0,
+		      wdbp ? wdbp->wdb_mat_default : 0,
+		      wdbp ? wdbp->wdb_los_default : 0);
     }
 
     return BRLCAD_OK;

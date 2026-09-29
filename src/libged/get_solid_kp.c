@@ -44,9 +44,13 @@ _ged_get_solid_keypoint(struct ged *const gedp,
 			const fastf_t *const mat)
 {
     point_t mpt = VINIT_ZERO;
-    struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    struct rt_wdb *wdbp;
+
+    if (!gedp || !pt || !ip || !mat)
+	return BRLCAD_ERROR;
 
     RT_CK_DB_INTERNAL(ip);
+    wdbp = gedp->dbip ? wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT) : NULL;
 
     switch (ip->idb_type) {
 	case ID_CLINE:
@@ -78,8 +82,10 @@ _ged_get_solid_keypoint(struct ged *const gedp,
 
 		RT_PIPE_CK_MAGIC(pipeip);
 
-		pipe_seg = BU_LIST_FIRST(wdb_pipe_pnt, &pipeip->pipe_segs_head);
-		VMOVE(mpt, pipe_seg->pp_coord);
+		if (!BU_LIST_IS_EMPTY(&pipeip->pipe_segs_head)) {
+		    pipe_seg = BU_LIST_FIRST(wdb_pipe_pnt, &pipeip->pipe_segs_head);
+		    VMOVE(mpt, pipe_seg->pp_coord);
+		}
 		break;
 	    }
 	case ID_METABALL:
@@ -91,9 +97,11 @@ _ged_get_solid_keypoint(struct ged *const gedp,
 		RT_METABALL_CK_MAGIC(metaball);
 
 		VSETALL(mpt, 0.0);
-		metaball_pnt = BU_LIST_FIRST(wdb_metaball_pnt,
-					   &metaball->metaball_ctrl_head);
-		VMOVE(mpt, metaball_pnt->coord);
+		if (!BU_LIST_IS_EMPTY(&metaball->metaball_ctrl_head)) {
+		    metaball_pnt = BU_LIST_FIRST(wdb_metaball_pnt,
+					       &metaball->metaball_ctrl_head);
+		    VMOVE(mpt, metaball_pnt->coord);
+		}
 		break;
 	    }
 	case ID_ARBN:
@@ -102,6 +110,7 @@ _ged_get_solid_keypoint(struct ged *const gedp,
 		    (struct rt_arbn_internal *)ip->idb_ptr;
 		size_t i, j, k;
 		int good_vert = 0;
+		fastf_t dist_tol = (wdbp) ? wdbp->wdb_tol.dist : RT_LEN_TOL;
 
 		RT_ARBN_CK_MAGIC(arbn);
 		for (i = 0; i < arbn->neqn; i++) {
@@ -118,8 +127,7 @@ _ged_get_solid_keypoint(struct ged *const gedp,
 					continue;
 
 				    if (DIST_PNT_PLANE(mpt,
-					arbn->eqn[l]) >
-					wdbp->wdb_tol.dist) {
+					arbn->eqn[l]) > dist_tol) {
 					good_vert = 0;
 					break;
 				    }
@@ -154,6 +162,8 @@ _ged_get_solid_keypoint(struct ged *const gedp,
 		struct rt_bot_internal *bot =
 		    (struct rt_bot_internal *)ip->idb_ptr;
 
+		RT_BOT_CK_MAGIC(bot);
+		if (bot->num_vertices > 0 && bot->vertices)
 		    VMOVE(mpt, bot->vertices);
 		break;
 	    }
@@ -259,7 +269,8 @@ _ged_get_solid_keypoint(struct ged *const gedp,
 		    (struct rt_ars_internal *)ip->idb_ptr;
 		RT_ARS_CK_MAGIC(ars);
 
-		VMOVE(mpt, &ars->curves[0][0]);
+		if (ars->curves && ars->ncurves > 0 && ars->curves[0])
+		    VMOVE(mpt, &ars->curves[0][0]);
 		break;
 	    }
 	case ID_RPC:
@@ -324,7 +335,8 @@ _ged_get_solid_keypoint(struct ged *const gedp,
 		RT_PG_CK_MAGIC(pg);
 
 		_poly = pg->poly;
-		VMOVE(mpt, _poly->verts);
+		if (_poly && _poly->verts)
+		    VMOVE(mpt, _poly->verts);
 		break;
 	    }
 	case ID_SKETCH:
@@ -351,7 +363,7 @@ _ged_get_solid_keypoint(struct ged *const gedp,
 		    (struct rt_extrude_internal *)ip->idb_ptr;
 		RT_EXTRUDE_CK_MAGIC(extr);
 
-		if (extr->skt && extr->skt->verts) {
+		if (extr->skt && extr->skt->verts && extr->skt->vert_count > 0) {
 		    VJOIN2(mpt, extr->V, extr->skt->verts[0][0], extr->u_vec,
 			   extr->skt->verts[0][1], extr->v_vec);
 		} else {
@@ -406,23 +418,27 @@ _ged_get_solid_keypoint(struct ged *const gedp,
 		    fu = BU_LIST_FIRST(faceuse, &s->fu_hd);
 		if (fu) {
 		    NMG_CK_FACEUSE(fu);
-		    lu = BU_LIST_FIRST(loopuse, &fu->lu_hd);
-		    NMG_CK_LOOPUSE(lu);
-		    if (BU_LIST_FIRST_MAGIC(&lu->down_hd) == NMG_EDGEUSE_MAGIC) {
-			eu = BU_LIST_FIRST(edgeuse, &lu->down_hd);
-			NMG_CK_EDGEUSE(eu);
-			NMG_CK_VERTEXUSE(eu->vu_p);
-			v = eu->vu_p->v_p;
-		    } else {
-			vu = BU_LIST_FIRST(vertexuse, &lu->down_hd);
-			NMG_CK_VERTEXUSE(vu);
-			v = vu->v_p;
+		    if (!BU_LIST_IS_EMPTY(&fu->lu_hd)) {
+			lu = BU_LIST_FIRST(loopuse, &fu->lu_hd);
+			NMG_CK_LOOPUSE(lu);
+			if (!BU_LIST_IS_EMPTY(&lu->down_hd)) {
+			    if (BU_LIST_FIRST_MAGIC(&lu->down_hd) == NMG_EDGEUSE_MAGIC) {
+				eu = BU_LIST_FIRST(edgeuse, &lu->down_hd);
+				NMG_CK_EDGEUSE(eu);
+				NMG_CK_VERTEXUSE(eu->vu_p);
+				v = eu->vu_p->v_p;
+			    } else {
+				vu = BU_LIST_FIRST(vertexuse, &lu->down_hd);
+				NMG_CK_VERTEXUSE(vu);
+				v = vu->v_p;
+			    }
+			    NMG_CK_VERTEX(v);
+			    if (v->vg_p) {
+				VMOVE(mpt, v->vg_p->coord);
+				break;
+			    }
+			}
 		    }
-		    NMG_CK_VERTEX(v);
-		    if (!v->vg_p)
-			break;
-		    VMOVE(mpt, v->vg_p->coord);
-		    break;
 		}
 		if (BU_LIST_IS_EMPTY(&s->lu_hd))
 		    lu = (struct loopuse *)NULL;
@@ -430,21 +446,23 @@ _ged_get_solid_keypoint(struct ged *const gedp,
 		    lu = BU_LIST_FIRST(loopuse, &s->lu_hd);
 		if (lu) {
 		    NMG_CK_LOOPUSE(lu);
-		    if (BU_LIST_FIRST_MAGIC(&lu->down_hd) == NMG_EDGEUSE_MAGIC) {
-			eu = BU_LIST_FIRST(edgeuse, &lu->down_hd);
-			NMG_CK_EDGEUSE(eu);
-			NMG_CK_VERTEXUSE(eu->vu_p);
-			v = eu->vu_p->v_p;
-		    } else {
-			vu = BU_LIST_FIRST(vertexuse, &lu->down_hd);
-			NMG_CK_VERTEXUSE(vu);
-			v = vu->v_p;
+		    if (!BU_LIST_IS_EMPTY(&lu->down_hd)) {
+			if (BU_LIST_FIRST_MAGIC(&lu->down_hd) == NMG_EDGEUSE_MAGIC) {
+			    eu = BU_LIST_FIRST(edgeuse, &lu->down_hd);
+			    NMG_CK_EDGEUSE(eu);
+			    NMG_CK_VERTEXUSE(eu->vu_p);
+			    v = eu->vu_p->v_p;
+			} else {
+			    vu = BU_LIST_FIRST(vertexuse, &lu->down_hd);
+			    NMG_CK_VERTEXUSE(vu);
+			    v = vu->v_p;
+			}
+			NMG_CK_VERTEX(v);
+			if (v->vg_p) {
+			    VMOVE(mpt, v->vg_p->coord);
+			    break;
+			}
 		    }
-		    NMG_CK_VERTEX(v);
-		    if (!v->vg_p)
-			break;
-		    VMOVE(mpt, v->vg_p->coord);
-		    break;
 		}
 		if (BU_LIST_IS_EMPTY(&s->eu_hd))
 		    eu = (struct edgeuse *)NULL;
