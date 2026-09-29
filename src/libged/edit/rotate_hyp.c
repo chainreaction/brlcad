@@ -39,8 +39,8 @@ _ged_rotate_hyp(struct ged *gedp, struct rt_hyp_internal *hyp, const char *attri
 {
     RT_HYP_CK_MAGIC(hyp);
 
-    if (attribute[1] != '\0') {
-	bu_vls_printf(gedp->ged_result_str, "bad hyp attribute - %s", attribute);
+    if (!attribute || attribute[0] == '\0' || attribute[1] != '\0') {
+	bu_vls_printf(gedp->ged_result_str, "bad hyp attribute - %s", attribute ? attribute : "(null)");
 	return BRLCAD_ERROR;
     }
 

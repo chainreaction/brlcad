@@ -38,18 +38,35 @@ _ged_scale_rpc(struct ged *gedp, struct rt_rpc_internal *rpc, const char *attrib
 {
     RT_RPC_CK_MAGIC(rpc);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "scale_rpc: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'b':
 	case 'B':
-	    if (!rflag)
-		sf /= MAGNITUDE(rpc->rpc_B);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(rpc->rpc_B);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale rpc: vector B has zero length\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    VSCALE(rpc->rpc_B, rpc->rpc_B, sf);
 	    break;
 	case 'h':
 	case 'H':
-	    if (!rflag)
-		sf /= MAGNITUDE(rpc->rpc_H);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(rpc->rpc_H);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale rpc height: current height is zero\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    VSCALE(rpc->rpc_H, rpc->rpc_H, sf);
 	    break;

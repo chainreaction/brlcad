@@ -40,11 +40,22 @@ _ged_scale_ehy(struct ged *gedp, struct rt_ehy_internal *ehy, const char *attrib
 
     RT_EHY_CK_MAGIC(ehy);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "scale_ehy: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'h':
 	case 'H':
-	    if (!rflag)
-		sf /= MAGNITUDE(ehy->ehy_H);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(ehy->ehy_H);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale ehy height: current height is zero\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    VSCALE(ehy->ehy_H, ehy->ehy_H, sf);
 	    break;

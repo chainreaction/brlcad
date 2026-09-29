@@ -189,10 +189,10 @@ edarb_facedef(void *data, int argc, const char *argv[])
     struct bu_vls error_msg = BU_VLS_INIT_ZERO;
     static const char *usage = "arb face [a|b|c|d parameters]";
 
-    /* must be wanting help */
-    if (argc == 2) {
+    /* must be wanting help or missing required arguments */
+    if (argc < 4) {
 	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s %s", argv[0], argv[1], usage);
-	return GED_HELP;
+	return (argc == 2) ? GED_HELP : BRLCAD_ERROR;
     }
 
     GED_DB_LOOKUP(gedp, dp, (char *)argv[2], LOOKUP_QUIET, BRLCAD_ERROR);
@@ -390,7 +390,6 @@ Enter form of new face definition: ");
     }
 
     GED_DB_PUT_INTERN(gedp, dp, &intern, BRLCAD_ERROR);
-    rt_db_free_internal(&intern);
 
     return BRLCAD_OK;
 }

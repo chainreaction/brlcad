@@ -128,7 +128,6 @@ edarb_extrude(void *data, int argc, const char *argv[])
     }
 
     GED_DB_PUT_INTERN(gedp, dp, &intern, BRLCAD_ERROR);
-    rt_db_free_internal(&intern);
 
     return BRLCAD_OK;
 }
@@ -180,7 +179,6 @@ edarb_mirface(void *data, int argc, const char *argv[])
     }
 
     GED_DB_PUT_INTERN(gedp, dp, &intern, BRLCAD_ERROR);
-    rt_db_free_internal(&intern);
 
     return BRLCAD_OK;
 }
@@ -216,7 +214,7 @@ edarb_edgedir(void *data, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
-    if (bu_opt_int(NULL, 1, &argv[3], (void *)&edge) != 1) {
+    if (bu_opt_int(NULL, 1, &argv[3], (void *)&edge) != 1 || edge < 1 || edge > 12) {
 	bu_vls_printf(gedp->ged_result_str, "bad edge - %s", argv[3]);
 	return BRLCAD_ERROR;
     }
@@ -267,9 +265,9 @@ edarb_edgedir(void *data, int argc, const char *argv[])
     ret = editarb(gedp, arb, type, edge, slope, 1);
     if (ret == BRLCAD_OK) {
 	GED_DB_PUT_INTERN(gedp, dp, &intern, BRLCAD_ERROR);
+    } else {
+	rt_db_free_internal(&intern);
     }
-
-    rt_db_free_internal(&intern);
 
     return ret;
 }
@@ -331,7 +329,6 @@ edarb_permute(void *data, int argc, const char *argv[])
     }
 
     GED_DB_PUT_INTERN(gedp, dp, &intern, BRLCAD_ERROR);
-    rt_db_free_internal(&intern);
 
     return BRLCAD_OK;
 }

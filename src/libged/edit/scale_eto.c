@@ -39,10 +39,15 @@ _ged_scale_eto(struct ged *gedp, struct rt_eto_internal *eto, const char *attrib
 {
     RT_ETO_CK_MAGIC(eto);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "scale_eto: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'r':
 	case 'R': {
-	    fastf_t ch, cv, dh, newrad;
+	    fastf_t ch, cv, dh, newrad, mag_c;
 	    vect_t Nu;
 
 	    if (rflag)
@@ -61,7 +66,12 @@ _ged_scale_eto(struct ged *gedp, struct rt_eto_internal *eto, const char *attrib
 	    ch = sqrt(VDOT(eto->eto_C, eto->eto_C) - cv * cv);
 
 	    /* angle between C and Nu */
-	    dh = eto->eto_rd * cv / MAGNITUDE(eto->eto_C);
+	    mag_c = MAGNITUDE(eto->eto_C);
+	    if (ZERO(mag_c)) {
+		bu_vls_printf(gedp->ged_result_str, "cannot scale eto: vector C has zero length\n");
+		return BRLCAD_ERROR;
+	    }
+	    dh = eto->eto_rd * cv / mag_c;
 
 	    /* make sure revolved ellipse doesn't overlap itself */
 	    if (ch <= newrad && dh <= newrad)
@@ -81,6 +91,10 @@ _ged_scale_eto(struct ged *gedp, struct rt_eto_internal *eto, const char *attrib
 	    if (newrad < SQRT_SMALL_FASTF)
 		newrad = 4*SQRT_SMALL_FASTF;
 	    work = MAGNITUDE(eto->eto_C);
+	    if (ZERO(work)) {
+		bu_vls_printf(gedp->ged_result_str, "cannot scale eto: vector C has zero length\n");
+		return BRLCAD_ERROR;
+	    }
 	    if (newrad <= work) {
 		VMOVE(Nu, eto->eto_N);
 		VUNITIZE(Nu);
@@ -93,13 +107,19 @@ _ged_scale_eto(struct ged *gedp, struct rt_eto_internal *eto, const char *attrib
 	    break;
 	case 'c':
 	case 'C': {
-	    fastf_t ch, cv;
+	    fastf_t ch, cv, mag_c;
 	    vect_t Nu, Work;
 
-	    if (!rflag)
-		sf /= MAGNITUDE(eto->eto_C);
+	    mag_c = MAGNITUDE(eto->eto_C);
+	    if (!rflag) {
+		if (ZERO(mag_c)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale eto: vector C has zero length\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag_c;
+	    }
 
-	    if (sf * MAGNITUDE(eto->eto_C) >= eto->eto_rd) {
+	    if (sf * mag_c >= eto->eto_rd) {
 		VMOVE(Nu, eto->eto_N);
 		VUNITIZE(Nu);
 		VSCALE(Work, eto->eto_C, sf);

@@ -58,7 +58,7 @@ public:
     m_path_is_rooted(false),
     m_separator(separator)
   {
-    setup(std::string(uri_text), category);
+    setup(uri_text ? std::string(uri_text) : std::string(), category);
   };
 
   uri(std::string const &uri_text, scheme_category category = scheme_category::Hierarchical,

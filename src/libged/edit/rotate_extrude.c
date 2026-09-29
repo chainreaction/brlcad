@@ -40,6 +40,11 @@ _ged_rotate_extrude(struct ged *gedp, struct rt_extrude_internal *extrude, const
 {
     RT_EXTRUDE_CK_MAGIC(extrude);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "rotate_extrude: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'h':
 	case 'H':

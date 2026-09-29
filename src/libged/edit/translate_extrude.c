@@ -43,6 +43,11 @@ _ged_translate_extrude(struct ged *gedp, struct rt_extrude_internal *extrude, co
 
     VSCALE(tvec, tvec, gedp->dbip->dbi_local2base);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "translate_extrude: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'h':
 	case 'H':

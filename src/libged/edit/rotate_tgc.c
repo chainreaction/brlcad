@@ -39,6 +39,11 @@ _ged_rotate_tgc(struct ged *gedp, struct rt_tgc_internal *tgc, const char *attri
 {
     RT_TGC_CK_MAGIC(tgc);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "rotate_tgc: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'h':
 	case 'H':

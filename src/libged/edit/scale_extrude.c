@@ -41,11 +41,22 @@ _ged_scale_extrude(struct ged *gedp, struct rt_extrude_internal *extrude, const 
 
     RT_EXTRUDE_CK_MAGIC(extrude);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "scale_extrude: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'h':
 	case 'H':
-	    if (!rflag)
-		sf /= MAGNITUDE(extrude->h);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(extrude->h);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale extrude height: current height is zero\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    VSCALE(hvec, extrude->h, sf);
 

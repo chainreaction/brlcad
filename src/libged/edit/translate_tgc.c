@@ -44,6 +44,11 @@ _ged_translate_tgc(struct ged *gedp, struct rt_tgc_internal *tgc, const char *at
 
     VSCALE(tvec, tvec, gedp->dbip->dbi_local2base);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "translate_tgc: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'h':
 	case 'H':

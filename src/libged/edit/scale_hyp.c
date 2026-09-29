@@ -42,11 +42,22 @@ _ged_scale_hyp(struct ged *gedp, struct rt_hyp_internal *hyp, const char *attrib
 
     RT_HYP_CK_MAGIC(hyp);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "scale_hyp: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'h':
 	case 'H':
-	    if (!rflag)
-		sf /= MAGNITUDE(hyp->hyp_Hi);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(hyp->hyp_Hi);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale hyp height: current height is zero\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    switch (attribute[1]) {
 		case '\0':
@@ -67,8 +78,14 @@ _ged_scale_hyp(struct ged *gedp, struct rt_hyp_internal *hyp, const char *attrib
 	    break;
 	case 'a':
 	case 'A':
-	    if (!rflag)
-		sf /= MAGNITUDE(hyp->hyp_A);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(hyp->hyp_A);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale hyp: vector A has zero length\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    VSCALE(hyp->hyp_A, hyp->hyp_A, sf);
 	    break;

@@ -39,8 +39,8 @@ _ged_rotate_eto(struct ged *gedp, struct rt_eto_internal *eto, const char *attri
 {
     RT_ETO_CK_MAGIC(eto);
 
-    if (attribute[1] != '\0') {
-	bu_vls_printf(gedp->ged_result_str, "bad eto attribute - %s", attribute);
+    if (!attribute || attribute[0] == '\0' || attribute[1] != '\0') {
+	bu_vls_printf(gedp->ged_result_str, "bad eto attribute - %s", attribute ? attribute : "(null)");
 	return BRLCAD_ERROR;
     }
 

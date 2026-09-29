@@ -40,11 +40,22 @@ _ged_scale_ell(struct ged *gedp, struct rt_ell_internal *ell, const char *attrib
 
     RT_ELL_CK_MAGIC(ell);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "scale_ell: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'a':
 	case 'A':
-	    if (!rflag)
-		sf /= MAGNITUDE(ell->a);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(ell->a);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale ell: vector a has zero length\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    switch (attribute[1]) {
 		case '\0':
@@ -58,8 +69,16 @@ _ged_scale_ell(struct ged *gedp, struct rt_ell_internal *ell, const char *attrib
 			VSCALE(ell->a, ell->a, sf);
 			ma = MAGNITUDE(ell->a);
 			mb = MAGNITUDE(ell->b);
+			if (ZERO(mb)) {
+			    bu_vls_printf(gedp->ged_result_str, "cannot scale ell: vector b has zero length\n");
+			    return BRLCAD_ERROR;
+			}
 			VSCALE(ell->b, ell->b, ma/mb);
 			mb = MAGNITUDE(ell->c);
+			if (ZERO(mb)) {
+			    bu_vls_printf(gedp->ged_result_str, "cannot scale ell: vector c has zero length\n");
+			    return BRLCAD_ERROR;
+			}
 			VSCALE(ell->c, ell->c, ma/mb);
 		    } else {
 			bu_vls_printf(gedp->ged_result_str, "bad ell attribute - %s", attribute);
@@ -75,15 +94,27 @@ _ged_scale_ell(struct ged *gedp, struct rt_ell_internal *ell, const char *attrib
 	    break;
 	case 'b':
 	case 'B':
-	    if (!rflag)
-		sf /= MAGNITUDE(ell->b);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(ell->b);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale ell: vector b has zero length\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    VSCALE(ell->b, ell->b, sf);
 	    break;
 	case 'c':
 	case 'C':
-	    if (!rflag)
-		sf /= MAGNITUDE(ell->c);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(ell->c);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale ell: vector c has zero length\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    VSCALE(ell->c, ell->c, sf);
 	    break;

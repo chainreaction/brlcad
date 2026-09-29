@@ -38,18 +38,35 @@ _ged_scale_rhc(struct ged *gedp, struct rt_rhc_internal *rhc, const char *attrib
 {
     RT_RHC_CK_MAGIC(rhc);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "scale_rhc: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'b':
 	case 'B':
-	    if (!rflag)
-		sf /= MAGNITUDE(rhc->rhc_B);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(rhc->rhc_B);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale rhc: vector B has zero length\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    VSCALE(rhc->rhc_B, rhc->rhc_B, sf);
 	    break;
 	case 'h':
 	case 'H':
-	    if (!rflag)
-		sf /= MAGNITUDE(rhc->rhc_H);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(rhc->rhc_H);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale rhc height: current height is zero\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    VSCALE(rhc->rhc_H, rhc->rhc_H, sf);
 	    break;

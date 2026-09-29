@@ -1352,14 +1352,16 @@ cmd_checkpoint::exec(struct ged *gedp, void *u_data, int argc, const char **argv
     /* Use existing buffer entry or create a new one */
     struct rt_edit *s = ged_edit_buf_get(gedp, &dfp);
     bool is_new = (s == NULL);
+    struct bn_tol tol = BN_TOL_INIT_TOL;
     if (is_new) {
-	struct bn_tol tol = BN_TOL_INIT_TOL;
 	s = rt_edit_create(&dfp, gedp->dbip, &tol, NULL);
 	if (!s) {
 	    db_free_full_path(&dfp);
 	    return BRLCAD_ERROR;
 	}
 	ged_edit_buf_set(gedp, &dfp, s);
+    } else {
+	s->tol = &tol;
     }
 
     int ret = rt_edit_checkpoint(s);
@@ -1521,16 +1523,20 @@ cmd_perturb::dp_perturb(struct directory *dp)
     }
 
     if (!intern.idb_meth || !intern.idb_meth->ft_perturb) {
+	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
-    struct rt_db_internal *pintern;
-    if (intern.idb_meth->ft_perturb(&pintern, &intern, 1, lfactor) != BRLCAD_OK) {
+    struct rt_db_internal *pintern = NULL;
+    int ret = intern.idb_meth->ft_perturb(&pintern, &intern, 1, lfactor);
+    rt_db_free_internal(&intern);
+
+    if (ret != BRLCAD_OK || !pintern) {
 	bu_log("librt perturbation failed for %s\n", dp->d_namep);
-	return BRLCAD_ERROR;
-    }
-    if (!pintern) {
-	bu_log("librt perturbation failed for %s\n", dp->d_namep);
+	if (pintern) {
+	    rt_db_free_internal(pintern);
+	    BU_PUT(pintern, struct rt_db_internal);
+	}
 	return BRLCAD_ERROR;
     }
 
@@ -1541,15 +1547,17 @@ cmd_perturb::dp_perturb(struct directory *dp)
     if (ndp == RT_DIR_NULL) {
 	bu_log("Cannot add %s to directory\n", oname.c_str());
 	rt_db_free_internal(pintern);
+	BU_PUT(pintern, struct rt_db_internal);
 	return BRLCAD_ERROR;
     }
 
     if (rt_db_put_internal(ndp, dbip, pintern) < 0) {
 	bu_log("Failed to write %s to database\n", oname.c_str());
-	rt_db_free_internal(pintern);
+	BU_PUT(pintern, struct rt_db_internal);
 	return BRLCAD_ERROR;
     }
 
+    BU_PUT(pintern, struct rt_db_internal);
     return BRLCAD_OK;
 }
 

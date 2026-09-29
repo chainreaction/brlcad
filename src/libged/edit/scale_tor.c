@@ -41,6 +41,11 @@ _ged_scale_tor(struct ged *gedp, struct rt_tor_internal *tor, const char *attrib
 
     RT_TOR_CK_MAGIC(tor);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "scale_tor: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'a':
 	case 'A':

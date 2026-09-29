@@ -48,6 +48,11 @@ _ged_scale_metaball(struct ged *gedp, struct rt_metaball_internal *mbip, const c
 
     RT_METABALL_CK_MAGIC(mbip);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "scale_metaball: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     if (!rflag && sf > 0)
 	sf = -sf;
 

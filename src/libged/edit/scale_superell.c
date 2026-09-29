@@ -40,11 +40,22 @@ _ged_scale_superell(struct ged *gedp, struct rt_superell_internal *superell, con
 
     RT_SUPERELL_CK_MAGIC(superell);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "scale_superell: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'a':
 	case 'A':
-	    if (!rflag)
-		sf /= MAGNITUDE(superell->a);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(superell->a);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale superell: vector a has zero length\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    switch (attribute[1]) {
 		case '\0':
@@ -58,8 +69,16 @@ _ged_scale_superell(struct ged *gedp, struct rt_superell_internal *superell, con
 			VSCALE(superell->a, superell->a, sf);
 			ma = MAGNITUDE(superell->a);
 			mb = MAGNITUDE(superell->b);
+			if (ZERO(mb)) {
+			    bu_vls_printf(gedp->ged_result_str, "cannot scale superell: vector b has zero length\n");
+			    return BRLCAD_ERROR;
+			}
 			VSCALE(superell->b, superell->b, ma/mb);
 			mb = MAGNITUDE(superell->c);
+			if (ZERO(mb)) {
+			    bu_vls_printf(gedp->ged_result_str, "cannot scale superell: vector c has zero length\n");
+			    return BRLCAD_ERROR;
+			}
 			VSCALE(superell->c, superell->c, ma/mb);
 		    } else {
 			bu_vls_printf(gedp->ged_result_str, "bad ell attribute - %s", attribute);
@@ -75,15 +94,27 @@ _ged_scale_superell(struct ged *gedp, struct rt_superell_internal *superell, con
 	    break;
 	case 'b':
 	case 'B':
-	    if (!rflag)
-		sf /= MAGNITUDE(superell->b);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(superell->b);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale superell: vector b has zero length\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    VSCALE(superell->b, superell->b, sf);
 	    break;
 	case 'c':
 	case 'C':
-	    if (!rflag)
-		sf /= MAGNITUDE(superell->c);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(superell->c);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale superell: vector c has zero length\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    VSCALE(superell->c, superell->c, sf);
 	    break;

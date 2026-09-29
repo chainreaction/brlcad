@@ -40,11 +40,22 @@ _ged_scale_epa(struct ged *gedp, struct rt_epa_internal *epa, const char *attrib
 
     RT_EPA_CK_MAGIC(epa);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "scale_epa: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'h':
 	case 'H':
-	    if (!rflag)
-		sf /= MAGNITUDE(epa->epa_H);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(epa->epa_H);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale epa height: current height is zero\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    VSCALE(epa->epa_H, epa->epa_H, sf);
 	    break;

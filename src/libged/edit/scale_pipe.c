@@ -259,6 +259,11 @@ _ged_scale_pipe(struct ged *gedp, struct rt_pipe_internal *pipeip, const char *a
 
     RT_PIPE_CK_MAGIC(pipeip);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "scale_pipe: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     /* encode rflag as a negative scale so we don't have to pass it */
     if (!rflag && sf > 0)
 	sf = -sf;

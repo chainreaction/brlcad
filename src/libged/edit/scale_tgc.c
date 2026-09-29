@@ -41,11 +41,22 @@ _ged_scale_tgc(struct ged *gedp, struct rt_tgc_internal *tgc, const char *attrib
 
     RT_TGC_CK_MAGIC(tgc);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "scale_tgc: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'a':
 	case 'A':
-	    if (!rflag)
-		sf /= MAGNITUDE(tgc->a);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(tgc->a);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale tgc: vector a has zero length\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    switch (attribute[1]) {
 		case '\0':
@@ -58,6 +69,10 @@ _ged_scale_tgc(struct ged *gedp, struct rt_tgc_internal *tgc, const char *attrib
 			    VSCALE(tgc->a, tgc->a, sf);
 			    ma = MAGNITUDE(tgc->a);
 			    mb = MAGNITUDE(tgc->b);
+			    if (ZERO(mb)) {
+				bu_vls_printf(gedp->ged_result_str, "cannot scale tgc: vector b has zero length\n");
+				return BRLCAD_ERROR;
+			    }
 			    VSCALE(tgc->b, tgc->b, ma/mb);
 
 			    break;
@@ -68,10 +83,22 @@ _ged_scale_tgc(struct ged *gedp, struct rt_tgc_internal *tgc, const char *attrib
 				VSCALE(tgc->a, tgc->a, sf);
 				ma = MAGNITUDE(tgc->a);
 				mb = MAGNITUDE(tgc->b);
+				if (ZERO(mb)) {
+				    bu_vls_printf(gedp->ged_result_str, "cannot scale tgc: vector b has zero length\n");
+				    return BRLCAD_ERROR;
+				}
 				VSCALE(tgc->b, tgc->b, ma/mb);
 				mb = MAGNITUDE(tgc->c);
+				if (ZERO(mb)) {
+				    bu_vls_printf(gedp->ged_result_str, "cannot scale tgc: vector c has zero length\n");
+				    return BRLCAD_ERROR;
+				}
 				VSCALE(tgc->c, tgc->c, ma/mb);
 				mb = MAGNITUDE(tgc->d);
+				if (ZERO(mb)) {
+				    bu_vls_printf(gedp->ged_result_str, "cannot scale tgc: vector d has zero length\n");
+				    return BRLCAD_ERROR;
+				}
 				VSCALE(tgc->d, tgc->d, ma/mb);
 			    } else {
 				bu_vls_printf(gedp->ged_result_str, "bad tgc attribute - %s", attribute);
@@ -93,15 +120,27 @@ _ged_scale_tgc(struct ged *gedp, struct rt_tgc_internal *tgc, const char *attrib
 	    break;
 	case 'b':
 	case 'B':
-	    if (!rflag)
-		sf /= MAGNITUDE(tgc->b);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(tgc->b);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale tgc: vector b has zero length\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    VSCALE(tgc->b, tgc->b, sf);
 	    break;
 	case 'c':
 	case 'C':
-	    if (!rflag)
-		sf /= MAGNITUDE(tgc->c);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(tgc->c);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale tgc: vector c has zero length\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    switch (attribute[1]) {
 		case '\0':
@@ -112,6 +151,10 @@ _ged_scale_tgc(struct ged *gedp, struct rt_tgc_internal *tgc, const char *attrib
 		    VSCALE(tgc->c, tgc->c, sf);
 		    ma = MAGNITUDE(tgc->c);
 		    mb = MAGNITUDE(tgc->d);
+		    if (ZERO(mb)) {
+			bu_vls_printf(gedp->ged_result_str, "cannot scale tgc: vector d has zero length\n");
+			return BRLCAD_ERROR;
+		    }
 		    VSCALE(tgc->d, tgc->d, ma/mb);
 		    break;
 		default:
@@ -122,15 +165,27 @@ _ged_scale_tgc(struct ged *gedp, struct rt_tgc_internal *tgc, const char *attrib
 	    break;
 	case 'd':
 	case 'D':
-	    if (!rflag)
-		sf /= MAGNITUDE(tgc->d);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(tgc->d);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale tgc: vector d has zero length\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    VSCALE(tgc->d, tgc->d, sf);
 	    break;
 	case 'h':
 	case 'H':
-	    if (!rflag)
-		sf /= MAGNITUDE(tgc->h);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(tgc->h);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale tgc height: current height is zero\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    switch (attribute[1]) {
 		case '\0':

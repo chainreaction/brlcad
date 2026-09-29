@@ -38,10 +38,21 @@ _ged_scale_part(struct ged *gedp, struct rt_part_internal *part, const char *att
 {
     RT_PART_CK_MAGIC(part);
 
+    if (!attribute) {
+	bu_vls_printf(gedp->ged_result_str, "scale_part: missing attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'H':
-	    if (!rflag)
-		sf /= MAGNITUDE(part->part_H);
+	    if (!rflag) {
+		fastf_t mag = MAGNITUDE(part->part_H);
+		if (ZERO(mag)) {
+		    bu_vls_printf(gedp->ged_result_str, "cannot scale part height: current height is zero\n");
+		    return BRLCAD_ERROR;
+		}
+		sf /= mag;
+	    }
 
 	    VSCALE(part->part_H, part->part_H, sf);
 	    break;
