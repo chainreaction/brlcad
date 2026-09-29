@@ -46,8 +46,9 @@ check_walk_subtree(int *diff, struct bu_vls *msgs, struct db_i *dbip, struct db_
 {
     int idn1, idn2;
     struct directory *dp1, *dp2;
-    struct rt_wdb *wdbp = wdb_dbopen(dbip, RT_WDB_TYPE_DB_DEFAULT);
-    struct bn_tol *tol = &wdbp->wdb_tol;
+    struct bn_tol default_tol = BN_TOL_INIT_TOL;
+    struct rt_wdb *wdbp = dbip ? wdb_dbopen(dbip, RT_WDB_TYPE_DB_DEFAULT) : NULL;
+    struct bn_tol *tol = wdbp ? &wdbp->wdb_tol : &default_tol;
 
     if (!diff)
        	return;
@@ -137,8 +138,18 @@ check_walk(int *diff,
 	return;
     }
 
+    if (p1->fp_len == 0) {
+	return;
+    }
+
     struct directory *dp1 = DB_FULL_PATH_CUR_DIR(p1);
     struct directory *dp2 = DB_FULL_PATH_CUR_DIR(p2);
+
+    if (!dp1 || !dp2) {
+	if (dp1 != dp2)
+	    *diff = 1;
+	return;
+    }
 
     if (dp1->d_flags != dp2->d_flags) {
 	*diff = 1;
@@ -157,6 +168,9 @@ check_walk(int *diff,
 	struct rt_db_internal in1, in2;
 	struct rt_comb_internal *comb1, *comb2;
 
+	RT_DB_INTERNAL_INIT(&in1);
+	RT_DB_INTERNAL_INIT(&in2);
+
 	if (rt_db_get_internal5(&in1, dp1, dbip, NULL) < 0) {
 	    *diff = 1;
 	    return;
@@ -164,6 +178,14 @@ check_walk(int *diff,
 
 	if (rt_db_get_internal5(&in2, dp2, dbip, NULL) < 0) {
 	    *diff = 1;
+	    rt_db_free_internal(&in1);
+	    return;
+	}
+
+	if (in1.idb_type != ID_COMBINATION || in2.idb_type != ID_COMBINATION || !in1.idb_ptr || !in2.idb_ptr) {
+	    *diff = 1;
+	    rt_db_free_internal(&in1);
+	    rt_db_free_internal(&in2);
 	    return;
 	}
 
@@ -177,16 +199,19 @@ check_walk(int *diff,
     }
 
     /* If we have two solids, use db_diff_dp */
-    struct rt_wdb *wdbp = wdb_dbopen(dbip, RT_WDB_TYPE_DB_DEFAULT);
-    struct bn_tol *tol = &wdbp->wdb_tol;
+    struct bn_tol default_tol = BN_TOL_INIT_TOL;
+    struct rt_wdb *wdbp = dbip ? wdb_dbopen(dbip, RT_WDB_TYPE_DB_DEFAULT) : NULL;
+    struct bn_tol *tol = wdbp ? &wdbp->wdb_tol : &default_tol;
     int dr = db_diff_dp(dbip, dbip, dp1, dp2, tol, DB_COMPARE_ALL, NULL);
     if (dr != DIFF_UNCHANGED) {
-	char *p1s = db_path_to_string(p1);
-	char *p2s = db_path_to_string(p2);
-	bu_vls_printf(msgs, "%s and %s differ.\n", p1s, p2s);
-	bu_free(p1s, "p1s");
-	bu_free(p2s, "p2s");
 	*diff = 1;
+	if (msgs) {
+	    char *p1s = db_path_to_string(p1);
+	    char *p2s = db_path_to_string(p2);
+	    bu_vls_printf(msgs, "%s and %s differ.\n", p1s, p2s);
+	    bu_free(p1s, "p1s");
+	    bu_free(p2s, "p2s");
+	}
     }
 }
 
@@ -253,12 +278,6 @@ ged_gdiff_core(struct ged *gedp, int argc, const char *argv[])
     if (structure_diff) {
 	int diff = 0;
 	struct bu_vls smsgs = BU_VLS_INIT_ZERO;
-	struct db_full_path *lp, *rp;
-	BU_GET(lp, struct db_full_path);
-	db_full_path_init(lp);
-	BU_GET(rp, struct db_full_path);
-	db_full_path_init(rp);
-
 	struct directory *dp1, *dp2;
 	if ((dp1 = db_lookup(gedp->dbip, left_obj, LOOKUP_NOISY)) == RT_DIR_NULL) {
 	    return BRLCAD_ERROR;
@@ -266,6 +285,12 @@ ged_gdiff_core(struct ged *gedp, int argc, const char *argv[])
 	if ((dp2 = db_lookup(gedp->dbip, right_obj, LOOKUP_NOISY)) == RT_DIR_NULL) {
 	    return BRLCAD_ERROR;
 	}
+
+	struct db_full_path *lp, *rp;
+	BU_GET(lp, struct db_full_path);
+	db_full_path_init(lp);
+	BU_GET(rp, struct db_full_path);
+	db_full_path_init(rp);
 
 	db_add_node_to_full_path(lp, dp1);
 	db_add_node_to_full_path(rp, dp2);
@@ -344,7 +369,11 @@ ged_gdiff_core(struct ged *gedp, int argc, const char *argv[])
     }
     tol.dist = len_tol;
 
-    analyze_raydiff(&results, gedp->dbip, left_obj, right_obj, &tol, !grazereport);
+    results = NULL;
+    if (analyze_raydiff(&results, gedp->dbip, left_obj, right_obj, &tol, !grazereport) < 0 || !results) {
+	bu_vls_printf(gedp->ged_result_str, "Error: raydiff analysis failed\n");
+	return BRLCAD_ERROR;
+    }
 
     /* TODO - may want to integrate with a "regular" diff and report intelligently.  Needs
      * some thought. */

@@ -32,10 +32,7 @@
 #include "../ged_private.h"
 
 
-static int frac_stat;
-
-
-static void
+static int
 fracture_add_nmg_part(struct ged *gedp, char *newname, struct model *m)
 {
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
@@ -43,12 +40,11 @@ fracture_add_nmg_part(struct ged *gedp, char *newname, struct model *m)
     struct directory *new_dp;
     struct nmgregion *r;
 
-    if (db_lookup(gedp->dbip,  newname, LOOKUP_QUIET) != RT_DIR_NULL) {
+    if (db_lookup(gedp->dbip, newname, LOOKUP_QUIET) != RT_DIR_NULL) {
 	bu_vls_printf(gedp->ged_result_str, "%s: already exists\n", newname);
 	/* Free memory here */
 	nmg_km(m);
-	frac_stat = 1;
-	return;
+	return -1;
     }
 
     new_dp = db_diradd(gedp->dbip, newname, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&new_intern.idb_type);
@@ -56,13 +52,13 @@ fracture_add_nmg_part(struct ged *gedp, char *newname, struct model *m)
 	bu_vls_printf(gedp->ged_result_str,
 		      "Failed to add new object name (%s) to directory - aborting!!\n",
 		      newname);
-	return;
+	nmg_km(m);
+	return -1;
     }
 
     /* make sure the geometry/bounding boxes are up to date */
     for (BU_LIST_FOR(r, nmgregion, &m->r_hd))
 	nmg_region_a(r, &wdbp->wdb_tol);
-
 
     /* Export NMG as a new solid */
     RT_DB_INTERNAL_INIT(&new_intern);
@@ -75,12 +71,11 @@ fracture_add_nmg_part(struct ged *gedp, char *newname, struct model *m)
 	/* Free memory */
 	nmg_km(m);
 	bu_vls_printf(gedp->ged_result_str, "rt_db_put_internal() failure\n");
-	frac_stat = 1;
-	return;
+	return -1;
     }
     /* Internal representation has been freed by rt_db_put_internal */
     new_intern.idb_ptr = (void *)NULL;
-    frac_stat = 0;
+    return 0;
 }
 
 
@@ -91,8 +86,8 @@ ged_fracture_core(struct ged *gedp, int argc, const char *argv[])
     struct directory *old_dp;
     struct rt_db_internal old_intern;
     struct model *m, *new_model;
-    char newname[32];
-    char prefix[31];
+    char newname[256];
+    char prefix[256];
     int maxdigits;
     struct nmgregion *r, *new_r;
     struct shell *s, *new_s;
@@ -144,6 +139,12 @@ ged_fracture_core(struct ged *gedp, int argc, const char *argv[])
     /* how many characters of the solid names do we reserve for digits? */
     nmg_count_shell_kids(m, &tf, &tw, &tp);
 
+    if (tf + tw + tp == 0) {
+	bu_vls_printf(gedp->ged_result_str, "NMG solid '%s' has no elements to fracture.\n", argv[1]);
+	rt_db_free_internal(&old_intern);
+	return BRLCAD_ERROR;
+    }
+
     maxdigits = (int)(log10((double)(tf+tw+tp)) + 1.0);
 
     bu_vls_printf(gedp->ged_result_str, "%zu = %d digits\n", tf+tw+tp, maxdigits);
@@ -170,10 +171,12 @@ ged_fracture_core(struct ged *gedp, int argc, const char *argv[])
 		v = s->vu_p->v_p;
 
 		new_model = nmg_mm();
-		nmg_mrsv(new_model);
-		new_s = BU_LIST_FIRST(shell, &r->s_hd);
+		new_r = nmg_mrsv(new_model);
+		new_s = BU_LIST_FIRST(shell, &new_r->s_hd);
 		if (!new_s || !new_s->vu_p) {
 		    bu_log("ERROR: nmg structural problem, fracture.c(%d)\n", __LINE__);
+		    nmg_km(new_model);
+		    rt_db_free_internal(&old_intern);
 		    return BRLCAD_ERROR;
 		}
 		v_new = new_s->vu_p->v_p;
@@ -181,10 +184,12 @@ ged_fracture_core(struct ged *gedp, int argc, const char *argv[])
 		    nmg_vertex_gv(v_new, v->vg_p->coord);
 		}
 
-		snprintf(newname, 32, "%s%0*d", prefix, maxdigits, i++);
+		snprintf(newname, sizeof(newname), "%s%0*d", prefix, maxdigits, i++);
 
-		fracture_add_nmg_part(gedp, newname, new_model);
-		if (frac_stat) return BRLCAD_ERROR;
+		if (fracture_add_nmg_part(gedp, newname, new_model) < 0) {
+		    rt_db_free_internal(&old_intern);
+		    return BRLCAD_ERROR;
+		}
 		continue;
 	    }
 	    for (BU_LIST_FOR(fu, faceuse, &s->fu_hd)) {
@@ -202,13 +207,16 @@ ged_fracture_core(struct ged *gedp, int argc, const char *argv[])
 		NMG_CK_SHELL(new_s);
 		nmg_dup_face(fu, new_s);
 
-		snprintf(newname, 32, "%s%0*d", prefix, maxdigits, i++);
-		fracture_add_nmg_part(gedp, newname, new_model);
-		if (frac_stat) return BRLCAD_ERROR;
+		snprintf(newname, sizeof(newname), "%s%0*d", prefix, maxdigits, i++);
+		if (fracture_add_nmg_part(gedp, newname, new_model) < 0) {
+		    rt_db_free_internal(&old_intern);
+		    return BRLCAD_ERROR;
+		}
 	    }
 	}
     }
 
+    rt_db_free_internal(&old_intern);
     return BRLCAD_OK;
 }
 

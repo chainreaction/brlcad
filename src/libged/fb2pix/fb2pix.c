@@ -67,12 +67,24 @@ fb2pix_get_args(struct fb2pix_state *s, int argc, char **argv)
 	    case 's':
 		/* square size */
 		s->screen_height = s->screen_width = atoi(bu_optarg);
+		if (s->screen_width <= 0) {
+		    bu_log("fb-pix: invalid square size <= 0: %s\n", bu_optarg);
+		    return 0;
+		}
 		break;
 	    case 'w':
 		s->screen_width = atoi(bu_optarg);
+		if (s->screen_width <= 0) {
+		    bu_log("fb-pix: invalid width <= 0: %s\n", bu_optarg);
+		    return 0;
+		}
 		break;
 	    case 'n':
 		s->screen_height = atoi(bu_optarg);
+		if (s->screen_height <= 0) {
+		    bu_log("fb-pix: invalid height <= 0: %s\n", bu_optarg);
+		    return 0;
+		}
 		break;
 
 	    default:		/* 'h' '?' */
@@ -89,16 +101,14 @@ fb2pix_get_args(struct fb2pix_state *s, int argc, char **argv)
 	s->file_name = argv[bu_optind];
 	s->outfp = fopen(s->file_name, "wb");
 	if (s->outfp == NULL) {
-	    fprintf(stderr,
-			  "fb-pix: cannot open \"%s\" for writing\n",
-			  s->file_name);
+	    bu_log("fb-pix: cannot open \"%s\" for writing\n", s->file_name);
 	    return 0;
 	}
 	(void)bu_fchmod(fileno(s->outfp), 0444);
     }
 
     if (argc > ++bu_optind)
-	fprintf(stderr, "fb-pix: excess argument(s) ignored\n");
+	bu_log("fb-pix: excess argument(s) ignored\n");
 
     return 1;		/* OK */
 }
@@ -153,7 +163,7 @@ ged_fb2pix_core(struct ged *gedp, int argc, const char *argv[])
 		      f2ps.screen_width, f2ps.screen_height,
 		      f2ps.crunch, f2ps.inverse, gedp->ged_result_str);
 
-    if (f2ps.outfp != stdout)
+    if (f2ps.outfp && f2ps.outfp != stdout)
 	fclose(f2ps.outfp);
 
     if (ret == BRLCAD_OK) {

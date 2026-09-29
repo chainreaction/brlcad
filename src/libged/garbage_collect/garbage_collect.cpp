@@ -145,11 +145,15 @@ ged_garbage_collect_core(struct ged *gedp, int argc, const char *argv[])
     /* For validation purposes, save the list of tops object names */
     db_update_nref(gedp->dbip);
     path_cnt = db_ls(gedp->dbip, DB_LS_TOPS, NULL, &paths);
-    for (int i = 0; i < path_cnt; i++) {
-	old_top_objs.insert(std::string(paths[i]->d_namep));
+    if (path_cnt > 0 && paths) {
+	for (int i = 0; i < path_cnt; i++) {
+	    old_top_objs.insert(std::string(paths[i]->d_namep));
+	}
     }
-    bu_free(paths, "free db_ls output");
-    paths = NULL;
+    if (paths) {
+	bu_free(paths, "free db_ls output");
+	paths = NULL;
+    }
 
     /* In addition to the database data itself, we also want to restore any
      * views to their original state when we open the garbage collected
@@ -225,8 +229,10 @@ ged_garbage_collect_core(struct ged *gedp, int argc, const char *argv[])
 	    }
 	    int flags = (dp->d_flags & RT_DIR_COMB) ? ((dp->d_flags & RT_DIR_REGION) ? RT_DIR_COMB | RT_DIR_REGION : RT_DIR_COMB) : RT_DIR_SOLID;
 	    wdb_export_external(gc_wdbp, &ext, dp->d_namep, flags, id);
+	    bu_free_external(&ext);
     FOR_ALL_DIRECTORY_END;
     db_close(gc_wdbp->dbip);
+    gc_wdbp = NULL;
 
 
     // If we got this far, we need to close the current database, open the new
@@ -246,11 +252,15 @@ ged_garbage_collect_core(struct ged *gedp, int argc, const char *argv[])
     // See what we've got for tops objects in the new file
     db_update_nref(gedp->dbip);
     path_cnt = db_ls(gedp->dbip, DB_LS_TOPS, NULL, &paths);
-    for (int i = 0; i < path_cnt; i++) {
-	new_top_objs.insert(std::string(paths[i]->d_namep));
+    if (path_cnt > 0 && paths) {
+	for (int i = 0; i < path_cnt; i++) {
+	    new_top_objs.insert(std::string(paths[i]->d_namep));
+	}
     }
-    bu_free(paths, "free db_ls output");
-    paths = NULL;
+    if (paths) {
+	bu_free(paths, "free db_ls output");
+	paths = NULL;
+    }
 
     // Validate the current tops set against the original
     std::set_difference(old_top_objs.begin(), old_top_objs.end(), new_top_objs.begin(), new_top_objs.end(), std::inserter(missing_old_top_objs, missing_old_top_objs.end()));
@@ -300,6 +310,15 @@ ged_garbage_collect_core(struct ged *gedp, int argc, const char *argv[])
 	goto gc_cleanup;
     }
     ofile << cfile.rdbuf();
+    if (!ofile.good()) {
+	bu_vls_printf(gedp->ged_result_str, "ERROR: failed while writing backup file %s.\n", bu_vls_cstr(&bkup_file));
+	bu_vls_printf(gedp->ged_result_str, "Aborting garbage collect, database unchanged.");
+	cfile.close();
+	ofile.close();
+	bu_file_delete(bu_vls_cstr(&bkup_file));
+	ret = BRLCAD_ERROR;
+	goto gc_cleanup;
+    }
     cfile.close();
     ofile.close();
 
@@ -333,8 +352,12 @@ ged_garbage_collect_core(struct ged *gedp, int argc, const char *argv[])
     // to the garbage collecting process, so they are done after the rename.
     new_file_size = bu_file_size(bu_vls_cstr(&fpath));
     if (new_file_size < old_file_size) {
-	fs_percent = ((fastf_t)old_file_size - (fastf_t)new_file_size)/(fastf_t)old_file_size * 100;
-	bu_vls_printf(gedp->ged_result_str, "Reduced by %d bytes (%g%% savings)\n", old_file_size - new_file_size, fs_percent);
+	if (old_file_size > 0) {
+	    fs_percent = ((fastf_t)old_file_size - (fastf_t)new_file_size)/(fastf_t)old_file_size * 100;
+	    bu_vls_printf(gedp->ged_result_str, "Reduced by %d bytes (%g%% savings)\n", old_file_size - new_file_size, fs_percent);
+	} else {
+	    bu_vls_printf(gedp->ged_result_str, "Reduced by %d bytes\n", old_file_size - new_file_size);
+	}
 	if (fs_percent > 50.0 && old_file_size > 512) {
 	    bu_vls_printf(gedp->ged_result_str, "WARNING: Database size decreased substantially (more than 50%%)\n");
 	    verify_failure++;
@@ -344,8 +367,12 @@ ged_garbage_collect_core(struct ged *gedp, int argc, const char *argv[])
 	bu_vls_printf(gedp->ged_result_str, "Database size did NOT change.\n");
     }
     if (new_file_size > old_file_size) {
-	fs_percent = ((fastf_t)new_file_size - (fastf_t)old_file_size)/(fastf_t)old_file_size * 100;
-	bu_vls_printf(gedp->ged_result_str, "Increased by %d bytes (%g%% savings)\n", new_file_size - old_file_size, fs_percent);
+	if (old_file_size > 0) {
+	    fs_percent = ((fastf_t)new_file_size - (fastf_t)old_file_size)/(fastf_t)old_file_size * 100;
+	    bu_vls_printf(gedp->ged_result_str, "Increased by %d bytes (%g%% savings)\n", new_file_size - old_file_size, fs_percent);
+	} else {
+	    bu_vls_printf(gedp->ged_result_str, "Increased by %d bytes\n", new_file_size - old_file_size);
+	}
 	if (old_file_size > 512) {
 	    bu_vls_printf(gedp->ged_result_str, "Database got bigger!  This should generally not happen.\n");
 	    verify_failure++;
@@ -362,6 +389,9 @@ ged_garbage_collect_core(struct ged *gedp, int argc, const char *argv[])
     }
 
 gc_cleanup:
+    if (ret != BRLCAD_OK && bu_vls_strlen(&working_file)) {
+	bu_file_delete(bu_vls_cstr(&working_file));
+    }
     bu_vls_free(&bkup_file);
     bu_vls_free(&fdir);
     bu_vls_free(&fname);

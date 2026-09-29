@@ -41,10 +41,14 @@
 int
 main(int argc, const char *argv[])
 {
+    if (argc < 2 || !argv || !argv[0]) {
+	return BRLCAD_ERROR;
+    }
+
     bu_setprogname(argv[0]);
     argc--; argv++;
 
-    if (argc < 1 || !argv) {
+    if (!argv[0]) {
 	return BRLCAD_ERROR;
     }
 
@@ -96,6 +100,11 @@ main(int argc, const char *argv[])
     }
 
     const struct ged_cmd_process *p = plugin->p;
+    if (!p->i || !p->i->func) {
+	bu_log("Invalid plugin implementation in '%s'\n", pfile);
+	bu_dlclose(dl_handle);
+	return BRLCAD_ERROR;
+    }
     int ret =  p->i->func(argc, argv);
     bu_dlclose(dl_handle);
     return ret;

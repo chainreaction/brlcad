@@ -552,6 +552,7 @@ ged_init(struct ged *gedp)
 
     /* Initialize callbacks */
     BU_GET(gedp->ged_cbs, struct ged_callback_state);
+    memset(gedp->ged_cbs, 0, sizeof(struct ged_callback_state));
     gedp->ged_refresh_handler = NULL;
     gedp->ged_refresh_clientdata = NULL;
     gedp->ged_output_handler = NULL;
@@ -628,9 +629,9 @@ ged_free(struct ged *gedp)
 	bu_ptbl_free(&gedp->free_solids);
 
 	if (gedp->i->ged_gdp->gd_headDisplay)
-	    BU_PUT(gedp->i->ged_gdp->gd_headDisplay, struct bu_vls);
+	    BU_PUT(gedp->i->ged_gdp->gd_headDisplay, struct bu_list);
 	if (gedp->i->ged_gdp->gd_headVDraw)
-	    BU_PUT(gedp->i->ged_gdp->gd_headVDraw, struct bu_vls);
+	    BU_PUT(gedp->i->ged_gdp->gd_headVDraw, struct bu_list);
 	qray_free(gedp->i->ged_gdp);
 	BU_PUT(gedp->i->ged_gdp, struct ged_drawable);
     }
@@ -650,7 +651,10 @@ ged_free(struct ged *gedp)
 	BU_PUT(gedp->ged_result_str, struct bu_vls);
     }
 
-    BU_PUT(gedp->ged_cbs, struct ged_callback_state);
+    if (gedp->ged_cbs) {
+	BU_PUT(gedp->ged_cbs, struct ged_callback_state);
+	gedp->ged_cbs = NULL;
+    }
 
     bu_ptbl_free(&gedp->ged_subp);
 
@@ -729,6 +733,10 @@ ged_open(const char *dbtype, const char *filename, int existing_only)
 	    bu_log("wdb_open %s target type not recognized", dbtype);
 	    return GED_NULL;
 	}
+    }
+
+    if (!wdbp || !wdbp->dbip) {
+	return GED_NULL;
     }
 
     gedp = ged_create();
@@ -813,6 +821,7 @@ ged_clbk_exec(struct bu_vls *log, struct ged *gedp, int limit, bu_clbk_t f, int 
 		lexec_stack.pop();
 	    }
 	}
+	gedip->clbk_recursion_depth_cnt[f]--;
 	return BRLCAD_ERROR;
     }
 
@@ -828,6 +837,9 @@ ged_clbk_exec(struct bu_vls *log, struct ged *gedp, int limit, bu_clbk_t f, int 
 void
 ged_refresh_cb(struct ged *gedp)
 {
+    if (!gedp || !gedp->ged_cbs)
+	return;
+
     if (gedp->ged_refresh_handler != GED_REFRESH_FUNC_NULL) {
 	gedp->ged_cbs->ged_refresh_handler_cnt++;
 	if (gedp->ged_cbs->ged_refresh_handler_cnt > 1) {
@@ -841,6 +853,9 @@ ged_refresh_cb(struct ged *gedp)
 void
 ged_output_handler_cb(struct ged *gedp, char *str)
 {
+    if (!gedp || !gedp->ged_cbs)
+	return;
+
     if (gedp->ged_output_handler != (void (*)(struct ged *, char *))0) {
 	gedp->ged_cbs->ged_output_handler_cnt++;
 	if (gedp->ged_cbs->ged_output_handler_cnt > 1) {
@@ -854,6 +869,9 @@ ged_output_handler_cb(struct ged *gedp, char *str)
 void
 ged_create_vlist_solid_cb(struct ged *gedp, struct bv_scene_obj *s)
 {
+    if (!gedp || !gedp->ged_cbs)
+	return;
+
     if (gedp->ged_create_vlist_scene_obj_callback != GED_CREATE_VLIST_SOLID_FUNC_NULL) {
 	gedp->ged_cbs->ged_create_vlist_scene_obj_callback_cnt++;
 	if (gedp->ged_cbs->ged_create_vlist_scene_obj_callback_cnt > 1) {
@@ -867,6 +885,9 @@ ged_create_vlist_solid_cb(struct ged *gedp, struct bv_scene_obj *s)
 void
 ged_create_vlist_display_list_cb(struct ged *gedp, struct display_list *dl)
 {
+    if (!gedp || !gedp->ged_cbs)
+	return;
+
     if (gedp->ged_create_vlist_display_list_callback != GED_CREATE_VLIST_DISPLAY_LIST_FUNC_NULL) {
 	gedp->ged_cbs->ged_create_vlist_display_list_callback_cnt++;
 	if (gedp->ged_cbs->ged_create_vlist_display_list_callback_cnt > 1) {
@@ -880,6 +901,9 @@ ged_create_vlist_display_list_cb(struct ged *gedp, struct display_list *dl)
 void
 ged_destroy_vlist_cb(struct ged *gedp, unsigned int i, int j)
 {
+    if (!gedp || !gedp->ged_cbs)
+	return;
+
     if (gedp->ged_destroy_vlist_callback != GED_DESTROY_VLIST_FUNC_NULL) {
 	gedp->ged_cbs->ged_destroy_vlist_callback_cnt++;
 	if (gedp->ged_cbs->ged_destroy_vlist_callback_cnt > 1) {

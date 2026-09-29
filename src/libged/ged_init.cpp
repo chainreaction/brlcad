@@ -128,7 +128,7 @@ ged_list_command_array(const char * const **cl, size_t *cnt)
 	return 0;
     };
     bu_plugin_cmd_foreach(cb, (void *)&names);
-    char **alist = (char **)bu_calloc(names.size(), sizeof(char *), "ged cmd argv");
+    char **alist = (char **)bu_calloc(names.size() + 1, sizeof(char *), "ged cmd argv");
     size_t len = 0;
     for (auto &n : names) {
 	alist[len++] = bu_strdup(n.c_str());
@@ -160,6 +160,8 @@ scan_plugins(void)
     size_t ged_nfiles = bu_file_list(ppath, bu_vls_cstr(&pattern), &ged_filenames);
 
     for (size_t i = 0; i < ged_nfiles; i++) {
+	if (!ged_filenames[i])
+	    continue;
 	char pfile[MAXPATHLEN] = {0};
 	bu_dir(pfile, MAXPATHLEN, BU_DIR_LIBEXEC, "ged", ged_filenames[i], NULL);
 

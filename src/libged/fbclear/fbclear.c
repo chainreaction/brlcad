@@ -50,7 +50,7 @@ ged_fbclear_core(struct ged *gedp, int argc, const char *argv[])
     static const char usage[] = "\nUsage: fbclear [rgb]";
 
     int ret;
-    unsigned char clearColor[3] = {0.0, 0.0 ,0.0};
+    unsigned char clearColor[3] = {0, 0, 0};
 
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
@@ -74,7 +74,7 @@ ged_fbclear_core(struct ged *gedp, int argc, const char *argv[])
 	int r, g, b;
 
 	if (sscanf(argv[1], "%d %d %d", &r, &g, &b) != 3) {
-	    bu_log("fb_clear: bad color spec - %s", argv[1]);
+	    bu_vls_printf(gedp->ged_result_str, "fbclear: bad color spec - %s\n", argv[1]);
 	    return BRLCAD_ERROR;
 	}
 
@@ -82,7 +82,21 @@ ged_fbclear_core(struct ged *gedp, int argc, const char *argv[])
 	clearColor[GRN] = FB_CONSTRAIN(g, 0, 255);
 	clearColor[BLU] = FB_CONSTRAIN(b, 0, 255);
 
-    } else if (argc > 2) {
+    } else if (argc == 4) {
+	int r, g, b;
+
+	if (sscanf(argv[1], "%d", &r) != 1 ||
+	    sscanf(argv[2], "%d", &g) != 1 ||
+	    sscanf(argv[3], "%d", &b) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "fbclear: bad color spec - %s %s %s\n", argv[1], argv[2], argv[3]);
+	    return BRLCAD_ERROR;
+	}
+
+	clearColor[RED] = FB_CONSTRAIN(r, 0, 255);
+	clearColor[GRN] = FB_CONSTRAIN(g, 0, 255);
+	clearColor[BLU] = FB_CONSTRAIN(b, 0, 255);
+
+    } else if (argc != 1) {
 	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
 	return BRLCAD_ERROR;
     }
