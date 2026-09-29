@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 363,
-    "pending_files": 3130,
-    "last_updated": "2026-09-28T03:30:00Z",
-    "total_issues": 245,
-    "reviewed_count": 363
+    "reviewed_files": 384,
+    "pending_files": 3109,
+    "last_updated": "2026-09-29T02:35:00Z",
+    "total_issues": 246,
+    "reviewed_count": 384
   },
   "files": [
     {
@@ -22718,28 +22718,32 @@
       "path": "src/libged/decompose/decompose.c",
       "subsystem": "src/libged",
       "lines": 221,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2168,
       "path": "src/libged/delay/delay.c",
       "subsystem": "src/libged",
       "lines": 83,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2169,
       "path": "src/libged/dir2ae/dir2ae.c",
       "subsystem": "src/libged",
       "lines": 101,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -22748,88 +22752,104 @@
       "path": "src/libged/display_list.c",
       "subsystem": "src/libged",
       "lines": 941,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2171,
       "path": "src/libged/dm/dm.c",
       "subsystem": "src/libged",
       "lines": 845,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2172,
       "path": "src/libged/dm/ert.cpp",
       "subsystem": "src/libged",
       "lines": 228,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2173,
       "path": "src/libged/dm/screengrab.c",
       "subsystem": "src/libged",
       "lines": 191,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2174,
       "path": "src/libged/draw.cpp",
       "subsystem": "src/libged",
       "lines": 1051,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2175,
       "path": "src/libged/draw/bigE.c",
       "subsystem": "src/libged",
       "lines": 2134,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2176,
       "path": "src/libged/draw/draw.c",
       "subsystem": "src/libged",
       "lines": 1784,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2177,
       "path": "src/libged/draw/draw2.cpp",
       "subsystem": "src/libged",
       "lines": 334,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2178,
       "path": "src/libged/draw/ged_draw.h",
       "subsystem": "src/libged",
       "lines": 130,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -22838,68 +22858,80 @@
       "path": "src/libged/draw/loadview.cpp",
       "subsystem": "src/libged",
       "lines": 476,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2180,
       "path": "src/libged/draw/preview.cpp",
       "subsystem": "src/libged",
       "lines": 471,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2181,
       "path": "src/libged/dsp/dsp.c",
       "subsystem": "src/libged",
       "lines": 168,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2182,
       "path": "src/libged/dump/dump.c",
       "subsystem": "src/libged",
       "lines": 92,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2183,
       "path": "src/libged/dup/dup.c",
       "subsystem": "src/libged",
       "lines": 271,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2184,
       "path": "src/libged/eac/eac.c",
       "subsystem": "src/libged",
       "lines": 126,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2185,
       "path": "src/libged/echo/echo.c",
       "subsystem": "src/libged",
       "lines": 71,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -22908,18 +22940,20 @@
       "path": "src/libged/edcodes/edcodes.c",
       "subsystem": "src/libged",
       "lines": 312,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0246"
+      ]
     },
     {
       "id": 2187,
       "path": "src/libged/edcomb/edcomb.c",
       "subsystem": "src/libged",
       "lines": 110,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T02:35:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
