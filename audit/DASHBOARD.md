@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-29 02:35:00 UTC
+**Last Updated:** 2026-09-29 04:30:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 966 (27.7%)
-- **Files Pending Review:** 2527
-- **Total Issues Identified:** 248
+- **Files Reviewed:** 988 (28.3%)
+- **Files Pending Review:** 2505
+- **Total Issues Identified:** 249
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 176 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 177 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 49 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 248
+- **Fixed (Committed):** 249
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -92,7 +92,7 @@
 | `src/libdm` | 80 | 80 | 100.0% | 1 |
 | `src/libfft` | 8 | 8 | 100.0% | 1 |
 | `src/libgcv` | 111 | 111 | 100.0% | 1 |
-| `src/libged` | 509 | 185 | 36.3% | 6 |
+| `src/libged` | 509 | 207 | 40.7% | 7 |
 | `src/libicv` | 34 | 0 | 0.0% | 0 |
 | `src/libnmg` | 54 | 0 | 0.0% | 0 |
 | `src/liboptical` | 46 | 0 | 0.0% | 0 |
@@ -365,6 +365,7 @@
 | `SEC-0246` | **Sev 2** | Memory Leaks, Buffer Overflow, Division by Zero, Out-of-bounds Memory Access, and Null Pointer Dereferences | `src/libged (Batch 4: decompose, delay, display_list, dm, draw, dsp, dump, dup, eac, edcodes)` | `FIXED` | In libged Batch 4: fixed memory leaks on non-NMG solids and db_lookup/db_diradd failures, replaced sprintf with snprintf, and eliminated double-free of new_m in decompose; validated sec/usec in delay; added NULL checks across display list erase/hash helpers and handled invent_solid failure; guarded argc > 0, freed dm_name leaks, and corrected return status in dm; guarded division by zero in aspect ratio, fixed loop index typo, and freed bu_vls in ert; freed dm_name on help path, added ndmp NULL guard, fixed argv bounds, and freed idata on failure in screengrab; guarded division by zero, plugged db_intern leaks in csg_wireframe_update and brep_adaptive_plot, and cleaned up draw_scene error paths in draw; resolved TODO by freeing dgcdp, plugged ap leak, and prevented duplicate ptbl initializations in bigE; freed brep_intern and obj_path in draw.c; guarded dbi_state and corrected view state lookup loop in draw2; prevented size_t underflows, freed tcl_argv, fixed orientation quaternion bounds, and guarded against division by zero in loadview; prevented buffer overflow in ged_cm_tree, checked argc >= 2 before fopen, and freed gd_rt_cmd and ged_tmp_uptrs in preview; validated xy argument count, fixed off-by-one bounds check, fixed intern2 typo in diff subcommand, and freed intern on lookup/read errors in dsp; used wdb_close in dump; enforced max_entries check to prevent array bounds overflow in dup; freed vls on read error, checked ID_COMBINATION, and used rt_db_free_internal in eac; added NULL pointer checks in comparisons, checked argc >= 2, freed av on fopen error, and used rt_db_free_internal in edcodes. |
 | `SEC-0247` | **Sev 2** | Memory Leaks, Double-Free, Dangling Pointer, Division by Zero, Out-of-bounds Memory Access, and Null Pointer Dereferences | `src/libged (Batch 5: edit)` | `FIXED` | In libged Batch 5 (edit commands): eliminated double-free hazards where rt_db_free_internal was called after GED_DB_PUT_INTERN in edarb and facedef; added ARB edge bounds check and validated argc in facedef; scoped bn_tol to function scope in cmd_checkpoint::exec to prevent dangling s->tol; freed intern and container struct on all paths and prevented double-free of pintern in cmd_perturb; guarded attribute NULL pointers and empty strings across rotate_*, scale_*, and translate_*; prevented floating-point division by zero on vector magnitudes across scale_* commands; and guarded uri constructor against NULL text pointer. |
 | `SEC-0248` | **Sev 2** | Memory Leaks, Out-of-bounds Memory Access, Logic Errors, and Null Pointer Dereferences | `src/libged (Batch 6: editit, edmater, env, env2c, erase, erase2, exec, exists, expand, eye_pos)` | `FIXED` | In libged Batch 6: fixed bu_opt_desc array indexing collision (d[0]..d[4]) and option parse error handling in editit; corrected argc passed to wmater, guarded argc <= 1, and aligned malloc tags in edmater; guarded NULL gedp and validated argc in env; validated argc range, checked bu_opt_parse return, and caught std::exception in env2c; plugged new_argv and bu_vls memory leaks, guarded avs bounds, and corrected option skipping in erase; checked bu_opt_parse, guarded argc <= 0 and bvs NULL in erase2; guarded argv[0] NULL dereference, checked gedp->i->i, and unwound recursion counters and exec_stack on recursion limit exceeded in exec; guarded out-of-bounds pointer advances and NULL dereferences in exists grammar and token lexer; reset backslash state per argument, used bu_vls_putc, and guarded string NULLs in expand; and corrected unit conversion factor from dbi_base2local to dbi_local2base when setting eye position in eye_pos. |
+| `SEC-0249` | **Sev 2** | Use-After-Free, Memory Leaks, Double-Free, Division by Zero, Out-of-bounds Memory Access, and Null Pointer Dereferences | `src/libged (Batch 7: facetize)` | `FIXED` | In libged Batch 7 (facetize): fixed Cat 1 Use-After-Free of wgedp database handle across iterative meshing attempts in brep.cpp; fixed 4 BU_PUT struct type mismatches and eliminated double-free in nmg.cpp; guarded division by zero on obj_bbox_vol, freed temporary bot faces/vertices on retry/abort, eliminated duplicate bounding box check, ensured bot is freed on all exits, replaced mismatched calloc with bu_calloc, and paired BU_GET with BU_PUT for manifold_mesh in old_facetize.cpp; validated stderr FD and NULL pointers in old_facetize_log.c; fixed memory leaks and eliminated double-frees in regions.cpp; fixed kill argument layout in subprocess/brep_csg.cpp; freed candidate bot on retry and fixed BU_PUT type in subprocess/continuation.cpp; freed cache_dir and checked seed in subprocess/main.cpp; verified ft_tessellate in subprocess/nmg.cpp; checked obj_bbox_vol with ZERO in subprocess/sample.cpp; checked point cloud bounds in subprocess/spsr.cpp; added NULL/empty guards in subprocess/util.cpp; freed temporary bu_vls in tess_opts.h; eliminated duplicate curtree allocation, freed td_name, and used bu_calloc in tri.cpp; and validated inputs, freed intern on diradd failure, and closed wdbip on error exits in util.cpp. |
 
 
 

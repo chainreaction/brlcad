@@ -23400,220 +23400,264 @@
       "path": "src/libged/facetize/brep.cpp",
       "subsystem": "src/libged",
       "lines": 256,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2228,
       "path": "src/libged/facetize/facetize.cpp",
       "subsystem": "src/libged",
       "lines": 545,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2229,
       "path": "src/libged/facetize/ged_facetize.h",
       "subsystem": "src/libged",
       "lines": 261,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2230,
       "path": "src/libged/facetize/nmg.cpp",
       "subsystem": "src/libged",
       "lines": 430,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2231,
       "path": "src/libged/facetize/old_facetize.cpp",
       "subsystem": "src/libged",
       "lines": 3502,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2232,
       "path": "src/libged/facetize/old_facetize.h",
       "subsystem": "src/libged",
       "lines": 92,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2233,
       "path": "src/libged/facetize/old_facetize_log.c",
       "subsystem": "src/libged",
       "lines": 119,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2234,
       "path": "src/libged/facetize/plan.cpp",
       "subsystem": "src/libged",
       "lines": 568,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2235,
       "path": "src/libged/facetize/regions.cpp",
       "subsystem": "src/libged",
       "lines": 1277,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2236,
       "path": "src/libged/facetize/subprocess/brep_csg.cpp",
       "subsystem": "src/libged",
       "lines": 153,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2237,
       "path": "src/libged/facetize/subprocess/continuation.cpp",
       "subsystem": "src/libged",
       "lines": 293,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2238,
       "path": "src/libged/facetize/subprocess/main.cpp",
       "subsystem": "src/libged",
       "lines": 636,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2239,
       "path": "src/libged/facetize/subprocess/nmg.cpp",
       "subsystem": "src/libged",
       "lines": 116,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2240,
       "path": "src/libged/facetize/subprocess/sample.cpp",
       "subsystem": "src/libged",
       "lines": 177,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2241,
       "path": "src/libged/facetize/subprocess/spsr.cpp",
       "subsystem": "src/libged",
       "lines": 202,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2242,
       "path": "src/libged/facetize/subprocess/tessellate.h",
       "subsystem": "src/libged",
       "lines": 92,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2243,
       "path": "src/libged/facetize/subprocess/util.cpp",
       "subsystem": "src/libged",
       "lines": 167,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2244,
       "path": "src/libged/facetize/tess_opts.h",
       "subsystem": "src/libged",
       "lines": 659,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2245,
       "path": "src/libged/facetize/tri.cpp",
       "subsystem": "src/libged",
       "lines": 1928,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2246,
       "path": "src/libged/facetize/util.cpp",
       "subsystem": "src/libged",
       "lines": 803,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2247,
       "path": "src/libged/facetize/worker.cpp",
       "subsystem": "src/libged",
       "lines": 216,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2248,
       "path": "src/libged/facetize/worker.h",
       "subsystem": "src/libged",
       "lines": 83,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [
+        "SEC-0249"
+      ]
     },
     {
       "id": 2249,
