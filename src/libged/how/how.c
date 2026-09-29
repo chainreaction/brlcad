@@ -42,12 +42,15 @@ dl_how(struct bu_list *hdlp, struct bu_vls *vls, struct directory **dpp, int bot
     struct bv_scene_obj *sp;
     struct directory **tmp_dpp;
 
+    if (!hdlp || !vls || !dpp)
+	return 0;
+
     gdlp = BU_LIST_NEXT(display_list, hdlp);
     while (BU_LIST_NOT_HEAD(gdlp, hdlp)) {
 	next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
 
 	for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
-	    if (!sp->s_u_data)
+	    if (!sp->s_u_data || !sp->s_os)
 		continue;
 	    struct ged_bv_data *bdata = (struct ged_bv_data *)sp->s_u_data;
 
@@ -96,7 +99,7 @@ int
 ged_how_core(struct ged *gedp, int argc, const char *argv[])
 {
     int good;
-    struct directory **dpp;
+    struct directory **dpp = NULL;
     int both = 0;
     static const char *usage = "[-b] object";
 
@@ -113,22 +116,36 @@ ged_how_core(struct ged *gedp, int argc, const char *argv[])
 	return GED_HELP;
     }
 
-    if (3 < argc) {
+    if (argc < 2 || argc > 3) {
 	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
-    if (argc == 3 &&
-	argv[1][0] == '-' &&
-	argv[1][1] == 'b') {
-	both = 1;
-
-	if ((dpp = _ged_build_dpp(gedp, argv[2])) == NULL)
-	    goto good_label;
+    if (argc == 3) {
+	if (!argv[1] || !argv[2]) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	    return BRLCAD_ERROR;
+	}
+	if (BU_STR_EQUAL(argv[1], "-b")) {
+	    both = 1;
+	    dpp = _ged_build_dpp(gedp, argv[2]);
+	} else {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	    return BRLCAD_ERROR;
+	}
     } else {
-	if ((dpp = _ged_build_dpp(gedp, argv[1])) == NULL)
-	    goto good_label;
+	if (!argv[1] || argv[1][0] == '\0' || BU_STR_EQUAL(argv[1], "-b")) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	    return BRLCAD_ERROR;
+	}
+	dpp = _ged_build_dpp(gedp, argv[1]);
     }
+
+    if (!dpp)
+	goto good_label;
+
+    if (!gedp->i || !gedp->i->ged_gdp || !gedp->i->ged_gdp->gd_headDisplay)
+	goto good_label;
 
     good = dl_how(gedp->i->ged_gdp->gd_headDisplay, gedp->ged_result_str, dpp, both);
 

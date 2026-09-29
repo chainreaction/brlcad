@@ -49,13 +49,18 @@ ged_importFg4Section_core(struct ged *gedp, int argc, const char *argv[])
 	return GED_HELP;
     }
 
-    if (argc != 3) {
+    if (argc != 3 || !argv[1] || !argv[2]) {
 	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "Failed to open database for writing\n");
+	return BRLCAD_ERROR;
+    }
     int ret = wdb_importFg4Section_cmd(wdbp, argc, argv);
+    wdb_close(wdbp);
     return ret;
 }
 /** @} */

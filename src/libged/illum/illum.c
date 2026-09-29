@@ -38,18 +38,26 @@ ged_labelvert_core(struct ged *gedp, int argc, const char *argv[])
     struct display_list *gdlp;
     struct display_list *next_gdlp;
     int i;
-    struct bv_vlblock*vbp;
+    struct bv_vlblock *vbp;
     mat_t mat;
     fastf_t scale;
     static const char *usage = "object(s) - label vertices of wireframes of objects";
 
-    if (!gedp || !gedp->dbip)
-	return BRLCAD_ERROR;
+    GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
+    GED_CHECK_VIEW(gedp, BRLCAD_ERROR);
+    GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
+    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+
+    /* initialize result */
+    bu_vls_trunc(gedp->ged_result_str, 0);
 
     if (argc < 2) {
 	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
 	return GED_HELP;
     }
+
+    if (!gedp->i || !gedp->i->ged_gdp || !gedp->i->ged_gdp->gd_headDisplay)
+	return BRLCAD_ERROR;
 
     vbp = rt_vlblock_init();
     MAT_IDN(mat);
@@ -59,7 +67,7 @@ ged_labelvert_core(struct ged *gedp, int argc, const char *argv[])
     for (i=1; i<argc; i++) {
 	struct bv_scene_obj *s;
 	struct directory *dp;
-	if ((dp = db_lookup(gedp->dbip, argv[i], LOOKUP_NOISY)) == RT_DIR_NULL)
+	if (!argv[i] || (dp = db_lookup(gedp->dbip, argv[i], LOOKUP_NOISY)) == RT_DIR_NULL)
 	    continue;
 	/* Find uses of this solid in the solid table */
 	gdlp = BU_LIST_NEXT(display_list, gedp->i->ged_gdp->gd_headDisplay);
@@ -82,9 +90,10 @@ ged_labelvert_core(struct ged *gedp, int argc, const char *argv[])
     _ged_cvt_vlblock_to_solids(gedp, vbp, "_LABELVERT_", 0);
 
     bv_vlblock_free(vbp);
-    struct dm *dmp = (struct dm *)gedp->ged_gvp->dmp;
-    if (dmp)
+    if (gedp->ged_gvp && gedp->ged_gvp->dmp) {
+	struct dm *dmp = (struct dm *)gedp->ged_gvp->dmp;
 	dm_set_dirty(dmp, 1);
+    }
     return BRLCAD_OK;
 }
 
@@ -95,6 +104,9 @@ dl_set_illum(struct display_list *gdlp, const char *obj, int illum)
     int found = 0;
     struct bv_scene_obj *sp;
 
+    if (!gdlp || !obj)
+	return 0;
+
     for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
 	size_t i;
 	if (!sp->s_u_data)
@@ -102,8 +114,8 @@ dl_set_illum(struct display_list *gdlp, const char *obj, int illum)
 	struct ged_bv_data *bdata = (struct ged_bv_data *)sp->s_u_data;
 
 	for (i = 0; i < bdata->s_fullpath.fp_len; ++i) {
-	    if (*obj == *DB_FULL_PATH_GET(&bdata->s_fullpath, i)->d_namep &&
-		BU_STR_EQUAL(obj, DB_FULL_PATH_GET(&bdata->s_fullpath, i)->d_namep)) {
+	    struct directory *dp = DB_FULL_PATH_GET(&bdata->s_fullpath, i);
+	    if (dp && dp->d_namep && BU_STR_EQUAL(obj, dp->d_namep)) {
 		found = 1;
 		if (illum)
 		    sp->s_iflag = UP;
@@ -145,7 +157,7 @@ ged_illum_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     if (argc == 3) {
-	if (argv[1][0] == '-' && argv[1][1] == 'n')
+	if (argv[1] && BU_STR_EQUAL(argv[1], "-n"))
 	    illum = 0;
 	else
 	    goto bad;
@@ -154,7 +166,10 @@ ged_illum_core(struct ged *gedp, int argc, const char *argv[])
 	++argv;
     }
 
-    if (argc != 2)
+    if (argc != 2 || !argv[1])
+	goto bad;
+
+    if (!gedp->i || !gedp->i->ged_gdp || !gedp->i->ged_gdp->gd_headDisplay)
 	goto bad;
 
     gdlp = BU_LIST_NEXT(display_list, gedp->i->ged_gdp->gd_headDisplay);

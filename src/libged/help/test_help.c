@@ -28,12 +28,20 @@
 
 int main(int ac, char *av[]) {
   struct ged g;
+  int ret;
+
+  if (ac < 1 || !av || !av[0])
+    return 1;
 
   bu_setprogname(av[0]);
 
   ged_init(&g);
 
-  return ged_exec(&g, ac, (const char **)av);
+  ret = ged_exec(&g, ac, (const char **)av);
+
+  ged_close(&g);
+
+  return ret;
 }
 
 /*

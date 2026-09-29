@@ -63,8 +63,16 @@ ged_hide_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
+    int ret = BRLCAD_OK;
+
     for (i = 1; i < argc; i++) {
+	if (!argv[i] || argv[i][0] == '\0') {
+	    ret = BRLCAD_ERROR;
+	    continue;
+	}
+
 	if ((dp = db_lookup(dbip, argv[i], LOOKUP_NOISY)) == RT_DIR_NULL) {
+	    ret = BRLCAD_ERROR;
 	    continue;
 	}
 
@@ -74,12 +82,14 @@ ged_hide_core(struct ged *gedp, int argc, const char *argv[])
 
 	if (db_get_external(&ext, dp, dbip) < 0) {
 	    bu_vls_printf(gedp->ged_result_str, "db_get_external failed for %s\n", dp->d_namep);
+	    ret = BRLCAD_ERROR;
 	    continue;
 	}
 
 	if (db5_get_raw_internal_ptr(&raw, ext.ext_buf) == NULL) {
 	    bu_vls_printf(gedp->ged_result_str, "db5_get_raw_internal_ptr() failed for %s\n", dp->d_namep);
 	    bu_free_external(&ext);
+	    ret = BRLCAD_ERROR;
 	    continue;
 	}
 
@@ -98,13 +108,14 @@ ged_hide_core(struct ged *gedp, int argc, const char *argv[])
 	if (db_put_external(&tmp, dp, dbip)) {
 	    bu_vls_printf(gedp->ged_result_str, "db_put_external() failed for %s\n", dp->d_namep);
 	    bu_free_external(&tmp);
+	    ret = BRLCAD_ERROR;
 	    continue;
 	}
 	bu_free_external(&tmp);
 	dp->d_flags |= RT_DIR_HIDDEN;
     }
 
-    return BRLCAD_OK;
+    return ret;
 }
 
 #include "../include/plugin.h"

@@ -1835,9 +1835,8 @@ read_args(int argc, const char **argv, char *topLevel, struct human_data_t *dude
 
 	    default:
 		show_help(*argv, options);
-		bu_exit(EXIT_SUCCESS, NULL);
 		fflush(stdin);
-		break;
+		return -1;
 	}
     }
     dude->height = (dude->legs.legLength + dude->torso.torsoLength + dude->head.headSize) / IN2MM;
@@ -1885,6 +1884,10 @@ text(struct human_data_t *dude)
     bu_log("Outputting text file\n");
 
     dump = fopen("stats.txt", "w+");
+    if (!dump) {
+	bu_log("Failed to open stats.txt for writing\n");
+	return;
+    }
 
     fprintf(dump, "Name, X, Y, Z, all in millimeters\n");
 
@@ -2009,6 +2012,10 @@ verbose(struct human_data_t *dude)
 
     bu_log("Verbose Text Dump\n");
     dump = fopen("verbose.txt", "w+");
+    if (!dump) {
+	bu_log("Failed to open verbose.txt for writing\n");
+	return;
+    }
     fprintf(dump, "#All Sizes are in mm\n");
 
     fprintf(dump, "headSize\t%f\n", dude->head.headSize);
@@ -2205,12 +2212,21 @@ ged_human_core(struct ged *gedp, int ac, const char *av[])
 
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
+    GED_CHECK_ARGC_GT_0(gedp, ac, BRLCAD_ERROR);
+
+    /* initialize result */
+    bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* Process command line arguments */
-    read_args(ac, av, topLevel, &human_data, &percentile, location, &stance, &troops, &showBoxes);
+    if (read_args(ac, av, topLevel, &human_data, &percentile, location, &stance, &troops, &showBoxes) < 0) {
+	return (ac == 1) ? GED_HELP : BRLCAD_ERROR;
+    }
 
-    GED_CHECK_EXISTS(gedp, bu_vls_addr(&name), LOOKUP_QUIET, BRLCAD_ERROR);
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "Failed to open database for writing\n");
+	return BRLCAD_ERROR;
+    }
 
     bu_log("Center Location: ");
     bu_log("%.2f %.2f %.2f\n", location[X], location[Y], location[Z]);
@@ -2473,7 +2489,7 @@ ged_human_core(struct ged *gedp, int ac, const char *av[])
 
 	    bu_strlcpy(comber, topLevel, MAXLENGTH);
 
-	    sprintf(thing, "%d", z);
+	    snprintf(thing, sizeof(thing), "%d", z);
 	    bu_strlcpy(thing2, thing, MAXLENGTH);
 	    bu_strlcat(comber, thing2, MAXLENGTH);
 	    (void)mk_addmember(comber, &crowd.l, NULL, WMOP_UNION);
@@ -2483,6 +2499,7 @@ ged_human_core(struct ged *gedp, int ac, const char *av[])
 	mk_lcomb(wdbp, "Crowd.c", &crowd, 0, NULL, NULL, NULL, 0);
 
     /* Close database */
+    wdb_close(wdbp);
     bu_log("Regions Built\n");
     bu_vls_free(&name);
     bu_vls_free(&str);

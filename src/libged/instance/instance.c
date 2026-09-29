@@ -53,20 +53,25 @@ ged_instance_core(struct ged *gedp, int argc, const char *argv[])
 	return GED_HELP;
     }
 
-    if (argc < 3 || 4 < argc) {
+    if (argc < 3 || 4 < argc || !argv[1] || !argv[2] || argv[2][0] == '\0') {
 	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
-    if ((dp = db_lookup(gedp->dbip,  argv[1], LOOKUP_NOISY)) == RT_DIR_NULL)
+    if ((dp = db_lookup(gedp->dbip, argv[1], LOOKUP_NOISY)) == RT_DIR_NULL)
 	return BRLCAD_ERROR;
 
     oper = WMOP_UNION;
-    if (argc == 4)
+    if (argc == 4) {
+	if (!argv[3]) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	    return BRLCAD_ERROR;
+	}
 	oper = db_str2op(argv[3]);
+    }
 
     if (oper == DB_OP_NULL) {
-	bu_vls_printf(gedp->ged_result_str, "bad operation: %c (0x%x)\n", argv[3][0], argv[3][0]);
+	bu_vls_printf(gedp->ged_result_str, "bad operation: %s\n", (argv[3] && argv[3][0]) ? argv[3] : "(null)");
 	return BRLCAD_ERROR;
     }
 
