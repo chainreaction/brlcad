@@ -54,17 +54,29 @@ ged_killall_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     /* Process the -n option */
-    if (argc > 1 && argv[1][0] == '-' && argv[1][1] == 'n' && argv[1][2] == '\0') {
+    if (argc > 1 && argv[1] && BU_STR_EQUAL(argv[1], "-n")) {
 	int i;
+	if (argc < 3) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	    return BRLCAD_ERROR;
+	}
 	nflag = 1;
 
 	/* Objects that would be killed are in the first sublist */
 	bu_vls_printf(gedp->ged_result_str, "{");
-	for (i = 2; i < argc; i++)
+	for (i = 2; i < argc; i++) {
+	    if (!argv[i] || argv[i][0] == '\0')
+		continue;
 	    bu_vls_printf(gedp->ged_result_str, "%s ", argv[i]);
+	}
 	bu_vls_printf(gedp->ged_result_str, "} {");
-    } else
+    } else {
+	if (argc < 2) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	    return BRLCAD_ERROR;
+	}
 	nflag = 0;
+    }
 
     gedp->ged_internal_call = 1;
     argv[0] = "killrefs";

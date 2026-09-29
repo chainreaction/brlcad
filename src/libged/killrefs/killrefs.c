@@ -60,16 +60,24 @@ ged_killrefs_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     /* Process the -n option */
-    if (argc > 1 && argv[1][0] == '-' && argv[1][1] == 'n' && argv[1][2] == '\0') {
+    if (argc > 1 && argv[1] && BU_STR_EQUAL(argv[1], "-n")) {
 	nflag = 1;
 	--argc;
 	++argv;
     } else
 	nflag = 0;
 
+    if (argc < 2) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	return BRLCAD_ERROR;
+    }
+
     if (!nflag && !gedp->ged_internal_call) {
-	for (k = 1; k < argc; k++)
+	for (k = 1; k < argc; k++) {
+	    if (!argv[k] || argv[k][0] == '\0')
+		continue;
 	    _dl_eraseAllNamesFromDisplay(gedp, argv[k], 1);
+	}
     }
 
     ret = BRLCAD_OK;
@@ -78,16 +86,24 @@ ged_killrefs_core(struct ged *gedp, int argc, const char *argv[])
 	if (!(dp->d_flags & RT_DIR_COMB))
 	    continue;
 
+	RT_DB_INTERNAL_INIT(&intern);
 	if (rt_db_get_internal(&intern, dp, gedp->dbip, (fastf_t *)NULL) < 0) {
 	    bu_vls_printf(gedp->ged_result_str, "rt_db_get_internal(%s) failure", dp->d_namep);
 	    ret = BRLCAD_ERROR;
 	    continue;
 	}
 	comb = (struct rt_comb_internal *)intern.idb_ptr;
+	if (!comb || intern.idb_type != ID_COMBINATION) {
+	    rt_db_free_internal(&intern);
+	    continue;
+	}
 	RT_CK_COMB(comb);
 
 	for (k = 1; k < argc; k++) {
 	    int code;
+
+	    if (!argv[k] || argv[k][0] == '\0')
+		continue;
 
 	    code = db_tree_rm_dbleaf(&(comb->tree), argv[k], nflag);
 	    if (code == -1)

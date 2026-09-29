@@ -85,17 +85,28 @@ ged_kill_core(struct ged *gedp, int argc, const char *argv[])
     argc -= (bu_optind - 1);
     argv += (bu_optind - 1);
 
+    if (argc < 2) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	return BRLCAD_ERROR;
+    }
+
     if (nflag) {
 	bu_vls_printf(gedp->ged_result_str, "{");
-	for (i = 1; i < argc; i++)
+	for (i = 1; i < argc; i++) {
+	    if (!argv[i] || argv[i][0] == '\0')
+		continue;
 	    bu_vls_printf(gedp->ged_result_str, "%s ", argv[i]);
+	}
 	bu_vls_printf(gedp->ged_result_str, "} {}");
 
 	return BRLCAD_OK;
     }
 
     for (i = 1; i < argc; i++) {
-	if ((dp = db_lookup(gedp->dbip,  argv[i], verbose)) != RT_DIR_NULL) {
+	if (!argv[i] || argv[i][0] == '\0')
+	    continue;
+
+	if ((dp = db_lookup(gedp->dbip, argv[i], verbose)) != RT_DIR_NULL) {
 	    if (!force && dp->d_major_type == DB5_MAJORTYPE_ATTRIBUTE_ONLY && dp->d_minor_type == 0) {
 		bu_vls_printf(gedp->ged_result_str, "You attempted to delete the _GLOBAL object.\n");
 		bu_vls_printf(gedp->ged_result_str, "\tIf you delete the \"_GLOBAL\" object you will be losing some important information\n");

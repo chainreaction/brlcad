@@ -50,11 +50,15 @@ node_write(struct db_i *dbip, struct directory *dp, void *ptr)
     struct keep_node_data *kndp = (struct keep_node_data *)ptr;
     struct rt_db_internal intern;
 
+    if (!kndp || !kndp->wdbp || !kndp->gedp || !dp || !dp->d_namep)
+	return;
+
     RT_CK_WDB(kndp->wdbp);
 
     if (dp->d_nref++ > 0)
 	return;		/* already written */
 
+    RT_DB_INTERNAL_INIT(&intern);
     if (rt_db_get_internal(&intern, dp, dbip, NULL) < 0) {
 	bu_vls_printf(kndp->gedp->ged_result_str, "Database read error, aborting\n");
 	return;
@@ -66,10 +70,11 @@ node_write(struct db_i *dbip, struct directory *dp, void *ptr)
 	struct directory *dp2;
 
 	extr = (struct rt_extrude_internal *)intern.idb_ptr;
-	RT_EXTRUDE_CK_MAGIC(extr);
-
-	if ((dp2 = db_lookup(dbip, extr->sketch_name, LOOKUP_QUIET)) != RT_DIR_NULL) {
-	    node_write(dbip, dp2, ptr);
+	if (extr && extr->sketch_name) {
+	    RT_EXTRUDE_CK_MAGIC(extr);
+	    if ((dp2 = db_lookup(dbip, extr->sketch_name, LOOKUP_QUIET)) != RT_DIR_NULL) {
+		node_write(dbip, dp2, ptr);
+	    }
 	}
     } else if (dp->d_major_type == DB5_MAJORTYPE_BRLCAD && dp->d_minor_type == DB5_MINORTYPE_BRLCAD_REVOLVE) {
 	/* if this is a revolve, keep the referenced sketch */
@@ -77,10 +82,11 @@ node_write(struct db_i *dbip, struct directory *dp, void *ptr)
 	struct directory *dp2;
 
 	rev = (struct rt_revolve_internal *)intern.idb_ptr;
-	RT_REVOLVE_CK_MAGIC(rev);
-
-	if ((dp2 = db_lookup(dbip, bu_vls_addr(&rev->sketch_name), LOOKUP_QUIET)) != RT_DIR_NULL) {
-	    node_write(dbip, dp2, ptr);
+	if (rev) {
+	    RT_REVOLVE_CK_MAGIC(rev);
+	    if ((dp2 = db_lookup(dbip, bu_vls_addr(&rev->sketch_name), LOOKUP_QUIET)) != RT_DIR_NULL) {
+		node_write(dbip, dp2, ptr);
+	    }
 	}
     } else if (dp->d_major_type == DB5_MAJORTYPE_BRLCAD && dp->d_minor_type == DB5_MINORTYPE_BRLCAD_DSP) {
 	/* if this is a DSP, keep the referenced binary object too */
@@ -88,12 +94,13 @@ node_write(struct db_i *dbip, struct directory *dp, void *ptr)
 	struct directory *dp2;
 
 	dsp = (struct rt_dsp_internal *)intern.idb_ptr;
-	RT_DSP_CK_MAGIC(dsp);
-
-	if (dsp->dsp_datasrc == RT_DSP_SRC_OBJ) {
-	    /* need to keep this object */
-	    if ((dp2 = db_lookup(dbip, bu_vls_addr(&dsp->dsp_name),  LOOKUP_QUIET)) != RT_DIR_NULL) {
-		node_write(dbip, dp2, ptr);
+	if (dsp) {
+	    RT_DSP_CK_MAGIC(dsp);
+	    if (dsp->dsp_datasrc == RT_DSP_SRC_OBJ) {
+		/* need to keep this object */
+		if ((dp2 = db_lookup(dbip, bu_vls_addr(&dsp->dsp_name),  LOOKUP_QUIET)) != RT_DIR_NULL) {
+		    node_write(dbip, dp2, ptr);
+		}
 	    }
 	}
     }
@@ -149,7 +156,7 @@ ged_keep_core(struct ged *gedp, int argc, const char *argv[])
     argc -= bu_optind;
     argv += bu_optind;
 
-    if (argc < 2) {
+    if (argc < 2 || !argv[0] || !argv[1]) {
 	bu_vls_printf(gedp->ged_result_str, "ERROR: missing file or object names\n");
 	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage);
 	return BRLCAD_ERROR;
@@ -168,12 +175,14 @@ ged_keep_core(struct ged *gedp, int argc, const char *argv[])
 	if (db_version(new_dbip) != db_version(gedp->dbip)) {
 	    bu_vls_printf(gedp->ged_result_str, "%s: File format mismatch between '%s' and '%s'\n",
 			  cmd, argv[0], gedp->dbip->dbi_filename);
+	    db_close(new_dbip);
 	    return BRLCAD_ERROR;
 	}
 
 	keepfp = wdb_dbopen(new_dbip, RT_WDB_TYPE_DB_DISK);
 	if (keepfp == NULL) {
 	    bu_vls_printf(gedp->ged_result_str, "%s:  Error opening '%s'\n", cmd, argv[0]);
+	    db_close(new_dbip);
 	    return BRLCAD_ERROR;
 	} else {
 	    bu_vls_printf(gedp->ged_result_str, "%s:  Appending to '%s'\n", cmd, argv[0]);
@@ -203,18 +212,14 @@ ged_keep_core(struct ged *gedp, int argc, const char *argv[])
     if (db_update_ident(keepfp->dbip, bu_vls_addr(&title), gedp->dbip->dbi_local2base) < 0) {
 	perror("fwrite");
 	bu_vls_printf(gedp->ged_result_str, "db_update_ident() failed\n");
-	if (new_dbip != DBI_NULL) {
-	    db_close(new_dbip);
-	} else {
-	    db_close(keepfp->dbip);
-	}
+	wdb_close(keepfp);
 	bu_vls_free(&title);
 	return BRLCAD_ERROR;
     }
     bu_vls_free(&title);
 
     for (i = 1; i < argc; i++) {
-	if ((dp = db_lookup(gedp->dbip, argv[i], LOOKUP_NOISY)) == RT_DIR_NULL)
+	if (!argv[i] || (dp = db_lookup(gedp->dbip, argv[i], LOOKUP_NOISY)) == RT_DIR_NULL)
 	    continue;
 
 	if (!flag_R) {
@@ -226,7 +231,7 @@ ged_keep_core(struct ged *gedp, int argc, const char *argv[])
 	}
     }
 
-    db_close(keepfp->dbip);
+    wdb_close(keepfp);
 
     return BRLCAD_OK;
 }

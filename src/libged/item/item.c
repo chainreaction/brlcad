@@ -55,7 +55,7 @@ ged_item_core(struct ged *gedp, int argc, const char *argv[])
 	return GED_HELP;
     }
 
-    if (argc < 3 || 6 < argc) {
+    if (argc < 3 || 6 < argc || !argv[1] || argv[1][0] == '\0' || !argv[2]) {
 	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
 	return BRLCAD_ERROR;
     }
@@ -72,22 +72,40 @@ ged_item_core(struct ged *gedp, int argc, const char *argv[])
      * is not included, it is left unchanged.
      */
     if (argc > 3) {
+	if (!argv[3]) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	    return BRLCAD_ERROR;
+	}
 	air = atoi(argv[3]);
     }
 
     if (argc > 4) {
+	if (!argv[4]) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	    return BRLCAD_ERROR;
+	}
 	GIFTmater = atoi(argv[4]);
 	GIFTmater_set = 1;
     }
 
     if (argc > 5) {
+	if (!argv[5]) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	    return BRLCAD_ERROR;
+	}
 	los = atoi(argv[5]);
 	los_set = 1;
     }
 
+    RT_DB_INTERNAL_INIT(&intern);
     GED_DB_GET_INTERN(gedp, &intern, dp, (fastf_t *)NULL, BRLCAD_ERROR);
 
     comb = (struct rt_comb_internal *)intern.idb_ptr;
+    if (!comb || intern.idb_type != ID_COMBINATION) {
+	rt_db_free_internal(&intern);
+	bu_vls_printf(gedp->ged_result_str, "%s: not a combination\n", argv[1]);
+	return BRLCAD_ERROR;
+    }
     RT_CK_COMB(comb);
     comb->region_id = ident;
     comb->aircode = air;

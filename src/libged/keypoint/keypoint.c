@@ -61,23 +61,23 @@ ged_keypoint_core(struct ged *gedp, int argc, const char *argv[])
 
     /* set view keypoint */
     if (argc == 2) {
-	if (bn_decode_vect(keypoint, argv[1]) != 3) {
+	if (!argv[1] || bn_decode_vect(keypoint, argv[1]) != 3) {
 	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
 	    return BRLCAD_ERROR;
 	}
     } else {
-	if (sscanf(argv[1], "%lf", &scan[X]) != 1) {
-	    bu_vls_printf(gedp->ged_result_str, "ged_keypoint_core: bad X value - %s\n", argv[1]);
+	if (!argv[1] || sscanf(argv[1], "%lf", &scan[X]) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "ged_keypoint_core: bad X value - %s\n", (argv[1]) ? argv[1] : "(null)");
 	    return BRLCAD_ERROR;
 	}
 
-	if (sscanf(argv[2], "%lf", &scan[Y]) != 1) {
-	    bu_vls_printf(gedp->ged_result_str, "ged_keypoint_core: bad Y value - %s\n", argv[2]);
+	if (!argv[2] || sscanf(argv[2], "%lf", &scan[Y]) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "ged_keypoint_core: bad Y value - %s\n", (argv[2]) ? argv[2] : "(null)");
 	    return BRLCAD_ERROR;
 	}
 
-	if (sscanf(argv[3], "%lf", &scan[Z]) != 1) {
-	    bu_vls_printf(gedp->ged_result_str, "ged_keypoint_core: bad Z value - %s\n", argv[3]);
+	if (!argv[3] || sscanf(argv[3], "%lf", &scan[Z]) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "ged_keypoint_core: bad Z value - %s\n", (argv[3]) ? argv[3] : "(null)");
 	    return BRLCAD_ERROR;
 	}
 

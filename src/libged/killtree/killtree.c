@@ -102,7 +102,7 @@ collect_callback(struct db_i *dbip, struct directory *dp, void *ptr)
     const uint8_t *name;
     size_t name_len;
 
-    if (dbip == DBI_NULL || dp == RT_DIR_NULL)
+    if (dbip == DBI_NULL || dp == RT_DIR_NULL || !dp->d_namep || !gktdp)
 	return;
 
     name = (const uint8_t *)dp->d_namep;
@@ -142,7 +142,7 @@ killtree_process(struct db_i *dbip, struct directory *dp, struct killtree_data *
     const uint8_t *name;
     size_t name_len;
 
-    if (dbip == DBI_NULL || dp == RT_DIR_NULL)
+    if (dbip == DBI_NULL || dp == RT_DIR_NULL || !dp->d_namep || !gktdp)
 	return;
 
     name = (const uint8_t *)dp->d_namep;
@@ -255,6 +255,22 @@ ged_killtree_core(struct ged *gedp, int argc, const char *argv[])
     argc -= (bu_optind - 1);
     argv += (bu_optind - 1);
 
+    if (argc < 2) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	for (i = 1; i < gktd.ac; i++) {
+	    if (gktd.av[i]) {
+		bu_free((void *)gktd.av[i], "killtree_data");
+		gktd.av[i] = NULL;
+	    }
+	}
+	bu_free(gktd.av, "free av (error)");
+	gktd.av = NULL;
+	bu_free(gktd.pending, "free pending names (error)");
+	gktd.pending = NULL;
+	bu_hash_destroy(gktd.visited);
+	gktd.visited = NULL;
+	return BRLCAD_ERROR;
+    }
 
     /* Update references once before we start all of this - db_search
      * needs nref to be current to work correctly. */
@@ -265,6 +281,9 @@ ged_killtree_core(struct ged *gedp, int argc, const char *argv[])
 	bu_vls_printf(gedp->ged_result_str, "{");
 
     for (i = 1; i < argc; i++) {
+	if (!argv[i] || argv[i][0] == '\0')
+	    continue;
+
 	dp = db_lookup(gedp->dbip, argv[i], LOOKUP_QUIET);
 	if (dp == RT_DIR_NULL) {
 	    size_t name_len = strlen(argv[i]);
@@ -305,9 +324,11 @@ ged_killtree_core(struct ged *gedp, int argc, const char *argv[])
 	gedp->ged_internal_call = 1;
 	(void)ged_exec_killrefs(gedp, gktd.ac, (const char **)gktd.av);
 	gedp->ged_internal_call = 0;
+    }
 
-	for (i = 1; i < gktd.ac; i++) {
-	    if (!gktd.print)
+    for (i = 1; i < gktd.ac; i++) {
+	if (gktd.av[i]) {
+	    if (gktd.killrefs && !gktd.print)
 		bu_vls_printf(gedp->ged_result_str, "Freeing %s\n", gktd.av[i]);
 	    bu_free((void *)gktd.av[i], "killtree_data");
 	    gktd.av[i] = NULL;

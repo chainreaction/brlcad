@@ -248,12 +248,15 @@ joint_mesh(struct ged *gedp, int argc, const char *argv[])
     char *topv[2000];
     int topc;
 
-    if (gedp->dbip == DBI_NULL)
+    if (!gedp || gedp->dbip == DBI_NULL)
+	return BRLCAD_OK;
+
+    if (!gedp->i || !gedp->i->ged_gdp || !gedp->i->ged_gdp->gd_headDisplay)
 	return BRLCAD_OK;
 
     struct bu_list *vlfree = &rt_vlfree;
 
-    if (argc <= 2) {
+    if (argc <= 2 || !argv || !argv[2]) {
 	name = "_ANIM_";
     } else {
 	name = argv[2];
@@ -319,8 +322,11 @@ joint_debug(struct ged *gedp,
 	    int argc,
 	    const char *argv[])
 {
-    if (argc >= 2) {
-	sscanf(argv[1], "%x", &J_DEBUG);
+    if (argc >= 2 && argv[1]) {
+	if (sscanf(argv[1], "%x", &J_DEBUG) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "joint_debug: invalid debug hex code '%s'\n", argv[1]);
+	    return BRLCAD_ERROR;
+	}
     } else {
 	bu_vls_printb(gedp->ged_result_str, "possible flags", 0xffffffffL, J_DEBUG_FORMAT);
 	bu_vls_printf(gedp->ged_result_str, "\n");
@@ -433,8 +439,11 @@ joint_lookup(const char *name)
 {
     struct joint *jp;
 
+    if (!name)
+	return (struct joint *) 0;
+
     for (BU_LIST_FOR(jp, joint, &joint_head)) {
-	if (BU_STR_EQUAL(jp->name, name)) {
+	if (jp->name && BU_STR_EQUAL(jp->name, name)) {
 	    return jp;
 	}
     }
@@ -449,16 +458,21 @@ free_arc(struct arc *ap)
 
     if (!ap || ap->type == ARC_UNSET)
 	return;
-    for (i=0; i<=ap->arc_last; i++) {
-	bu_free((void *)ap->arc[i], "arc entry");
-    }
-    bu_free((void *)ap->arc, "arc table");
-    ap->arc = (char **)0;
-    if (ap->type & ARC_BOTH) {
+    if (ap->arc) {
 	for (i=0; i<=ap->arc_last; i++) {
-	    bu_free((void *)ap->original[i], "arc entry");
+	    if (ap->arc[i])
+		bu_free((void *)ap->arc[i], "arc entry");
+	}
+	bu_free((void *)ap->arc, "arc table");
+	ap->arc = (char **)0;
+    }
+    if ((ap->type & ARC_BOTH) && ap->original) {
+	for (i=0; i<=ap->org_last; i++) {
+	    if (ap->original[i])
+		bu_free((void *)ap->original[i], "arc entry");
 	}
 	bu_free((void *)ap->original, "arc table");
+	ap->original = (char **)0;
     }
     ap->type=ARC_UNSET;
 }
@@ -493,6 +507,8 @@ free_hold(struct hold *hp)
 	}
 	free_arc(&hp->effector.arc);
     }
+    free_arc(&hp->j_set.path);
+    free_arc(&hp->j_set.exclude);
     while (BU_LIST_WHILE(jh, jointH, &hp->j_head)) {
 	jh->p->uses--;
 	BU_LIST_DEQUEUE(&jh->l);
@@ -578,17 +594,28 @@ hold_point_to_string(struct ged *gedp, struct hold_point *hp)
     char *path;
     vect_t loc = VINIT_ZERO;
 
+    text[0] = '\0';
+    if (!hp)
+	return text;
+
     switch (hp->type) {
 	case ID_FIXED:
-	    sprintf(text, "(%g %g %g)", hp->point[X],
+	    snprintf(text, HOLD_POINT_TO_STRING_LEN, "(%g %g %g)", hp->point[X],
 		    hp->point[Y], hp->point[Z]);
 	    break;
 	case ID_GRIP:
 	case ID_JOINT:
 	    (void)hold_point_location(gedp, loc, hp);
 	    path = db_path_to_string(&hp->path);
-	    snprintf(text, HOLD_POINT_TO_STRING_LEN, "%s (%g %g %g)", path, loc[X], loc[Y], loc[Z]);
-	    bu_free(path, "full path");
+	    if (path) {
+		snprintf(text, HOLD_POINT_TO_STRING_LEN, "%s (%g %g %g)", path, loc[X], loc[Y], loc[Z]);
+		bu_free(path, "full path");
+	    } else {
+		snprintf(text, HOLD_POINT_TO_STRING_LEN, "(null) (%g %g %g)", loc[X], loc[Y], loc[Z]);
+	    }
+	    break;
+	default:
+	    snprintf(text, HOLD_POINT_TO_STRING_LEN, "unknown");
 	    break;
     }
     return text;
@@ -658,13 +685,14 @@ joint_unload(struct ged *gedp, int argc, const char *argv[])
     struct hold *hp;
     int joints, holds;
 
-    if (gedp->dbip == DBI_NULL) {
-	bu_vls_printf(gedp->ged_result_str, "A database is not open!\n");
+    if (!gedp || gedp->dbip == DBI_NULL) {
+	if (gedp && gedp->ged_result_str)
+	    bu_vls_printf(gedp->ged_result_str, "A database is not open!\n");
 	return BRLCAD_ERROR;
     }
 
     if (argc > 1) {
-	bu_vls_printf(gedp->ged_result_str, "Unexpected parameter [%s]\n", argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "Unexpected parameter [%s]\n", (argv && argv[1]) ? argv[1] : "(null)");
     }
 
     db_free_anim(gedp->dbip);
@@ -804,13 +832,17 @@ static const char *lex_name;
 static double mm2base, base2mm;
 
 static void
-parse_error(struct ged *gedp, struct bu_vls *vlsp, char *error)
+parse_error(struct ged *gedp, struct bu_vls *vlsp, const char *error)
 {
     char *text;
     size_t i;
     size_t len;
-    const char *str = bu_vls_addr(vlsp);
+    const char *str;
 
+    if (!gedp || !vlsp || !error)
+	return;
+
+    str = bu_vls_addr(vlsp);
     len = bu_vls_strlen(vlsp);
     if (!len) {
 	bu_vls_printf(gedp->ged_result_str, "%s:%d %s\n", lex_name, lex_line, error);
@@ -986,8 +1018,13 @@ parse_units(struct ged *gedp, FILE *fip, struct bu_vls *str)
 	case UNIT_CM:
 	    base2mm = 10.0; break;
 	case UNIT_MM:
-	    base2mm = 1; break;
+	    base2mm = 1.0; break;
+	default:
+	    parse_error(gedp, str, "parse_units: unrecognized unit type.");
+	    return 0;
     }
+    if (ZERO(base2mm))
+	base2mm = 1.0;
     mm2base = 1.0 / base2mm;
     (void) gobble_token(gedp, BU_LEX_SYMBOL, SYM_END, fip, str);
     return 1;
@@ -1636,8 +1673,8 @@ parse_joint(struct ged *gedp, FILE *fip, struct bu_vls *str)
     jp->path.type = ARC_UNSET;
     jp->name = NULL;
 
-    if (get_token(gedp, &token, fip, str, (struct bu_lex_key *)NULL, animsyms) == EOF) {
-	parse_error(gedp, str, "parse_joint: Unexpected EOF getting name.");
+    if (get_token(gedp, &token, fip, str, (struct bu_lex_key *)NULL, animsyms) == EOF || token.type != BU_LEX_IDENT) {
+	parse_error(gedp, str, "parse_joint: Unexpected token getting name.");
 	free_joint(jp);
 	return 0;
     }
@@ -2046,6 +2083,7 @@ parse_hold(struct ged *gedp, FILE *fip, struct bu_vls *str)
 	    parse_error(gedp, str, "parse_hold: Unexpected EOF getting constraint contents.");
 	    skip_group(gedp, fip, str);
 	    free_hold(hp);
+	    return 0;
 	}
 	if (token.type == BU_LEX_IDENT)
 	    bu_free(token.t_id.value, "unit token");
@@ -2059,9 +2097,11 @@ parse_hold(struct ged *gedp, FILE *fip, struct bu_vls *str)
 	    }
 
 	    /* done loading our arc, look up our object names */
-	    if (!hp->effector.path.fp_names) {
+	    if (!hp->effector.path.fp_names && hp->effector.arc.arc) {
 		db_free_full_path(&hp->effector.path); /* sanity */
 		for (i=0; i<= hp->effector.arc.arc_last; i++) {
+		    if (!hp->effector.arc.arc[i])
+			continue;
 		    dp = db_lookup(gedp->dbip, hp->effector.arc.arc[i], LOOKUP_NOISY);
 		    if (!dp) {
 			continue;
@@ -2069,9 +2109,11 @@ parse_hold(struct ged *gedp, FILE *fip, struct bu_vls *str)
 		    db_add_node_to_full_path(&hp->effector.path, dp);
 		}
 	    }
-	    if (!hp->objective.path.fp_names) {
+	    if (!hp->objective.path.fp_names && hp->objective.arc.arc) {
 		db_free_full_path(&hp->objective.path); /* sanity */
 		for (i=0; i<= hp->objective.arc.arc_last; i++) {
+		    if (!hp->objective.arc.arc[i])
+			continue;
 		    dp = db_lookup(gedp->dbip, hp->objective.arc.arc[i], LOOKUP_NOISY);
 		    if (!dp) {
 			continue;
@@ -2126,14 +2168,17 @@ parse_hold(struct ged *gedp, FILE *fip, struct bu_vls *str)
 		}
 		weightfound = 1;
 		break;
-	    case KEY_PRI:
-		if (!parse_assign(gedp, (double *)&hp->priority, fip, str)) {
+	    case KEY_PRI: {
+		double pri_val = 0.0;
+		if (!parse_assign(gedp, &pri_val, fip, str)) {
 		    free_hold(hp);
 		    skip_group(gedp, fip, str);
 		    return 0;
 		}
+		hp->priority = (int)pri_val;
 		prifound=1;
 		break;
+	    }
 	    case KEY_JOINTS:
 		if (jsetfound) {
 		    parse_error(gedp, str, "parse_hold: joint set redefined.");
@@ -2328,6 +2373,11 @@ joint_load(struct ged *gedp, int argc, const char *argv[])
     mm2base = gedp->dbip->dbi_local2base;
 
     while (argc) {
+	if (!*argv) {
+	    ++argv;
+	    --argc;
+	    continue;
+	}
 	fip = fopen(*argv, "rb");
 	if (fip == NULL) {
 	    bu_vls_printf(gedp->ged_result_str, "joint load: unable to open '%s'.\n", *argv);
@@ -2399,22 +2449,26 @@ joint_load(struct ged *gedp, int argc, const char *argv[])
 	struct directory *dp;
 	int i;
 
-	if (hp->effector.arc.type == ARC_ARC) {
+	if (hp->effector.arc.type == ARC_ARC && hp->effector.arc.arc) {
 	    db_full_path_init(&hp->effector.path);
 
 	    /* search for these paths. */
 	    for (i=0; i<= hp->effector.arc.arc_last; i++) {
+		if (!hp->effector.arc.arc[i])
+		    continue;
 		dp = db_lookup(gedp->dbip, hp->effector.arc.arc[i], LOOKUP_NOISY);
 		if (!dp) {
-		    continue;
+			continue;
 		}
 		db_add_node_to_full_path(&hp->effector.path, dp);
 	    }
 	}
-	if (hp->objective.arc.type == ARC_ARC) {
+	if (hp->objective.arc.type == ARC_ARC && hp->objective.arc.arc) {
 	    db_full_path_init(&hp->objective.path);
 
 	    for (i=0; i<= hp->objective.arc.arc_last; i++) {
+		if (!hp->objective.arc.arc[i])
+		    break;
 		dp = db_lookup(gedp->dbip, hp->objective.arc.arc[i], LOOKUP_NOISY);
 		if (!dp) {
 		    break;
@@ -2424,6 +2478,7 @@ joint_load(struct ged *gedp, int argc, const char *argv[])
 	}
     }
     if (!no_mesh) (void) joint_mesh(gedp, 0, 0);
+    bu_vls_free(&instring);
     return BRLCAD_OK;
 }
 
@@ -2443,7 +2498,7 @@ joint_save(struct ged *gedp, int argc, const char *argv[])
     --argc;
     ++argv;
 
-    if (argc <1) {
+    if (argc < 1 || !*argv) {
 	bu_vls_printf(gedp->ged_result_str, "joint save: missing file name");
 	return BRLCAD_ERROR;
     }
@@ -2453,7 +2508,7 @@ joint_save(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
     fprintf(fop, "# joints and constraints for '%s'\n",
-	    gedp->dbip->dbi_title);
+	    gedp->dbip->dbi_title ? gedp->dbip->dbi_title : "");
 
     /* Output the current editing units */
     fprintf(fop, "units %gmm;\n", gedp->dbip->dbi_local2base);
@@ -2462,26 +2517,41 @@ joint_save(struct ged *gedp, int argc, const char *argv[])
     base2mm = gedp->dbip->dbi_base2local;
 
     for (BU_LIST_FOR(jp, joint, &joint_head)) {
-	fprintf(fop, "joint %s {\n", jp->name);
+	fprintf(fop, "joint %s {\n", jp->name ? jp->name : "UNNAMED");
 	if (jp->path.type == ARC_PATH) {
-	    fprintf(fop, "\tpath = %s", jp->path.arc[0]);
-	    for (i=1;i<jp->path.arc_last;i++) {
-		fprintf(fop, "/%s", jp->path.arc[i]);
+	    if (jp->path.arc && jp->path.arc_last >= 0) {
+		fprintf(fop, "\tpath = %s", jp->path.arc[0]);
+		for (i = 1; i < jp->path.arc_last; i++) {
+		    fprintf(fop, "/%s", jp->path.arc[i]);
+		}
+		if (jp->path.arc_last > 0)
+		    fprintf(fop, "-%s;\n", jp->path.arc[jp->path.arc_last]);
+		else
+		    fprintf(fop, ";\n");
 	    }
-	    fprintf(fop, "-%s;\n", jp->path.arc[i]);
 	} else if (jp->path.type & ARC_BOTH) {
-	    fprintf(fop, "\tpath = %s", jp->path.original[0]);
-	    for (i=1; i < jp->path.org_last; i++) {
-		fprintf(fop, "/%s", jp->path.original[i]);
+	    if (jp->path.original && jp->path.org_last >= 0) {
+		fprintf(fop, "\tpath = %s", jp->path.original[0]);
+		for (i = 1; i < jp->path.org_last; i++) {
+		    fprintf(fop, "/%s", jp->path.original[i]);
+		}
+		if (jp->path.org_last > 0)
+		    fprintf(fop, "-%s;\n", jp->path.original[jp->path.org_last]);
+		else
+		    fprintf(fop, ";\n");
 	    }
-	    fprintf(fop, "-%s;\n", jp->path.original[i]);
 	} else {
 	    /* ARC_ARC */
-	    fprintf(fop, "\tarc = %s", jp->path.arc[0]);
-	    for (i=1;i<jp->path.arc_last;i++) {
-		fprintf(fop, "/%s", jp->path.arc[i]);
+	    if (jp->path.arc && jp->path.arc_last >= 0) {
+		fprintf(fop, "\tarc = %s", jp->path.arc[0]);
+		for (i = 1; i < jp->path.arc_last; i++) {
+		    fprintf(fop, "/%s", jp->path.arc[i]);
+		}
+		if (jp->path.arc_last > 0)
+		    fprintf(fop, "/%s;\n", jp->path.arc[jp->path.arc_last]);
+		else
+		    fprintf(fop, ";\n");
 	    }
-	    fprintf(fop, "/%s;\n", jp->path.arc[i]);
 	}
 	fprintf(fop, "\tlocation = (%.15e, %.15e, %.15e);\n",
 		jp->location[X]*mm2base, jp->location[Y]*mm2base,
@@ -2536,7 +2606,7 @@ joint_accept(struct ged *gedp, int argc, const char *argv[])
     for (BU_LIST_FOR(jp, joint, &joint_head)) {
 	if (argc) {
 	    for (i=0; i<argc; i++) {
-		if (BU_STR_EQUAL(argv[i], jp->name))
+		if (argv[i] && jp->name && BU_STR_EQUAL(argv[i], jp->name))
 		    break;
 	    }
 	    if (i>=argc)
@@ -2565,7 +2635,7 @@ joint_reject(struct ged *gedp, int argc, const char *argv[])
 	switch (c) {
 	    case 'm': no_mesh=1;break;
 	    default:
-		bu_vls_printf(gedp->ged_result_str, "Usage: joint accept [-m] [joint_names]\n");
+		bu_vls_printf(gedp->ged_result_str, "Usage: joint reject [-m] [joint_names]\n");
 		break;
 	}
     }
@@ -2575,7 +2645,7 @@ joint_reject(struct ged *gedp, int argc, const char *argv[])
     for (BU_LIST_FOR(jp, joint, &joint_head)) {
 	if (argc) {
 	    for (i=0; i<argc; i++) {
-		if (BU_STR_EQUAL(argv[i], jp->name))
+		if (argv[i] && jp->name && BU_STR_EQUAL(argv[i], jp->name))
 		    break;
 	    }
 	    if (i>=argc)
@@ -2646,7 +2716,8 @@ part_solve(struct ged *gedp, struct hold *hp, double limits, double tol)
 	for (BU_LIST_FOR(jp, joint, &joint_head)) {
 	    if (hp->j_set.path.type == ARC_LIST) {
 		for (i=0; i <= (size_t)hp->j_set.path.arc_last; i++) {
-		    if (BU_STR_EQUAL(jp->name, hp->j_set.path.arc[i])) {
+		    if (jp->name && hp->j_set.path.arc && hp->j_set.path.arc[i] &&
+			BU_STR_EQUAL(jp->name, hp->j_set.path.arc[i])) {
 			BU_GET(jh, struct jointH);
 			jh->l.magic = MAGIC_JOINT_HANDLE;
 			jh->p = jp;
@@ -2659,22 +2730,23 @@ part_solve(struct ged *gedp, struct hold *hp, double limits, double tol)
 		}
 		continue;
 	    }
+	    if (!jp->path.arc || jp->path.arc_last < 0 || !hp->effector.path.fp_names)
+		continue;
 	    for (i=0;i<hp->effector.path.fp_len; i++) {
-		if (!BU_STR_EQUAL(jp->path.arc[0],
-				  hp->effector.path.fp_names[i]->d_namep)==0)
+		if (hp->effector.path.fp_names[i] &&
+		    !BU_STR_EQUAL(jp->path.arc[0], hp->effector.path.fp_names[i]->d_namep)==0)
 		    break;
 	    }
 	    if (i+jp->path.arc_last >= hp->effector.path.fp_len)
 		continue;
 	    for (j=1; j <= (size_t)jp->path.arc_last;j++) {
-		if (!BU_STR_EQUAL(jp->path.arc[j],
-				  hp->effector.path.fp_names[i+j]->d_namep)
-		    != 0)
+		if (!hp->effector.path.fp_names[i+j] ||
+		    !BU_STR_EQUAL(jp->path.arc[j], hp->effector.path.fp_names[i+j]->d_namep) != 0)
 		    break;
 	    }
 	    if (j>(size_t)jp->path.arc_last) {
 		if (J_DEBUG & DEBUG_J_SOLVE) {
-		    bu_vls_printf(gedp->ged_result_str, "part_solve: found %s\n", jp->name);
+		    bu_vls_printf(gedp->ged_result_str, "part_solve: found %s\n", jp->name ? jp->name : "UNNAMED");
 		}
 		BU_GET(jh, struct jointH);
 		jh->l.magic = MAGIC_JOINT_HANDLE;
@@ -2683,13 +2755,13 @@ part_solve(struct ged *gedp, struct hold *hp, double limits, double tol)
 		jh->arc_loc = i+j-1;
 		jh->flag = 0;
 		BU_LIST_APPEND(&hp->j_head, &jh->l);
-		if (BU_STR_EQUAL(hp->joint, jp->name)) {
+		if (hp->joint && jp->name && BU_STR_EQUAL(hp->joint, jp->name)) {
 		    startjoint = jh->arc_loc;
 		}
 	    }
 	}
 	if (startjoint < 0) {
-	    bu_vls_printf(gedp->ged_result_str, "part_solve: %s, joint %s not on arc.\n", hp->name, hp->joint);
+	    bu_vls_printf(gedp->ged_result_str, "part_solve: %s, joint %s not on arc.\n", hp->name ? hp->name : "UNNAMED", hp->joint ? hp->joint : "UNNAMED");
 	}
 	for (BU_LIST_FOR(jh, jointH, &hp->j_head)) {
 	    /*
@@ -2698,12 +2770,14 @@ part_solve(struct ged *gedp, struct hold *hp, double limits, double tol)
 	     */
 	    if (jh->arc_loc < startjoint) {
 		struct jointH *hold;
+		struct jointH *tofree = jh;
 		if (J_DEBUG & DEBUG_J_SOLVE) {
-		    bu_vls_printf(gedp->ged_result_str, "part_solve: dequeuing %s from %s", jh->p->name, hp->name);
+		    bu_vls_printf(gedp->ged_result_str, "part_solve: dequeuing %s from %s", (jh->p && jh->p->name) ? jh->p->name : "UNNAMED", hp->name ? hp->name : "UNNAMED");
 		}
 		hold=(struct jointH *)jh->l.back;
-		BU_LIST_DEQUEUE(&jh->l);
-		jh->p->uses--;
+		BU_LIST_DEQUEUE(&tofree->l);
+		if (tofree->p) tofree->p->uses--;
+		BU_PUT(tofree, struct jointH);
 		jh = hold;
 	    }
 	}
@@ -2923,13 +2997,19 @@ reject_move(struct ged *gedp)
     if (!ssp)
 	return;
 
+    if (!ssp->jp) {
+	BU_PUT(ssp, struct solve_stack);
+	return;
+    }
+
     if (J_DEBUG & DEBUG_J_SYSTEM) {
-	bu_vls_printf(gedp->ged_result_str, "reject_move: rejecting %s(%d, %g)->%g\n", ssp->jp->name,
+	bu_vls_printf(gedp->ged_result_str, "reject_move: rejecting %s(%d, %g)->%g\n",
+		      ssp->jp->name ? ssp->jp->name : "UNNAMED",
 		      ssp->freedom, ssp->newval, ssp->oldval);
     }
-    if (ssp->freedom<3) {
+    if (ssp->freedom >= 0 && ssp->freedom < 3) {
 	ssp->jp->rots[ssp->freedom].current = ssp->oldval;
-    } else {
+    } else if (ssp->freedom >= 3 && ssp->freedom < 6) {
 	ssp->jp->dirs[ssp->freedom-3].current = ssp->oldval;
     }
     joint_adjust(gedp, ssp->jp);
@@ -3185,16 +3265,24 @@ joint_solve(struct ged *gedp, int argc, const char *argv[])
     int myargc;
     int result = 0;
 
+    if (!gedp || gedp->dbip == DBI_NULL) {
+	if (gedp && gedp->ged_result_str)
+	    bu_vls_printf(gedp->ged_result_str, "A database is not open!\n");
+	return BRLCAD_ERROR;
+    }
+
+    if (argc < 1 || !argv)
+	return BRLCAD_ERROR;
+
     /* because this routine calls "mesh" in the middle, the command
      * arguments can be reused.  We cons up a new argv vector and copy
      * all of the arguments before we do any processing.
      */
     myargc = argc;
-    myargv = (char **)bu_malloc(sizeof(char *)*argc, "param pointers");
+    myargv = (char **)bu_malloc(sizeof(char *)*myargc, "param pointers");
 
     for (count=0; count<myargc; count++) {
-	myargv[count] = (char *)bu_malloc(strlen(argv[count])+1, "param");
-	bu_strlcpy(myargv[count], argv[count], strlen(argv[count])+1);
+	myargv[count] = bu_strdup(argv[count] ? argv[count] : "");
     }
 
     /* argv = myargv; */
@@ -3229,8 +3317,13 @@ joint_solve(struct ged *gedp, int argc, const char *argv[])
     found = -1;
     while (argc) {
 	found = 0;
+	if (!*argv) {
+	    --argc;
+	    ++argv;
+	    continue;
+	}
 	for (BU_LIST_FOR(hp, hold, &hold_head)) {
-	    if (BU_STR_EQUAL(*argv, hp->name)) {
+	    if (hp->name && BU_STR_EQUAL(*argv, hp->name)) {
 		found = 1;
 		for (count=0; count<loops; count++) {
 		    if (!part_solve(gedp, hp, delta, epsilon))
@@ -3264,7 +3357,7 @@ joint_solve(struct ged *gedp, int argc, const char *argv[])
     bu_free((void *)myargv, "param pointers");
 
     if (found >= 0)
-	return BRLCAD_ERROR;
+	return found ? BRLCAD_OK : BRLCAD_ERROR;
 
     /* solve the whole system of constraints. */
 
@@ -3356,13 +3449,15 @@ static int
 joint_hold(struct ged *gedp, int argc, const char *argv[])
 {
     struct hold *hp;
+    if (argc < 1 || !argv)
+	return BRLCAD_OK;
     ++argv;
     --argc;
     for (BU_LIST_FOR(hp, hold, &hold_head)) {
 	if (argc) {
 	    int i;
 	    for (i=0; i<argc; i++) {
-		if (BU_STR_EQUAL(argv[i], hp->name))
+		if (argv[i] && hp->name && BU_STR_EQUAL(argv[i], hp->name))
 		    break;
 	    }
 	    if (i>=argc)
@@ -3396,8 +3491,13 @@ joint_move(struct ged *gedp, int argc, const char *argv[])
     int i;
     double tmp;
 
-    if (gedp->dbip == DBI_NULL)
+    if (!gedp || gedp->dbip == DBI_NULL)
 	return BRLCAD_OK;
+
+    if (argc < 2 || !argv || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "joint move: missing joint name\n");
+	return BRLCAD_ERROR;
+    }
 
     /* find the joint. */
 
@@ -3406,7 +3506,7 @@ joint_move(struct ged *gedp, int argc, const char *argv[])
 
     jp = joint_lookup(*argv);
     if (!jp) {
-	bu_vls_printf(gedp->ged_result_str, "joint move: %s not found\n", *argv);
+	bu_vls_printf(gedp->ged_result_str, "joint move: %s not found\n", *argv ? *argv : "(null)");
 	return BRLCAD_ERROR;
     }
 
@@ -3418,6 +3518,12 @@ joint_move(struct ged *gedp, int argc, const char *argv[])
 
 	/* Eat a parameter, translate it from degrees to rads. */
 
+	if (!*argv) {
+	    ++argv;
+	    --argc;
+	    continue;
+	}
+
 	if ((*argv)[0] == '-' && (*argv)[1] == '\0') {
 	    ++argv;
 	    --argc;
@@ -3426,17 +3532,17 @@ joint_move(struct ged *gedp, int argc, const char *argv[])
 	tmp = atof(*argv);
 	if (J_DEBUG & DEBUG_J_MOVE) {
 	    bu_vls_printf(gedp->ged_result_str, "joint move: %s rotate (%g %g %g) %g degrees.\n",
-			  jp->name, jp->rots[i].quat[X],
+			  jp->name ? jp->name : "UNNAMED", jp->rots[i].quat[X],
 			  jp->rots[i].quat[Y], jp->rots[i].quat[Z],
 			  tmp);
 	    bu_vls_printf(gedp->ged_result_str, "joint move: %s lower=%g, upper=%g\n",
-			  jp->name, jp->rots[i].lower, jp->rots[i].upper);
+			  jp->name ? jp->name : "UNNAMED", jp->rots[i].lower, jp->rots[i].upper);
 	}
 	if (tmp <= jp->rots[i].upper && tmp >= jp->rots[i].lower) {
 	    jp->rots[i].current = tmp;
 	} else {
 	    bu_vls_printf(gedp->ged_result_str, "joint move: %s, rotation %d, %s out of range.\n",
-			  jp->name, i, *argv);
+			  jp->name ? jp->name : "UNNAMED", i, *argv);
 	}
 	argv++;
 	argc--;
@@ -3446,6 +3552,12 @@ joint_move(struct ged *gedp, int argc, const char *argv[])
 	    break;
 
 	/* eat a parameter. */
+
+	if (!*argv) {
+	    ++argv;
+	    --argc;
+	    continue;
+	}
 
 	if ((*argv)[0] == '-' && (*argv)[1] == '\0') {
 	    ++argv;
@@ -3458,8 +3570,10 @@ joint_move(struct ged *gedp, int argc, const char *argv[])
 	    jp->dirs[i].current = tmp;
 	} else {
 	    bu_vls_printf(gedp->ged_result_str, "joint move: %s, vector %d, %s out of range.\n",
-			  jp->name, i, *argv);
+			  jp->name ? jp->name : "UNNAMED", i, *argv);
 	}
+	argv++;
+	argc--;
     }
     joint_adjust(gedp, jp);
     joint_mesh(gedp, 0, 0);
@@ -3485,7 +3599,7 @@ joint_cmd(struct ged *gedp,
 {
     struct funtab *ftp;
 
-    if (argc == 0) {
+    if (argc == 0 || !argv || !argv[0]) {
 	bu_vls_printf(gedp->ged_result_str, "Usage: joint {command} [command_options]\n\n");
 	(void)joint_usage(gedp, argc, argv, functions);
 	return GED_HELP;	/* No command entered */
@@ -3505,6 +3619,8 @@ joint_cmd(struct ged *gedp,
 		    return BRLCAD_OK;
 		case BRLCAD_ERROR:
 		    return BRLCAD_ERROR;
+		case GED_HELP:
+		    return GED_HELP;
 		default:
 		    bu_vls_printf(gedp->ged_result_str, "joint_cmd: Invalid return from %s\n", ftp->ft_name);
 		    return BRLCAD_ERROR;
@@ -3515,7 +3631,7 @@ joint_cmd(struct ged *gedp,
 	return BRLCAD_ERROR;
     }
 
-    bu_vls_printf(gedp->ged_result_str, "%s%s : no such command, type '%s?' for help\n", functions[0].ft_name, argv[0], functions[0].ft_name);
+    bu_vls_printf(gedp->ged_result_str, "%s%s : no such command, type '%s?' for help\n", functions[0].ft_name, argv[0] ? argv[0] : "", functions[0].ft_name);
     return BRLCAD_ERROR;
 }
 
@@ -3539,6 +3655,8 @@ ged_joint_core(struct ged *gedp, int argc, const char *argv[])
 
     if (status == BRLCAD_OK)
 	return BRLCAD_OK;
+    if (status == GED_HELP)
+	return GED_HELP;
 
     return BRLCAD_ERROR;
 }

@@ -102,6 +102,11 @@ joint_selection(
 	}
 	selection_name = argv[4];
 
+	if (!ip->idb_meth || !ip->idb_meth->ft_find_selections) {
+	    bu_vls_printf(gedp->ged_result_str, "ft_find_selections not supported\n");
+	    return BRLCAD_ERROR;
+	}
+
 	/* find matching selections */
 	query.start[X] = atof(argv[5]);
 	query.start[Y] = atof(argv[6]);
@@ -121,12 +126,19 @@ joint_selection(
 	 * freeing the rest
 	 */
 	selections = &selection_set->selections;
+	if (BU_PTBL_LEN(selections) == 0) {
+	    bu_ptbl_free(selections);
+	    BU_FREE(selection_set, struct rt_selection_set);
+	    bu_vls_printf(gedp->ged_result_str, "no matching selections");
+	    return BRLCAD_OK;
+	}
 	new_selection = (struct rt_selection *)BU_PTBL_GET(selections, 0);
 
 	free_selection = selection_set->free_selection;
 	for (i = BU_PTBL_LEN(selections) - 1; i > 0; --i) {
 	    long *s = BU_PTBL_GET(selections, i);
-	    free_selection((struct rt_selection *)s);
+	    if (free_selection)
+		free_selection((struct rt_selection *)s);
 	    bu_ptbl_rm(selections, s);
 	}
 	bu_ptbl_free(selections);
@@ -139,7 +151,8 @@ joint_selection(
 
 	for (i = BU_PTBL_LEN(selections) - 1; i >= 0; --i) {
 	    long *s = BU_PTBL_GET(selections, i);
-	    free_selection((struct rt_selection *)s);
+	    if (free_selection)
+		free_selection((struct rt_selection *)s);
 	    bu_ptbl_rm(selections, s);
 	}
 	bu_ptbl_ins(selections, (long *)new_selection);
@@ -153,6 +166,11 @@ joint_selection(
 	    return BRLCAD_ERROR;
 	}
 	selection_name = argv[4];
+
+	if (!ip->idb_meth || !ip->idb_meth->ft_process_selection) {
+	    bu_vls_printf(gedp->ged_result_str, "ft_process_selection not supported\n");
+	    return BRLCAD_ERROR;
+	}
 
 	selection_set = ged_get_selection_set(gedp, solid_name, selection_name);
 	selections = &selection_set->selections;
@@ -185,7 +203,6 @@ ged_joint2_core(struct ged *gedp, int argc, const char *argv[])
 {
     struct directory *ndp;
     struct rt_db_internal intern;
-    /*struct rt_joint_internal *ji; */
 
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
@@ -195,7 +212,7 @@ ged_joint2_core(struct ged *gedp, int argc, const char *argv[])
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
-    if (argc < 2) {
+    if (argc < 2 || !argv[1]) {
 	struct _ged_funtab *ftp;
 	bu_vls_printf(gedp->ged_result_str, "joint <obj> [subcommand]\n");
 	bu_vls_printf(gedp->ged_result_str, "The following subcommands are available:\n");
@@ -207,29 +224,22 @@ ged_joint2_core(struct ged *gedp, int argc, const char *argv[])
 	return GED_HELP;
     }
 
-    if ((ndp = db_lookup(gedp->dbip,  argv[1], LOOKUP_NOISY)) == RT_DIR_NULL) {
+    if ((ndp = db_lookup(gedp->dbip, argv[1], LOOKUP_NOISY)) == RT_DIR_NULL) {
 	bu_vls_printf(gedp->ged_result_str, "Error: %s is not a solid or does not exist in database", argv[1]);
 	return BRLCAD_ERROR;
     }
 
+    RT_DB_INTERNAL_INIT(&intern);
     GED_DB_GET_INTERN(gedp, &intern, ndp, bn_mat_identity, BRLCAD_ERROR);
 
-
     RT_CK_DB_INTERNAL(&intern);
-    /*
-    ji = (struct rt_joint_internal*)intern.idb_ptr;
-
-    if (ji->magic != RT_JOINT_INTERNAL_MAGIC) {
-	bu_vls_printf(gedp->ged_result_str, "Error: %s is not a joint primitive.", ndp->d_namep);
-	return BRLCAD_ERROR;
-    }
-    */
 
     /* check for selection command */
-    if (BU_STR_EQUAL(argv[2], "selection")) {
+    if (argc >= 3 && argv[2] && BU_STR_EQUAL(argv[2], "selection")) {
 	int ret = joint_selection(gedp, &intern, argc, argv);
-	if (BU_STR_EQUAL(argv[3], "translate") && ret == 0) {
+	if (argc > 3 && argv[3] && BU_STR_EQUAL(argv[3], "translate") && ret == 0) {
 	    GED_DB_PUT_INTERN(gedp, ndp, &intern, BRLCAD_ERROR);
+	    return ret;
 	}
 	rt_db_free_internal(&intern);
 	return ret;
