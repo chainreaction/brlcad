@@ -271,6 +271,10 @@ static void process_comb(struct ged *gedp,
     if (rt_db_get_internal(&intern, dp, gedp->dbip,
                            (fastf_t *)NULL) < 0)
         return;
+    if (intern.idb_type != ID_COMBINATION || !intern.idb_ptr) {
+        rt_db_free_internal(&intern);
+        return;
+    }
     struct rt_comb_internal *comb = (struct rt_comb_internal *)intern.idb_ptr;
 
     if (!comb->tree) {
@@ -300,7 +304,11 @@ static void process_comb(struct ged *gedp,
     comb->tree = TREE_NULL;
 
     for (size_t i = 0; i < actual; ++i) {
-        const char *child_name = rta[i].tl_tree->tr_l.tl_name;
+        const char *child_name = (rta[i].tl_tree && rta[i].tl_tree->tr_l.tl_name) ? rta[i].tl_tree->tr_l.tl_name : NULL;
+        if (!child_name) {
+            if (rta[i].tl_tree) db_free_tree(rta[i].tl_tree);
+            continue;
+        }
         const char *child_id_str = (const char *)bu_hash_get(dag->name_to_id,
                                (uint8_t *)child_name,
                                strlen(child_name)+1);
@@ -639,6 +647,10 @@ hl_scan_db(struct ged *gedp, HLContext &ctx)
 	    struct rt_db_internal intern;
 	    if (rt_db_get_internal(&intern, dp, gedp->dbip, (fastf_t *)NULL) < 0)
 		continue;
+	    if (intern.idb_type != ID_COMBINATION || !intern.idb_ptr) {
+		rt_db_free_internal(&intern);
+		continue;
+	    }
 	    struct rt_comb_internal *comb = (struct rt_comb_internal *)intern.idb_ptr;
 	    if (comb->tree) {
 		if (db_ck_v4gift_tree(comb->tree) < 0) {
@@ -658,8 +670,11 @@ hl_scan_db(struct ged *gedp, HLContext &ctx)
 		    comb->tree = TREE_NULL;
 		    auto &vec = ctx.children[dp->d_namep];
 		    for (size_t k = 0; k < actual; ++k) {
-			vec.push_back(rta[k].tl_tree->tr_l.tl_name);
-			db_free_tree(rta[k].tl_tree);
+			if (rta[k].tl_tree && rta[k].tl_tree->tr_l.tl_name) {
+			    vec.push_back(rta[k].tl_tree->tr_l.tl_name);
+			}
+			if (rta[k].tl_tree)
+			    db_free_tree(rta[k].tl_tree);
 		    }
 		    bu_free(rta, "hl rta free");
 		}
@@ -895,6 +910,11 @@ hl_layout_and_output(struct ged *gedp, const graph_opts &opts)
 	return;
     }
     ofs << doc.str();
+    if (!ofs.good()) {
+	bu_vls_printf(gedp->ged_result_str,
+		"ERROR: failed writing SVG output to '%s'\n",
+		opts.svg_filename.c_str());
+    }
     ofs.close();
 }
 
@@ -1007,10 +1027,8 @@ ged_graph(struct ged *gedp, int argc, const char *argv[])
     }
 
     if (opts.igraph_mode) {
-	/* Expect exactly one subcommand: show | positions.  Advance
-	 * past --igraph option. */
-	argc-=(argc>0); argv+=(argc>0);
-	if (argc != 1) {
+	/* Expect exactly one subcommand: show | positions. */
+	if (optargc != 1 || !argv[0]) {
 	    bu_vls_printf(gedp->ged_result_str,
 		    "Usage (igraph): graph --igraph [show|positions]\n");
 	    return BRLCAD_ERROR;
@@ -1027,6 +1045,10 @@ ged_graph(struct ged *gedp, int argc, const char *argv[])
 	    return BRLCAD_ERROR;
 	}
     } else {
+	if (optargc < 1 || !argv[0]) {
+	    bu_vls_printf(gedp->ged_result_str, "graph: missing output svg filename\n");
+	    return BRLCAD_ERROR;
+	}
 	opts.svg_filename = argv[0];
 	if (opts.svg_filename.size() < 4 ||
 		opts.svg_filename.substr(opts.svg_filename.size() - 4) != ".svg") {

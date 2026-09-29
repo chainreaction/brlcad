@@ -49,6 +49,9 @@ _debackslash(struct bu_vls *dest, struct bu_vls *src)
 {
     char *ptr;
 
+    if (!dest || !src)
+	return;
+
     ptr = bu_vls_addr(src);
     while (*ptr) {
 	if (*ptr == '\\')
@@ -67,6 +70,9 @@ _backslash_specials(struct bu_vls *dest, struct bu_vls *src)
 {
     int backslashed;
     char *ptr, buf[2];
+
+    if (!dest || !src)
+	return;
 
     buf[1] = '\0';
     backslashed = 0;
@@ -101,6 +107,9 @@ _ged_expand_str_glob(struct bu_vls *dest, const char *input, struct db_i *dbip, 
     struct bu_vls word = BU_VLS_INIT_ZERO;         /* Current word being processed */
     struct bu_vls temp = BU_VLS_INIT_ZERO;
     char *src = NULL;
+
+    if (!dest || !input)
+	return 0;
 
     if (dbip == DBI_NULL) {
 	bu_vls_sprintf(dest, "%s", input);
@@ -155,13 +164,16 @@ _ged_expand_str_glob(struct bu_vls *dest, const char *input, struct db_i *dbip, 
 	    /* Use db_path_glob for pattern expansion against the database */
 	    struct bu_glob_context *gp = bu_glob_ctx_create();
 	    int i;
+	    int word_match_cnt = 0;
 
 	    db_path_glob(gp, bu_vls_addr(&word), BU_GLOB_NOSORT, dbip);
 
 	    bu_vls_trunc(&temp, 0);
 	    for (i = 0; i < gp->gl_pathc; i++) {
 		struct directory *dp;
-		const char *name = bu_vls_cstr(gp->gl_pathv[i]);
+		const char *name;
+		if (!gp->gl_pathv[i]) continue;
+		name = bu_vls_cstr(gp->gl_pathv[i]);
 
 		/* Apply hidden/non-geom filters */
 		dp = db_lookup(dbip, name, LOOKUP_QUIET);
@@ -173,12 +185,13 @@ _ged_expand_str_glob(struct bu_vls *dest, const char *input, struct db_i *dbip, 
 		if (bu_vls_strlen(&temp) > 0)
 		    bu_vls_strcat(&temp, " ");
 		bu_vls_strcat(&temp, name);
+		word_match_cnt++;
 		match_cnt++;
 	    }
 
 	    bu_glob_ctx_destroy(gp);
 
-	    if (match_cnt == 0 || bu_vls_strlen(&temp) == 0) {
+	    if (word_match_cnt == 0 || bu_vls_strlen(&temp) == 0) {
 		_debackslash(&temp, &word);
 		_backslash_specials(dest, &temp);
 	    } else {
@@ -210,6 +223,10 @@ ged_glob_core(struct ged *gedp, int argc, const char *argv[])
     if (gedp == GED_NULL)
 	return BRLCAD_ERROR;
 
+    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+    if (!argv)
+	return BRLCAD_ERROR;
+
     /* Initialize result. This behavior is depended upon by mged - apparently
      * the interpretation is that if no database is open, all expressions match
      * nothing and the empty string is returned. */
@@ -225,7 +242,7 @@ ged_glob_core(struct ged *gedp, int argc, const char *argv[])
 	return GED_HELP;
     }
 
-    if (argc != 2) {
+    if (argc != 2 || !argv[1]) {
 	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
 	return BRLCAD_ERROR;
     }

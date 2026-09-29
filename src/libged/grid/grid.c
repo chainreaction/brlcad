@@ -42,6 +42,9 @@ grid_vsnap(struct ged *gedp)
     point_t view_pt;
     point_t model_pt;
 
+    if (!gedp || !gedp->ged_gvp || !gedp->ged_gvp->gv_s)
+	return;
+
     MAT_DELTAS_GET_NEG(model_pt, gedp->ged_gvp->gv_center);
     MAT4X3PNT(view_pt, gedp->ged_gvp->gv_model2view, model_pt);
     bv_snap_grid_2d(gedp->ged_gvp, &view_pt[X], &view_pt[Y]);
@@ -54,6 +57,9 @@ grid_vsnap(struct ged *gedp)
 static void
 grid_vls_print(struct ged *gedp)
 {
+    if (!gedp || !gedp->ged_gvp || !gedp->ged_gvp->gv_s)
+	return;
+
     double blval = (gedp->dbip) ? gedp->dbip->dbi_base2local : 1.0;
     bu_vls_printf(gedp->ged_result_str, "anchor = %g %g %g\n",
 		  gedp->ged_gvp->gv_s->gv_grid.anchor[0] * blval,
@@ -106,6 +112,11 @@ ged_grid_core(struct ged *gedp, int argc, const char *argv[])
 
     GED_CHECK_VIEW(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+
+    if (!gedp->ged_gvp->gv_s) {
+	bu_vls_printf(gedp->ged_result_str, "No view state available.\n");
+	return BRLCAD_ERROR;
+    }
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -272,9 +283,15 @@ ged_grid_core(struct ged *gedp, int argc, const char *argv[])
 			  gedp->ged_gvp->gv_s->gv_grid.color[Z]);
 	    return BRLCAD_OK;
 	} else if (argc == 3) {
-	    gedp->ged_gvp->gv_s->gv_grid.color[0] = (int)user_pt[X];
-	    gedp->ged_gvp->gv_s->gv_grid.color[1] = (int)user_pt[Y];
-	    gedp->ged_gvp->gv_s->gv_grid.color[2] = (int)user_pt[Z];
+	    int r = (int)user_pt[X];
+	    int g = (int)user_pt[Y];
+	    int b = (int)user_pt[Z];
+	    CLAMP(r, 0, 255);
+	    CLAMP(g, 0, 255);
+	    CLAMP(b, 0, 255);
+	    gedp->ged_gvp->gv_s->gv_grid.color[0] = (unsigned char)r;
+	    gedp->ged_gvp->gv_s->gv_grid.color[1] = (unsigned char)g;
+	    gedp->ged_gvp->gv_s->gv_grid.color[2] = (unsigned char)b;
 
 	    return BRLCAD_OK;
 	}
@@ -293,7 +310,7 @@ ged_grid_core(struct ged *gedp, int argc, const char *argv[])
 	return GED_HELP;
     }
 
-    bu_vls_printf(gedp->ged_result_str, "%s: unrecognized command '%s'\n", argv[0], command);
+    bu_vls_printf(gedp->ged_result_str, "%s: unrecognized parameter '%s'\n", argv[0], parameter);
     grid_usage(gedp, argv[0]);
 
     return BRLCAD_ERROR;

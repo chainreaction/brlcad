@@ -51,12 +51,17 @@ ged_get_type_core(struct ged *gedp, int argc, const char *argv[])
 	return GED_HELP;
     }
 
-    if (argc != 2) {
+    if (argc != 2 || !argv[1]) {
 	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "Database is not open for writing/reading\n");
+	return BRLCAD_ERROR;
+    }
+    RT_DB_INTERNAL_INIT(&intern);
     if (wdb_import_from_path(gedp->ged_result_str, &intern, argv[1], wdbp) & BRLCAD_ERROR) {
 	return BRLCAD_ERROR;
     }

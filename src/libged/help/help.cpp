@@ -38,7 +38,7 @@ help_files(const char *dir, char ***files)
 {
     char **dirs;
     char **entries;
-    char **listing;
+    char **listing = NULL;
     size_t i, count, listing_count, dir_count;
     size_t max_count = 2048; /* pfa number based on current doc count */
 
@@ -69,6 +69,7 @@ help_files(const char *dir, char ***files)
 
 	    bu_vls_sprintf(&filepath, "%s%c%s", curdir, BU_DIR_SEPARATOR, listing[i]);
 	    if (!bu_file_readable(bu_vls_cstr(&filepath))) {
+		bu_vls_free(&filepath);
 		continue;
 	    }
 
@@ -94,10 +95,14 @@ help_files(const char *dir, char ***files)
 
 	bu_free(curdir, "free curdir");
 	dirs[dir_count] = NULL;
+	if (listing) {
+	    bu_argv_free(listing_count, listing);
+	    listing = NULL;
+	    listing_count = 0;
+	}
     }
 
     bu_free(dirs, "free dirs");
-    bu_argv_free(listing_count, listing);
 
     return count;
 }
@@ -107,7 +112,6 @@ static size_t
 help_tokenize(size_t count, const char **files)
 {
     size_t bytes = 0;
-    size_t zeros = 0;
     struct bu_mapped_file *data = NULL;
 
 #define USE_ARRAY 0
@@ -126,6 +130,7 @@ help_tokenize(size_t count, const char **files)
 
     while (count-- > 0) {
 	struct bu_vls word = BU_VLS_INIT_ZERO;
+	size_t zeros = 0;
 
 #if USE_ARRAY
 	/* lotta words? leave an empty spot */
@@ -135,8 +140,10 @@ help_tokenize(size_t count, const char **files)
 #endif
 
 	data = bu_open_mapped_file(files[count], NULL);
-	if (!data)
+	if (!data) {
+	    bu_vls_free(&word);
 	    continue;
+	}
 
 	/* binary files have a propensity for nul bytes */
 	for (bytes = 0; bytes < data->buflen; bytes++) {
@@ -151,6 +158,7 @@ help_tokenize(size_t count, const char **files)
 	/* skip binary */
 	if (zeros) {
 	    bu_close_mapped_file(data);
+	    bu_vls_free(&word);
 	    continue;
 	}
 
@@ -160,7 +168,7 @@ help_tokenize(size_t count, const char **files)
 	    const uint8_t *wordbytes;
 	    size_t wordbyteslen;
 	    int c = ((const char *)data->buf)[bytes];
-	    int *cntptr;
+	    size_t *cntptr;
 
 	    if (isalnum(c)) {
 		bu_vls_putc(&word, tolower(c));
@@ -189,7 +197,7 @@ help_tokenize(size_t count, const char **files)
 		    words++;
 		}
 #else
-		cntptr = (int *)bu_hash_get(hash, wordbytes, wordbyteslen);
+		cntptr = (size_t *)bu_hash_get(hash, wordbytes, wordbyteslen);
 		if (cntptr) {
 /*		    bu_log("found existing %s\n", (char *)wordbytes); */
 		    (*cntptr)++;
@@ -214,6 +222,7 @@ help_tokenize(size_t count, const char **files)
 	/* bu_log("FILE: %s (%zu bytes, %zu words)\n", files[count], data->buflen, words); */
 
 	bu_close_mapped_file(data);
+	bu_vls_free(&word);
     }
 
     /* bu_log("FOUND:\n"); */
@@ -261,7 +270,12 @@ ged_help_core(struct ged *gedp, int argc, const char *argv[])
 	return -1;
 
     /* get our doc dir */
-    dir = bu_strdup(bu_dir(NULL, 0, BU_DIR_DOC, NULL));
+    const char *docdir = bu_dir(NULL, 0, BU_DIR_DOC, NULL);
+    if (!docdir) {
+	bu_vls_printf(gedp->ged_result_str, "Documentation directory not found\n");
+	return BRLCAD_ERROR;
+    }
+    dir = bu_strdup(docdir);
 
     /* get recursive list of documentation files */
     count = help_files(dir, &entries);
@@ -271,6 +285,9 @@ ged_help_core(struct ged *gedp, int argc, const char *argv[])
     words = help_tokenize(count, (const char **)entries);
 
     if (words == 0) {
+	bu_free(dir, "free doc dir");
+	if (entries)
+	    bu_argv_free(count, entries);
 	return BRLCAD_ERROR;
     }
 

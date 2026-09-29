@@ -36,6 +36,7 @@ int
 ged_grid2model_lu_core(struct ged *gedp, int argc, const char *argv[])
 {
     fastf_t f;
+    double denom;
     point_t view_pt;
     point_t model_pt = VINIT_ZERO;
     point_t mo_view_pt;           /* model origin in view space */
@@ -50,7 +51,7 @@ ged_grid2model_lu_core(struct ged *gedp, int argc, const char *argv[])
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
-    if (argc != 3)
+    if (argc != 3 || !argv[1] || !argv[2])
 	goto bad;
 
     if (sscanf(argv[1], "%lf", &scan[X]) != 1 ||
@@ -58,7 +59,12 @@ ged_grid2model_lu_core(struct ged *gedp, int argc, const char *argv[])
 	goto bad;
     scan[Z] = 0.0;
 
-    f = 1.0 / (gedp->ged_gvp->gv_scale * gedp->dbip->dbi_base2local);
+    denom = gedp->ged_gvp->gv_scale * gedp->dbip->dbi_base2local;
+    if (ZERO(denom)) {
+	bu_vls_printf(gedp->ged_result_str, "Error: scale is zero\n");
+	return BRLCAD_ERROR;
+    }
+    f = 1.0 / denom;
     VSCALE(diff, scan, f);
     MAT4X3PNT(mo_view_pt, gedp->ged_gvp->gv_model2view, model_pt);
     VADD2(view_pt, mo_view_pt, diff);

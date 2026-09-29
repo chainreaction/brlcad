@@ -56,6 +56,18 @@ ged_group_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
+    if (!argv[1] || argv[1][0] == '\0') {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	return BRLCAD_ERROR;
+    }
+
+    for (int i = 2; i < argc; i++) {
+	if (!argv[i] || argv[i][0] == '\0') {
+	    bu_vls_printf(gedp->ged_result_str, "Error: invalid member object name\n");
+	    return BRLCAD_ERROR;
+	}
+    }
+
     return _ged_combadd2(gedp, (char *)argv[1], argc-2, argv+2, 0, WMOP_UNION, 0, 0, NULL, 1);
 }
 

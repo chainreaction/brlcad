@@ -49,7 +49,7 @@ ged_grid2view_lu_core(struct ged *gedp, int argc, const char *argv[])
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
-    if (argc != 3)
+    if (argc != 3 || !argv[1] || !argv[2])
 	goto bad;
 
     if (sscanf(argv[1], "%lf", &scan[X]) != 1 ||

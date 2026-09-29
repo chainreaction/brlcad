@@ -54,15 +54,18 @@ ged_heal_core(struct ged *gedp, int argc, const char *argv[])
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
-    if(argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s <bot_solid>", argv[0]);
-	return GED_HELP;
+    if (argc < 2 || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s <bot_solid> [zipper_tol]", argv[0]);
+	return (argc == 1) ? GED_HELP : BRLCAD_ERROR;
     }
 
     primitive = argv[1];
 
-    if(argc > 2)
+    if (argc > 2 && argv[2]) {
 	zipper_tol = atof(argv[2]);
+	if (zipper_tol < 0.0)
+	    zipper_tol = 0.0;
+    }
 
     /* get bot */
     GED_DB_LOOKUP(gedp, bot_dp, primitive, LOOKUP_NOISY, BRLCAD_ERROR & GED_QUIET);
@@ -70,6 +73,7 @@ ged_heal_core(struct ged *gedp, int argc, const char *argv[])
 
     if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD || intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_BOT) {
 	bu_vls_printf(gedp->ged_result_str, "%s: %s is not a BOT solid!", cmd, primitive);
+	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
@@ -77,7 +81,10 @@ ged_heal_core(struct ged *gedp, int argc, const char *argv[])
     RT_BOT_CK_MAGIC(bot);
 
     analyze_heal_bot(bot, zipper_tol);
-    rt_db_put_internal(bot_dp, gedp->dbip, &intern);
+    if (rt_db_put_internal(bot_dp, gedp->dbip, &intern) < 0) {
+	bu_vls_printf(gedp->ged_result_str, "%s: failed to save healed BOT %s\n", cmd, primitive);
+	return BRLCAD_ERROR;
+    }
 
     bu_vls_printf(gedp->ged_result_str, "Healed Mesh!");
 
