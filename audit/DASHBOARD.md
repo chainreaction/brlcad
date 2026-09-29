@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-09-28 03:00:00 UTC
+**Last Updated:** 2026-09-28 03:30:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 866 (24.8%)
-- **Files Pending Review:** 2627
-- **Total Issues Identified:** 244
+- **Files Reviewed:** 906 (25.9%)
+- **Files Pending Review:** 2587
+- **Total Issues Identified:** 245
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 172 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 173 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 49 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 244
+- **Fixed (Committed):** 245
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -92,7 +92,7 @@
 | `src/libdm` | 80 | 80 | 100.0% | 1 |
 | `src/libfft` | 8 | 8 | 100.0% | 1 |
 | `src/libgcv` | 111 | 111 | 100.0% | 1 |
-| `src/libged` | 509 | 85 | 16.7% | 2 |
+| `src/libged` | 509 | 125 | 24.6% | 3 |
 | `src/libicv` | 34 | 0 | 0.0% | 0 |
 | `src/libnmg` | 54 | 0 | 0.0% | 0 |
 | `src/liboptical` | 46 | 0 | 0.0% | 0 |
@@ -361,6 +361,7 @@
 | `SEC-0242` | **Sev 2** | Memory Leaks, Buffer Overflow, Division by Zero, Out-of-bounds Memory Access, and Null Pointer Dereferences | `src/libgcv/*` | `FIXED` | In libgcv: fixed float-to-integer conversion in bottess, uninitialized memory reads in OBJ/PLY plugins, division by zero across converters, and intermediate geometry leaks. |
 | `SEC-0243` | **Sev 2** | Memory Leaks, Buffer Overflow, Division by Zero, Out-of-bounds Memory Access, and Null Pointer Dereferences | `src/libged (Batch 1)` | `FIXED` | In libged Batch 1: fixed memory leaks and double-free hazards on wdb_put_internal, stack buffer overflow in adc, division by zero across analyze/arot/arrange, and ARS/ARB bounds checks. |
 | `SEC-0244` | **Sev 2** | Memory Leaks, Buffer Overflow, Division by Zero, Out-of-bounds Memory Access, and Null Pointer Dereferences | `src/libged (Batch 2: bot, brep)` | `FIXED` | In libged Batch 2: fixed rt_db_internal initialization/free leaks and double-frees, array bounds on vertices/faces/trims, division by zero in normals/decimation/scale, and NULL pointer checks across bot and brep subcommands. |
+| `SEC-0245` | **Sev 2** | Memory Leaks, Double-Free, Division by Zero, Infinite Loop, Array Out-of-Bounds, and File Descriptor Leaks | `src/libged (Batch 3: cc, check, coil, color, columns, comb, comb_std, combmem, concat, constraint, copymat, cpi, dbi_state, debug2c)` | `FIXED` | In libged Batch 3: fixed double-frees following rt_db_put_internal and freed internal representation on db_diradd failures across cc, cpi, comb, comb_std, and copymat; added NULL guards, division-by-zero checks on units, heap VLS frees, and plot file descriptor leak fixes in check; plugged memory leaks of sections, validated sscanf, and prevented division by zero in coil; fixed cnt != 5 typo and temp file leak in color; added NULL checks in columns; freed rt_tree_array in combmem and fixed infinite loop on paren evaluation in comb_std; guarded argv bounds and closed dbip on error exits in concat and constraint; cleaned up view_states and aborted failed transactions in dbi_state; and added file check in debug2c. |
 
 
 
