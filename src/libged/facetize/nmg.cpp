@@ -229,8 +229,8 @@ _try_nmg_facetize(struct _ged_facetize_state *s, struct bu_list *vlfree, int arg
 	_facetize_log_default(s);
 	bu_vls_free(log_s->nmg_log_header);
 	bu_vls_free(log_s->nmg_log);
-	BU_PUT(log_s->nmg_log_header, struct _ged_facetize_logging_state);
-	BU_PUT(log_s->nmg_log, struct _ged_facetize_logging_state);
+	BU_PUT(log_s->nmg_log_header, struct bu_vls);
+	BU_PUT(log_s->nmg_log, struct bu_vls);
 	BU_PUT(log_s, struct _ged_facetize_logging_state);
 	s->log_s = NULL;
 	if (s->facetize_tree) {
@@ -247,8 +247,8 @@ _try_nmg_facetize(struct _ged_facetize_state *s, struct bu_list *vlfree, int arg
 	_facetize_log_default(s);
 	bu_vls_free(log_s->nmg_log_header);
 	bu_vls_free(log_s->nmg_log);
-	BU_PUT(log_s->nmg_log_header, struct _ged_facetize_logging_state);
-	BU_PUT(log_s->nmg_log, struct _ged_facetize_logging_state);
+	BU_PUT(log_s->nmg_log_header, struct bu_vls);
+	BU_PUT(log_s->nmg_log, struct bu_vls);
 	BU_PUT(log_s, struct _ged_facetize_logging_state);
 	s->log_s = NULL;
 	if (s->facetize_tree) {
@@ -268,8 +268,8 @@ _try_nmg_facetize(struct _ged_facetize_state *s, struct bu_list *vlfree, int arg
 	    _facetize_log_default(s);
 	    bu_vls_free(log_s->nmg_log_header);
 	    bu_vls_free(log_s->nmg_log);
-	    BU_PUT(log_s->nmg_log_header, struct _ged_facetize_logging_state);
-	    BU_PUT(log_s->nmg_log, struct _ged_facetize_logging_state);
+	    BU_PUT(log_s->nmg_log_header, struct bu_vls);
+	    BU_PUT(log_s->nmg_log, struct bu_vls);
 	    BU_PUT(log_s, struct _ged_facetize_logging_state);
 	    s->log_s = NULL;
 	    if (s->facetize_tree) {
@@ -300,8 +300,8 @@ _try_nmg_facetize(struct _ged_facetize_state *s, struct bu_list *vlfree, int arg
     _facetize_log_default(s);
     bu_vls_free(log_s->nmg_log_header);
     bu_vls_free(log_s->nmg_log);
-    BU_PUT(log_s->nmg_log_header, struct _ged_facetize_logging_state);
-    BU_PUT(log_s->nmg_log, struct _ged_facetize_logging_state);
+    BU_PUT(log_s->nmg_log_header, struct bu_vls);
+    BU_PUT(log_s->nmg_log, struct bu_vls);
     BU_PUT(log_s, struct _ged_facetize_logging_state);
     s->log_s = NULL;
     return (failed) ? NULL : nmg_model;
@@ -310,6 +310,9 @@ _try_nmg_facetize(struct _ged_facetize_state *s, struct bu_list *vlfree, int arg
 static int
 _write_nmg(struct _ged_facetize_state *s, struct model *nmg_model, const char *name)
 {
+    if (!s || !s->dbip || !nmg_model || !name)
+	return BRLCAD_ERROR;
+
     struct db_i *dbip = s->dbip;
     struct rt_db_internal intern;
     struct directory *dp;
@@ -326,6 +329,7 @@ _write_nmg(struct _ged_facetize_state *s, struct model *nmg_model, const char *n
 	if (s->verbosity > 0) {
 	    bu_log("Cannot add %s to directory\n", name);
 	}
+	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
@@ -333,7 +337,6 @@ _write_nmg(struct _ged_facetize_state *s, struct model *nmg_model, const char *n
 	if (s->verbosity > 0) {
 	    bu_log("Failed to write %s to database\n", name);
 	}
-	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
@@ -343,6 +346,9 @@ _write_nmg(struct _ged_facetize_state *s, struct model *nmg_model, const char *n
 static int
 _write_bot(struct _ged_facetize_state *s, struct rt_bot_internal *bot, const char *name)
 {
+    if (!s || !s->dbip || !bot || !name)
+	return BRLCAD_ERROR;
+
     struct db_i *dbip = s->dbip;
     struct rt_db_internal intern;
     struct directory *dp;
@@ -359,6 +365,7 @@ _write_bot(struct _ged_facetize_state *s, struct rt_bot_internal *bot, const cha
 	if (s->verbosity > 0) {
 	    bu_log("Cannot add %s to directory\n", name);
 	}
+	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
@@ -366,7 +373,6 @@ _write_bot(struct _ged_facetize_state *s, struct rt_bot_internal *bot, const cha
 	if (s->verbosity > 0) {
 	    bu_log("Failed to write %s to database\n", name);
 	}
-	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 

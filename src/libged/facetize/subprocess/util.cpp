@@ -36,6 +36,9 @@
 struct rt_bot_internal *
 _tess_facetize_decimate(struct rt_bot_internal *bot, fastf_t feature_size)
 {
+    if (!bot || !bot->faces || !bot->vertices || !bot->num_faces || !bot->num_vertices)
+	return bot;
+
     size_t success = 0;
     /* these are static for longjmp */
     static struct rt_bot_internal *nbot;
@@ -88,6 +91,9 @@ _tess_facetize_decimate(struct rt_bot_internal *bot, fastf_t feature_size)
 int
 _tess_facetize_write_bot(struct db_i *dbip, struct rt_bot_internal *bot, const char *name, const char *method)
 {
+    if (!dbip || !bot || !name)
+	return BRLCAD_ERROR;
+
     /* Export BOT as a new solid */
     struct rt_db_internal intern;
     RT_DB_INTERNAL_INIT(&intern);
@@ -140,7 +146,7 @@ _tess_facetize_free_bot(struct rt_bot_internal *bot)
 bool
 bot_is_manifold(struct rt_bot_internal *bot)
 {
-    if (!bot)
+    if (!bot || !bot->vertices || !bot->faces || !bot->num_vertices || !bot->num_faces)
 	return false;
 
     manifold::MeshGL64 bot_mesh;

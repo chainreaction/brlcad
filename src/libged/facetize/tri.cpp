@@ -417,6 +417,8 @@ _booltree_leaf_tess(struct db_tree_state *tsp, const struct db_full_path *pathp,
 
 	if (s)
 	    s->error_flag = 1;
+	bu_free((char *)curtree->tr_d.td_name, "td_name");
+	BU_PUT(curtree, union tree);
 	return TREE_NULL;
     }
 
@@ -436,13 +438,7 @@ _booltree_leaf_tess(struct db_tree_state *tsp, const struct db_full_path *pathp,
 	}
     }
 
-    BU_GET(curtree, union tree);
-    RT_TREE_INIT(curtree);
-    curtree->tr_op = OP_TESS;
-    curtree->tr_d.td_name = bu_strdup(dp->d_namep);
-    curtree->tr_d.td_r = NULL;
     curtree->tr_d.td_d = odata;
-    curtree->tr_d.td_i = NULL;
 
     bool should_log_treewalk = (s && s->verbosity > 1 && (RT_G_DEBUG & RT_DEBUG_TREEWALK));
     if (should_log_treewalk)
@@ -1707,8 +1703,10 @@ _ged_facetize_booleval_tri(struct _ged_facetize_state *s, struct db_i *dbip, str
 	bot->bot_flags = 0;
 	bot->num_vertices = (int)rmesh.vertProperties.size()/3;
 	bot->num_faces = (int)rmesh.triVerts.size()/3;
-	bot->vertices = (double *)calloc(rmesh.vertProperties.size(), sizeof(double));
-	bot->faces = (int *)calloc(rmesh.triVerts.size(), sizeof(int));
+	bot->vertices = rmesh.vertProperties.empty() ? NULL :
+	    (double *)bu_calloc(rmesh.vertProperties.size(), sizeof(double), "bot vertices");
+	bot->faces = rmesh.triVerts.empty() ? NULL :
+	    (int *)bu_calloc(rmesh.triVerts.size(), sizeof(int), "bot faces");
 	for (size_t j = 0; j < rmesh.vertProperties.size(); j++)
 	    bot->vertices[j] = rmesh.vertProperties[j];
 	for (size_t j = 0; j < rmesh.triVerts.size(); j++)

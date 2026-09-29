@@ -131,7 +131,8 @@ _tess_pnts_sample(const char *oname, struct db_i *dbip, tess_opts *s)
 	_rt_pnts_bbox(p_min, p_max, pnts);
 	s->pnt_options.pnts_bbox_vol = _bbox_vol(p_min, p_max);
 	s->pnt_options.obj_bbox_vol = _bbox_vol(rpp_min, rpp_max);
-	if (fabs(s->pnt_options.obj_bbox_vol - s->pnt_options.pnts_bbox_vol)/s->pnt_options.obj_bbox_vol > 1) {
+	if (ZERO(s->pnt_options.obj_bbox_vol) ||
+	    (fabs(s->pnt_options.obj_bbox_vol - s->pnt_options.pnts_bbox_vol)/s->pnt_options.obj_bbox_vol > 1)) {
 	    struct pnt_normal *rpnt = (struct pnt_normal *)pnts->point;
 	    if (rpnt) {
 		struct pnt_normal *entry;

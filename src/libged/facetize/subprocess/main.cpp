@@ -287,13 +287,16 @@ dp_tessellate(struct rt_bot_internal **obot, struct bu_vls *method_flag, struct 
 	    pnts = _tess_pnts_sample(dp->d_namep, dbip, s);
 	    free_pnts = (pnts != NULL);
 	}
-	if (pnts) {
+	if (pnts && pnts->point) {
 	    s->cm_options.sync(s->pnt_options);
-	    struct pnt_normal *seed = BU_LIST_PNEXT(pnt_normal, (struct pnt_normal *)pnts->point);
-	    ret = continuation_mesh(obot, dbip, dp->d_namep, s, seed->v);
-	    if (ret == BRLCAD_OK) {
-		bu_vls_sprintf(method_flag, "CM");
-		goto dp_tessellate_cleanup;
+	    struct pnt_normal *pl = (struct pnt_normal *)pnts->point;
+	    struct pnt_normal *seed = BU_LIST_PNEXT(pnt_normal, pl);
+	    if (seed && seed != pl) {
+		ret = continuation_mesh(obot, dbip, dp->d_namep, s, seed->v);
+		if (ret == BRLCAD_OK) {
+		    bu_vls_sprintf(method_flag, "CM");
+		    goto dp_tessellate_cleanup;
+		}
 	    }
 	}
     }
@@ -491,11 +494,13 @@ facetize_process(int argc, const char **argv)
     bu_vls_free(&omsg);
 
     if (list_methods && print_help) {
+	bu_vls_free(&cache_dir);
 	print_methods_info();
 	return BRLCAD_OK;
     }
 
     if (list_methods) {
+	bu_vls_free(&cache_dir);
 	print_tess_methods();
 	return BRLCAD_OK;
     }
@@ -513,6 +518,7 @@ facetize_process(int argc, const char **argv)
 
 	bu_log("%s\n", bu_vls_cstr(&str));
 	bu_vls_free(&str);
+	bu_vls_free(&cache_dir);
         return BRLCAD_OK;
     }
 

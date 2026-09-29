@@ -353,6 +353,9 @@ _ged_validate_objs_list(struct _ged_facetize_state *s, int argc, const char *arg
 int
 _ged_facetize_write_bot(struct db_i *dbip, struct rt_bot_internal *bot, const char *name, int verbosity)
 {
+    if (!dbip || !bot || !name)
+	return BRLCAD_ERROR;
+
     /* Export BOT as a new solid */
     struct rt_db_internal intern;
     RT_DB_INTERNAL_INIT(&intern);
@@ -368,13 +371,13 @@ _ged_facetize_write_bot(struct db_i *dbip, struct rt_bot_internal *bot, const ch
     if (dp == RT_DIR_NULL) {
 	if (verbosity >= 0)
 	    bu_log("Cannot add %s to directory\n", name);
+	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
     if (rt_db_put_internal(dp, dbip, &intern) < 0) {
 	if (verbosity >= 0)
 	    bu_log("Failed to write %s to database\n", name);
-	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
@@ -443,13 +446,18 @@ _ged_facetize_working_file_setup(struct _ged_facetize_state *s, struct bu_ptbl *
     if (bu_file_exists(bu_vls_cstr(s->wfile), NULL)) {
 	struct db_i *wdbip = db_open(bu_vls_cstr(s->wfile), DB_OPEN_READONLY);
 	if (wdbip) {
-	    if (db_dirbuild(wdbip) < 0)
+	    if (db_dirbuild(wdbip) < 0) {
+		db_close(wdbip);
 		return BRLCAD_ERROR;
+	    }
 	    struct bu_attribute_value_set avs;
 	    bu_avs_init_empty(&avs);
 	    struct directory *wgdp = db_lookup(wdbip, DB5_GLOBAL_OBJECT_NAME, LOOKUP_QUIET);
-	    if (!wgdp)
+	    if (!wgdp) {
+		bu_avs_free(&avs);
+		db_close(wdbip);
 		return BRLCAD_ERROR;
+	    }
 	    if (db5_get_attributes(wdbip, &avs, wgdp)) {
 		const char *val = bu_avs_get(&avs, PID_KEY);
 		if (bu_opt_int(NULL, 1, (const char **)&val, (void *)&pid) == 1) {
@@ -513,13 +521,18 @@ _ged_facetize_working_file_setup(struct _ged_facetize_state *s, struct bu_ptbl *
 	pid = bu_pid();
 	struct db_i *wdbip = db_open(bu_vls_cstr(s->wfile), DB_OPEN_READWRITE);
 	if (wdbip) {
-	    if (db_dirbuild(wdbip) < 0)
+	    if (db_dirbuild(wdbip) < 0) {
+		db_close(wdbip);
 		return BRLCAD_ERROR;
+	    }
 	    struct bu_attribute_value_set avs;
 	    bu_avs_init_empty(&avs);
 	    struct directory *wgdp = db_lookup(wdbip, DB5_GLOBAL_OBJECT_NAME, LOOKUP_QUIET);
-	    if (!wgdp)
+	    if (!wgdp) {
+		bu_avs_free(&avs);
+		db_close(wdbip);
 		return BRLCAD_ERROR;
+	    }
 	    if (db5_get_attributes(wdbip, &avs, wgdp)) {
 		struct bu_vls pid_str = BU_VLS_INIT_ZERO;
 		bu_vls_sprintf(&pid_str, "%d", pid);

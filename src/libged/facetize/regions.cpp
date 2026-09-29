@@ -541,6 +541,7 @@ _ged_facetize_regions(struct _ged_facetize_state *s, int argc, const char **argv
 	    bu_vls_printf(s->gedp->ged_result_str, "Need non-existent output comb name.");
 	if (newobjcnt)
 	    bu_vls_printf(s->gedp->ged_result_str, "More than one non-existent object specified in region processing mode, aborting.");
+	bu_free(dpa, "dp array");
 	return BRLCAD_ERROR;
     }
 
@@ -739,6 +740,8 @@ _ged_facetize_regions(struct _ged_facetize_state *s, int argc, const char **argv
 	if (s->verbosity >= 0) {
 	    bu_log("Problem searching for implicit regions - aborting.\n");
 	}
+	bu_ptbl_free(ir);
+	bu_free(ir, "ir table");
 	bu_ptbl_free(ar);
 	bu_free(ar, "ar table");
 	bu_free(dpa, "free dpa");
@@ -927,8 +930,10 @@ _ged_facetize_regions(struct _ged_facetize_state *s, int argc, const char **argv
 			if (reopened_wdb) {
 			    db_close(wdbip);
 			    wdbip = db_open(bu_vls_cstr(s->wfile), DB_OPEN_READWRITE);
-			    if (!wdbip)
+			    if (!wdbip) {
+				bret = BRLCAD_ERROR;
 				break;
+			    }
 			    db_dirbuild(wdbip);
 			    db_update_nref(wdbip);
 			    wwdbp = wdb_dbopen(wdbip, RT_WDB_TYPE_DB_DEFAULT);
@@ -1020,7 +1025,8 @@ _ged_facetize_regions(struct _ged_facetize_state *s, int argc, const char **argv
 			bu_log("FACETIZE: validation unavailable for %s (crofton/metric prep failure)\n", dpw[0]->d_namep);
 		}
 	    }
-	    db_close(wdbip);
+	    if (wdbip)
+		db_close(wdbip);
 	}
 
 	if (bret != BRLCAD_OK) {
@@ -1063,6 +1069,7 @@ _ged_facetize_regions(struct _ged_facetize_state *s, int argc, const char **argv
 	    tp->tr_l.tl_name = bu_strdup(bu_vls_cstr(&bname));
 	    tp->tr_l.tl_mat = NULL;
 	    comb->tree = (union tree *)db_mkgift_tree(tree_list, 1);
+	    BU_PUT(tree_list, struct rt_tree_array);
 	    struct rt_wdb *wwdbp = wdb_dbopen(wdbip, RT_WDB_TYPE_DB_DEFAULT);
 	    wdb_put_internal(wwdbp, wdp->d_namep, &intern, 1.0);
 	} else {
@@ -1140,9 +1147,6 @@ _ged_facetize_regions(struct _ged_facetize_state *s, int argc, const char **argv
 	    delete (FacetizeVariantPlan *)s->variant_plan;
 	    s->variant_plan = NULL;
 	}
-	bu_ptbl_free(&eval_roots);
-	bu_ptbl_free(ir);
-	bu_free(ir, "ir table");
 	bu_ptbl_free(ar);
 	bu_free(ar, "ar table");
 	bu_free(dpa, "free dpa");
@@ -1233,6 +1237,9 @@ _ged_facetize_regions(struct _ged_facetize_state *s, int argc, const char **argv
 		    bu_log("regions.cpp:%d unable to generate name - FAIL\n", __LINE__);
 		}
 		bu_vls_free(&nname);
+		bu_ptbl_free(ar);
+		bu_free(ar, "ar table");
+		bu_free(dpa, "free dpa");
 		return BRLCAD_ERROR;
 	    }
 	}

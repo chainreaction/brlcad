@@ -183,6 +183,7 @@ method_options_t::method_optstr(std::string &method, struct db_i *dbip)
 	    bu_vls_sprintf(&debug_str, "0x%08lx", (unsigned long)nmg_debug);
 	    std::string kvalstr = std::string(" nmg_debug=") + std::string(bu_vls_cstr(&debug_str));
 	    moptstr.append(kvalstr);
+	    bu_vls_free(&debug_str);
 	}
 	if (dbip) {
 	    struct rt_wdb *wdbp = wdb_dbopen(dbip, RT_WDB_TYPE_DB_DEFAULT);
@@ -191,18 +192,21 @@ method_options_t::method_optstr(std::string &method, struct db_i *dbip)
 		bu_vls_sprintf(&val_str, "%0.17f", wdbp->wdb_ttol.abs);
 		std::string kvalstr = std::string(" tol_abs=") + std::string(bu_vls_cstr(&val_str));
 		moptstr.append(kvalstr);
+		bu_vls_free(&val_str);
 	    }
 	    if (options_map[method].find(std::string("tol_rel")) == options_map[method].end()) {
 		struct bu_vls val_str = BU_VLS_INIT_ZERO;
 		bu_vls_sprintf(&val_str, "%0.17f", wdbp->wdb_ttol.rel);
 		std::string kvalstr = std::string(" tol_rel=") + std::string(bu_vls_cstr(&val_str));
 		moptstr.append(kvalstr);
+		bu_vls_free(&val_str);
 	    }
 	    if (options_map[method].find(std::string("tol_norm")) == options_map[method].end()) {
 		struct bu_vls val_str = BU_VLS_INIT_ZERO;
 		bu_vls_sprintf(&val_str, "%0.17f", wdbp->wdb_ttol.norm);
 		std::string kvalstr = std::string(" tol_norm=") + std::string(bu_vls_cstr(&val_str));
 		moptstr.append(kvalstr);
+		bu_vls_free(&val_str);
 	    }
 	}
     }
@@ -531,7 +535,7 @@ nmg_opts::set_var(const std::string &key, const std::string &val)
 	    plate_max_time = 0;
 	    return BRLCAD_OK;
 	}
-	if (bu_opt_int(NULL, 1, (const char **)cstr, (void *)&max_time) < 0)
+	if (bu_opt_int(NULL, 1, (const char **)cstr, (void *)&plate_max_time) < 0)
 	    return BRLCAD_ERROR;
     }
 

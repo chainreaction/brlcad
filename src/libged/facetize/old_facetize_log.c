@@ -38,7 +38,9 @@ static int
 _ged_facetize_bomb_hook(void *cdata, void *str)
 {
     struct _old_ged_facetize_opts *o = (struct _old_ged_facetize_opts *)cdata;
-    if (o->nmg_log_print_header) {
+    if (!o || !o->nmg_log || !str)
+	return 0;
+    if (o->nmg_log_print_header && o->nmg_log_header) {
 	bu_vls_printf(o->nmg_log, "%s\n", bu_vls_addr(o->nmg_log_header));
 	o->nmg_log_print_header = 0;
     }
@@ -50,7 +52,9 @@ static int
 _ged_facetize_nmg_logging_hook(void *data, void *str)
 {
     struct _old_ged_facetize_opts *o = (struct _old_ged_facetize_opts *)data;
-    if (o->nmg_log_print_header) {
+    if (!o || !o->nmg_log || !str)
+	return 0;
+    if (o->nmg_log_print_header && o->nmg_log_header) {
 	bu_vls_printf(o->nmg_log, "%s\n", bu_vls_addr(o->nmg_log_header));
 	o->nmg_log_print_header = 0;
     }
@@ -61,17 +65,24 @@ _ged_facetize_nmg_logging_hook(void *data, void *str)
 void
 _old_ged_facetize_log_nmg(struct _old_ged_facetize_opts *o)
 {
-    if (fileno(stderr) < 0)
+    if (!o || fileno(stderr) < 0)
 	return;
 
     /* Seriously, bu_bomb, we don't want you blathering
      * to stderr... shut down stderr temporarily. */
+    o->stderr_stashed = -1;
     o->fnull = open(bu_file_null(), O_WRONLY);
     if (o->fnull != -1) {
 	o->serr = fileno(stderr);
-	o->stderr_stashed = dup(o->serr);
-	dup2(o->fnull, o->serr);
+	if (o->serr >= 0) {
+	    o->stderr_stashed = dup(o->serr);
+	    if (o->stderr_stashed != -1) {
+		dup2(o->fnull, o->serr);
+	    }
+	}
 	close(o->fnull);
+	if (o->stderr_stashed == -1)
+	    o->fnull = -1;
     }
 
     /* Set bu_log logging to capture in nmg_log, rather than the
@@ -88,24 +99,27 @@ _old_ged_facetize_log_nmg(struct _old_ged_facetize_opts *o)
 void
 _old_ged_facetize_log_default(struct _old_ged_facetize_opts *o)
 {
-    if (fileno(stderr) < 0)
+    if (!o || fileno(stderr) < 0)
 	return;
 
     /* Put stderr back */
-    if (o->fnull != -1) {
+    if (o->fnull != -1 && o->stderr_stashed != -1) {
 	fflush(stderr);
 	dup2(o->stderr_stashed, o->serr);
 	close(o->stderr_stashed);
+	o->stderr_stashed = -1;
 	o->fnull = -1;
     }
 
     /* Restore bu_bomb hooks to the application defaults */
     bu_bomb_delete_all_hooks();
-    bu_bomb_restore_hooks(o->saved_bomb_hooks);
+    if (o->saved_bomb_hooks)
+	bu_bomb_restore_hooks(o->saved_bomb_hooks);
 
     /* Restore bu_log hooks to the application defaults */
     bu_log_hook_delete_all();
-    bu_log_hook_restore_all(o->saved_log_hooks);
+    if (o->saved_log_hooks)
+	bu_log_hook_restore_all(o->saved_log_hooks);
 }
 
 /*

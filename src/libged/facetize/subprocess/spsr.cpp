@@ -39,7 +39,7 @@ static const char *FACETIZE_RESULT_OBJECT = "facetize_worker_result";
 int
 spsr_mesh(struct rt_bot_internal **obot, struct db_i *dbip, struct rt_pnts_internal *pnts, tess_opts *s)
 {
-    if (!obot || !dbip || !pnts || !s)
+    if (!obot || !dbip || !pnts || !pnts->point || pnts->count <= 0 || !s)
 	return BRLCAD_ERROR;
     *obot = NULL;
 

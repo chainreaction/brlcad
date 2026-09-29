@@ -266,7 +266,7 @@ _ged_facetize_objs(struct _ged_facetize_state *s, int argc, const char **argv)
 
     RT_CHECK_DBI(dbip);
 
-    if (argc < 0) return BRLCAD_ERROR;
+    if (argc <= 0) return BRLCAD_ERROR;
 
     dpa = (struct directory **)bu_calloc(argc, sizeof(struct directory *), "dp array");
     newobj_cnt = _ged_sort_existing_objs(dbip, argc, argv, dpa);
@@ -278,6 +278,10 @@ _ged_facetize_objs(struct _ged_facetize_state *s, int argc, const char **argv)
     if (!s->in_place) {
 	oname = argv[argc-1];
 	argc--;
+	if (argc <= 0) {
+	    bu_free(dpa, "dp array");
+	    return BRLCAD_ERROR;
+	}
     }
 
     /* If we're doing an NMG output, or we have been instructed to, use the

@@ -678,6 +678,9 @@ _try_decimate(struct rt_bot_internal *bot, fastf_t feature_size, struct _old_ged
     obot = bot;
     nbot = NULL;
 
+    if (!bot || !bot->faces || !bot->vertices || !bot->num_faces || !bot->num_vertices)
+	return bot;
+
     BU_ALLOC(nbot, struct rt_bot_internal);
     nbot->magic = RT_BOT_INTERNAL_MAGIC;
     nbot->mode = RT_BOT_SOLID;
@@ -743,6 +746,7 @@ _write_bot(struct ged *gedp, struct rt_bot_internal *bot, const char *name, stru
 	if (opts->verbosity) {
 	    bu_log("Cannot add %s to directory\n", name);
 	}
+	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
@@ -750,7 +754,6 @@ _write_bot(struct ged *gedp, struct rt_bot_internal *bot, const char *name, stru
 	if (opts->verbosity) {
 	    bu_log("Failed to write %s to database\n", name);
 	}
-	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
@@ -761,6 +764,9 @@ _write_bot(struct ged *gedp, struct rt_bot_internal *bot, const char *name, stru
 static int
 _write_nmg(struct ged *gedp, struct model *nmg_model, const char *name, struct _old_ged_facetize_opts *opts)
 {
+    if (!gedp || !gedp->dbip || !nmg_model || !name || !opts)
+	return BRLCAD_ERROR;
+
     struct rt_db_internal intern;
     struct directory *dp;
     struct db_i *dbip = gedp->dbip;
@@ -777,6 +783,7 @@ _write_nmg(struct ged *gedp, struct model *nmg_model, const char *name, struct _
 	if (opts->verbosity) {
 	    bu_log("Cannot add %s to directory\n", name);
 	}
+	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
@@ -784,7 +791,6 @@ _write_nmg(struct ged *gedp, struct model *nmg_model, const char *name, struct _
 	if (opts->verbosity) {
 	    bu_log("Failed to write %s to database\n", name);
 	}
-	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
@@ -919,8 +925,6 @@ _ged_spsr_obj(struct _ged_facetize_report_info *r, struct ged *gedp, const char 
 
 	if (bot == obot) {
 	    r->failure_mode = FACETIZE_FAILURE_DECIMATION;
-	    if (bot->vertices) bu_free(bot->vertices, "verts");
-	    if (bot->faces) bu_free(bot->faces, "verts");
 	    ret = FACETIZE_FAILURE;
 	    goto ged_facetize_spsr_memfree;
 	}
@@ -934,8 +938,6 @@ _ged_spsr_obj(struct _ged_facetize_report_info *r, struct ged *gedp, const char 
 	int not_solid = bg_trimesh_solid2(bot->num_vertices, bot->num_faces, (fastf_t *)bot->vertices, (int *)bot->faces, NULL);
 	if (not_solid) {
 	    r->failure_mode = FACETIZE_FAILURE_BOTINVALID;
-	    if (bot->vertices) bu_free(bot->vertices, "verts");
-	    if (bot->faces) bu_free(bot->faces, "verts");
 	    ret = FACETIZE_FAILURE;
 	    if (!opts->quiet) {
 		bu_log("SPSR: facetization failed, final BoT was not solid\n");
@@ -1016,6 +1018,7 @@ _ged_spsr_obj(struct _ged_facetize_report_info *r, struct ged *gedp, const char 
     if (!opts->make_nmg) {
 
 	ret = _write_bot(gedp, bot, newname, opts);
+	bot = NULL;
 
     } else {
 	/* Convert BoT to NMG */
@@ -1034,6 +1037,7 @@ _ged_spsr_obj(struct _ged_facetize_report_info *r, struct ged *gedp, const char 
 		bu_log("SPSR: failed to convert BoT to NMG: %s\n", objname);
 	    }
 	    rt_db_free_internal(&intern);
+	    bot = NULL;
 	    ret = FACETIZE_FAILURE;
 	    r->failure_mode = FACETIZE_FAILURE_NMG;
 	    goto ged_facetize_spsr_memfree;
@@ -1041,10 +1045,17 @@ _ged_spsr_obj(struct _ged_facetize_report_info *r, struct ged *gedp, const char 
 	    /* OK, have NMG now - write it out */
 	    ret = _write_nmg(gedp, m, newname, opts);
 	    rt_db_free_internal(&intern);
+	    bot = NULL;
 	}
     }
 
 ged_facetize_spsr_memfree:
+    if (bot) {
+	if (bot->vertices) bu_free(bot->vertices, "verts");
+	if (bot->faces) bu_free(bot->faces, "faces");
+	bu_free(bot, "free bot");
+	bot = NULL;
+    }
     if (free_pnts) bu_free(pnts, "free pnts");
     if (input_points_3d) bu_free(input_points_3d, "3d pnts");
     if (input_normals_3d) bu_free(input_normals_3d, "3d pnts");
@@ -1191,7 +1202,7 @@ _ged_continuation_obj(struct _ged_facetize_report_info *r, struct ged *gedp, con
 	_rt_pnts_bbox(p_min, p_max, pnts);
 	r->pnts_bbox_vol = _bbox_vol(p_min, p_max);
 	r->obj_bbox_vol = _bbox_vol(rpp_min, rpp_max);
-	if (fabs(r->obj_bbox_vol - r->pnts_bbox_vol)/r->obj_bbox_vol > 1) {
+	if (ZERO(r->obj_bbox_vol) || (fabs(r->obj_bbox_vol - r->pnts_bbox_vol)/r->obj_bbox_vol > 1)) {
 	    ret = FACETIZE_FAILURE;
 	    r->failure_mode = FACETIZE_FAILURE_PNTBBOX;
 	    goto ged_facetize_continuation_memfree;
@@ -1265,8 +1276,18 @@ _ged_continuation_obj(struct _ged_facetize_report_info *r, struct ged *gedp, con
 						feature_size, pn->v, objname, gedp->dbip, &params);
 	delta = (int)((bu_gettime() - timestamp)/1e6);
 	if (polygonize_failure || bot->num_faces < successful_bot_count || delta < 2) {
+	    if (bot->faces) {
+		bu_free(bot->faces, "polygonize faces");
+		bot->faces = NULL;
+	    }
+	    if (bot->vertices) {
+		bu_free(bot->vertices, "polygonize verts");
+		bot->vertices = NULL;
+	    }
 	    if (polygonize_failure == 3) {
 		bu_log("CM: Too little available memory to continue, aborting\n");
+		if (faces) bu_free(faces, "old faces");
+		if (verts) bu_free(verts, "old verts");
 		ret = FACETIZE_FAILURE;
 		goto ged_facetize_continuation_memfree;
 	    }
@@ -1355,8 +1376,6 @@ _ged_continuation_obj(struct _ged_facetize_report_info *r, struct ged *gedp, con
 
 	if (bot == obot) {
 	    r->failure_mode = FACETIZE_FAILURE_DECIMATION;
-	    if (bot->vertices) bu_free(bot->vertices, "verts");
-	    if (bot->faces) bu_free(bot->faces, "verts");
 	    ret = FACETIZE_FAILURE;
 	    goto ged_facetize_continuation_memfree;
 	}
@@ -1377,26 +1396,6 @@ _ged_continuation_obj(struct _ged_facetize_report_info *r, struct ged *gedp, con
 	if (fabs(r->pnts_bbox_vol - r->bot_bbox_vol) > r->pnts_bbox_vol * 0.5) {
 	    ret = FACETIZE_FAILURE;
 	    r->failure_mode = FACETIZE_FAILURE_BOTBBOX;
-	    if (bot->vertices) bu_free(bot->vertices, "verts");
-	    if (bot->faces) bu_free(bot->faces, "verts");
-	    goto ged_facetize_continuation_memfree;
-	}
-    }
-
-    /* Check the volume of the bounding box of the BoT against the bounding box
-     * of the point cloud - a large difference means something probably isn't
-     * right.  For the moment, use >50% difference. */
-    {
-	point_t b_min, b_max;
-	VSETALL(b_min, INFINITY);
-	VSETALL(b_max, -INFINITY);
-	_pnts_bbox(b_min, b_max, bot->num_vertices, (point_t *)bot->vertices);
-	r->bot_bbox_vol = _bbox_vol(b_min, b_max);
-	if (fabs(r->pnts_bbox_vol - r->bot_bbox_vol) > r->pnts_bbox_vol * 0.5) {
-	    ret = FACETIZE_FAILURE;
-	    r->failure_mode = FACETIZE_FAILURE_BOTBBOX;
-	    if (bot->vertices) bu_free(bot->vertices, "verts");
-	    if (bot->faces) bu_free(bot->faces, "verts");
 	    goto ged_facetize_continuation_memfree;
 	}
     }
@@ -1406,8 +1405,6 @@ _ged_continuation_obj(struct _ged_facetize_report_info *r, struct ged *gedp, con
 	int not_solid = bg_trimesh_solid2(bot->num_vertices, bot->num_faces, (fastf_t *)bot->vertices, (int *)bot->faces, NULL);
 	if (not_solid) {
 	    r->failure_mode = FACETIZE_FAILURE_BOTINVALID;
-	    if (bot->vertices) bu_free(bot->vertices, "verts");
-	    if (bot->faces) bu_free(bot->faces, "verts");
 	    ret = FACETIZE_FAILURE;
 	    if (!opts->quiet) {
 		bu_log("CM: facetization failed, final BoT was not solid\n");
@@ -1423,6 +1420,7 @@ _ged_continuation_obj(struct _ged_facetize_report_info *r, struct ged *gedp, con
     if (!opts->make_nmg) {
 
 	ret = _write_bot(gedp, bot, newname, opts);
+	bot = NULL;
 
     } else {
 	/* Convert BoT to NMG */
@@ -1438,6 +1436,7 @@ _ged_continuation_obj(struct _ged_facetize_report_info *r, struct ged *gedp, con
 	intern.idb_ptr = (void *)bot;
 	if (rt_bot_tess(&nr, m, &intern, NULL, &btol) < 0) {
 	    rt_db_free_internal(&intern);
+	    bot = NULL;
 	    ret = FACETIZE_FAILURE;
 	    r->failure_mode = FACETIZE_FAILURE_NMG;
 	    goto ged_facetize_continuation_memfree;
@@ -1445,12 +1444,20 @@ _ged_continuation_obj(struct _ged_facetize_report_info *r, struct ged *gedp, con
 	    /* OK, have NMG now - write it out */
 	    ret = _write_nmg(gedp, m, newname, opts);
 	    rt_db_free_internal(&intern);
+	    bot = NULL;
 	}
     }
 
 ged_facetize_continuation_memfree:
     r->feature_size = feature_size;
     r->avg_thickness = avg_thickness;
+
+    if (bot) {
+	if (bot->vertices) bu_free(bot->vertices, "verts");
+	if (bot->faces) bu_free(bot->faces, "faces");
+	bu_free(bot, "free bot");
+	bot = NULL;
+    }
 
     if (free_pnts && pnts) {
 	struct pnt_normal *rpnt = (struct pnt_normal *)pnts->point;
@@ -1622,8 +1629,8 @@ bool_meshes(
     }
     manifold::MeshGL64 rmesh = result.GetMeshGL64();
 
-    (*o_coords) = (double *)calloc(rmesh.vertProperties.size(), sizeof(double));
-    (*o_tris) = (unsigned int *)calloc(rmesh.triVerts.size(), sizeof(unsigned int));
+    (*o_coords) = (double *)bu_calloc(rmesh.vertProperties.size(), sizeof(double), "manifold coords");
+    (*o_tris) = (unsigned int *)bu_calloc(rmesh.triVerts.size(), sizeof(unsigned int), "manifold tris");
     for (size_t i = 0; i < rmesh.vertProperties.size(); i++)
 	(*o_coords)[i] = rmesh.vertProperties[i];
     for (size_t i = 0; i < rmesh.triVerts.size(); i++)
@@ -1910,7 +1917,7 @@ ged_manifold_obj_memfree:
 	    bu_free(mesh->vertices, "verts");
 	if (mesh->faces)
 	    bu_free(mesh->faces, "faces");
-	BU_FREE(mesh, struct manifold_mesh);
+	BU_PUT(mesh, struct manifold_mesh);
     }
     if (!opts->quiet && ret != BRLCAD_OK) {
 	bu_log("MANIFOLD: failed to generate %s\n", newname);

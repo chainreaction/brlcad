@@ -123,27 +123,39 @@ _nonovlp_brep_facetize(struct _ged_facetize_state *s, int argc, const char **arg
 	struct directory *cobj = (struct directory *)BU_PTBL_GET(br, i);
 	brep_objs.insert(cobj);
     }
+    bu_ptbl_free(br);
     bu_free(br, "brep results");
 
     /* Now, actually trigger the facetize logic. */
     std::vector<ON_Brep_CDT_State *> ss_cdt;
+    std::vector<struct rt_db_internal *> intern_ptrs;
     std::set<struct directory *>::iterator d_it;
     for (d_it = brep_objs.begin(); d_it != brep_objs.end(); ++d_it) {
-	struct rt_db_internal intern;
+	struct rt_db_internal *intern;
+	BU_GET(intern, struct rt_db_internal);
+	RT_DB_INTERNAL_INIT(intern);
 	struct rt_brep_internal* bi;
-	GED_DB_GET_INTERN(wgedp, &intern, *d_it, bn_mat_identity, BRLCAD_ERROR);
-	RT_CK_DB_INTERNAL(&intern);
-	bi = (struct rt_brep_internal*)intern.idb_ptr;
+	GED_DB_GET_INTERN(wgedp, intern, *d_it, bn_mat_identity, BRLCAD_ERROR);
+	RT_CK_DB_INTERNAL(intern);
+	bi = (struct rt_brep_internal*)intern->idb_ptr;
 	if (!RT_BREP_TEST_MAGIC(bi)) {
 	    bu_vls_printf(s->gedp->ged_result_str, "Error: %s is not a brep solid", (*d_it)->d_namep);
+	    rt_db_free_internal(intern);
+	    BU_PUT(intern, struct rt_db_internal);
 	    for (size_t i = 0; i < ss_cdt.size(); i++) {
 		ON_Brep_CDT_Destroy(ss_cdt[i]);
 	    }
+	    for (size_t i = 0; i < intern_ptrs.size(); i++) {
+		rt_db_free_internal(intern_ptrs[i]);
+		BU_PUT(intern_ptrs[i], struct rt_db_internal);
+	    }
+	    ged_close(wgedp);
 	    return BRLCAD_ERROR;
 	}
 	ON_Brep_CDT_State *s_cdt = ON_Brep_CDT_Create((void *)bi->brep, (*d_it)->d_namep);
 	ON_Brep_CDT_Tol_Set(s_cdt, &cdttol);
 	ss_cdt.push_back(s_cdt);
+	intern_ptrs.push_back(intern);
     }
 
     for (size_t i = 0; i < ss_cdt.size(); i++) {
@@ -206,15 +218,23 @@ _nonovlp_brep_facetize(struct _ged_facetize_state *s, int argc, const char **arg
 	    for (size_t j = 0; j < ss_cdt.size(); j++) {
 		ON_Brep_CDT_Destroy(ss_cdt[j]);
 	    }
+	    for (size_t j = 0; j < intern_ptrs.size(); j++) {
+		rt_db_free_internal(intern_ptrs[j]);
+		BU_PUT(intern_ptrs[j], struct rt_db_internal);
+	    }
+	    rt_bot_internal_free(bot);
+	    BU_PUT(bot, struct rt_bot_internal);
+	    ged_close(wgedp);
 	    return BRLCAD_ERROR;
 	}
     }
 
-    /* Done changing stuff in working database. */
-    ged_close(wgedp);
-
     for (size_t i = 0; i < ss_cdt.size(); i++) {
 	ON_Brep_CDT_Destroy(ss_cdt[i]);
+    }
+    for (size_t i = 0; i < intern_ptrs.size(); i++) {
+	rt_db_free_internal(intern_ptrs[i]);
+	BU_PUT(intern_ptrs[i], struct rt_db_internal);
     }
 
     /* Keep out just what we asked for into a .g file */
@@ -228,6 +248,9 @@ _nonovlp_brep_facetize(struct _ged_facetize_state *s, int argc, const char **arg
     }
     av[argc+2] = NULL;
     ged_exec_keep(wgedp, argc+2, av);
+
+    /* Done changing stuff in working database. */
+    ged_close(wgedp);
 
     /* Merge working geometry into original file */
     av[0] = "dbconcat";

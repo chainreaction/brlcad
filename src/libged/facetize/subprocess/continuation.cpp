@@ -145,7 +145,11 @@ continuation_mesh(struct rt_bot_internal **obot, struct db_i *dbip, const char *
 	pret = bot_gen(&candidate, feature_size, seed, objname, dbip, &params);
 	fastf_t delta = (int)((bu_gettime() - timestamp)/1e6);
 
-	if (pret || candidate->num_faces < successful_bot_count || delta < 2) {
+	if (pret || !candidate || candidate->num_faces < successful_bot_count || delta < 2) {
+	    if (candidate) {
+		free_bot_internal(candidate);
+		candidate = NULL;
+	    }
 	    if (pret == 3)
 		break;
 	    if (pret == 2) {
@@ -219,10 +223,10 @@ continuation_mesh(struct rt_bot_internal **obot, struct db_i *dbip, const char *
 
     if (!bot || !bot->faces) {
 	bu_log("CM: surface reconstruction failed: %s\n", objname);
-	if (bot && bot->vertices) bu_free(bot->vertices, "verts");
-	if (bot && bot->faces) bu_free(bot->faces, "verts");
-	if (bot)
-	    BU_PUT(bot, struct rt_bot_internal *);
+	if (bot) {
+	    free_bot_internal(bot);
+	    bot = NULL;
+	}
 	return BRLCAD_ERROR;
     }
 
@@ -235,8 +239,13 @@ continuation_mesh(struct rt_bot_internal **obot, struct db_i *dbip, const char *
 
 	dbot = _tess_facetize_decimate(bot, d_feature_size);
 
-	if (bot == dbot || !dbot->num_vertices || !dbot->num_faces) {
+	if (bot == dbot || !dbot || !dbot->num_vertices || !dbot->num_faces) {
 	    bu_log("decimation failed\n");
+	    if (dbot && dbot != bot)
+		free_bot_internal(dbot);
+	    if (bot)
+		free_bot_internal(bot);
+	    *obot = NULL;
 	    return BRLCAD_ERROR;
 	}
 

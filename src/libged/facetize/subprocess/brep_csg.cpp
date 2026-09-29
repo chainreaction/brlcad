@@ -76,8 +76,8 @@ _brep_csg_tessellate(struct rt_bot_internal **obot, struct ged *gedp,
     }
 
     av[0] = "kill";
-    av[2] = dp->d_namep;
-    av[3] = NULL;
+    av[1] = dp->d_namep;
+    av[2] = NULL;
     if (ged_exec_kill(wgedp, 2, av) != BRLCAD_OK) {
 	ged_close(wgedp);
 	bu_file_delete(tmpfil);
