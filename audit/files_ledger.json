@@ -24021,100 +24021,120 @@
       "path": "src/libged/help/test_help.c",
       "subsystem": "src/libged",
       "lines": 47,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0253"
+      ]
     },
     {
       "id": 2280,
       "path": "src/libged/hide/hide.c",
       "subsystem": "src/libged",
       "lines": 126,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0253"
+      ]
     },
     {
       "id": 2281,
       "path": "src/libged/how/how.c",
       "subsystem": "src/libged",
       "lines": 161,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0253"
+      ]
     },
     {
       "id": 2282,
       "path": "src/libged/human/human.c",
       "subsystem": "src/libged",
       "lines": 2509,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0253"
+      ]
     },
     {
       "id": 2283,
       "path": "src/libged/illum/illum.c",
       "subsystem": "src/libged",
       "lines": 199,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0253"
+      ]
     },
     {
       "id": 2284,
       "path": "src/libged/importFg4Section/importFg4Section.c",
       "subsystem": "src/libged",
       "lines": 79,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0253"
+      ]
     },
     {
       "id": 2285,
       "path": "src/libged/include/plugin.h",
       "subsystem": "src/libged",
       "lines": 318,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0253"
+      ]
     },
     {
       "id": 2286,
       "path": "src/libged/inside/inside.c",
       "subsystem": "src/libged",
       "lines": 93,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0253"
+      ]
     },
     {
       "id": 2287,
       "path": "src/libged/instance/instance.c",
       "subsystem": "src/libged",
       "lines": 96,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0253"
+      ]
     },
     {
       "id": 2288,
       "path": "src/libged/isize/isize.c",
       "subsystem": "src/libged",
       "lines": 71,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0253"
+      ]
     },
     {
       "id": 2289,
