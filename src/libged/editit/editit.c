@@ -58,23 +58,32 @@ ged_editit_core(struct ged *gedp, int argc, const char *argv[])
     struct bu_opt_desc d[5];
     BU_OPT(d[0], "h", "help",   "",              NULL,        &print_help, "Print help and exit");
     BU_OPT(d[1], "?", "",       "",              NULL,        &print_help, "");
-    BU_OPT(d[0], "e",  "",      "<editstring>",  &bu_opt_vls, &editstring, "Specify edit string (deprecated)");
-    BU_OPT(d[1], "f",  "",      "<file>",        &bu_opt_vls, &filename,   "Specify file to edit");
-    BU_OPT_NULL(d[2]);
+    BU_OPT(d[2], "e",  "",      "<editstring>",  &bu_opt_vls, &editstring, "Specify edit string (deprecated)");
+    BU_OPT(d[3], "f",  "",      "<file>",        &bu_opt_vls, &filename,   "Specify file to edit");
+    BU_OPT_NULL(d[4]);
 
     argc-=(argc>0); argv+=(argc>0); /* done with command name argv[0] */
 
     if (!argc) {
 	/* must be wanting help */
 	_ged_cmd_help(gedp, usage, d);
+	bu_vls_free(&editstring);
+	bu_vls_free(&filename);
 	return GED_HELP;
     }
 
     /* parse standard options */
     int opt_ret = bu_opt_parse(NULL, argc, argv, d);
+    if (opt_ret < 0) {
+	bu_vls_free(&editstring);
+	bu_vls_free(&filename);
+	return BRLCAD_ERROR;
+    }
 
     if (print_help) {
 	_ged_cmd_help(gedp, usage, d);
+	bu_vls_free(&editstring);
+	bu_vls_free(&filename);
 	return BRLCAD_OK;
     }
 
@@ -84,6 +93,8 @@ ged_editit_core(struct ged *gedp, int argc, const char *argv[])
     /* Only one specifier for a filename */
     if (argc && bu_vls_strlen(&filename)) {
 	_ged_cmd_help(gedp, usage, d);
+	bu_vls_free(&editstring);
+	bu_vls_free(&filename);
 	return BRLCAD_ERROR;
     }
 

@@ -181,7 +181,7 @@ main(int argc, const char *argv[])
 	std::map<std::string, std::set<std::string>>::iterator c_it;
 	std::set<std::string>::iterator e_it;
 
-	if (argc < 3) {
+	if (argc < 3 || argc > 4) {
 	    std::cerr << "Usage: env2c [-v] file_list output_file\n";
 	    return -1;
 	}
@@ -480,6 +480,10 @@ main(int argc, const char *argv[])
 	ofile << "\n";
 	ofile << "\t/* parse standard options */\n";
 	ofile << "\targc = bu_opt_parse(NULL, argc, argv, d);\n";
+	ofile << "\tif (argc < 0) {\n";
+	ofile << "\t\tbu_vls_printf(s_out, \"%s\", usage1);\n";
+	ofile << "\t\treturn BRLCAD_ERROR;\n";
+	ofile << "\t}\n";
 	ofile << "\n";
 	ofile << "\tif (print_help) {\n";
 	ofile << "\t\tbu_vls_printf(s_out, \"%s      %s      %s\", usage1, usage2, usage3);\n";
@@ -573,8 +577,8 @@ main(int argc, const char *argv[])
 
     }
 
-    catch (const std::regex_error& e) {
-	std::cout << "regex error: " << e.what() << '\n';
+    catch (const std::exception& e) {
+	std::cout << "error: " << e.what() << '\n';
 	return -1;
     }
 

@@ -50,6 +50,11 @@ ged_env_core(struct ged *gedp, int argc, const char *argv[])
 {
     int ret = BRLCAD_OK;
 
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 

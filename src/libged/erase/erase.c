@@ -76,8 +76,13 @@ ged_erase_core(struct ged *gedp, int argc, const char *argv[])
 	    break;
 
 	if (strchr(argv[i], 'r')) {
-		for (i = 1; i < (size_t)argc; ++i)
-		_dl_eraseAllPathsFromDisplay(gedp, argv[i], 0);
+	    size_t j;
+	    for (j = 0; j < (size_t)argc; ++j) {
+		if (argv[j][0] == '-')
+		    continue;
+		_dl_eraseAllPathsFromDisplay(gedp, argv[j], 0);
+	    }
+	    bu_vls_free(&vls);
 	    return BRLCAD_OK;
 	}
 
@@ -93,6 +98,7 @@ ged_erase_core(struct ged *gedp, int argc, const char *argv[])
 
 	if (!ptr_A && !ptr_o) {
 	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmdName, usage);
+	    bu_vls_free(&vls);
 	    return BRLCAD_ERROR;
 	}
 
@@ -102,6 +108,7 @@ ged_erase_core(struct ged *gedp, int argc, const char *argv[])
 	}
 
 	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmdName, usage);
+	bu_vls_free(&vls);
 	return BRLCAD_ERROR;
     }
 
@@ -133,6 +140,8 @@ ged_erase_core(struct ged *gedp, int argc, const char *argv[])
 		i++;
 		continue;
 	    }
+	    if (i + 1 >= (size_t)argc)
+		break;
 
 	    /* this is a name/value pair */
 	    if (flag_o_nonunique == 2) {
@@ -176,11 +185,16 @@ ged_erase_core(struct ged *gedp, int argc, const char *argv[])
 
 	    dl_erasePathFromDisplay(gedp, new_argv[i], 1);
 	}
+	bu_free(new_argv, "ged_erase_core new_argv");
     } else {
-	for (i = 0; i < (size_t)argc; ++i)
+	for (i = 0; i < (size_t)argc; ++i) {
+	    if (argv[i][0] == '-')
+		continue;
 	    dl_erasePathFromDisplay(gedp, argv[i], 1);
+	}
     }
 
+    bu_vls_free(&vls);
     return BRLCAD_OK;
 }
 

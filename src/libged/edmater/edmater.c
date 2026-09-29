@@ -72,8 +72,8 @@ ged_edmater_core(struct ged *gedp, int argc, const char *argv[])
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
-    if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc <= 1) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", (argc > 0) ? argv[0] : "edmater", usage);
 	return GED_HELP;
     }
 
@@ -81,7 +81,7 @@ ged_edmater_core(struct ged *gedp, int argc, const char *argv[])
     if (!fp)
 	return BRLCAD_ERROR;
 
-    av = (const char **)bu_malloc(sizeof(char *)*(argc + 2), "f_edmater: av");
+    av = (const char **)bu_malloc(sizeof(char *)*(argc + 2), "ged_edmater_core: av");
     av[0] = "wmater";
     av[1] = tmpfil;
     for (i = 2; i < argc + 1; ++i)
@@ -91,9 +91,9 @@ ged_edmater_core(struct ged *gedp, int argc, const char *argv[])
 
     (void)fclose(fp);
 
-    if (ged_exec_wmater(gedp, argc, av) & BRLCAD_ERROR) {
+    if (ged_exec_wmater(gedp, argc + 1, av) & BRLCAD_ERROR) {
 	bu_file_delete(tmpfil);
-	bu_free((void *)av, "f_edmater: av");
+	bu_free((void *)av, "ged_edmater_core: av");
 	return BRLCAD_ERROR;
     }
 

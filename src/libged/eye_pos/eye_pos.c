@@ -38,7 +38,8 @@ ged_eye_pos_core(struct ged *gedp, int argc, const char *argv[])
     point_t eye_pos;
     double scan[3];
     static const char *usage = "x y z";
-    double sval = (gedp->dbip) ? gedp->dbip->dbi_base2local : 1.0;
+    double b2l = (gedp->dbip) ? gedp->dbip->dbi_base2local : 1.0;
+    double l2b = (gedp->dbip) ? gedp->dbip->dbi_local2base : 1.0;
 
     GED_CHECK_VIEW(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
@@ -48,7 +49,7 @@ ged_eye_pos_core(struct ged *gedp, int argc, const char *argv[])
 
     /* get eye position */
     if (argc == 1) {
-	VSCALE(eye_pos, gedp->ged_gvp->gv_eye_pos, sval);
+	VSCALE(eye_pos, gedp->ged_gvp->gv_eye_pos, b2l);
 	bn_encode_vect(gedp->ged_result_str, eye_pos, 1);
 	return BRLCAD_OK;
     }
@@ -83,7 +84,7 @@ ged_eye_pos_core(struct ged *gedp, int argc, const char *argv[])
 	VMOVE(eye_pos, scan);
     }
 
-    VSCALE(gedp->ged_gvp->gv_eye_pos, eye_pos, sval);
+    VSCALE(gedp->ged_gvp->gv_eye_pos, eye_pos, l2b);
 
     /* update perspective matrix */
     mike_persp_mat(gedp->ged_gvp->gv_pmat, gedp->ged_gvp->gv_eye_pos);

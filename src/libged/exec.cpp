@@ -37,7 +37,7 @@ ged_exec(struct ged *gedp, int argc, const char *argv[])
 {
     int cret = BRLCAD_OK;
 
-    if (!gedp || !gedp->ged_results || !argc || !argv) {
+    if (!gedp || !gedp->ged_results || argc <= 0 || !argv) {
 	return BRLCAD_ERROR;
     }
 
@@ -52,6 +52,10 @@ ged_exec(struct ged *gedp, int argc, const char *argv[])
 		return BRLCAD_ERROR;
 	    }
 	}
+    }
+
+    if (argc <= 0 || !argv[0]) {
+	return BRLCAD_ERROR;
     }
 
     /* Ensure registry is initialized exactly once (thread-safe). */
@@ -81,6 +85,9 @@ ged_exec(struct ged *gedp, int argc, const char *argv[])
     }
 
     GED_CK_MAGIC(gedp);
+    if (!gedp->i || !gedp->i->i) {
+	return BRLCAD_ERROR;
+    }
     Ged_Internal *gedip = gedp->i->i;
     gedip->exec_stack.push(cmdname);
     gedip->cmd_recursion_depth_cnt[cmdname]++;
@@ -92,6 +99,8 @@ ged_exec(struct ged *gedp, int argc, const char *argv[])
 	    bu_vls_printf(gedp->ged_result_str, "%s\n", lexec_stack.top().c_str());
 	    lexec_stack.pop();
 	}
+	gedip->cmd_recursion_depth_cnt[cmdname]--;
+	gedip->exec_stack.pop();
 	gedp->ged_results->ret = BRLCAD_ERROR;
 	return gedp->ged_results->ret;
     }

@@ -72,6 +72,10 @@ ged_erase2_core(struct ged *gedp, int argc, const char *argv[])
     BU_OPT(vd[1],  "m", "mode",    "#",         &bu_opt_int, &mode,   "erase objects drawn in the specified drawing mode");
     BU_OPT_NULL(vd[2]);
     int opt_ret = bu_opt_parse(NULL, argc, argv, vd);
+    if (opt_ret < 0) {
+	bu_vls_free(&cvls);
+	return BRLCAD_ERROR;
+    }
     argc = opt_ret;
     if (bu_vls_strlen(&cvls)) {
 	v = bv_set_find_view(&gedp->ged_views, bu_vls_cstr(&cvls));
@@ -105,11 +109,13 @@ ged_erase2_core(struct ged *gedp, int argc, const char *argv[])
     /* skip past cmd */
     argc--; argv++;
 
-    if (!gedp->dbi_state)
+    if (!gedp->dbi_state || argc <= 0)
 	return BRLCAD_OK;
 
     DbiState *dbis = (DbiState *)gedp->dbi_state;
     BViewState *bvs = dbis->get_view_state(v);
+    if (!bvs)
+	return BRLCAD_ERROR;
     bvs->erase_path(mode, argc, argv);
 
     return BRLCAD_OK;

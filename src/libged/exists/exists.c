@@ -224,12 +224,12 @@ t_lex(char *s, struct exists_data *ed)
 
     if ((op = findop(s)) != NULL) {
 	if (!((op->op_type == UNOP && isoperand(ed)) ||
-	      (op->op_num == LPAREN && *(ed->t_wp+1) == 0))) {
+	      (op->op_num == LPAREN && ed->t_wp && *(ed->t_wp) != NULL && *(ed->t_wp+1) == 0))) {
 	    ed->t_wp_op = op;
 	    return (enum token)op->op_num;
 	}
     }
-    if (strlen(*(ed->t_wp)) > 0 && !op) {
+    if (ed->t_wp && *(ed->t_wp) != NULL && strlen(*(ed->t_wp)) > 0 && !op) {
 	/* bare operand: if the next token is a binary operator, treat
 	 * this as OPERAND so primary() can dispatch to binop() */
 	char *next = *((ed->t_wp)+1);
@@ -301,7 +301,9 @@ isoperand(struct exists_data *ed)
     struct t_op const *op;
     char *s, *t;
 
-    if ((s  = *((ed->t_wp)+1)) == 0)
+    if (!ed || !ed->t_wp || *(ed->t_wp) == NULL)
+	return 0;
+    if ((s = *((ed->t_wp)+1)) == 0)
 	return 1;
     if ((t = *((ed->t_wp)+2)) == 0)
 	return 0;
@@ -470,12 +472,12 @@ primary(enum token n, struct exists_data *ed)
 	return 0;               /* missing expression */
     if (n == LPAREN) {
 	ed->t_wp_op = NULL;
-	if ((nn = t_lex(*++(ed->t_wp), ed)) == RPAREN) {
+	if (*(ed->t_wp) == NULL || (nn = t_lex(*++(ed->t_wp), ed)) == RPAREN) {
 	    bu_vls_printf(ed->message, "missing expression inside ()");
 	    return 0;
 	}
 	res = oexpr(nn, ed);
-	if (t_lex(*++(ed->t_wp), ed) != RPAREN) {
+	if (*(ed->t_wp) == NULL || t_lex(*++(ed->t_wp), ed) != RPAREN) {
 	    bu_vls_printf(ed->message, "closing paren expected");
 	    return 0;
 	}
@@ -484,7 +486,7 @@ primary(enum token n, struct exists_data *ed)
     if (ed->t_wp_op && ed->t_wp_op->op_type == UNOP) {
 	/* unary expression */
 	if (!ed->no_op) {
-	    if (*++(ed->t_wp) == NULL) {
+	    if (*(ed->t_wp) == NULL || *++(ed->t_wp) == NULL) {
 		bu_vls_printf(ed->message, "argument expected");
 		return 0;
 	    }
@@ -503,8 +505,11 @@ primary(enum token n, struct exists_data *ed)
     }
 
     /* bare operand: may be first arg of a binary expression */
-    if (t_lex(ed->t_wp[1], ed), ed->t_wp_op && ed->t_wp_op->op_type == BINOP) {
-	return binop(ed);
+    if (*(ed->t_wp) != NULL && ed->t_wp[1] != NULL) {
+	t_lex(ed->t_wp[1], ed);
+	if (ed->t_wp_op && ed->t_wp_op->op_type == BINOP) {
+	    return binop(ed);
+	}
     }
 
     return 0;
@@ -519,9 +524,19 @@ binop(struct exists_data *ed)
     struct t_op const *op;
 
     opnd1 = *(ed->t_wp);
+    if (*(ed->t_wp) == NULL)
+	return 0;
     (void) t_lex(*++(ed->t_wp), ed);
     op = ed->t_wp_op;
+    if (!op) {
+	bu_vls_printf(ed->message, "syntax error in binary expression");
+	return 0;
+    }
 
+    if (*(ed->t_wp) == NULL) {
+	bu_vls_printf(ed->message, "argument expected after '%s'", op->op_text);
+	return 0;
+    }
     opnd2 = *++(ed->t_wp);
     if (opnd2 == NULL) {
 	bu_vls_printf(ed->message, "argument expected after '%s'", op->op_text);
@@ -650,9 +665,9 @@ ged_exists_core(struct ged *gedp, int argc, const char *argv_orig[])
 
     /* check for leftover tokens - indicates a malformed expression */
     if (bu_vls_strlen(&message) == 0
-	&& *(ed.t_wp) != NULL && *++(ed.t_wp) != NULL)
+	&& *(ed.t_wp) != NULL && *(ed.t_wp + 1) != NULL)
     {
-	bu_vls_printf(&message, "unexpected token '%s'", *(ed.t_wp));
+	bu_vls_printf(&message, "unexpected token '%s'", *(ed.t_wp + 1));
     }
 
     bu_argv_free(argc, argv);

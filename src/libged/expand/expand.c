@@ -36,15 +36,14 @@
 static void
 expand_scrape_escapes(struct bu_vls *result, const char *str)
 {
-    char buf[2];
-    buf[1] = '\0';
+    if (!result || !str)
+	return;
 
     while (*str) {
-	buf[0] = *str;
 	if (*str != '\\') {
-	    bu_vls_printf(result, "%s", buf);
+	    bu_vls_putc(result, *str);
 	} else if (*(str+1) == '\\') {
-	    bu_vls_printf(result, "%s", buf);
+	    bu_vls_putc(result, *str);
 	    ++str;
 	}
 	if (*str == '\0')
@@ -76,11 +75,14 @@ ged_expand_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     nummatch = 0;
-    backslashed = 0;
     for (whicharg = 1; whicharg < argc; whicharg++) {
+	if (!argv[whicharg])
+	    continue;
+
 	/* If * ? or [ are present, this is a regular expression */
 	pattern = (char *)argv[whicharg];
 	regexp = 0;
+	backslashed = 0;
 	do {
 	    if ((*pattern == '*' || *pattern == '?' || *pattern == '[') &&
 		!backslashed) {
