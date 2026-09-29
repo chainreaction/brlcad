@@ -56,8 +56,14 @@ ged_delay_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
-    tv.tv_sec = atoi(argv[1]);
-    tv.tv_usec = atoi(argv[2]);
+    long sec = atol(argv[1]);
+    long usec = atol(argv[2]);
+    if (sec < 0 || usec < 0) {
+	bu_vls_printf(gedp->ged_result_str, "%s: negative delay not allowed\n", argv[0]);
+	return BRLCAD_ERROR;
+    }
+    tv.tv_sec = sec + usec / 1000000L;
+    tv.tv_usec = usec % 1000000L;
     select(0, NULL, NULL, NULL, &tv);
 
     return BRLCAD_OK;

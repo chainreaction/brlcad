@@ -84,10 +84,15 @@ ged_dsp_core(struct ged *gedp, int argc, const char *argv[])
 	unsigned short elev;
 	unsigned int gx = 0;
 	unsigned int gy = 0;
+	if (argc < 5) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s xy x y\n", cmd, primitive);
+	    rt_db_free_internal(&intern);
+	    return BRLCAD_ERROR;
+	}
 	(void)bu_opt_int(NULL, 1, &argv[3], &gx);
 	(void)bu_opt_int(NULL, 1, &argv[4], &gy);
-	if (gx > dsp->dsp_xcnt || gy > dsp->dsp_ycnt) {
-	    bu_vls_printf(gedp->ged_result_str, "Error - xy coordinate (%d,%d) is outside max data bounds of dsp: (%d,%d)", gx, gy, dsp->dsp_xcnt, dsp->dsp_ycnt);
+	if (gx >= dsp->dsp_xcnt || gy >= dsp->dsp_ycnt) {
+	    bu_vls_printf(gedp->ged_result_str, "Error - xy coordinate (%u,%u) is outside max data bounds of dsp: (%u,%u)", gx, gy, dsp->dsp_xcnt, dsp->dsp_ycnt);
 	    rt_db_free_internal(&intern);
 	    return BRLCAD_ERROR;
 	} else {
@@ -106,8 +111,17 @@ ged_dsp_core(struct ged *gedp, int argc, const char *argv[])
 	    rt_db_free_internal(&intern);
 	    return BRLCAD_ERROR;
 	}
-	GED_DB_LOOKUP(gedp, dsp_dp2, argv[3], LOOKUP_NOISY, BRLCAD_ERROR & GED_QUIET);
-	GED_DB_GET_INTERN(gedp, &intern2, dsp_dp2, bn_mat_identity, BRLCAD_ERROR);
+	dsp_dp2 = db_lookup(gedp->dbip, argv[3], LOOKUP_NOISY);
+	if (dsp_dp2 == RT_DIR_NULL) {
+	    bu_vls_printf(gedp->ged_result_str, "Unable to find %s in the database.", argv[3]);
+	    rt_db_free_internal(&intern);
+	    return BRLCAD_ERROR;
+	}
+	if (rt_db_get_internal(&intern2, dsp_dp2, gedp->dbip, bn_mat_identity) < 0) {
+	    bu_vls_printf(gedp->ged_result_str, "Database read failure on %s.", argv[3]);
+	    rt_db_free_internal(&intern);
+	    return BRLCAD_ERROR;
+	}
 
 	if (intern2.idb_major_type != DB5_MAJORTYPE_BRLCAD || intern2.idb_minor_type != DB5_MINORTYPE_BRLCAD_DSP) {
 	    bu_vls_printf(gedp->ged_result_str, "%s: %s is not a DSP solid!", cmd, argv[3]);
@@ -116,7 +130,7 @@ ged_dsp_core(struct ged *gedp, int argc, const char *argv[])
 	    return BRLCAD_ERROR;
 	}
 
-	dsp2 = (struct rt_dsp_internal *)intern.idb_ptr;
+	dsp2 = (struct rt_dsp_internal *)intern2.idb_ptr;
 	RT_DSP_CK_MAGIC(dsp2);
 
 	if (dsp->dsp_xcnt != dsp2->dsp_xcnt || dsp->dsp_ycnt != dsp2->dsp_ycnt) {

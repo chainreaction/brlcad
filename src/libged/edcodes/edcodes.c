@@ -44,10 +44,19 @@
 static int
 edcodes_id_compare(const void *p1, const void *p2, void *UNUSED(arg))
 {
+    const char *s1 = *(const char **)p1;
+    const char *s2 = *(const char **)p2;
     int id1, id2;
 
-    id1 = atoi(*(char **)p1);
-    id2 = atoi(*(char **)p2);
+    if (!s1 && !s2)
+	return 0;
+    if (!s1)
+	return -1;
+    if (!s2)
+	return 1;
+
+    id1 = atoi(s1);
+    id2 = atoi(s2);
 
     return id1 - id2;
 }
@@ -56,10 +65,27 @@ edcodes_id_compare(const void *p1, const void *p2, void *UNUSED(arg))
 static int
 edcodes_reg_compare(const void *p1, const void *p2, void *UNUSED(arg))
 {
-    char *reg1, *reg2;
+    const char *s1 = *(const char **)p1;
+    const char *s2 = *(const char **)p2;
+    const char *reg1;
+    const char *reg2;
 
-    reg1 = strchr(*(char **)p1, '/');
-    reg2 = strchr(*(char **)p2, '/');
+    if (!s1 && !s2)
+	return 0;
+    if (!s1)
+	return -1;
+    if (!s2)
+	return 1;
+
+    reg1 = strchr(s1, '/');
+    reg2 = strchr(s2, '/');
+
+    if (!reg1 && !reg2)
+	return bu_strcmp(s1, s2);
+    if (!reg1)
+	return -1;
+    if (!reg2)
+	return 1;
 
     return bu_strcmp(reg1, reg2);
 }
@@ -114,7 +140,7 @@ edcodes_collect_regnames(struct ged *gedp, struct directory *dp, int pathpos)
     }
 
     if (id != ID_COMBINATION) {
-	intern.idb_meth->ft_ifree(&intern);
+	rt_db_free_internal(&intern);
 	return EDCODES_OK;
     }
 
@@ -123,7 +149,7 @@ edcodes_collect_regnames(struct ged *gedp, struct directory *dp, int pathpos)
 
     if (comb->region_flag) {
 	bu_vls_printf(gedp->ged_result_str, " %s", dp->d_namep);
-	intern.idb_meth->ft_ifree(&intern);
+	rt_db_free_internal(&intern);
 	return EDCODES_OK;
     }
 
@@ -131,7 +157,7 @@ edcodes_collect_regnames(struct ged *gedp, struct directory *dp, int pathpos)
 	db_tree_funcleaf(gedp->dbip, comb, comb->tree, edcodes_traverse_node, (void *)&pathpos, (void *)gedp, (void *)&status, (void *)NULL);
     }
 
-    intern.idb_meth->ft_ifree(&intern);
+    rt_db_free_internal(&intern);
 
     if (status == EDCODES_HALT)
 	return EDCODES_HALT;
@@ -191,8 +217,14 @@ ged_edcodes_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
+    const char *cmd_name = argv[0];
     argc -= bu_optind - 1;
     argv += bu_optind - 1;
+
+    if (argc < 2) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd_name, usage);
+	return BRLCAD_ERROR;
+    }
 
     if (nflag) {
 	struct directory *dp;
@@ -244,6 +276,7 @@ ged_edcodes_core(struct ged *gedp, int argc, const char *argv[])
 	if (f_srt == NULL) {
 	    bu_vls_printf(gedp->ged_result_str, "%s: Failed to open temp file for sorting\n", argv[0]);
 	    bu_file_delete(tmpfil);
+	    bu_free((void *)av, "ged_edcodes_core av");
 	    return BRLCAD_ERROR;
 	}
 

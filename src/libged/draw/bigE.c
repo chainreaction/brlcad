@@ -2045,6 +2045,7 @@ ged_E_core(struct ged *gedp, int argc, const char *argv[])
 	    default:
 		{
 		    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+		    bu_free(dgcdp, "dgcdp");
 		    return BRLCAD_ERROR;
 		}
 	}
@@ -2076,6 +2077,10 @@ ged_E_core(struct ged *gedp, int argc, const char *argv[])
 
 	av[0] = (char *)argv[i];
 	if (rt_gettrees(dgcdp->rtip, ac, (const char **)av, 1)) {
+	    if (dgcdp->ap) {
+		bu_free(dgcdp->ap, "dgcdp->ap");
+		dgcdp->ap = NULL;
+	    }
 	    bu_ptbl_free(&dgcdp->leaf_list);
 
 	    rt_i_destroy(dgcdp->rtip);
@@ -2109,17 +2114,22 @@ ged_E_core(struct ged *gedp, int argc, const char *argv[])
 		db_free_full_path(&path);
 	    }
 	    rt_i_destroy(dgcdp->rtip);
+	    dgcdp->rtip = NULL;
 	}
+
+	if (dgcdp->ap) {
+	    bu_free(dgcdp->ap, "dgcdp->ap");
+	    dgcdp->ap = NULL;
+	}
+	bu_ptbl_free(&dgcdp->leaf_list);
     }
 
     (void)time(&dgcdp->etime);
 
-    /* free leaf_list */
-    bu_ptbl_free(&dgcdp->leaf_list);
-
     bu_vls_printf(gedp->ged_result_str, "E: %ld vectors in %ld sec\n",
 		  dgcdp->nvectors, (long)(dgcdp->etime - dgcdp->start_time));
 
+    bu_free(dgcdp, "dgcdp");
     return BRLCAD_OK;
 }
 

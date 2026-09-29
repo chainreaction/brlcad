@@ -273,6 +273,9 @@ erase_scene_obj(struct ged *gedp, struct display_list *gdlp,
 void
 dl_erasePathFromDisplay(struct ged *gedp, const char *path, int allow_split)
 {
+    if (!gedp || !gedp->i || !gedp->i->ged_gdp || !gedp->i->ged_gdp->gd_headDisplay || !gedp->dbip || !path)
+	return;
+
     struct bu_list *hdlp = gedp->i->ged_gdp->gd_headDisplay;
     struct db_i *dbip = gedp->dbip;
     struct display_list *gdlp;
@@ -453,6 +456,9 @@ eraseAllSubpathsFromSolidList(struct ged *gedp, struct display_list *gdlp,
 void
 _dl_eraseAllNamesFromDisplay(struct ged *gedp,  const char *name, const int skip_first)
 {
+    if (!gedp || !gedp->i || !gedp->i->ged_gdp || !gedp->i->ged_gdp->gd_headDisplay || !gedp->dbip || !name)
+	return;
+
     struct bu_list *hdlp = gedp->i->ged_gdp->gd_headDisplay;
     struct db_i *dbip = gedp->dbip;
     struct display_list *gdlp;
@@ -571,6 +577,9 @@ _dl_eraseFirstSubpath(struct ged *gedp,
 void
 _dl_eraseAllPathsFromDisplay(struct ged *gedp, const char *path, const int skip_first)
 {
+    if (!gedp || !gedp->i || !gedp->i->ged_gdp || !gedp->i->ged_gdp->gd_headDisplay || !gedp->dbip || !path)
+	return;
+
     struct display_list *gdlp;
     struct display_list *next_gdlp;
     struct db_full_path fullpath, subpath;
@@ -826,6 +835,10 @@ int invent_solid(struct ged *gedp, char *name, struct bu_list *vhead, long int r
 
     /* Need to enter phony name in directory structure */
     dp = db_diradd(dbip, name, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&type);
+    if (dp == RT_DIR_NULL) {
+	FREE_BV_SCENE_OBJ(sp, &bv_set_fsos(&gedp->ged_views)->l, vlfree);
+	return -1;
+    }
 
     if (copy) {
 	solid_copy_vlist(dbip, sp, (struct bv_vlist *)vhead, vlfree);
@@ -839,6 +852,11 @@ int invent_solid(struct ged *gedp, char *name, struct bu_list *vhead, long int r
     db_add_node_to_full_path(&bdata->s_fullpath, dp);
 
     gdlp = _ged_dl_addToDisplay(gedp, name);
+    if (!gdlp) {
+	(void)db_dirdelete(dbip, dp);
+	FREE_BV_SCENE_OBJ(sp, &bv_set_fsos(&gedp->ged_views)->l, vlfree);
+	return -1;
+    }
 
     sp->s_iflag = DOWN;
     sp->s_soldash = 0;
@@ -894,7 +912,7 @@ dl_set_iflag(struct bu_list *hdlp, int iflag)
 unsigned long long
 dl_name_hash(struct ged *gedp)
 {
-    if (!BU_LIST_NON_EMPTY(gedp->i->ged_gdp->gd_headDisplay))
+    if (!gedp || !gedp->i || !gedp->i->ged_gdp || !gedp->i->ged_gdp->gd_headDisplay || !BU_LIST_NON_EMPTY(gedp->i->ged_gdp->gd_headDisplay))
 	return 0;
 
     struct bu_data_hash_state *state = bu_data_hash_create();

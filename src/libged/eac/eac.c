@@ -75,16 +75,21 @@ ged_eac_core(struct ged *gedp, int argc, const char *argv[])
 
 	    if (rt_db_get_internal(&intern, dp, gedp->dbip, (fastf_t *)NULL) < 0) {
 		bu_vls_printf(gedp->ged_result_str, "%s: Database read error, aborting\n", argv[0]);
+		bu_vls_free(&v);
 		return BRLCAD_ERROR;
+	    }
+	    if (intern.idb_type != ID_COMBINATION) {
+		rt_db_free_internal(&intern);
+		continue;
 	    }
 	    comb = (struct rt_comb_internal *)intern.idb_ptr;
 	    if (comb->region_id != 0
 		|| comb->aircode != item)
 	    {
-		intern.idb_meth->ft_ifree(&intern);
+		rt_db_free_internal(&intern);
 		continue;
 	    }
-	    intern.idb_meth->ft_ifree(&intern);
+	    rt_db_free_internal(&intern);
 
 	    bu_vls_strcat(&v, " ");
 	    bu_vls_strcat(&v, dp->d_namep);

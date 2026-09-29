@@ -92,6 +92,8 @@ ged_decompose_core(struct ged *gedp, int argc, const char *argv[])
 
     if (nmg_intern.idb_type != ID_NMG) {
 	bu_vls_printf(gedp->ged_result_str, "%s: %s is not an NMG solid!", argv[0], nmg_solid_name);
+	rt_db_free_internal(&nmg_intern);
+	bu_vls_free(&solid_name);
 	return BRLCAD_ERROR;
     }
 
@@ -151,7 +153,7 @@ ged_decompose_core(struct ged *gedp, int argc, const char *argv[])
 		/* create name for this shell */
 		count++;
 		bu_vls_strcpy(&solid_name, prefix);
-		sprintf(shell_no, "_%d", count);
+		snprintf(shell_no, sizeof(shell_no), "_%d", count);
 		if (db_version(gedp->dbip) < 5) {
 		    end_prefix = strlen(prefix);
 		    if (end_prefix + strlen(shell_no) > NAMESIZE)
@@ -165,6 +167,9 @@ ged_decompose_core(struct ged *gedp, int argc, const char *argv[])
 		if (db_lookup(gedp->dbip, bu_vls_addr(&solid_name), LOOKUP_QUIET) != RT_DIR_NULL) {
 		    bu_vls_printf(gedp->ged_result_str, "%s: cannot create unique solid name (%s)",
 				  argv[0], bu_vls_addr(&solid_name));
+		    (void)nmg_km(new_m);
+		    rt_db_free_internal(&nmg_intern);
+		    bu_vls_free(&solid_name);
 		    return BRLCAD_ERROR;
 		}
 
@@ -177,15 +182,17 @@ ged_decompose_core(struct ged *gedp, int argc, const char *argv[])
 
 		new_dp = db_diradd(gedp->dbip, bu_vls_addr(&solid_name), RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&new_intern.idb_type);
 		if (new_dp == RT_DIR_NULL) {
+		    (void)nmg_km(new_m);
+		    rt_db_free_internal(&nmg_intern);
 		    bu_vls_free(&solid_name);
 		    bu_vls_printf(gedp->ged_result_str, "%s: Database alloc error, aborting", argv[0]);
 		    return BRLCAD_ERROR;
 		}
 
 		if (rt_db_put_internal(new_dp, gedp->dbip, &new_intern) < 0) {
-		    (void)nmg_km(new_m);
 		    bu_vls_printf(gedp->ged_result_str, "%s: rt_db_put_internal(%s) failure\n",
 				  argv[0], bu_vls_addr(&solid_name));
+		    rt_db_free_internal(&nmg_intern);
 		    bu_vls_free(&solid_name);
 		    return BRLCAD_ERROR;
 		}

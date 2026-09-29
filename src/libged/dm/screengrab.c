@@ -92,6 +92,7 @@ ged_screen_grab_core(struct ged *gedp, int argc, const char *argv[])
     int opt_ret = bu_opt_parse(NULL, argc, argv, d);
 
     if (print_help) {
+	bu_vls_free(&dm_name);
 	_ged_cmd_help(gedp, usage, d);
 	return GED_HELP;
     }
@@ -108,7 +109,7 @@ ged_screen_grab_core(struct ged *gedp, int argc, const char *argv[])
 		break;
 	    struct bview *gdvp = (struct bview *)BU_PTBL_GET(views, j);
 	    struct dm *ndmp = (struct dm *)gdvp->dmp;
-	    if (!bu_vls_strcmp(dm_get_pathname(ndmp), &dm_name))
+	    if (ndmp && !bu_vls_strcmp(dm_get_pathname(ndmp), &dm_name))
 		dmp = ndmp;
 	}
 	if (!dmp) {
@@ -149,12 +150,13 @@ ged_screen_grab_core(struct ged *gedp, int argc, const char *argv[])
 
 	dm_get_display_image(dmp, &idata, 1, 0);
 	if (!idata) {
-	    bu_vls_printf(gedp->ged_result_str, "%s: display manager did not return image data.", argv[1]);
+	    bu_vls_printf(gedp->ged_result_str, "%s: display manager did not return image data.", argv[0]);
 	    return BRLCAD_ERROR;
 	}
 	bif = icv_create(dm_get_width(dmp), dm_get_height(dmp), ICV_COLOR_SPACE_RGB);
 	if (bif == NULL) {
 	    bu_vls_printf(gedp->ged_result_str, ": could not create icv_image write structure.");
+	    bu_free(idata, "image data");
 	    return BRLCAD_ERROR;
 	}
 	rows = (unsigned char **)bu_calloc(dm_get_height(dmp), sizeof(unsigned char *), "rows");

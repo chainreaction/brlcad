@@ -48,7 +48,8 @@ _ged_cm_vsize(struct ged *gedp, vect_t *UNUSED(v), mat_t *UNUSED(m), const int a
     /* for some reason, scale is supposed to be half of size... */
     gedp->ged_gvp->gv_size = atof(argv[1]);
     gedp->ged_gvp->gv_scale = gedp->ged_gvp->gv_size * 0.5;
-    gedp->ged_gvp->gv_isize = 1.0 / gedp->ged_gvp->gv_size;
+    if (!ZERO(gedp->ged_gvp->gv_size))
+	gedp->ged_gvp->gv_isize = 1.0 / gedp->ged_gvp->gv_size;
     return 0;
 }
 
@@ -79,7 +80,9 @@ _ged_cm_lookat_pt(struct ged *gedp, vect_t *v, mat_t *m, const int argc, const c
     pt[Z] = atof(argv[3]);
 
     VSUB2(dir, pt, (*v));
-    VUNITIZE(dir);
+    if (!ZERO(MAGNITUDE(dir))) {
+	VUNITIZE(dir);
+    }
 
     /*
      * At the moment bn_mat_lookat() will return NAN's if the
@@ -121,7 +124,7 @@ _ged_cm_orientation(struct ged *UNUSED(gedp), vect_t *UNUSED(v), mat_t *m, const
     int i;
     quat_t quat;
 
-    if (argc < 4)
+    if (argc < 5)
 	return -1;
 
     for (i = 0; i < 4; i++)
@@ -242,19 +245,22 @@ ged_do_cmd(struct ged *gedp, vect_t *v, mat_t *m, const char *ilp, const struct 
     if (ilp[0] == '{') {
 	int tcl_argc;
 	const char **tcl_argv;
-	if(bu_argv_from_tcl_list(ilp, &tcl_argc, &tcl_argv) || tcl_argc != 1) {
+	if (bu_argv_from_tcl_list(ilp, &tcl_argc, &tcl_argv) || tcl_argc != 1) {
 	    bu_vls_printf(gedp->ged_result_str, "ged_do_cmd:  invalid input %s\n", ilp);
 	    return BRLCAD_ERROR; /* Looked like a tcl list, but apparently not */
 	} else {
 	    lp = bu_strdup(tcl_argv[0]);
+	    bu_free((void *)tcl_argv, "tcl_argv");
 	}
     } else {
 	lp = bu_strdup(ilp);
     }
 
     nwords = bu_argv_from_string(cmd_args, MAXPATHLEN, lp);
-    if (nwords <= 0)
+    if (nwords <= 0) {
+	bu_free(lp, "ged_do_cmd lp");
 	return BRLCAD_OK;       /* No command to process */
+    }
 
 
     for (; tp->ct_cmd != (char *)0; tp++) {
@@ -376,15 +382,17 @@ ged_loadview_core(struct ged *gedp, int argc, const char *argv[])
 	     * remove it (it should always be unless the user
 	     * modifies the file)
 	     */
-	    if (*(dbName + strlen(dbName) - 1)=='\\') {
-		memset(dbName+strlen(dbName)-1, 0, 1);
+	    size_t dbname_len = strlen(dbName);
+	    if (dbname_len > 0 && *(dbName + dbname_len - 1) == '\\') {
+		memset(dbName + dbname_len - 1, 0, 1);
+		dbname_len--;
 	    }
 	    /* bu_log("dbName=%s\n", dbName); */
 
 	    /* if the name was wrapped in quotes, remove them */
-	    if (dbName[0] == '\'' && *(dbName + strlen(dbName) - 1) == '\'') {
+	    if (dbname_len >= 2 && dbName[0] == '\'' && *(dbName + dbname_len - 1) == '\'') {
 		dbName++;
-		memset(dbName + strlen(dbName)-1, 0, 1);
+		memset(dbName + dbname_len - 2, 0, 1);
 	    }
 
 	    if (!bu_file_same(gedp->dbip->dbi_filename, dbName)) {
@@ -414,9 +422,12 @@ ged_loadview_core(struct ged *gedp, int argc, const char *argv[])
 	    while ((!feof(fp)) && (bu_strncmp(objects, "\\", 1) != 0)) {
 
 		/* clean off the single quotes... */
-		if (bu_strncmp(objects, "'", 1) == 0) {
-		    objects[0]=' ';
-		    memset(objects+strlen(objects)-1, ' ', 1);
+		size_t obj_len = strlen(objects);
+		if (obj_len > 0 && objects[0] == '\'') {
+		    objects[0] = ' ';
+		    if (obj_len > 1 && objects[obj_len - 1] == '\'') {
+			objects[obj_len - 1] = ' ';
+		    }
 		    sscanf(objects, "%" CPP_XSTR(OBJECTS_SIZE) "s", objects);
 		}
 

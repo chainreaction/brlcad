@@ -206,6 +206,7 @@ _dm_cmd_bg(void *ds, int argc, const char **argv)
 	return BRLCAD_OK;
     }
 
+    const char *bg_arg = (argc > 0) ? argv[0] : "";
     unsigned char n_bg1[3], n_bg2[3];
     struct bu_color c;
     int ac_used = bu_opt_color(NULL, argc, argv, &c);
@@ -233,7 +234,7 @@ _dm_cmd_bg(void *ds, int argc, const char **argv)
 
     dm_set_bg(cdmp, n_bg1[0], n_bg1[1], n_bg1[2], n_bg2[0], n_bg2[1], n_bg2[2]);
 
-    const char *cbav[4] = {"dm", "bg", argv[0], NULL};
+    const char *cbav[4] = {"dm", "bg", bg_arg, NULL};
     _dm_cmd_during_clbk(gd, 3, cbav);
 
     return BRLCAD_OK;
@@ -403,8 +404,8 @@ _dm_cmd_get(void *ds, int argc, const char **argv)
 
     struct _ged_dm_info *gd = (struct _ged_dm_info *)ds;
     struct dm *cdmp = _dm_find(gd, &dm_name);
+    bu_vls_free(&dm_name);
     if (!cdmp) {
-	bu_vls_free(&dm_name);
 	return BRLCAD_ERROR;
     }
 
@@ -440,7 +441,7 @@ _dm_cmd_get(void *ds, int argc, const char **argv)
 	}
     }
 
-    return BRLCAD_ERROR;
+    return BRLCAD_OK;
 }
 
 int
@@ -464,8 +465,8 @@ _dm_cmd_set(void *ds, int argc, const char **argv)
 
     struct _ged_dm_info *gd = (struct _ged_dm_info *)ds;
     struct dm *cdmp = _dm_find(gd, &dm_name);
+    bu_vls_free(&dm_name);
     if (!cdmp) {
-	bu_vls_free(&dm_name);
 	return BRLCAD_ERROR;
     }
 
@@ -725,7 +726,8 @@ _dm_cmd_width(void *ds, int argc, const char **argv)
 
     struct bu_vls tmpname = BU_VLS_INIT_ZERO;
     struct _ged_dm_info *gd = (struct _ged_dm_info *)ds;
-    bu_vls_sprintf(&tmpname, "%s", argv[0]);
+    if (argc > 0)
+	bu_vls_sprintf(&tmpname, "%s", argv[0]);
     struct dm *cdmp = _dm_find(gd, &tmpname);
     bu_vls_free(&tmpname);
     if (!cdmp) {
@@ -748,7 +750,8 @@ _dm_cmd_height(void *ds, int argc, const char **argv)
 
     struct bu_vls tmpname = BU_VLS_INIT_ZERO;
     struct _ged_dm_info *gd = (struct _ged_dm_info *)ds;
-    bu_vls_sprintf(&tmpname, "%s", argv[0]);
+    if (argc > 0)
+	bu_vls_sprintf(&tmpname, "%s", argv[0]);
     struct dm *cdmp = _dm_find(gd, &tmpname);
     bu_vls_free(&tmpname);
     if (!cdmp) {

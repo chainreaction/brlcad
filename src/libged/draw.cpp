@@ -137,7 +137,7 @@ csg_wireframe_update(struct bv_scene_obj *vo, struct bview *v, int flag)
 	rework = true;
     if (!rework) {
 	// Check view scale
-	fastf_t delta = vo->view_scale * 0.1/vo->view_scale;
+	fastf_t delta = (ZERO(vo->view_scale)) ? 0.1 : 0.1 * fabs(vo->view_scale);
 	if (!NEAR_EQUAL(vo->view_scale, v->gv_scale, delta))
 	    rework = true;
     }
@@ -173,6 +173,8 @@ csg_wireframe_update(struct bv_scene_obj *vo, struct bview *v, int flag)
 	vo->s_type_flags |= BV_CSG_LOD;
 	bv_obj_stale(vo);
     }
+
+    rt_db_free_internal(&dbintern);
 
     return 1;
 }
@@ -456,6 +458,7 @@ brep_adaptive_plot(struct bv_scene_obj *s, struct bview *v)
 		    bu_free(faces, "faces");
 		    bu_free(normals, "normals");
 		    bu_free(pnts, "pnts");
+		    rt_db_free_internal(&dbintern);
 		    return;
 		}
 
@@ -746,7 +749,7 @@ draw_scene(struct bv_scene_obj *s, struct bview *v)
 	case 3:
 	    // Evaluated wireframes
 	    bu_log("Error - got too deep into _scene_obj_draw routine with drawing mode 3 - wireframe drawing with evaluated booleans\n");
-	    return;
+	    goto geom_done;
 	    break;
 	case 4:
 	    // Hidden line - generate polygonal forms, fall back to
@@ -761,7 +764,7 @@ draw_scene(struct bv_scene_obj *s, struct bview *v)
 	case 5:
 	    // Triangles at sampled points
 	    bu_log("Error - got too deep into _scene_obj_draw routine with drawing mode 5 - triangles at ray-sampled points\n");
-	    return;
+	    goto geom_done;
 	    break;
 	default:
 	    // Default to wireframe

@@ -50,6 +50,7 @@ struct dir_check_stuff {
     struct db_i *main_dbip;
     struct rt_wdb *wdbp;
     struct directory **dup_dirp;
+    size_t max_entries;
 };
 
 
@@ -104,8 +105,10 @@ dup_dir_check5(struct db_i *input_dbip,
     /* Look up this new name in the existing (main) database */
     if ((dupdp = db_lookup(dcsp->main_dbip, bu_vls_addr(&local), LOOKUP_QUIET)) != RT_DIR_NULL) {
 	/* Duplicate found, add it to the list */
+	if (dcsp->wdbp->wdb_num_dups >= 0 && (size_t)dcsp->wdbp->wdb_num_dups < dcsp->max_entries) {
+	    *dcsp->dup_dirp++ = dupdp;
+	}
 	dcsp->wdbp->wdb_num_dups++;
-	*dcsp->dup_dirp++ = dupdp;
     }
 
     bu_vls_free(&local);
@@ -151,8 +154,10 @@ dup_dir_check(struct db_i *input_dbip, const char *name, b_off_t UNUSED(laddr), 
     /* Look up this new name in the existing (main) database */
     if ((dupdp = db_lookup(dcsp->main_dbip, bu_vls_addr(&local), LOOKUP_QUIET)) != RT_DIR_NULL) {
 	/* Duplicate found, add it to the list */
+	if (dcsp->wdbp->wdb_num_dups >= 0 && (size_t)dcsp->wdbp->wdb_num_dups < dcsp->max_entries) {
+	    *dcsp->dup_dirp++ = dupdp;
+	}
 	dcsp->wdbp->wdb_num_dups++;
-	*dcsp->dup_dirp++ = dupdp;
     }
     bu_vls_free(&local);
     return 0;
@@ -216,7 +221,8 @@ ged_dup_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     /* Get array to hold names of duplicates */
-    if ((dirp0 = _ged_getspace(gedp->dbip, 0)) == (struct directory **) 0) {
+    size_t max_entries = db_directory_size(gedp->dbip);
+    if ((dirp0 = _ged_getspace(gedp->dbip, max_entries)) == (struct directory **) 0) {
 	bu_vls_printf(gedp->ged_result_str, "f_dup: unable to get memory\n");
 	db_close(newdbp);
 	return BRLCAD_ERROR;
@@ -226,6 +232,7 @@ ged_dup_core(struct ged *gedp, int argc, const char *argv[])
     dcs.main_dbip = gedp->dbip;
     dcs.wdbp = wdbp;
     dcs.dup_dirp = dirp0;
+    dcs.max_entries = max_entries;
     if (db_version(newdbp) < 5) {
 	if (db_scan(newdbp, dup_dir_check, 0, (void *)&dcs) < 0) {
 	    bu_vls_printf(gedp->ged_result_str, "dup: db_scan failure");

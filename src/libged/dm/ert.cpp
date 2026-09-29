@@ -125,6 +125,10 @@ ged_ert_core(struct ged *gedp, int argc, const char *argv[])
 
     int width = dm_get_width(dmp);
     int height = dm_get_height(dmp);
+    if (width <= 0)
+	width = 1;
+    if (height <= 0)
+	height = 1;
 
     args.push_back(std::string("-w"));
     args.push_back(std::to_string(width));
@@ -145,7 +149,7 @@ ged_ert_core(struct ged *gedp, int argc, const char *argv[])
     int units_supplied = 0;
     int i = 0;
     for (i = 1; i < argc; i++) {
-	if (BU_STR_EQUAL(argv[1], "-u")) {
+	if (BU_STR_EQUAL(argv[i], "-u")) {
 	    units_supplied=1;
 	} else if (argv[i][0] == '-' && argv[i][1] == '-' && argv[i][2] == '\0') {
 	    ++i;
@@ -208,7 +212,7 @@ ged_ert_core(struct ged *gedp, int argc, const char *argv[])
     if (clbk)
 	(*clbk)(argc, argv, u1, u2);
 
-    bu_vls_cstr(&wstr);
+    bu_vls_free(&wstr);
     for (size_t j = 0; j < args.size(); j++) {
 	bu_free(gd_rt_cmd[j], "free gd_rt_cmd arg");
     }

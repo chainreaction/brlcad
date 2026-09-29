@@ -673,10 +673,9 @@ plot_shaded_eval(
 	    ret = get_path_and_state(&ts, &input_path, path_name, gedp);
 	    if (ret == BRLCAD_OK) {
 		plot_shaded(&ts, &input_path, &brep_intern, dgcdp);
-
-		rt_db_free_internal(&brep_intern);
 		db_free_full_path(&input_path);
 	    }
+	    rt_db_free_internal(&brep_intern);
 	}
 
 	/* kill temp brep */
@@ -1726,6 +1725,7 @@ ged_redraw_core(struct ged *gedp, int argc, const char *argv[])
 		    bu_vls_printf(gedp->ged_result_str,
 			    "%s: %s is not a valid path\n", argv[0],
 			    bu_vls_addr(&gdlp->dl_path));
+		    db_free_full_path(&obj_path);
 		    return BRLCAD_ERROR;
 		}
 
@@ -1738,6 +1738,7 @@ ged_redraw_core(struct ged *gedp, int argc, const char *argv[])
 		    if (ret < 0) {
 			bu_vls_printf(gedp->ged_result_str,
 				"%s: %s redraw failure\n", argv[0], argv[i]);
+			db_free_full_path(&obj_path);
 			return BRLCAD_ERROR;
 		    }
 		    break;

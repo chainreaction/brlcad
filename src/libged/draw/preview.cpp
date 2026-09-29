@@ -192,8 +192,15 @@ ged_cm_tree(struct ged *gedp, vect_t *UNUSED(v), mat_t *UNUSED(m), const int arg
     int *gd_rt_cmd_len = (int *)BU_PTBL_GET(&gedp->ged_uptrs, 0);
     char ***gd_rt_cmd = (char ***)BU_PTBL_GET(&gedp->ged_uptrs, 1);
 
-    for (i = 1;  i < argc && i < MAXARGS; i++) {
-	bu_strlcpy(cp, argv[i], MAXARGS*9);
+    if (!gd_rt_cmd_len || !gd_rt_cmd || !*gd_rt_cmd)
+	return -1;
+
+    for (i = 1; i < argc && i < MAXARGS - 1; i++) {
+	size_t used = (size_t)(cp - rt_cmd_storage);
+	if (used >= sizeof(rt_cmd_storage))
+	    break;
+	size_t remaining = sizeof(rt_cmd_storage) - used;
+	bu_strlcpy(cp, argv[i], remaining);
 	(*gd_rt_cmd)[i] = cp;
 	cp += strlen(cp) + 1;
     }
@@ -364,8 +371,14 @@ ged_preview_core(struct ged *gedp, int argc, const char *argv[])
 		     break;
 	}
     }
+    const char *cmd_name = argv[0];
     argc -= bu_optind-1;
     argv += bu_optind-1;
+
+    if (argc < 2) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd_name, usage);
+	return BRLCAD_ERROR;
+    }
 
     fp = fopen(argv[1], "r");
     if (fp == NULL) {
@@ -374,6 +387,8 @@ ged_preview_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     args = argc + 2 + ged_who_argc(gedp);
+    if (args < MAXARGS)
+	args = MAXARGS;
     gd_rt_cmd = (char **)bu_calloc(args, sizeof(char *), "alloc gd_rt_cmd");
     vp = &gd_rt_cmd[0];
     *vp++ = bu_strdup("tree");
@@ -456,6 +471,13 @@ ged_preview_core(struct ged *gedp, int argc, const char *argv[])
     // Restore app ged_uptrs
     bu_ptbl_reset(&gedp->ged_uptrs);
     bu_ptbl_cat(&gedp->ged_uptrs, &ged_tmp_uptrs);
+    bu_ptbl_free(&ged_tmp_uptrs);
+
+    if (gd_rt_cmd) {
+	if (gd_rt_cmd[0])
+	    bu_free(gd_rt_cmd[0], "free gd_rt_cmd[0]");
+	bu_free(gd_rt_cmd, "free gd_rt_cmd");
+    }
 
     return BRLCAD_OK;
 }

@@ -215,6 +215,11 @@ ged_draw2_core(struct ged *gedp, int argc, const char *argv[])
 	blank_slate = 1;
     }
 
+    if (!gedp->dbi_state) {
+	bu_vls_printf(gedp->ged_result_str, "dbi_state is not initialized\n");
+	return BRLCAD_ERROR;
+    }
+
     // Drawing can get complicated when we have multiple active views with
     // different settings. The simplest case is when the current or specified
     // view is an independent view - we just update it and return.
@@ -240,7 +245,7 @@ ged_draw2_core(struct ged *gedp, int argc, const char *argv[])
 	if (v->independent)
 	    continue;
 	DbiState *dbis = (DbiState *)gedp->dbi_state;
-	BViewState *bvs = dbis->get_view_state(cv);
+	BViewState *bvs = dbis->get_view_state(v);
 	if (!bvs)
 	    continue;
 	vmap[bvs].insert(v);
