@@ -22962,38 +22962,44 @@
       "path": "src/libged/edit/edarb.c",
       "subsystem": "src/libged",
       "lines": 384,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 2,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2189,
       "path": "src/libged/edit/edit.cpp",
       "subsystem": "src/libged",
       "lines": 2573,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 2,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2190,
       "path": "src/libged/edit/facedef.c",
       "subsystem": "src/libged",
       "lines": 406,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 2,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2191,
       "path": "src/libged/edit/ged_edit.h",
       "subsystem": "src/libged",
       "lines": 265,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -23002,8 +23008,8 @@
       "path": "src/libged/edit/protate.c",
       "subsystem": "src/libged",
       "lines": 137,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -23012,8 +23018,8 @@
       "path": "src/libged/edit/pscale.c",
       "subsystem": "src/libged",
       "lines": 179,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -23022,8 +23028,8 @@
       "path": "src/libged/edit/ptranslate.c",
       "subsystem": "src/libged",
       "lines": 142,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -23032,210 +23038,252 @@
       "path": "src/libged/edit/rotate_eto.c",
       "subsystem": "src/libged",
       "lines": 69,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2196,
       "path": "src/libged/edit/rotate_extrude.c",
       "subsystem": "src/libged",
       "lines": 65,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2197,
       "path": "src/libged/edit/rotate_hyp.c",
       "subsystem": "src/libged",
       "lines": 69,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2198,
       "path": "src/libged/edit/rotate_tgc.c",
       "subsystem": "src/libged",
       "lines": 86,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2199,
       "path": "src/libged/edit/scale_ehy.c",
       "subsystem": "src/libged",
       "lines": 96,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 2,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2200,
       "path": "src/libged/edit/scale_ell.c",
       "subsystem": "src/libged",
       "lines": 107,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 3,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2201,
       "path": "src/libged/edit/scale_epa.c",
       "subsystem": "src/libged",
       "lines": 88,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 2,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2202,
       "path": "src/libged/edit/scale_eto.c",
       "subsystem": "src/libged",
       "lines": 132,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 3,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2203,
       "path": "src/libged/edit/scale_extrude.c",
       "subsystem": "src/libged",
       "lines": 75,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 2,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2204,
       "path": "src/libged/edit/scale_hyp.c",
       "subsystem": "src/libged",
       "lines": 111,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 2,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2205,
       "path": "src/libged/edit/scale_metaball.c",
       "subsystem": "src/libged",
       "lines": 98,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2206,
       "path": "src/libged/edit/scale_part.c",
       "subsystem": "src/libged",
       "lines": 79,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 2,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2207,
       "path": "src/libged/edit/scale_pipe.c",
       "subsystem": "src/libged",
       "lines": 322,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2208,
       "path": "src/libged/edit/scale_rhc.c",
       "subsystem": "src/libged",
       "lines": 89,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 2,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2209,
       "path": "src/libged/edit/scale_rpc.c",
       "subsystem": "src/libged",
       "lines": 81,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 2,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2210,
       "path": "src/libged/edit/scale_superell.c",
       "subsystem": "src/libged",
       "lines": 107,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 3,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2211,
       "path": "src/libged/edit/scale_tgc.c",
       "subsystem": "src/libged",
       "lines": 247,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 3,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2212,
       "path": "src/libged/edit/scale_tor.c",
       "subsystem": "src/libged",
       "lines": 86,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2213,
       "path": "src/libged/edit/translate_extrude.c",
       "subsystem": "src/libged",
       "lines": 120,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2214,
       "path": "src/libged/edit/translate_tgc.c",
       "subsystem": "src/libged",
       "lines": 133,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2215,
       "path": "src/libged/edit/uri.hh",
       "subsystem": "src/libged",
       "lines": 656,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29T03:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0247"
+      ]
     },
     {
       "id": 2216,
