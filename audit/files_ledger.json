@@ -12,10 +12,10 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 475,
-    "pending_files": 3018,
-    "last_updated": "2026-09-29T05:25:00Z",
-    "total_issues": 252,
+    "reviewed_files": 485,
+    "pending_files": 3008,
+    "last_updated": "2026-09-29T05:40:00Z",
+    "total_issues": 254,
     "reviewed_count": 475
   },
   "files": [
@@ -24141,28 +24141,32 @@
       "path": "src/libged/item/item.c",
       "subsystem": "src/libged",
       "lines": 125,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0254"
+      ]
     },
     {
       "id": 2290,
       "path": "src/libged/joint/joint.c",
       "subsystem": "src/libged",
       "lines": 3596,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0254"
+      ]
     },
     {
       "id": 2291,
       "path": "src/libged/joint/joint.h",
       "subsystem": "src/libged",
       "lines": 195,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -24171,70 +24175,84 @@
       "path": "src/libged/joint2/joint2.c",
       "subsystem": "src/libged",
       "lines": 259,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0254"
+      ]
     },
     {
       "id": 2293,
       "path": "src/libged/keep/keep.c",
       "subsystem": "src/libged",
       "lines": 250,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0254"
+      ]
     },
     {
       "id": 2294,
       "path": "src/libged/keypoint/keypoint.c",
       "subsystem": "src/libged",
       "lines": 109,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0254"
+      ]
     },
     {
       "id": 2295,
       "path": "src/libged/kill/kill.c",
       "subsystem": "src/libged",
       "lines": 145,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0254"
+      ]
     },
     {
       "id": 2296,
       "path": "src/libged/killall/killall.c",
       "subsystem": "src/libged",
       "lines": 123,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0254"
+      ]
     },
     {
       "id": 2297,
       "path": "src/libged/killrefs/killrefs.c",
       "subsystem": "src/libged",
       "lines": 137,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0254"
+      ]
     },
     {
       "id": 2298,
       "path": "src/libged/killtree/killtree.c",
       "subsystem": "src/libged",
       "lines": 349,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-29",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0254"
+      ]
     },
     {
       "id": 2299,
@@ -36216,5 +36234,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-09-29T05:25:00Z"
+  "last_updated": "2026-09-29T05:40:00Z"
 }
