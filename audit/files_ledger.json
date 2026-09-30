@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 485,
-    "pending_files": 3008,
-    "last_updated": "2026-09-29T05:40:00Z",
-    "total_issues": 254,
-    "reviewed_count": 475
+    "reviewed_files": 495,
+    "pending_files": 2998,
+    "last_updated": "2026-09-30T03:00:00Z",
+    "total_issues": 255,
+    "reviewed_count": 485
   },
   "files": [
     {
@@ -24259,48 +24259,56 @@
       "path": "src/libged/label/label.c",
       "subsystem": "src/libged",
       "lines": 66,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0255"
+      ]
     },
     {
       "id": 2300,
       "path": "src/libged/lc/lc.c",
       "subsystem": "src/libged",
       "lines": 528,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0255"
+      ]
     },
     {
       "id": 2301,
       "path": "src/libged/libfuncs/libfuncs.c",
       "subsystem": "src/libged",
       "lines": 165,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0255"
+      ]
     },
     {
       "id": 2302,
       "path": "src/libged/lint/cyclic.cpp",
       "subsystem": "src/libged",
       "lines": 168,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0255"
+      ]
     },
     {
       "id": 2303,
       "path": "src/libged/lint/ged_lint.h",
       "subsystem": "src/libged",
       "lines": 97,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -24309,50 +24317,60 @@
       "path": "src/libged/lint/invalid_shape.cpp",
       "subsystem": "src/libged",
       "lines": 219,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0255"
+      ]
     },
     {
       "id": 2305,
       "path": "src/libged/lint/lint.cpp",
       "subsystem": "src/libged",
       "lines": 562,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0255"
+      ]
     },
     {
       "id": 2306,
       "path": "src/libged/lint/lint_bot.cpp",
       "subsystem": "src/libged",
       "lines": 685,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0255"
+      ]
     },
     {
       "id": 2307,
       "path": "src/libged/lint/missing.cpp",
       "subsystem": "src/libged",
       "lines": 201,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0255"
+      ]
     },
     {
       "id": 2308,
       "path": "src/libged/lint/raytrace.cpp",
       "subsystem": "src/libged",
       "lines": 798,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0255"
+      ]
     },
     {
       "id": 2309,
@@ -36234,5 +36252,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-09-29T05:40:00Z"
+  "last_updated": "2026-09-30T03:00:00Z"
 }
