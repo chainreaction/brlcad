@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 525,
-    "pending_files": 2968,
-    "last_updated": "2026-09-30T03:31:55Z",
-    "total_issues": 258,
-    "reviewed_count": 495
+    "reviewed_files": 535,
+    "pending_files": 2958,
+    "last_updated": "2026-09-30T03:42:00Z",
+    "total_issues": 259,
+    "reviewed_count": 505
   },
   "files": [
     {
@@ -24737,100 +24737,120 @@
       "path": "src/libged/nmg/nmg_make_v.c",
       "subsystem": "src/libged",
       "lines": 147,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0259"
+      ]
     },
     {
       "id": 2340,
       "path": "src/libged/nmg/nmg_mm.c",
       "subsystem": "src/libged",
       "lines": 85,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0259"
+      ]
     },
     {
       "id": 2341,
       "path": "src/libged/nmg/nmg_move_v.c",
       "subsystem": "src/libged",
       "lines": 339,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0259"
+      ]
     },
     {
       "id": 2342,
       "path": "src/libged/nmg/nmg_simplify.c",
       "subsystem": "src/libged",
       "lines": 306,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0259"
+      ]
     },
     {
       "id": 2343,
       "path": "src/libged/npush/npush.cpp",
       "subsystem": "src/libged",
       "lines": 1724,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0259"
+      ]
     },
     {
       "id": 2344,
       "path": "src/libged/ocenter/ocenter.c",
       "subsystem": "src/libged",
       "lines": 140,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0259"
+      ]
     },
     {
       "id": 2345,
       "path": "src/libged/open/open.cpp",
       "subsystem": "src/libged",
       "lines": 174,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0259"
+      ]
     },
     {
       "id": 2346,
       "path": "src/libged/orient/orient.c",
       "subsystem": "src/libged",
       "lines": 102,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0259"
+      ]
     },
     {
       "id": 2347,
       "path": "src/libged/orotate/orotate.c",
       "subsystem": "src/libged",
       "lines": 159,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0259"
+      ]
     },
     {
       "id": 2348,
       "path": "src/libged/oscale/oscale.c",
       "subsystem": "src/libged",
       "lines": 149,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0259"
+      ]
     },
     {
       "id": 2349,
