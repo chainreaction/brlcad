@@ -46,15 +46,20 @@ ged_match_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
-    for (++argv; *argv != NULL; ++argv) {
+    if (!argv)
+	return BRLCAD_ERROR;
+
+    for (int i = 1; i < argc; ++i) {
 	int num = 0;
 	struct directory *dp;
+	if (!argv[i])
+	    continue;
 	FOR_ALL_DIRECTORY_START(dp, gedp->dbip)
-	    if (bu_path_match(*argv, dp->d_namep, 0) != 0)
+	    if (!dp || !dp->d_namep || bu_path_match(argv[i], dp->d_namep, 0) != 0)
 		continue;
 	    if (num == 0)
 		bu_vls_strcat(gedp->ged_result_str, dp->d_namep);

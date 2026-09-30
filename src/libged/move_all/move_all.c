@@ -46,20 +46,27 @@ move_all_func(struct ged *gedp, int nflag, const char *old_name, const char *new
     size_t moved = 0;
 
     /* check the old_name source and new_name target */
+    if (!old_name || !new_name)
+	return BRLCAD_ERROR;
 
     /* The destination is an object name, not a path - reject slashes so
      * we don't end up creating an object whose name contains the path
      * separator (which produces broken, unlistable hierarchies).
      */
     if (strchr(new_name, '/') != NULL) {
-	bu_vls_printf(gedp->ged_result_str, "%s: destination name may not contain slashes", new_name);
+	bu_vls_printf(gedp->ged_result_str, "%s: destination name may not contain slashes\n", new_name);
+	return BRLCAD_ERROR;
+    }
+
+    if (db_version(gedp->dbip) < 5 && strlen(new_name) > NAMESIZE) {
+	bu_vls_printf(gedp->ged_result_str, "ERROR: name length limited to %d characters in v4 databases\n", NAMESIZE);
 	return BRLCAD_ERROR;
     }
 
     dp = db_lookup(gedp->dbip, old_name, LOOKUP_NOISY);
 
     if (dp && db_lookup(gedp->dbip, new_name, LOOKUP_QUIET) != RT_DIR_NULL) {
-	bu_vls_printf(gedp->ged_result_str, "%s: already exists", new_name);
+	bu_vls_printf(gedp->ged_result_str, "%s: already exists\n", new_name);
 	return BRLCAD_ERROR;
     }
 
@@ -118,20 +125,22 @@ move_all_func(struct ged *gedp, int nflag, const char *old_name, const char *new
     if (!nflag && dp) {
 	/* Change object name in the directory. */
 	if (db_rename(gedp->dbip, dp, new_name) < 0) {
-	    bu_vls_printf(gedp->ged_result_str, "error in rename to %s, aborting", new_name);
+	    bu_vls_printf(gedp->ged_result_str, "error in rename to %s, aborting\n", new_name);
 	    return BRLCAD_ERROR;
 	}
 
 	/* Change object name on disk */
 	if (rt_db_get_internal(&intern, dp, gedp->dbip, (fastf_t *)NULL) < 0) {
-	    bu_vls_printf(gedp->ged_result_str, "Database read error, aborting");
+	    bu_vls_printf(gedp->ged_result_str, "Database read error, aborting\n");
 	    return BRLCAD_ERROR;
 	}
 
 	if (rt_db_put_internal(dp, gedp->dbip, &intern) < 0) {
-	    bu_vls_printf(gedp->ged_result_str, "Database write error, aborting");
+	    rt_db_free_internal(&intern);
+	    bu_vls_printf(gedp->ged_result_str, "Database write error, aborting\n");
 	    return BRLCAD_ERROR;
 	}
+	rt_db_free_internal(&intern);
 	moved++;
     }
 
@@ -219,11 +228,10 @@ move_all_func(struct ged *gedp, int nflag, const char *old_name, const char *new
 	    }
 
 	    if (found) {
-		bu_vls_free(&gdlp->dl_path);
-		bu_vls_printf(&gdlp->dl_path, "%s", bu_vls_addr(&new_path));
+		bu_vls_strcpy(&gdlp->dl_path, bu_vls_cstr(&new_path));
 	    }
 
-	    free((void *)dupstr);
+	    bu_free(dupstr, "dupstr");
 	    bu_vls_free(&new_path);
 	}
 	_ged_dl_path_invalidate(gedp);
@@ -244,6 +252,9 @@ move_all_file(struct ged *gedp, int nflag, const char *file)
     FILE *fp = NULL;
     char line[512];
 
+    if (!file)
+	return BRLCAD_ERROR;
+
     fp = fopen(file, "r");
     if (fp == NULL) {
 	bu_vls_printf(gedp->ged_result_str, "cannot open %s\n", file);
@@ -261,7 +272,8 @@ move_all_file(struct ged *gedp, int nflag, const char *file)
 	if (bu_argv_from_string(new_av, 2, line) != 2)
 	    continue;
 
-	move_all_func(gedp, nflag, (const char *)new_av[0], (const char *)new_av[1]);
+	if (new_av[0] && new_av[1])
+	    move_all_func(gedp, nflag, (const char *)new_av[0], (const char *)new_av[1]);
     }
 
     fclose(fp);
@@ -287,17 +299,12 @@ ged_move_all_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
-    if (argc < 3 || 4 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
-	return BRLCAD_ERROR;
-    }
-
-    if (db_version(gedp->dbip) < 5 && (int)strlen(argv[2]) > NAMESIZE) {
-	bu_vls_printf(gedp->ged_result_str, "ERROR: name length limited to %zu characters in v4 databases\n", strlen(argv[2]));
+    if (argc < 3 || 4 < argc || !argv || !argv[0]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", (argv && argv[0]) ? argv[0] : "move_all", usage);
 	return BRLCAD_ERROR;
     }
 
@@ -311,7 +318,7 @@ ged_move_all_core(struct ged *gedp, int argc, const char *argv[])
 		nflag = 1;
 		break;
 	    default:
-		bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+		bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 		return BRLCAD_ERROR;
 	}
     }
@@ -320,16 +327,16 @@ ged_move_all_core(struct ged *gedp, int argc, const char *argv[])
     argv += bu_optind;
 
     if (fflag) {
-	if (argc != 1) {
-	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	if (argc != 1 || !argv[0]) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", "move_all", usage);
 	    return BRLCAD_ERROR;
 	}
 
 	return move_all_file(gedp, nflag, argv[0]);
     }
 
-    if (argc != 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 2 || !argv[0] || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", "move_all", usage);
 	return BRLCAD_ERROR;
     }
 

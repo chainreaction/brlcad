@@ -51,12 +51,12 @@ ged_move_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
-    if (argc != 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 3 || !argv || !argv[1] || !argv[2]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", (argv && argv[0]) ? argv[0] : "move", usage);
 	return BRLCAD_ERROR;
     }
 
@@ -65,35 +65,37 @@ ged_move_core(struct ged *gedp, int argc, const char *argv[])
      * separator (which produces broken, unlistable hierarchies).
      */
     if (strchr(argv[2], '/') != NULL) {
-	bu_vls_printf(gedp->ged_result_str, "%s: destination name may not contain slashes", argv[2]);
+	bu_vls_printf(gedp->ged_result_str, "%s: destination name may not contain slashes\n", argv[2]);
 	return BRLCAD_ERROR;
     }
 
-    if ((dp = db_lookup(gedp->dbip,  argv[1], LOOKUP_NOISY)) == RT_DIR_NULL)
+    if ((dp = db_lookup(gedp->dbip, argv[1], LOOKUP_NOISY)) == RT_DIR_NULL)
 	return BRLCAD_ERROR;
 
     if (db_lookup(gedp->dbip, argv[2], LOOKUP_QUIET) != RT_DIR_NULL) {
-	bu_vls_printf(gedp->ged_result_str, "%s: already exists", argv[2]);
+	bu_vls_printf(gedp->ged_result_str, "%s: already exists\n", argv[2]);
 	return BRLCAD_ERROR;
     }
 
     if (rt_db_get_internal(&intern, dp, gedp->dbip, (fastf_t *)NULL) < 0) {
-	bu_vls_printf(gedp->ged_result_str, "Database read error, aborting");
+	bu_vls_printf(gedp->ged_result_str, "Database read error, aborting\n");
 	return BRLCAD_ERROR;
     }
 
     /* Change object name in the in-memory directory. */
     if (db_rename(gedp->dbip, dp, argv[2]) < 0) {
 	rt_db_free_internal(&intern);
-	bu_vls_printf(gedp->ged_result_str, "error in db_rename to %s, aborting", argv[2]);
+	bu_vls_printf(gedp->ged_result_str, "error in db_rename to %s, aborting\n", argv[2]);
 	return BRLCAD_ERROR;
     }
 
     /* Re-write to the database.  New name is applied on the way out. */
     if (rt_db_put_internal(dp, gedp->dbip, &intern) < 0) {
-	bu_vls_printf(gedp->ged_result_str, "Database write error, aborting");
+	rt_db_free_internal(&intern);
+	bu_vls_printf(gedp->ged_result_str, "Database write error, aborting\n");
 	return BRLCAD_ERROR;
     }
+    rt_db_free_internal(&intern);
 
     /* Change object name if it matches the first element in the display list path. */
     for (BU_LIST_FOR(gdlp, display_list, gedp->i->ged_gdp->gd_headDisplay)) {
@@ -119,11 +121,10 @@ ged_move_core(struct ged *gedp, int argc, const char *argv[])
 	}
 
 	if (found) {
-	    bu_vls_free(&gdlp->dl_path);
-	    bu_vls_printf(&gdlp->dl_path, "%s", bu_vls_addr(&new_path));
+	    bu_vls_strcpy(&gdlp->dl_path, bu_vls_cstr(&new_path));
 	}
 
-	free((void *)dupstr);
+	bu_free(dupstr, "dupstr");
 	bu_vls_free(&new_path);
     }
     _ged_dl_path_invalidate(gedp);

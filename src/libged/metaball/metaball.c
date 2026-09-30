@@ -110,14 +110,17 @@ ged_find_metaball_pnt_nearest_pnt(struct ged *gedp, int argc, const char *argv[]
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc != 3 && argc != 5) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
+
+    if (!argv || !argv[1] || !argv[2])
+	return BRLCAD_ERROR;
 
     if ((last = strrchr(argv[1], '/')) == NULL)
 	last = argv[1];
@@ -125,32 +128,48 @@ ged_find_metaball_pnt_nearest_pnt(struct ged *gedp, int argc, const char *argv[]
 	++last;
 
     if (last[0] == '\0') {
-	bu_vls_printf(gedp->ged_result_str, "%s: illegal input - %s", argv[0], argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s: illegal input - %s\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
 
     dp = db_lookup(gedp->dbip, last, LOOKUP_QUIET);
     if (dp == RT_DIR_NULL) {
-	bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s", argv[0], argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
 
     if (argc == 3) {
-	if (sscanf(argv[2], "%lf %lf %lf", &scan[X], &scan[Y], &scan[Z]) != 3) {
-	    bu_vls_printf(gedp->ged_result_str, "%s: bad point - %s", argv[0], argv[2]);
+	if (bu_sscanf(argv[2], "%lf %lf %lf", &scan[X], &scan[Y], &scan[Z]) != 3) {
+	    bu_vls_printf(gedp->ged_result_str, "%s: bad point - %s\n", argv[0], argv[2]);
 	    return BRLCAD_ERROR;
 	}
-    } else if (sscanf(argv[2], "%lf", &scan[X]) != 1 ||
-	       sscanf(argv[3], "%lf", &scan[Y]) != 1 ||
-	       sscanf(argv[4], "%lf", &scan[Z]) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "%s: bad X, Y or Z", argv[0]);
-	return BRLCAD_ERROR;
+    } else {
+	if (!argv[3] || !argv[4] ||
+	    bu_sscanf(argv[2], "%lf", &scan[X]) != 1 ||
+	    bu_sscanf(argv[3], "%lf", &scan[Y]) != 1 ||
+	    bu_sscanf(argv[4], "%lf", &scan[Z]) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "%s: bad X, Y or Z\n", argv[0]);
+	    return BRLCAD_ERROR;
+	}
     }
     /* convert from double to fastf_t */
     VMOVE(model_pt, scan);
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "%s: unable to open database for reading\n", argv[0]);
+	return BRLCAD_ERROR;
+    }
     if (wdb_import_from_path2(gedp->ged_result_str, &intern, argv[1], wdbp, mat) & BRLCAD_ERROR) {
+	wdb_close(wdbp);
+	return BRLCAD_ERROR;
+    }
+    wdb_close(wdbp);
+
+    if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD ||
+	intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_METABALL) {
+	bu_vls_printf(gedp->ged_result_str, "%s: object is not a METABALL\n", argv[1]);
+	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
@@ -160,7 +179,7 @@ ged_find_metaball_pnt_nearest_pnt(struct ged *gedp, int argc, const char *argv[]
     rt_db_free_internal(&intern);
 
     if (pt_i < 0) {
-	bu_vls_printf(gedp->ged_result_str, "%s: failed to find point for %s", argv[0], argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s: failed to find point for %s\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
 
@@ -235,14 +254,17 @@ ged_metaball_add_pnt_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc != 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
+
+    if (!argv || !argv[1] || !argv[2])
+	return BRLCAD_ERROR;
 
     if ((last = strrchr(argv[1], '/')) == NULL)
 	last = argv[1];
@@ -250,31 +272,37 @@ ged_metaball_add_pnt_core(struct ged *gedp, int argc, const char *argv[])
 	++last;
 
     if (last[0] == '\0') {
-	bu_vls_printf(gedp->ged_result_str, "%s: illegal input - %s", argv[0], argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s: illegal input - %s\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
 
     dp = db_lookup(gedp->dbip, last, LOOKUP_QUIET);
     if (dp == RT_DIR_NULL) {
-	bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s", argv[0], argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[2], "%lf %lf %lf", &scan[X], &scan[Y], &scan[Z]) != 3) {
-	bu_vls_printf(gedp->ged_result_str, "%s: bad point - %s", argv[0], argv[2]);
+    if (bu_sscanf(argv[2], "%lf %lf %lf", &scan[X], &scan[Y], &scan[Z]) != 3) {
+	bu_vls_printf(gedp->ged_result_str, "%s: bad point - %s\n", argv[0], argv[2]);
 	return BRLCAD_ERROR;
     }
     /* convert from double to fastf_t */
     VMOVE(view_mb_pt, scan);
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
-    if (wdb_import_from_path2(gedp->ged_result_str, &intern, argv[1], wdbp, mat) == BRLCAD_ERROR) {
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "%s: unable to open database for reading\n", argv[0]);
 	return BRLCAD_ERROR;
     }
+    if (wdb_import_from_path2(gedp->ged_result_str, &intern, argv[1], wdbp, mat) == BRLCAD_ERROR) {
+	wdb_close(wdbp);
+	return BRLCAD_ERROR;
+    }
+    wdb_close(wdbp);
 
     if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD ||
 	intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_METABALL) {
-	bu_vls_printf(gedp->ged_result_str, "Object not a METABALL");
+	bu_vls_printf(gedp->ged_result_str, "%s: object is not a METABALL\n", argv[1]);
 	rt_db_free_internal(&intern);
 
 	return BRLCAD_ERROR;
@@ -371,14 +399,17 @@ ged_metaball_delete_pnt_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc != 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
+
+    if (!argv || !argv[1] || !argv[2])
+	return BRLCAD_ERROR;
 
     if ((last = strrchr(argv[1], '/')) == NULL)
 	last = argv[1];
@@ -386,29 +417,29 @@ ged_metaball_delete_pnt_core(struct ged *gedp, int argc, const char *argv[])
 	++last;
 
     if (last[0] == '\0') {
-	bu_vls_printf(gedp->ged_result_str, "%s: illegal input - %s", argv[0], argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s: illegal input - %s\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
 
     dp = db_lookup(gedp->dbip, last, LOOKUP_QUIET);
     if (dp == RT_DIR_NULL) {
-	bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s", argv[0], argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[2], "%d", &pt_i) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "%s: bad metaball point index - %s", argv[0], argv[3]);
+    if (bu_sscanf(argv[2], "%d", &pt_i) != 1 || pt_i < 0) {
+	bu_vls_printf(gedp->ged_result_str, "%s: bad metaball point index - %s\n", argv[0], argv[2]);
 	return BRLCAD_ERROR;
     }
 
     if (rt_db_get_internal(&intern, dp, gedp->dbip, (fastf_t *)NULL) < 0) {
-	bu_vls_printf(gedp->ged_result_str, "%s: failed to get internal for %s", argv[0], argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s: failed to get internal for %s\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
 
     if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD ||
 	intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_METABALL) {
-	bu_vls_printf(gedp->ged_result_str, "%s is not a METABALL", argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s is not a METABALL\n", argv[1]);
 	rt_db_free_internal(&intern);
 
 	return BRLCAD_ERROR;
@@ -417,13 +448,13 @@ ged_metaball_delete_pnt_core(struct ged *gedp, int argc, const char *argv[])
     mbip = (struct rt_metaball_internal *)intern.idb_ptr;
     if ((mbp = rt_metaball_get_pt_i(mbip, pt_i)) == (struct wdb_metaball_pnt *)NULL) {
 	rt_db_free_internal(&intern);
-	bu_vls_printf(gedp->ged_result_str, "%s: bad metaball point index - %s", argv[0], argv[2]);
+	bu_vls_printf(gedp->ged_result_str, "%s: bad metaball point index - %s\n", argv[0], argv[2]);
 	return BRLCAD_ERROR;
     }
 
     if (_ged_metaball_delete_pnt(mbp) == mbp) {
 	rt_db_free_internal(&intern);
-	bu_vls_printf(gedp->ged_result_str, "%s: cannot delete last metaball point %d", argv[0], pt_i);
+	bu_vls_printf(gedp->ged_result_str, "%s: cannot delete last metaball point %d\n", argv[0], pt_i);
 	return BRLCAD_ERROR;
     }
 
@@ -457,9 +488,12 @@ ged_metaball_move_pnt_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
+
+    if (!argv || !argv[1])
+	return BRLCAD_ERROR;
 
     /* whole-object uniform scale mode: "-S metaball scale_factor".
      * This is a self-contained branch that scales every control point about
@@ -477,13 +511,13 @@ ged_metaball_move_pnt_core(struct ged *gedp, int argc, const char *argv[])
 	point_t d;
 	long count = 0;
 
-	if (argc != 4) {
-	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	if (argc != 4 || !argv[2] || !argv[3]) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	    return BRLCAD_ERROR;
 	}
 
-	if (sscanf(argv[3], "%lf", &sf) != 1 || sf <= SQRT_SMALL_FASTF) {
-	    bu_vls_printf(gedp->ged_result_str, "%s: bad scale factor - %s", argv[0], argv[3]);
+	if (bu_sscanf(argv[3], "%lf", &sf) != 1 || sf <= SQRT_SMALL_FASTF) {
+	    bu_vls_printf(gedp->ged_result_str, "%s: bad scale factor - %s\n", argv[0], argv[3]);
 	    return BRLCAD_ERROR;
 	}
 
@@ -493,24 +527,24 @@ ged_metaball_move_pnt_core(struct ged *gedp, int argc, const char *argv[])
 	    ++last;
 
 	if (last[0] == '\0') {
-	    bu_vls_printf(gedp->ged_result_str, "%s: illegal input - %s", argv[0], argv[2]);
+	    bu_vls_printf(gedp->ged_result_str, "%s: illegal input - %s\n", argv[0], argv[2]);
 	    return BRLCAD_ERROR;
 	}
 
 	dp = db_lookup(gedp->dbip, last, LOOKUP_QUIET);
 	if (dp == RT_DIR_NULL) {
-	    bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s", argv[0], argv[2]);
+	    bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s\n", argv[0], argv[2]);
 	    return BRLCAD_ERROR;
 	}
 
 	if (rt_db_get_internal(&intern, dp, gedp->dbip, (fastf_t *)NULL) < 0) {
-	    bu_vls_printf(gedp->ged_result_str, "%s: failed to get internal for %s", argv[0], argv[2]);
+	    bu_vls_printf(gedp->ged_result_str, "%s: failed to get internal for %s\n", argv[0], argv[2]);
 	    return BRLCAD_ERROR;
 	}
 
 	if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD ||
 	    intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_METABALL) {
-	    bu_vls_printf(gedp->ged_result_str, "%s is not a METABALL", argv[2]);
+	    bu_vls_printf(gedp->ged_result_str, "%s is not a METABALL\n", argv[2]);
 	    rt_db_free_internal(&intern);
 	    return BRLCAD_ERROR;
 	}
@@ -524,7 +558,7 @@ ged_metaball_move_pnt_core(struct ged *gedp, int argc, const char *argv[])
 	}
 
 	if (count <= 0) {
-	    bu_vls_printf(gedp->ged_result_str, "%s: metaball %s has no control points", argv[0], argv[2]);
+	    bu_vls_printf(gedp->ged_result_str, "%s: metaball %s has no control points\n", argv[0], argv[2]);
 	    rt_db_free_internal(&intern);
 	    return BRLCAD_ERROR;
 	}
@@ -548,13 +582,13 @@ ged_metaball_move_pnt_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     if (argc < 4 || 5 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
     if (argc == 5) {
-	if (argv[1][0] != '-' || argv[1][1] != 'r' || argv[1][2] != '\0') {
-	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	if (!argv[1] || argv[1][0] != '-' || argv[1][1] != 'r' || argv[1][2] != '\0') {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	    return BRLCAD_ERROR;
 	}
 
@@ -563,41 +597,50 @@ ged_metaball_move_pnt_core(struct ged *gedp, int argc, const char *argv[])
 	++argv;
     }
 
+    if (!argv[1] || !argv[2] || !argv[3])
+	return BRLCAD_ERROR;
+
     if ((last = strrchr(argv[1], '/')) == NULL)
 	last = argv[1];
     else
 	++last;
 
     if (last[0] == '\0') {
-	bu_vls_printf(gedp->ged_result_str, "%s: illegal input - %s", argv[0], argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s: illegal input - %s\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
 
     dp = db_lookup(gedp->dbip, last, LOOKUP_QUIET);
     if (dp == RT_DIR_NULL) {
-	bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s", argv[0], argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[2], "%d", &seg_i) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "%s: bad metaball point index - %s", argv[0], argv[2]);
+    if (bu_sscanf(argv[2], "%d", &seg_i) != 1 || seg_i < 0) {
+	bu_vls_printf(gedp->ged_result_str, "%s: bad metaball point index - %s\n", argv[0], argv[2]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[3], "%lf %lf %lf", &scan[X], &scan[Y], &scan[Z]) != 3) {
-	bu_vls_printf(gedp->ged_result_str, "%s: bad point - %s", argv[0], argv[3]);
+    if (bu_sscanf(argv[3], "%lf %lf %lf", &scan[X], &scan[Y], &scan[Z]) != 3) {
+	bu_vls_printf(gedp->ged_result_str, "%s: bad point - %s\n", argv[0], argv[3]);
 	return BRLCAD_ERROR;
     }
     VSCALE(mb_pt, scan, gedp->dbip->dbi_local2base);
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
-    if (wdb_import_from_path2(gedp->ged_result_str, &intern, argv[1], wdbp, mat) == BRLCAD_ERROR) {
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "%s: unable to open database for reading\n", argv[0]);
 	return BRLCAD_ERROR;
     }
+    if (wdb_import_from_path2(gedp->ged_result_str, &intern, argv[1], wdbp, mat) == BRLCAD_ERROR) {
+	wdb_close(wdbp);
+	return BRLCAD_ERROR;
+    }
+    wdb_close(wdbp);
 
     if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD ||
 	intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_METABALL) {
-	bu_vls_printf(gedp->ged_result_str, "Object not a METABALL");
+	bu_vls_printf(gedp->ged_result_str, "%s: object is not a METABALL\n", argv[1]);
 	rt_db_free_internal(&intern);
 
 	return BRLCAD_ERROR;
@@ -606,7 +649,7 @@ ged_metaball_move_pnt_core(struct ged *gedp, int argc, const char *argv[])
     mbip = (struct rt_metaball_internal *)intern.idb_ptr;
     if ((mbp = rt_metaball_get_pt_i(mbip, seg_i)) == (struct wdb_metaball_pnt *)NULL) {
 	rt_db_free_internal(&intern);
-	bu_vls_printf(gedp->ged_result_str, "%s: bad metaball point index - %s", argv[0], argv[2]);
+	bu_vls_printf(gedp->ged_result_str, "%s: bad metaball point index - %s\n", argv[0], argv[2]);
 	return BRLCAD_ERROR;
     }
 

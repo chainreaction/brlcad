@@ -52,12 +52,12 @@ ged_model2view_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_OK;
     }
 
-    if (argc != 4
-	|| sscanf(argv[1], "%lf", &model_pt[X]) != 1
-	|| sscanf(argv[2], "%lf", &model_pt[Y]) != 1
-	|| sscanf(argv[3], "%lf", &model_pt[Z]) != 1)
+    if (argc != 4 || !argv || !argv[0] || !argv[1] || !argv[2] || !argv[3]
+	|| bu_sscanf(argv[1], "%lf", &model_pt[X]) != 1
+	|| bu_sscanf(argv[2], "%lf", &model_pt[Y]) != 1
+	|| bu_sscanf(argv[3], "%lf", &model_pt[Z]) != 1)
     {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", (argv && argv[0]) ? argv[0] : "model2view", usage);
 	return BRLCAD_ERROR;
     }
 

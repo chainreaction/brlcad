@@ -39,8 +39,8 @@ ged_model2view_lu_core(struct ged *gedp, int argc, const char *argv[])
     point_t view_pt;
     double model_pt[3]; /* intentionally double for scan */
     static const char *usage = "x y z";
-    double l2bval = (gedp->dbip) ? gedp->dbip->dbi_local2base : 1.0;
-    double b2lval = (gedp->dbip) ? gedp->dbip->dbi_base2local : 1.0;
+    double l2bval;
+    double b2lval;
 
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_VIEW(gedp, BRLCAD_ERROR);
@@ -49,12 +49,15 @@ ged_model2view_lu_core(struct ged *gedp, int argc, const char *argv[])
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
-    if (argc != 4)
+    if (argc != 4 || !argv || !argv[0] || !argv[1] || !argv[2] || !argv[3])
 	goto bad;
 
-    if (sscanf(argv[1], "%lf", &model_pt[X]) != 1 ||
-	sscanf(argv[2], "%lf", &model_pt[Y]) != 1 ||
-	sscanf(argv[3], "%lf", &model_pt[Z]) != 1)
+    l2bval = (gedp->dbip) ? gedp->dbip->dbi_local2base : 1.0;
+    b2lval = (gedp->dbip) ? gedp->dbip->dbi_base2local : 1.0;
+
+    if (bu_sscanf(argv[1], "%lf", &model_pt[X]) != 1 ||
+	bu_sscanf(argv[2], "%lf", &model_pt[Y]) != 1 ||
+	bu_sscanf(argv[3], "%lf", &model_pt[Z]) != 1)
 	goto bad;
 
     VSCALE(model_pt, model_pt, l2bval);
@@ -66,7 +69,7 @@ ged_model2view_lu_core(struct ged *gedp, int argc, const char *argv[])
     return BRLCAD_OK;
 
 bad:
-    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", (argv && argv[0]) ? argv[0] : "model2view_lu", usage);
     return BRLCAD_ERROR;
 }
 

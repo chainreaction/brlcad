@@ -291,6 +291,7 @@ mater_source(struct ged *gedp)
 	}
     }
 
+    bu_vls_free(&d_path_dir);
     return BRLCAD_OK;
 }
 
@@ -540,7 +541,8 @@ mater_audit(struct ged *gedp, size_t argc, const char *argv[])
 			    }
 			    mat_id = bu_avs_get(&avs, "material_id");
 			    oname = bu_avs_get(&avs, "material_name");
-			    if (std::stol(mat_id) == active_id && BU_STR_EQUAL(active_name, oname)) {
+			    long int m_id = -1;
+			    if (mat_id && bu_sscanf(mat_id, "%ld", &m_id) == 1 && m_id == active_id && BU_STR_EQUAL(active_name, oname)) {
 				objs.insert(std::string(dp->d_namep));
 			    }
 			    bu_avs_free(&avs);
@@ -686,8 +688,10 @@ mater_import(struct ged *gedp, size_t argc, const char *argv[])
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
     if (rt_mk_binunif (wdbp, GED_DB_DENSITY_OBJECT, argv[1], DB5_MINORTYPE_BINU_8BITINT, 0)) {
 	bu_vls_printf(gedp->ged_result_str, "Error reading density file %s", argv[1]);
+	wdb_close(wdbp);
 	return BRLCAD_ERROR;
     }
+    wdb_close(wdbp);
 
     /* Mark it hidden */
     {
@@ -887,8 +891,8 @@ mater_get(struct ged *gedp, size_t argc, const char *argv[])
     struct analyze_densities *a;
     int ret = 0;
     int ecnt = 0;
-    std::set<std::string> *name_patterns = new std::set<std::string>;
-    std::set<std::string> *greedy_patterns = new std::set<std::string>;
+    std::set<std::string> name_patterns;
+    std::set<std::string> greedy_patterns;
     std::set<std::string>::iterator i_it, n_it;
     std::set<fastf_t>::iterator f_it;
     std::set<long int>::iterator ln_it;
@@ -897,20 +901,23 @@ mater_get(struct ged *gedp, size_t argc, const char *argv[])
     dens_opt.lflag = 0;
     dens_opt.gflag = 0;
     dens_opt.eflag = 0;
-    dens_opt.densities = new std::set<fastf_t>;
+    std::set<fastf_t> densities;
+    dens_opt.densities = &densities;
     struct _id_opt_info id_opt;
     id_opt.lflag = 0;
     id_opt.gflag = 0;
     id_opt.eflag = 0;
-    id_opt.id_numbers = new std::set<long int>;
-    id_opt.id_patterns = new std::set<std::string>;
+    std::set<long int> id_numbers;
+    std::set<std::string> id_patterns;
+    id_opt.id_numbers = &id_numbers;
+    id_opt.id_patterns = &id_patterns;
 
     bu_vls_sprintf(&tolhelp, "Search for density matches with the specified matching tolerance (unspecified default is %g)", BN_TOL_DIST);
 
     struct bu_opt_desc d[5];
     BU_OPT(d[0], "", "id",       "<[[>|<][=]id]|[id pattern]>",   &_ged_id_opt,       &id_opt,   "Search using a material id number key or range");
     BU_OPT(d[1], "", "density",  "<[>|<][=]value>",   &_ged_density_opt,  &dens_opt,     "Search using a density value (above/below with prefix modifiers, else matches within tolerance)");
-    BU_OPT(d[2], "", "name",     "<name pattern>", &_ged_name_opt,     name_patterns, "Search using a material name");
+    BU_OPT(d[2], "", "name",     "<name pattern>", &_ged_name_opt,     &name_patterns, "Search using a material name");
     BU_OPT(d[3], "", "tol",      "<tolerance>",    &bu_opt_fastf_t,    &dtol,         bu_vls_cstr(&tolhelp));
     BU_OPT_NULL(d[4]);
 
@@ -924,7 +931,6 @@ mater_get(struct ged *gedp, size_t argc, const char *argv[])
     ac = bu_opt_parse(&msgs, argc, argv, d);
     if (ac < 0) {
 	bu_vls_printf(gedp->ged_result_str, "%s\n", bu_vls_cstr(&msgs));
-	bu_vls_free(&msgs);
 	goto ged_mater_get_fail;
     }
 
@@ -935,7 +941,7 @@ mater_get(struct ged *gedp, size_t argc, const char *argv[])
 
     if (ac > 0) {
 	for (int i = 0; i < ac; i++) {
-	    greedy_patterns->insert(std::string(argv[i]));
+	    greedy_patterns.insert(std::string(argv[i]));
 	}
     }
 
@@ -961,13 +967,11 @@ mater_get(struct ged *gedp, size_t argc, const char *argv[])
     bu_free(buf, "free density buffer");
     if (!ret) {
 	bu_vls_printf(gedp->ged_result_str, "no density information found when reading database:\n%s\nTo insert density information, use the mater -d set and/or mater -d import commands.\n", bu_vls_cstr(&msgs));
-	bu_vls_free(&msgs);
 	analyze_densities_destroy(a);
 	goto ged_mater_get_fail;
     }
     if (ecnt) {
 	bu_vls_printf(gedp->ged_result_str, "errors found when reading database:\n%s\n", bu_vls_cstr(&msgs));
-	bu_vls_free(&msgs);
 	analyze_densities_destroy(a);
 	goto ged_mater_get_fail;
     }
@@ -983,7 +987,7 @@ mater_get(struct ged *gedp, size_t argc, const char *argv[])
 	struct bu_vls curr_id_str = BU_VLS_INIT_ZERO;
 	bu_vls_sprintf(&curr_id_str, "%ld", curr_id);
 
-	for (i_it = greedy_patterns->begin(); i_it != greedy_patterns->end(); i_it++) {
+	for (i_it = greedy_patterns.begin(); i_it != greedy_patterns.end(); i_it++) {
 	    if (!bu_path_match(i_it->c_str(), bu_vls_cstr(&curr_id_str), 0)) {
 		have_greedy_match = 1;
 		break;
@@ -1021,7 +1025,7 @@ mater_get(struct ged *gedp, size_t argc, const char *argv[])
 		break;
 	    }
 	}
-	for (n_it = name_patterns->begin(); n_it != name_patterns->end(); n_it++) {
+	for (n_it = name_patterns.begin(); n_it != name_patterns.end(); n_it++) {
 	    have_name_match = 0;
 	    if (!bu_path_match(n_it->c_str(), curr_n, 0)) {
 		have_name_match = 1;
@@ -1040,21 +1044,11 @@ mater_get(struct ged *gedp, size_t argc, const char *argv[])
     bu_vls_free(&tolhelp);
     analyze_densities_destroy(a);
 
-    delete id_opt.id_numbers;
-    delete id_opt.id_patterns;
-    delete dens_opt.densities;
-    delete name_patterns;
-    delete greedy_patterns;
-
     return BRLCAD_OK;
 
 ged_mater_get_fail:
+    bu_vls_free(&msgs);
     bu_vls_free(&tolhelp);
-    delete id_opt.id_numbers;
-    delete id_opt.id_patterns;
-    delete dens_opt.densities;
-    delete name_patterns;
-    delete greedy_patterns;
     return BRLCAD_ERROR;
 }
 
@@ -1135,6 +1129,7 @@ mater_set(struct ged *gedp, size_t argc, const char *argv[])
 
     // Got through parsing, make a buffer and replace the existing density object
     if (mater_clear(gedp) != BRLCAD_OK) {
+	bu_free(new_buf, "density buffer");
 	return BRLCAD_ERROR;
     }
 
@@ -1145,6 +1140,7 @@ mater_set(struct ged *gedp, size_t argc, const char *argv[])
     bip->count = buf_len;
     bip->u.int8 = (char *)bu_malloc(buf_len, "binary uniform object");
     memcpy(bip->u.int8, new_buf, buf_len);
+    bu_free(new_buf, "density buffer");
 
     /* create the rt_internal form */
     struct rt_db_internal intern;
@@ -1179,6 +1175,7 @@ mater_set(struct ged *gedp, size_t argc, const char *argv[])
     /* make sure the database directory is initialized */
     if (gedp->dbip->i->dbi_eof == RT_DIR_PHONY_ADDR) {
 	if (db_dirbuild(gedp->dbip)) {
+	    bu_free_external(&bin_ext);
 	    return BRLCAD_ERROR;
 	}
     }
@@ -1340,7 +1337,6 @@ mater_mat_id(struct ged *gedp, size_t argc, const char *argv[])
     struct bu_mapped_file *mfile = NULL;
     char *mbuff = NULL;
     long int curr_id = -1;
-    struct bu_attribute_value_set *avs;
     const char *mat_id;
     const char *oname;
     std::set<struct directory *> ids_wo_names;
@@ -1497,16 +1493,20 @@ mater_mat_id(struct ged *gedp, size_t argc, const char *argv[])
 
     if (names_from_ids) {
 	for (dp_it = ids.begin(); dp_it != ids.end(); dp_it++) {
-	    BU_GET(avs, struct bu_attribute_value_set);
+	    struct bu_attribute_value_set avs = BU_AVS_INIT_ZERO;
 	    dp = *dp_it;
-	    bu_avs_init_empty(avs);
-	    if (db5_get_attributes(gedp->dbip, avs, dp)) {
+	    if (db5_get_attributes(gedp->dbip, &avs, dp)) {
 		bu_vls_printf(gedp->ged_result_str, "Cannot get attributes for object %s\n", dp->d_namep);
 		goto ged_mater_mat_id_fail;
 	    }
-	    mat_id = bu_avs_get(avs, "material_id");
-	    oname = bu_avs_get(avs, "material_name");
-	    if (analyze_densities_density(a, std::stol(mat_id)) < 0) {
+	    mat_id = bu_avs_get(&avs, "material_id");
+	    oname = bu_avs_get(&avs, "material_name");
+	    long int mid_num = -1;
+	    if (!mat_id || bu_sscanf(mat_id, "%ld", &mid_num) != 1 || mid_num < 0) {
+		bu_avs_free(&avs);
+		continue;
+	    }
+	    if (analyze_densities_density(a, mid_num) < 0) {
 		bu_vls_printf(gedp->ged_result_str, "Warning: no name found in density file for material_id %s on object %s, skipping\n", mat_id, dp->d_namep);
 		if (oname) {
 		    long int found_id_cnt = analyze_densities_id(NULL, 0, a, oname);
@@ -1516,26 +1516,24 @@ mater_mat_id(struct ged *gedp, size_t argc, const char *argv[])
 			bu_vls_printf(gedp->ged_result_str, "Unknown material: object %s has material_name %s, which is not a material defined in the specified density file.\n", dp->d_namep, oname);
 		    }
 		}
-		bu_avs_free(avs);
-		BU_PUT(avs, struct bu_attribute_value_set);
+		bu_avs_free(&avs);
 		continue;
 	    }
 	    // Found a name, assign it if it doesn't match
-	    char *nname = analyze_densities_name(a, std::stol(mat_id));
-	    if (!oname || !BU_STR_EQUAL(nname, oname)) {
-		(void)bu_avs_add(avs, "material_name", nname);
-		if (db5_update_attributes(dp, avs, gedp->dbip)) {
-		    bu_vls_printf(gedp->ged_result_str, "Error: failed to update object %s attributes\n", dp->d_namep);
-		    bu_avs_free(avs);
-		    BU_PUT(avs, struct bu_attribute_value_set);
-		    goto ged_mater_mat_id_fail;
+	    char *nname = analyze_densities_name(a, mid_num);
+	    if (nname) {
+		if (!oname || !BU_STR_EQUAL(nname, oname)) {
+		    (void)bu_avs_add(&avs, "material_name", nname);
+		    if (db5_update_attributes(dp, &avs, gedp->dbip)) {
+			bu_vls_printf(gedp->ged_result_str, "Error: failed to update object %s attributes\n", dp->d_namep);
+			bu_free(nname, "free name");
+			bu_avs_free(&avs);
+			goto ged_mater_mat_id_fail;
+		    }
 		}
-	    } else {
-		// Already has correct name, no need to update
-		bu_avs_free(avs);
-		BU_PUT(avs, struct bu_attribute_value_set);
+		bu_free(nname, "free name");
 	    }
-	    bu_free(nname, "free name");
+	    bu_avs_free(&avs);
 	}
 
 	bu_vls_free(&msgs);
@@ -1560,43 +1558,42 @@ mater_mat_id(struct ged *gedp, size_t argc, const char *argv[])
 
     for (dp_it = mns.begin(); dp_it != mns.end(); dp_it++) {
 	dp = *dp_it;
-	BU_GET(avs, struct bu_attribute_value_set);
-	bu_avs_init_empty(avs);
-	if (db5_get_attributes(gedp->dbip, avs, dp)) {
+	struct bu_attribute_value_set avs = BU_AVS_INIT_ZERO;
+	if (db5_get_attributes(gedp->dbip, &avs, dp)) {
 	    bu_vls_printf(gedp->ged_result_str, "Cannot get attributes for object %s\n", dp->d_namep);
 	    analyze_densities_destroy(a);
-	    bu_avs_free(avs);
-	    BU_PUT(avs, struct bu_attribute_value_set);
 	    goto ged_mater_mat_id_fail;
 	}
-	mat_id = bu_avs_get(avs, "material_id");
-	oname = bu_avs_get(avs, "material_name");
-	if (listed_to_defined.find(std::string(oname)) == listed_to_defined.end()) {
-	    bu_vls_printf(gedp->ged_result_str, "WARNING: unknown material %s found on object %s\n", oname, dp->d_namep);
-	    bu_avs_free(avs);
-	    BU_PUT(avs, struct bu_attribute_value_set);
+	mat_id = bu_avs_get(&avs, "material_id");
+	oname = bu_avs_get(&avs, "material_name");
+	if (!oname || listed_to_defined.find(std::string(oname)) == listed_to_defined.end()) {
+	    if (oname)
+		bu_vls_printf(gedp->ged_result_str, "WARNING: unknown material %s found on object %s\n", oname, dp->d_namep);
+	    bu_avs_free(&avs);
 	    continue;
 	}
 
 	id_found_cnt = analyze_densities_id((long int *)wids, 1, a, listed_to_defined[std::string(oname)].c_str());
 	if (!id_found_cnt) {
 	    bu_vls_printf(gedp->ged_result_str, "ERROR: failed to find ID for %s\n", oname);
+	    bu_avs_free(&avs);
 	    goto ged_mater_mat_id_fail;
 	}
 	nid = wids[0];
-	if (!mat_id || std::stoi(mat_id) != nid) {
-	    (void)bu_avs_add(avs, "material_id", std::to_string(nid).c_str());
-	    if (db5_update_attributes(dp, avs, gedp->dbip)) {
+	int curr_mid = -1;
+	int has_mid = (mat_id && bu_sscanf(mat_id, "%d", &curr_mid) == 1);
+	if (!has_mid || curr_mid != nid) {
+	    struct bu_vls nid_vls = BU_VLS_INIT_ZERO;
+	    bu_vls_sprintf(&nid_vls, "%d", nid);
+	    (void)bu_avs_add(&avs, "material_id", bu_vls_cstr(&nid_vls));
+	    bu_vls_free(&nid_vls);
+	    if (db5_update_attributes(dp, &avs, gedp->dbip)) {
 		bu_vls_printf(gedp->ged_result_str, "ERROR: failed to update object %s attributes\n", dp->d_namep);
-		bu_avs_free(avs);
-		BU_PUT(avs, struct bu_attribute_value_set);
+		bu_avs_free(&avs);
 		goto ged_mater_mat_id_fail;
 	    }
-	} else {
-	    // Already has correct name, no need to update
-	    bu_avs_free(avs);
-	    BU_PUT(avs, struct bu_attribute_value_set);
 	}
+	bu_avs_free(&avs);
     }
 
     bu_vls_free(&msgs);
@@ -1612,7 +1609,7 @@ ged_mater_mat_id_fail:
     bu_vls_free(&msgs);
     bu_vls_free(&dfilename);
     bu_vls_free(&mfilename);
-    return BRLCAD_OK;
+    return BRLCAD_ERROR;
 }
 
 
