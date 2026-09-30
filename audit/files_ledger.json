@@ -12,10 +12,10 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 555,
-    "pending_files": 2938,
-    "last_updated": "2026-09-30T04:05:00Z",
-    "total_issues": 261,
+    "reviewed_files": 1128,
+    "pending_files": 2365,
+    "last_updated": "2026-09-30T04:26:00Z",
+    "total_issues": 263,
     "reviewed_count": 525
   },
   "files": [
@@ -25215,28 +25215,32 @@
       "path": "src/libged/qray.h",
       "subsystem": "src/libged",
       "lines": 81,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:26:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0263"
+      ]
     },
     {
       "id": 2380,
       "path": "src/libged/qray/qray.c",
       "subsystem": "src/libged",
       "lines": 436,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:26:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0263"
+      ]
     },
     {
       "id": 2381,
       "path": "src/libged/quit/quit.cpp",
       "subsystem": "src/libged",
       "lines": 56,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:26:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -25245,70 +25249,84 @@
       "path": "src/libged/rcodes/rcodes.c",
       "subsystem": "src/libged",
       "lines": 175,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:26:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0263"
+      ]
     },
     {
       "id": 2383,
       "path": "src/libged/rect/rect.c",
       "subsystem": "src/libged",
       "lines": 530,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:26:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0263"
+      ]
     },
     {
       "id": 2384,
       "path": "src/libged/red/red.c",
       "subsystem": "src/libged",
       "lines": 1012,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:26:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0263"
+      ]
     },
     {
       "id": 2385,
       "path": "src/libged/regdef/regdef.c",
       "subsystem": "src/libged",
       "lines": 120,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:26:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0263"
+      ]
     },
     {
       "id": 2386,
       "path": "src/libged/region/region.c",
       "subsystem": "src/libged",
       "lines": 134,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:26:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0263"
+      ]
     },
     {
       "id": 2387,
       "path": "src/libged/repair/repair.cpp",
       "subsystem": "src/libged",
       "lines": 164,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:26:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0263"
+      ]
     },
     {
       "id": 2388,
       "path": "src/libged/rfarb/rfarb.c",
       "subsystem": "src/libged",
       "lines": 259,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:26:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0263"
+      ]
     },
     {
       "id": 2389,
@@ -36390,5 +36408,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-09-30T03:31:55Z"
+  "last_updated": "2026-09-30T04:26:00Z"
 }
