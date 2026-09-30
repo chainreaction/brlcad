@@ -37,6 +37,9 @@
 extern "C" int
 ged_lod2_core(struct ged *gedp, int UNUSED(argc), const char **UNUSED(argv))
 {
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
     bu_vls_printf(gedp->ged_result_str, "New command modes enabled: use 'view lod' instead of 'lod'\n");
     return BRLCAD_OK;
 }

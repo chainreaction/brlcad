@@ -37,6 +37,9 @@ static int
 log_hook(void *clientdata,
 	 void *str)
 {
+    if (!clientdata || !str)
+	return 0;
+
     struct bu_vls *vp = (struct bu_vls *)clientdata;
     size_t len;
 
@@ -58,36 +61,46 @@ ged_log_core(struct ged *gedp, int argc, const char *argv[])
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
+    if (!argv || !argv[0]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: log %s\n", usage);
+	return BRLCAD_ERROR;
+    }
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
-    if (argc != 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 2 || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
-    if (argv[1][0] == 'g' && BU_STR_EQUAL(argv[1], "get")) {
+    if (!gedp->ged_log) {
+	bu_vls_printf(gedp->ged_result_str, "Error: Log buffer not initialized\n");
+	return BRLCAD_ERROR;
+    }
+
+    if (BU_STR_EQUAL(argv[1], "get")) {
 	bu_vls_vlscatzap(gedp->ged_result_str, gedp->ged_log);
 	return BRLCAD_OK;
     }
 
-    if (argv[1][0] == 's' && BU_STR_EQUAL(argv[1], "start")) {
+    if (BU_STR_EQUAL(argv[1], "start")) {
 	bu_log_add_hook(log_hook, (void *)gedp->ged_log);
 	return BRLCAD_OK;
     }
 
-    if (argv[1][0] == 's' && BU_STR_EQUAL(argv[1], "stop")) {
+    if (BU_STR_EQUAL(argv[1], "stop")) {
 	bu_log_delete_hook(log_hook, (void *)gedp->ged_log);
 	return BRLCAD_OK;
     }
 
-    bu_log("Usage: %s %s ", argv[0], usage);
+    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
     return BRLCAD_ERROR;
 }
 

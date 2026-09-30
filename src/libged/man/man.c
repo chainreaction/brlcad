@@ -58,14 +58,19 @@ ged_man_core(struct ged *gedp, int argc, const char *argv[])
 {
     int ret = BRLCAD_OK;
 
+    if (!argv || !argv[0]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: man [options] [man_page]\n");
+	return BRLCAD_ERROR;
+    }
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     const char *brlman = NULL;
     char brlmancmd[MAXPATHLEN] = {0};
     brlman = bu_dir(brlmancmd, MAXPATHLEN, BU_DIR_BIN, "brlman", BU_DIR_EXT, NULL);
-    if (!bu_file_exists(brlman, NULL)) {
-	bu_vls_printf(gedp->ged_result_str, "ERROR: Unable to find 'brlman' viewer: %s.\n", brlman);
+    if (!brlman || !bu_file_exists(brlman, NULL)) {
+	bu_vls_printf(gedp->ged_result_str, "ERROR: Unable to find 'brlman' viewer: %s.\n", brlman ? brlman : "brlman");
 	return BRLCAD_ERROR;
     }
 
@@ -89,6 +94,7 @@ ged_man_core(struct ged *gedp, int argc, const char *argv[])
     if (uac == -1) {
 	bu_vls_printf(gedp->ged_result_str, "%s", bu_vls_cstr(&optparse_msg));
 	bu_vls_free(&optparse_msg);
+	bu_vls_free(&lang);
 	return BRLCAD_ERROR;
     }
     bu_vls_free(&optparse_msg);
@@ -101,6 +107,7 @@ ged_man_core(struct ged *gedp, int argc, const char *argv[])
 	    bu_vls_printf(gedp->ged_result_str, "Options:\n%s\n", option_help);
 	}
 	bu_free(option_help, "help str");
+	bu_vls_free(&lang);
 	return BRLCAD_OK;
     }
 
@@ -111,7 +118,7 @@ ged_man_core(struct ged *gedp, int argc, const char *argv[])
     } else {
 	/* If we've got more, check for a section number. */
 	for (int i = 0; i < uac; i++) {
-	    if (strlen(argv[i]) == 1 && (isdigit(argv[i][0]) || argv[i][0] == 'n')) {
+	    if (argv[i] && strlen(argv[i]) == 1 && (isdigit(argv[i][0]) || argv[i][0] == 'n')) {
 
 		/* Record the section */
 		man_section = argv[i][0];
@@ -134,7 +141,8 @@ ged_man_core(struct ged *gedp, int argc, const char *argv[])
 
 	/* For now, only support specifying one man page at a time */
 	if (uac > 1) {
-	    bu_vls_printf(gedp->ged_result_str, "Error - need a single man page name");
+	    bu_vls_printf(gedp->ged_result_str, "Error - need a single man page name\n");
+	    bu_vls_free(&lang);
 	    return BRLCAD_ERROR;
 	}
 
@@ -166,7 +174,7 @@ ged_man_core(struct ged *gedp, int argc, const char *argv[])
 	    av[0] = (const char *)lang_flags;
 	    int lac = bu_opt_lang(&langparse_msg, 1, av, &lang);
 	    if (lac == -1) {
-		bu_vls_printf(gedp->ged_result_str, "getenv(GED_MAN_LANG_MODE) failure: %s", bu_vls_cstr(&langparse_msg));
+		bu_vls_printf(gedp->ged_result_str, "getenv(GED_MAN_LANG_MODE) failure: %s\n", bu_vls_cstr(&langparse_msg));
 		bu_vls_free(&lang);
 		bu_vls_free(&langparse_msg);
 		return BRLCAD_ERROR;
@@ -175,7 +183,8 @@ ged_man_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     if (enable_gui && disable_gui) {
-	bu_vls_printf(gedp->ged_result_str, "Error - both GUI and command line man viewer modes specified.");
+	bu_vls_printf(gedp->ged_result_str, "Error - both GUI and command line man viewer modes specified.\n");
+	bu_vls_free(&lang);
 	return BRLCAD_ERROR;
     }
 
@@ -204,11 +213,15 @@ ged_man_core(struct ged *gedp, int argc, const char *argv[])
 	}
     }
 
-    struct bu_process *p;
+    struct bu_process *p = NULL;
     bu_process_create(&p, (const char **)brlman_exec_cmd, BU_PROCESS_HIDE_WINDOW);
-    if (bu_process_pid(p) == -1) {
-	bu_vls_printf(gedp->ged_result_str, "\nunable to successfully launch subprocess: ");
+    if (!p || bu_process_pid(p) == -1) {
+	bu_vls_printf(gedp->ged_result_str, "Unable to successfully launch subprocess: %s\n", brlmancmd);
+	if (p)
+	    bu_process_wait_n(&p, 0);
 	ret = BRLCAD_ERROR;
+    } else if (disable_gui) {
+	bu_process_wait_n(&p, 0);
     }
 
     bu_vls_free(&lang);

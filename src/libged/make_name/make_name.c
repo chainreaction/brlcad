@@ -41,18 +41,23 @@ ged_make_name_core(struct ged *gedp, int argc, const char *argv[])
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
+    if (!argv || !argv[0]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: make_name %s\n", usage);
+	return BRLCAD_ERROR;
+    }
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     switch (argc) {
 	case 2:
-	    if (!BU_STR_EQUAL(argv[1], "-s"))
+	    if (!argv[1] || !BU_STR_EQUAL(argv[1], "-s"))
 		break;
 
 	    i = 0;
@@ -60,17 +65,22 @@ ged_make_name_core(struct ged *gedp, int argc, const char *argv[])
 
 	case 3:
 
-	    if ((BU_STR_EQUAL(argv[1], "-s"))
-		&& (sscanf(argv[2], "%d", &new_i) == 1)) {
+	    if (argv[1] && argv[2] && BU_STR_EQUAL(argv[1], "-s")
+		&& bu_sscanf(argv[2], "%d", &new_i) == 1 && new_i >= 0) {
 		i = new_i;
 		return BRLCAD_OK;
 	    }
-	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	    return BRLCAD_ERROR;
 
 	default:
-	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	    return BRLCAD_ERROR;
+    }
+
+    if (!argv[1] || argv[1][0] == '\0') {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
+	return BRLCAD_ERROR;
     }
 
     for (cp = (char *)argv[1], len = 0; *cp != '\0'; ++cp, ++len) {
@@ -82,17 +92,24 @@ ged_make_name_core(struct ged *gedp, int argc, const char *argv[])
 	}
 	bu_vls_putc(&obj_name, *cp);
     }
-    bu_vls_putc(&obj_name, '\0');
     tp = (*cp == '\0') ? "" : cp + 1;
 
+    if (i < 0)
+	i = 0;
+
+    int attempts = 0;
     do {
 	bu_vls_trunc(&obj_name, len);
 	bu_vls_printf(&obj_name, "%d", i++);
 	bu_vls_strcat(&obj_name, tp);
-    }
-    while (db_lookup(gedp->dbip, bu_vls_addr(&obj_name), LOOKUP_QUIET) != RT_DIR_NULL);
+	if (++attempts > 1000000 || i < 0) {
+	    bu_vls_printf(gedp->ged_result_str, "make_name: unable to find unused name with template '%s'\n", argv[1]);
+	    bu_vls_free(&obj_name);
+	    return BRLCAD_ERROR;
+	}
+    } while (db_lookup(gedp->dbip, bu_vls_cstr(&obj_name), LOOKUP_QUIET) != RT_DIR_NULL);
 
-    bu_vls_printf(gedp->ged_result_str, "%s", bu_vls_addr(&obj_name));
+    bu_vls_printf(gedp->ged_result_str, "%s", bu_vls_cstr(&obj_name));
     bu_vls_free(&obj_name);
 
     return BRLCAD_OK;

@@ -55,6 +55,9 @@ vls_long_dpp(struct ged *gedp,
     size_t max_type_len = 0;
     struct directory *dp;
 
+    if (!list_of_names || num_in_list <= 0)
+	return;
+
     if (!ssflag) {
 	bu_sort((void *)list_of_names,
 		(unsigned)num_in_list, (unsigned)sizeof(struct directory *),
@@ -69,6 +72,8 @@ vls_long_dpp(struct ged *gedp,
 	size_t len;
 
 	dp = list_of_names[i];
+	if (!dp || !dp->d_namep)
+	    continue;
 	len = strlen(dp->d_namep);
 	if (len > max_nam_len)
 	    max_nam_len = len;
@@ -80,21 +85,25 @@ vls_long_dpp(struct ged *gedp,
 	else if (dp->d_flags & RT_DIR_SOLID) {
 	    struct rt_db_internal intern;
 	    len = 9; /* "primitive" */
+	    RT_DB_INTERNAL_INIT(&intern);
 	    if (rt_db_get_internal(&intern, dp, gedp->dbip, (fastf_t *)NULL) >= 0) {
-		len = strlen(intern.idb_meth->ft_label);
+		if (intern.idb_meth && intern.idb_meth->ft_label[0] != '\0')
+		    len = strlen(intern.idb_meth->ft_label);
 		rt_db_free_internal(&intern);
 	    }
 	} else {
-	    switch (list_of_names[i]->d_major_type) {
+	    switch (dp->d_major_type) {
 		case DB5_MAJORTYPE_ATTRIBUTE_ONLY:
 		    len = 6;
 		    break;
 		case DB5_MAJORTYPE_BINARY_MIME:
 		    len = strlen("binary (mime)");
 		    break;
-		case DB5_MAJORTYPE_BINARY_UNIF:
-		    len = strlen(rt_binunif_typestr(list_of_names[i]));
+		case DB5_MAJORTYPE_BINARY_UNIF: {
+		    const char *bstr = rt_binunif_typestr(dp);
+		    len = bstr ? strlen(bstr) : 0;
 		    break;
+		}
 	    }
 	}
 
@@ -107,6 +116,8 @@ vls_long_dpp(struct ged *gedp,
      */
     for (i = 0; i < num_in_list; ++i) {
 	dp = list_of_names[i];
+	if (!dp || !dp->d_namep)
+	    continue;
 
 	if (dp->d_flags & RT_DIR_COMB) {
 	    isComb = 1;
@@ -121,8 +132,10 @@ vls_long_dpp(struct ged *gedp,
 	} else if (dp->d_flags & RT_DIR_SOLID) {
 	    struct rt_db_internal intern;
 	    type = "primitive";
+	    RT_DB_INTERNAL_INIT(&intern);
 	    if (rt_db_get_internal(&intern, dp, gedp->dbip, (fastf_t *)NULL) >= 0) {
-		type = intern.idb_meth->ft_label;
+		if (intern.idb_meth && intern.idb_meth->ft_label[0] != '\0')
+		    type = intern.idb_meth->ft_label;
 		rt_db_free_internal(&intern);
 	    }
 	    isComb = isRegion = 0;
@@ -152,11 +165,14 @@ vls_long_dpp(struct ged *gedp,
 	    (cflag && isComb) ||
 	    (rflag && isRegion) ||
 	    (sflag && isSolid)) {
+	    size_t nlen = strlen(dp->d_namep);
+	    size_t tlen = type ? strlen(type) : 0;
 	    bu_vls_printf(gedp->ged_result_str, "%s", dp->d_namep);
-	    bu_vls_spaces(gedp->ged_result_str, (int)(max_nam_len - strlen(dp->d_namep)));
-	    bu_vls_printf(gedp->ged_result_str, " %s", type);
-	    if (type)
-	       bu_vls_spaces(gedp->ged_result_str, (int)(max_type_len - strlen(type)));
+	    if (max_nam_len >= nlen)
+		bu_vls_spaces(gedp->ged_result_str, (int)(max_nam_len - nlen));
+	    bu_vls_printf(gedp->ged_result_str, " %s", type ? type : "");
+	    if (max_type_len >= tlen)
+		bu_vls_spaces(gedp->ged_result_str, (int)(max_type_len - tlen));
 	    bu_vls_printf(gedp->ged_result_str,  " %2d %2d ", dp->d_major_type, dp->d_minor_type);
 	    if (!hflag) {
 		bu_vls_printf(gedp->ged_result_str,  "%ld\n", (long)(dp->d_len));
@@ -190,6 +206,9 @@ vls_line_dpp(struct ged *gedp,
     int isComb, isRegion;
     int isSolid;
 
+    if (!list_of_names || num_in_list <= 0)
+	return;
+
     if (!ssflag) {
 	bu_sort((void *)list_of_names,
 		(unsigned)num_in_list, (unsigned)sizeof(struct directory *),
@@ -204,6 +223,9 @@ vls_line_dpp(struct ged *gedp,
      * i - tracks the list item
      */
     for (i = 0; i < num_in_list; ++i) {
+	if (!list_of_names[i] || !list_of_names[i]->d_namep)
+	    continue;
+
 	if (list_of_names[i]->d_flags & RT_DIR_COMB) {
 	    isComb = 1;
 	    isSolid = 0;
@@ -272,6 +294,9 @@ _ged_ls_attr_objs(struct ged *gedp, struct _ged_ls_data *ls, int argc, const cha
     struct bu_attribute_value_set avs;
     int op;
 
+    if (!gedp || !ls || !argv)
+	return BRLCAD_ERROR;
+
     if ((argc < 2) || (argc%2 != 0)) {
 	/* should be even number of name/value pairs */
 	bu_log("Error: ls -A option expects even number of 'name value' pairs\n\n");
@@ -282,6 +307,8 @@ _ged_ls_attr_objs(struct ged *gedp, struct _ged_ls_data *ls, int argc, const cha
 
     bu_avs_init(&avs, argc, "wdb_ls_cmd avs");
     for (i = 0; i < argc; i += 2) {
+	if (!argv[i] || !argv[i+1])
+	    continue;
 	if (ls->or_flag) {
 	    bu_avs_add_nonunique(&avs, (char *)argv[i], (char *)argv[i+1]);
 	} else {
@@ -302,11 +329,17 @@ _ged_ls_named_objs(struct ged *gedp, struct _ged_ls_data *ls, int argc, const ch
 {
     int i, lq;
 
+    if (!gedp || !ls || !ls->results_obj || !argv)
+	return;
+
     lq = (ls->qflag) ? LOOKUP_QUIET : LOOKUP_NOISY;
 
     for (i = 0; i < argc; i++) {
 	int is_path = 0;
-	const char *pc = argv[i];
+	const char *pc;
+	if (!argv[i])
+	    continue;
+	pc = argv[i];
 	while(*pc != '\0' && !is_path) {
 	    is_path = (*pc == '/');
 	    pc++;
@@ -417,6 +450,7 @@ ged_ls_core(struct ged *gedp, int argc, const char *argv[])
 	/* In this scenario we're only going to get object names, and db_lookup_by_attr will provide
 	 * the table for us, so don't init either of them.  */
 	if (_ged_ls_attr_objs(gedp, &ls, argc, argv) != BRLCAD_OK) {
+	    bu_vls_free(&str);
 	    return BRLCAD_ERROR;
 	}
 
@@ -450,14 +484,16 @@ ged_ls_core(struct ged *gedp, int argc, const char *argv[])
 	}
     }
 
-    dirp0 = (struct directory **)ls.results_obj->buffer;
-    if (ls.lflag)
-	vls_long_dpp(gedp, dirp0, (int)BU_PTBL_LEN(ls.results_obj), ls.aflag, ls.cflag, ls.rflag, ls.sflag, ls.hflag, ls.ssflag);
-    else if (ls.aflag || ls.cflag || ls.rflag || ls.sflag)
-	vls_line_dpp(gedp, dirp0, (int)BU_PTBL_LEN(ls.results_obj), ls.aflag, ls.cflag, ls.rflag, ls.sflag, ls.ssflag);
-    else {
-	_ged_vls_col_pr4v(gedp->ged_result_str, dirp0, (int)BU_PTBL_LEN(ls.results_obj), 0, ls.ssflag);
-	_ged_results_add(gedp->ged_results, bu_vls_addr(gedp->ged_result_str));
+    if (ls.results_obj && ls.results_obj->buffer) {
+	dirp0 = (struct directory **)ls.results_obj->buffer;
+	if (ls.lflag)
+	    vls_long_dpp(gedp, dirp0, (int)BU_PTBL_LEN(ls.results_obj), ls.aflag, ls.cflag, ls.rflag, ls.sflag, ls.hflag, ls.ssflag);
+	else if (ls.aflag || ls.cflag || ls.rflag || ls.sflag)
+	    vls_line_dpp(gedp, dirp0, (int)BU_PTBL_LEN(ls.results_obj), ls.aflag, ls.cflag, ls.rflag, ls.sflag, ls.ssflag);
+	else {
+	    _ged_vls_col_pr4v(gedp->ged_result_str, dirp0, (int)BU_PTBL_LEN(ls.results_obj), 0, ls.ssflag);
+	    _ged_results_add(gedp->ged_results, bu_vls_addr(gedp->ged_result_str));
+	}
     }
 
     if (ls.results_obj) {
@@ -469,6 +505,8 @@ ged_ls_core(struct ged *gedp, int argc, const char *argv[])
 	bu_ptbl_free(ls.results_fullpath);
 	bu_free((void *)ls.results_fullpath, "full path results");
     }
+
+    bu_vls_free(&str);
 
     return BRLCAD_OK;
 }

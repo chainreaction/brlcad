@@ -50,12 +50,17 @@ ged_list_core(struct ged *gedp, int argc, const char *argv[])
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
+    if (!argv || !argv[0]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: list %s\n", usage);
+	return BRLCAD_ERROR;
+    }
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
@@ -72,7 +77,7 @@ ged_list_core(struct ged *gedp, int argc, const char *argv[])
 		verbose++;
 		break;
 	    default:
-		bu_vls_printf(gedp->ged_result_str, "Unrecognized option - %c", c);
+		bu_vls_printf(gedp->ged_result_str, "Unrecognized option - %c\n", c);
 		return BRLCAD_ERROR;
 	}
     }
@@ -82,6 +87,8 @@ ged_list_core(struct ged *gedp, int argc, const char *argv[])
     argv += bu_optind;
 
     for (arg = 0; arg < argc; arg++) {
+	if (!argv[arg])
+	    continue;
 	if (recurse) {
 	    char *tmp_argv[3] = {"listeval", NULL, NULL};
 	    if (verbose) {
@@ -108,18 +115,25 @@ ged_list_core(struct ged *gedp, int argc, const char *argv[])
 
 	    struct db_tree_state ts;
 	    struct db_full_path path;
+	    struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+	    if (!wdbp)
+		continue;
+	    ts = wdbp->wdb_initial_tree_state;     /* struct copy */
+	    wdb_close(wdbp);
 
 	    db_full_path_init(&path);
-	    struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
-	    ts = wdbp->wdb_initial_tree_state;     /* struct copy */
 	    ts.ts_dbip = gedp->dbip;
 	    MAT_IDN(ts.ts_mat);
 
-	    if (db_follow_path_for_state(&ts, &path, argv[arg], 1))
+	    if (db_follow_path_for_state(&ts, &path, argv[arg], 1)) {
+		db_free_full_path(&path);
 		continue;
+	    }
 
+	    RT_DB_INTERNAL_INIT(&intern);
 	    if ((id = rt_db_get_internal(&intern, dp, gedp->dbip, ts.ts_mat)) < 0) {
-		bu_vls_printf(gedp->ged_result_str, "rt_db_get_internal(%s) failure", dp->d_namep);
+		bu_vls_printf(gedp->ged_result_str, "rt_db_get_internal(%s) failure\n", dp->d_namep);
+		db_free_full_path(&path);
 		continue;
 	    }
 
@@ -130,7 +144,7 @@ ged_list_core(struct ged *gedp, int argc, const char *argv[])
 	    if (!OBJ[id].ft_describe
 		|| OBJ[id].ft_describe(gedp->ged_result_str, &intern, verbose, gedp->dbip->dbi_base2local) < 0)
 	    {
-		bu_vls_printf(gedp->ged_result_str, "%s: describe error", dp->d_namep);
+		bu_vls_printf(gedp->ged_result_str, "%s: describe error\n", dp->d_namep);
 	    }
 
 	    rt_db_free_internal(&intern);

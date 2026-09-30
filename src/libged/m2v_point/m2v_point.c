@@ -43,38 +43,43 @@ ged_m2v_point_core(struct ged *gedp, int argc, const char *argv[])
     GED_CHECK_VIEW(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
+    if (!argv || !argv[0]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: m2v_point %s\n", usage);
+	return BRLCAD_ERROR;
+    }
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc != 2 && argc != 4) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
     if (argc == 2) {
-	if (bn_decode_vect(model, argv[1]) != 3) {
-	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	if (!argv[1] || bn_decode_vect(model, argv[1]) != 3) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	    return BRLCAD_ERROR;
 	}
     } else {
-	if (sscanf(argv[1], "%lf", &scan[X]) != 1) {
-	    bu_vls_printf(gedp->ged_result_str, "ged_m2v_point_core: bad X value - %s\n", argv[1]);
+	if (!argv[1] || bu_sscanf(argv[1], "%lf", &scan[X]) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "ged_m2v_point_core: bad X value - %s\n", argv[1] ? argv[1] : "");
 	    return BRLCAD_ERROR;
 	}
 
-	if (sscanf(argv[2], "%lf", &scan[Y]) != 1) {
-	    bu_vls_printf(gedp->ged_result_str, "ged_m2v_point_core: bad Y value - %s\n", argv[2]);
+	if (!argv[2] || bu_sscanf(argv[2], "%lf", &scan[Y]) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "ged_m2v_point_core: bad Y value - %s\n", argv[2] ? argv[2] : "");
 	    return BRLCAD_ERROR;
 	}
 
-	if (sscanf(argv[3], "%lf", &scan[Z]) != 1) {
-	    bu_vls_printf(gedp->ged_result_str, "ged_m2v_point_core: bad Z value - %s\n", argv[3]);
+	if (!argv[3] || bu_sscanf(argv[3], "%lf", &scan[Z]) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "ged_m2v_point_core: bad Z value - %s\n", argv[3] ? argv[3] : "");
 	    return BRLCAD_ERROR;
 	}
 

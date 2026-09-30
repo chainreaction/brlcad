@@ -48,17 +48,22 @@ ged_lod_core(struct ged *gedp, int argc, const char *argv[])
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
+    if (!argv || !argv[0]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage:\n%s", usage);
+	return BRLCAD_ERROR;
+    }
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
-    if (argc >= 2 && BU_STR_EQUAL(argv[1], "-h")) {
+    if (argc >= 2 && argv[1] && BU_STR_EQUAL(argv[1], "-h")) {
 	bu_vls_printf(gedp->ged_result_str, "Usage:\n%s", usage);
 	return GED_HELP;
     }
 
     gvp = gedp->ged_gvp;
-    if (gvp == NULL) {
+    if (gvp == NULL || gvp->gv_s == NULL) {
 	return BRLCAD_OK;
     }
 
@@ -79,32 +84,39 @@ ged_lod_core(struct ged *gedp, int argc, const char *argv[])
     --argc;
     ++argv;
     printUsage = 0;
-    if (argc == 1 && BU_STR_EQUAL(argv[0], "on")) {
+    if (argc == 1 && argv[0] && BU_STR_EQUAL(argv[0], "on")) {
 	/* lod on */
 	gvp->gv_s->adaptive_plot_csg = 1;
-    } else if (argc == 1 && BU_STR_EQUAL(argv[0], "off")) {
+    } else if (argc == 1 && argv[0] && BU_STR_EQUAL(argv[0], "off")) {
 	/* lod off */
 	gvp->gv_s->adaptive_plot_csg = 0;
-    } else if (argc == 1 && BU_STR_EQUAL(argv[0], "enabled")) {
+    } else if (argc == 1 && argv[0] && BU_STR_EQUAL(argv[0], "enabled")) {
 	/* lod enabled - return on state */
 	bu_vls_printf(gedp->ged_result_str, "%d", gvp->gv_s->adaptive_plot_csg);
-    } else if (BU_STR_EQUAL(argv[0], "scale")) {
-	if (argc == 2 || argc == 3) {
+    } else if (argv[0] && BU_STR_EQUAL(argv[0], "scale")) {
+	if ((argc == 2 || argc == 3) && argv[1]) {
+	    fastf_t val = 0.0;
 	    if (BU_STR_EQUAL(argv[1], "points")) {
 		if (argc == 2) {
 		    /* lod scale points - return current value */
 		    bu_vls_printf(gedp->ged_result_str, "%f", gvp->gv_s->point_scale);
-		} else {
+		} else if (argv[2] && bu_sscanf(argv[2], "%lf", &val) == 1 && val >= 0.0) {
 		    /* lod scale points f - set value */
-		    gvp->gv_s->point_scale = atof(argv[2]);
+		    gvp->gv_s->point_scale = val;
+		} else {
+		    bu_vls_printf(gedp->ged_result_str, "Invalid point scale factor: %s\n", argv[2] ? argv[2] : "");
+		    return BRLCAD_ERROR;
 		}
 	    } else if (BU_STR_EQUAL(argv[1], "curves")) {
 		if (argc == 2) {
 		    /* lod scale curves - return current value */
 		    bu_vls_printf(gedp->ged_result_str, "%f", gvp->gv_s->curve_scale);
-		} else {
+		} else if (argv[2] && bu_sscanf(argv[2], "%lf", &val) == 1 && val >= 0.0) {
 		    /* lod scale curves f - set value */
-		    gvp->gv_s->curve_scale = atof(argv[2]);
+		    gvp->gv_s->curve_scale = val;
+		} else {
+		    bu_vls_printf(gedp->ged_result_str, "Invalid curve scale factor: %s\n", argv[2] ? argv[2] : "");
+		    return BRLCAD_ERROR;
 		}
 	    } else {
 		printUsage = 1;

@@ -83,6 +83,11 @@ ged_make_core(struct ged *gedp, int argc, const char *argv[])
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
+    if (!argv || !argv[0]) {
+	print_usage(gedp, "make", d);
+	return BRLCAD_ERROR;
+    }
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
@@ -112,8 +117,13 @@ ged_make_core(struct ged *gedp, int argc, const char *argv[])
 	return GED_HELP;
     }
 
+    if (ZERO(scale) || scale < 0.0) {
+	bu_vls_printf(gedp->ged_result_str, "make: scale factor must be positive\n");
+	return BRLCAD_ERROR;
+    }
+
     /* what remains must be exactly: name type */
-    if (uac != 2) {
+    if (uac != 2 || !argv[0] || !argv[1]) {
 	print_usage(gedp, cmd, d);
 	return BRLCAD_ERROR;
     }
@@ -131,12 +141,12 @@ ged_make_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
     if (BU_STR_EQUAL(type, "pg") || BU_STR_EQUAL(type, "poly")) {
-	bu_vls_printf(gedp->ged_result_str, "make: the polysolid is deprecated and not supported by this command.\nUse the bot primitive.");
+	bu_vls_printf(gedp->ged_result_str, "make: the polysolid is deprecated and not supported by this command.\nUse the bot primitive.\n");
 	return BRLCAD_ERROR;
     }
 
     if (rt_obj_make(type, origin, scale, &internal) != BRLCAD_OK) {
-	bu_vls_printf(gedp->ged_result_str, "make: the %s primitive is not supported by this command", type);
+	bu_vls_printf(gedp->ged_result_str, "make: the %s primitive is not supported by this command\n", type);
 	print_usage(gedp, cmd, d);
 	return BRLCAD_ERROR;
     }
@@ -152,19 +162,23 @@ ged_make_core(struct ged *gedp, int argc, const char *argv[])
 	struct rt_extrude_internal* extrude_ip = (struct rt_extrude_internal *)internal.idb_ptr;
 
 	/* sanity */
-	if (!extrude_ip)
+	if (!extrude_ip) {
+	    rt_db_free_internal(&internal);
 	    return BRLCAD_ERROR;
+	}
 
 	/* attach a sketch name to the extrude */
 	av[0] = "make_name";
 	av[1] = "skt_";
 	ged_exec_make_name(gedp, 2, (const char **)av);
-	if (extrude_ip->sketch_name)
-	    bu_free(extrude_ip->sketch_name, "empty sketch_name");
-	extrude_ip->sketch_name = bu_strdup(bu_vls_addr(gedp->ged_result_str));
+	if (bu_vls_strlen(gedp->ged_result_str) > 0) {
+	    if (extrude_ip->sketch_name)
+		bu_free(extrude_ip->sketch_name, "empty sketch_name");
+	    extrude_ip->sketch_name = bu_strdup(bu_vls_cstr(gedp->ged_result_str));
+	}
 
-	sprintf(center_str, "%f %f %f", V3ARGS(origin));
-	sprintf(scale_str, "%f", scale);
+	snprintf(center_str, sizeof(center_str), "%f %f %f", V3ARGS(origin));
+	snprintf(scale_str, sizeof(scale_str), "%f", scale);
 	av[0] = "make";
 	av[1] = "-o";
 	av[2] = center_str;
@@ -180,8 +194,15 @@ ged_make_core(struct ged *gedp, int argc, const char *argv[])
     /* no interrupts */
     (void)signal(SIGINT, SIG_IGN);
 
-    GED_DB_DIRADD(gedp, dp, name, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&internal.idb_type, BRLCAD_ERROR);
-    GED_DB_PUT_INTERN(gedp, dp, &internal, BRLCAD_ERROR);
+    if ((dp = db_diradd(gedp->dbip, name, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&internal.idb_type)) == RT_DIR_NULL) {
+	bu_vls_printf(gedp->ged_result_str, "Unable to add %s to the database.\n", name);
+	rt_db_free_internal(&internal);
+	return BRLCAD_ERROR;
+    }
+    if (rt_db_put_internal(dp, gedp->dbip, &internal) < 0) {
+	bu_vls_printf(gedp->ged_result_str, "Database write failure.\n");
+	return BRLCAD_ERROR;
+    }
 
     return BRLCAD_OK;
 }
