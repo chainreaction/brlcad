@@ -51,19 +51,19 @@ ged_put_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
-    if (argc < 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc < 3 || !argv[1] || argv[1][0] == '\0' || !argv[2] || argv[2][0] == '\0') {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
     name = (char *)argv[1];
 
     if (db_lookup(gedp->dbip, argv[1], LOOKUP_QUIET) != RT_DIR_NULL) {
-	bu_vls_printf(gedp->ged_result_str, "%s already exists", argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s already exists\n", argv[1]);
 	return BRLCAD_ERROR;
     }
 
@@ -77,7 +77,7 @@ ged_put_core(struct ged *gedp, int argc, const char *argv[])
 
     ftp = rt_get_functab_by_label(type);
     if (ftp == NULL) {
-	bu_vls_printf(gedp->ged_result_str, "%s is an unknown object type.", type);
+	bu_vls_printf(gedp->ged_result_str, "%s is an unknown object type.\n", type);
 	return BRLCAD_ERROR;
     }
 
@@ -96,13 +96,20 @@ ged_put_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
-    if (wdb_put_internal(wdbp, name, &intern, 1.0) < 0) {
-	bu_vls_printf(gedp->ged_result_str, "wdb_put_internal(%s)", argv[1]);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "Database open error\n");
 	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
-    rt_db_free_internal(&intern);
+    int put_ret = wdb_put_internal(wdbp, name, &intern, 1.0);
+    wdb_close(wdbp);
+
+    /* NOTE: wdb_put_internal frees intern on both success and failure */
+    if (put_ret < 0) {
+	bu_vls_printf(gedp->ged_result_str, "wdb_put_internal(%s) failure\n", argv[1]);
+	return BRLCAD_ERROR;
+    }
 
     return BRLCAD_OK;
 }

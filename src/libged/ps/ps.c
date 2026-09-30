@@ -91,15 +91,20 @@ NEWPG\n\
 static void
 ps_draw_solid(fastf_t perspective, FILE *fp, struct bv_scene_obj *sp, matp_t psmat)
 {
-    static vect_t last;
+    vect_t last = VINIT_ZERO;
     point_t clipmin = {-1.0, -1.0, -MAX_FASTF};
     point_t clipmax = {1.0, 1.0, MAX_FASTF};
     struct bv_vlist *tvp;
     point_t *pt_prev=NULL;
     fastf_t dist_prev=1.0;
     fastf_t dist;
-    struct bv_vlist *vp = (struct bv_vlist *)&sp->s_vlist;
+    struct bv_vlist *vp;
     fastf_t delta;
+
+    if (!sp || !fp)
+	return;
+
+    vp = (struct bv_vlist *)&sp->s_vlist;
 
     fprintf(fp, "%f %f %f setrgbcolor\n",
             PS_COLOR(sp->s_color[0]),
@@ -122,7 +127,7 @@ ps_draw_solid(fastf_t perspective, FILE *fp, struct bv_scene_obj *sp, matp_t psm
         int *cmd = tvp->cmd;
         point_t *pt = tvp->pt;
         for (i = 0; i < nused; i++, cmd++, pt++) {
-            static vect_t start, fin;
+            vect_t start = VINIT_ZERO, fin = VINIT_ZERO;
             switch (*cmd) {
                 case BV_VLIST_POLY_START:
                 case BV_VLIST_POLY_VERTNORM:
@@ -229,6 +234,9 @@ ps_draw_body(struct bu_list *hdlp, FILE *fp, mat_t model2view, fastf_t perspecti
     mat_t perspective_mat;
     struct bv_scene_obj *sp;
 
+    if (!hdlp || !fp)
+	return;
+
     mat = model2view;
 
     if (0 < perspective) {
@@ -257,7 +265,8 @@ ps_draw_body(struct bu_list *hdlp, FILE *fp, mat_t model2view, fastf_t perspecti
         next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
 
         for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
-            ps_draw_solid(perspective, fp, sp, mat);
+	    if (sp)
+		ps_draw_solid(perspective, fp, sp, mat);
         }
 
         gdlp = next_gdlp;
@@ -329,7 +338,7 @@ ged_ps_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
@@ -353,9 +362,9 @@ ged_ps_core(struct ged *gedp, int argc, const char *argv[])
 		border = 1;
 		break;
 	    case 'c':
-		if (sscanf(bu_optarg, "%d%*c%d%*c%d", &r, &g, &b) != 3) {
-		    bu_vls_printf(gedp->ged_result_str, "%s: bad color - %s", argv[0], bu_optarg);
-		    return BRLCAD_ERROR;
+		if (bu_sscanf(bu_optarg, "%d%*c%d%*c%d", &r, &g, &b) != 3) {
+		    bu_vls_printf(gedp->ged_result_str, "%s: bad color - %s\n", argv[0], bu_optarg);
+		    goto bad;
 		}
 
 		/* Clamp color values */
@@ -385,8 +394,8 @@ ged_ps_core(struct ged *gedp, int argc, const char *argv[])
 
 		break;
 	    case 's':
-		if (sscanf(bu_optarg, "%lf", &tmp_f) != 1) {
-		    bu_vls_printf(gedp->ged_result_str, "%s: bad size - %s", argv[0], bu_optarg);
+		if (bu_sscanf(bu_optarg, "%lf", &tmp_f) != 1) {
+		    bu_vls_printf(gedp->ged_result_str, "%s: bad size - %s\n", argv[0], bu_optarg);
 		    goto bad;
 		}
 
@@ -404,29 +413,29 @@ ged_ps_core(struct ged *gedp, int argc, const char *argv[])
 
 		break;
 	    case 'x':
-		if (sscanf(bu_optarg, "%lf", &tmp_f) != 1) {
-		    bu_vls_printf(gedp->ged_result_str, "%s: bad x offset - %s", argv[0], bu_optarg);
+		if (bu_sscanf(bu_optarg, "%lf", &tmp_f) != 1) {
+		    bu_vls_printf(gedp->ged_result_str, "%s: bad x offset - %s\n", argv[0], bu_optarg);
 		    goto bad;
 		}
 		xoffset = (int)(tmp_f * ps_default_ppi);
 
 		break;
 	    case 'y':
-		if (sscanf(bu_optarg, "%lf", &tmp_f) != 1) {
-		    bu_vls_printf(gedp->ged_result_str, "%s: bad y offset - %s", argv[0], bu_optarg);
+		if (bu_sscanf(bu_optarg, "%lf", &tmp_f) != 1) {
+		    bu_vls_printf(gedp->ged_result_str, "%s: bad y offset - %s\n", argv[0], bu_optarg);
 		    goto bad;
 		}
 		yoffset = (int)(tmp_f * ps_default_ppi);
 
 		break;
 	    default:
-		bu_vls_printf(gedp->ged_result_str, "%s: Unrecognized option - %s", argv[0], argv[bu_optind-1]);
+		bu_vls_printf(gedp->ged_result_str, "%s: Unrecognized option - %s\n", argv[0], (bu_optind > 0 && argv[bu_optind-1]) ? argv[bu_optind-1] : "?");
 		goto bad;
 	}
     }
 
     if ((argc - bu_optind) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	goto bad;
     }
 

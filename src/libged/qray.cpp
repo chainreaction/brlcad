@@ -45,6 +45,9 @@ struct ged_qray_color def_qray_overlap_color = { 255, 255, 255 };
 void
 qray_init(struct ged_drawable *gdp)
 {
+    if (!gdp)
+	return;
+
     bu_vls_init(&gdp->gd_qray_basename);
     bu_vls_strcpy(&gdp->gd_qray_basename, DG_QRAY_BASENAME);
     bu_vls_init(&gdp->gd_qray_script);
@@ -78,11 +81,16 @@ qray_init(struct ged_drawable *gdp)
 
     for (size_t i = 0; i < fmt_lines.size(); ++i) {
 	std::string fmt_str = fmt_lines[i];
-	fmt_str.erase(0, 4); // Remove "fmt_"
-	gdp->gd_qray_fmts[i].type = fmt_str[0];
-	fmt_str.erase(0, 2); // remove "t "
-	bu_vls_init(&gdp->gd_qray_fmts[i].fmt);
-	bu_vls_sprintf(&gdp->gd_qray_fmts[i].fmt, "%s", fmt_str.c_str());
+	if (fmt_str.compare(0, 4, "fmt_") == 0 && fmt_str.length() >= 6) {
+	    fmt_str.erase(0, 4); // Remove "fmt_"
+	    gdp->gd_qray_fmts[i].type = fmt_str[0];
+	    fmt_str.erase(0, 2); // remove "t "
+	    bu_vls_init(&gdp->gd_qray_fmts[i].fmt);
+	    bu_vls_sprintf(&gdp->gd_qray_fmts[i].fmt, "%s", fmt_str.c_str());
+	} else {
+	    gdp->gd_qray_fmts[i].type = '\0';
+	    bu_vls_init(&gdp->gd_qray_fmts[i].fmt);
+	}
     }
 
     gdp->gd_qray_fmts[fmt_lines.size()].type = (char)0;
@@ -92,13 +100,17 @@ qray_init(struct ged_drawable *gdp)
 void
 qray_free(struct ged_drawable *gdp)
 {
-    int i;
+    if (!gdp)
+	return;
 
     bu_vls_free(&gdp->gd_qray_basename);
     bu_vls_free(&gdp->gd_qray_script);
-    for (i = 0; gdp->gd_qray_fmts[i].type != (char)0; ++i)
-	bu_vls_free(&gdp->gd_qray_fmts[i].fmt);
-    bu_free(gdp->gd_qray_fmts, "dgo_free_qray");
+    if (gdp->gd_qray_fmts) {
+	for (int i = 0; gdp->gd_qray_fmts[i].type != (char)0; ++i)
+	    bu_vls_free(&gdp->gd_qray_fmts[i].fmt);
+	bu_free(gdp->gd_qray_fmts, "dgo_free_qray");
+	gdp->gd_qray_fmts = NULL;
+    }
 }
 
 
@@ -115,6 +127,9 @@ qray_data_to_vlist(struct ged *gedp,
     vect_t in_pt, out_pt;
     vect_t last_out_pt = { 0, 0, 0 };
     struct bu_list *vlfree = &rt_vlfree;
+
+    if (!gedp || !gedp->i || !gedp->i->ged_gdp || !vbp || !headp || !gedp->dbip)
+	return;
 
     for (BU_LIST_FOR(ndlp, qray_dataList, &headp->l)) {
 	if (do_overlaps)
@@ -133,6 +148,9 @@ qray_data_to_vlist(struct ged *gedp,
 		    gedp->i->ged_gdp->gd_qray_even_color.g,
 		    gedp->i->ged_gdp->gd_qray_even_color.b);
 
+	if (!vhead)
+	    continue;
+
 	VSET(in_pt, ndlp->x_in, ndlp->y_in, ndlp->z_in);
 	VJOIN1(out_pt, in_pt, ndlp->los, dir);
 	VSCALE(in_pt, in_pt, gedp->dbip->dbi_local2base);
@@ -145,8 +163,10 @@ qray_data_to_vlist(struct ged *gedp,
 		    gedp->i->ged_gdp->gd_qray_void_color.r,
 		    gedp->i->ged_gdp->gd_qray_void_color.g,
 		    gedp->i->ged_gdp->gd_qray_void_color.b);
-	    BV_ADD_VLIST(vlfree, vhead, last_out_pt, BV_VLIST_LINE_MOVE);
-	    BV_ADD_VLIST(vlfree, vhead, in_pt, BV_VLIST_LINE_DRAW);
+	    if (vhead) {
+		BV_ADD_VLIST(vlfree, vhead, last_out_pt, BV_VLIST_LINE_MOVE);
+		BV_ADD_VLIST(vlfree, vhead, in_pt, BV_VLIST_LINE_DRAW);
+	    }
 	}
 
 	VMOVE(last_out_pt, out_pt);

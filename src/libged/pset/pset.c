@@ -37,6 +37,11 @@ _ged_set_metaball(struct ged *gedp, struct rt_metaball_internal *mbip, const cha
 {
     RT_METABALL_CK_MAGIC(mbip);
 
+    if (!attribute || attribute[0] == '\0') {
+	bu_vls_printf(gedp->ged_result_str, "empty or missing metaball attribute\n");
+	return BRLCAD_ERROR;
+    }
+
     switch (attribute[0]) {
 	case 'm':
 	case 'M':
@@ -55,9 +60,12 @@ _ged_set_metaball(struct ged *gedp, struct rt_metaball_internal *mbip, const cha
 	    else
 		mbip->threshold = sf;
 
+	    if (ZERO(mbip->threshold))
+		mbip->threshold = 0.01;
+
 	    break;
 	default:
-	    bu_vls_printf(gedp->ged_result_str, "bad metaball attribute - %s", attribute);
+	    bu_vls_printf(gedp->ged_result_str, "bad metaball attribute - %s\n", attribute);
 	    return BRLCAD_ERROR;
     }
 
@@ -86,17 +94,17 @@ ged_pset_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
-    if (argc != 4) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 4 || !argv[1] || !argv[2] || !argv[3]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[3], "%lf", &val) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "%s: bad value - %s", argv[0], argv[3]);
+    if (bu_sscanf(argv[3], "%lf", &val) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "%s: bad value - %s\n", argv[0], argv[3]);
 	return BRLCAD_ERROR;
     }
 
@@ -106,12 +114,12 @@ ged_pset_core(struct ged *gedp, int argc, const char *argv[])
 	++last;
 
     if (last[0] == '\0') {
-	bu_vls_printf(gedp->ged_result_str, "%s: illegal input - %s", argv[0], argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s: illegal input - %s\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
 
     if ((dp = db_lookup(gedp->dbip, last, LOOKUP_QUIET)) == RT_DIR_NULL) {
-	bu_vls_printf(gedp->ged_result_str, "%s: %s not found", argv[0], argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s: %s not found\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
 
@@ -119,7 +127,7 @@ ged_pset_core(struct ged *gedp, int argc, const char *argv[])
     RT_CK_DB_INTERNAL(&intern);
 
     if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD) {
-	bu_vls_printf(gedp->ged_result_str, "%s: Object not eligible for scaling.", argv[0]);
+	bu_vls_printf(gedp->ged_result_str, "%s: Object not eligible for scaling.\n", argv[0]);
 	rt_db_free_internal(&intern);
 
 	return BRLCAD_ERROR;
@@ -130,7 +138,7 @@ ged_pset_core(struct ged *gedp, int argc, const char *argv[])
 	    ret = _ged_set_metaball(gedp, (struct rt_metaball_internal *)intern.idb_ptr, argv[2], val);
 	    break;
 	default:
-	    bu_vls_printf(gedp->ged_result_str, "%s: Object not yet supported.", argv[0]);
+	    bu_vls_printf(gedp->ged_result_str, "%s: Object not yet supported.\n", argv[0]);
 	    rt_db_free_internal(&intern);
 
 	    return BRLCAD_ERROR;
@@ -138,7 +146,7 @@ ged_pset_core(struct ged *gedp, int argc, const char *argv[])
 
     if (ret == BRLCAD_OK) {
 	GED_DB_PUT_INTERN(gedp, dp, &intern, BRLCAD_ERROR);
-    } else if (ret & BRLCAD_ERROR) {
+    } else {
 	rt_db_free_internal(&intern);
     }
 

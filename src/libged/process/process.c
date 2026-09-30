@@ -54,11 +54,13 @@ _ged_process_list(struct ged *gedp)
     struct bu_vls pid_str = BU_VLS_INIT_ZERO;
     struct bu_vls plist = BU_VLS_INIT_ZERO;
     struct ged_subprocess *rrp;
-    unsigned int longest_pid = 0;
+    unsigned int longest_pid = 3;
 
     /* Find the largest pid we'll have to print */
     for (size_t i = 0; i < BU_PTBL_LEN(&gedp->ged_subp); i++) {
 	rrp = (struct ged_subprocess *)BU_PTBL_GET(&gedp->ged_subp, i);
+	if (!rrp || !rrp->p)
+	    continue;
 	int pid = bu_process_pid(rrp->p);
 	bu_vls_sprintf(&pid_str, "%d", pid);
 	longest_pid = (bu_vls_strlen(&pid_str) > longest_pid) ? bu_vls_strlen(&pid_str) : longest_pid;
@@ -68,6 +70,8 @@ _ged_process_list(struct ged *gedp)
     /* For each process print a line */
     for (size_t i = 0; i < BU_PTBL_LEN(&gedp->ged_subp); i++) {
 	rrp = (struct ged_subprocess *)BU_PTBL_GET(&gedp->ged_subp, i);
+	if (!rrp || !rrp->p)
+	    continue;
 	struct bu_vls pline = BU_VLS_INIT_ZERO;
 	struct bu_vls cmdroot = BU_VLS_INIT_ZERO;
 	const char * const *argv = NULL;
@@ -91,11 +95,14 @@ _ged_process_list(struct ged *gedp)
 
     if (bu_vls_strlen(&plist)) {
 	struct bu_vls header = BU_VLS_INIT_ZERO;
-	bu_vls_sprintf(&header, "%*cPID CMD", longest_pid-3, ' ');
+	int pad = (int)longest_pid - 3;
+	if (pad < 0)
+	    pad = 0;
+	bu_vls_sprintf(&header, "%*cPID CMD", pad, ' ');
 	bu_vls_printf(gedp->ged_result_str, "%s\n%s", bu_vls_cstr(&header), bu_vls_cstr(&plist));
 	bu_vls_free(&header);
     } else {
-	bu_vls_printf(gedp->ged_result_str, "No currently running GED subprocesses.");
+	bu_vls_printf(gedp->ged_result_str, "No currently running GED subprocesses.\n");
     }
     bu_vls_free(&plist);
     return BRLCAD_OK;
@@ -112,11 +119,13 @@ _ged_process_pabort(struct ged *gedp, int argc, const char **argv)
      * extremely long. */
     for (size_t i = 0; i < BU_PTBL_LEN(&gedp->ged_subp); i++) {
 	rrp = (struct ged_subprocess *)BU_PTBL_GET(&gedp->ged_subp, i);
+	if (!rrp || !rrp->p)
+	    continue;
 	int ppid = bu_process_pid(rrp->p);
 	for (int j = 0; j < argc; j++) {
 	    int pid;
 	    if (bu_opt_int(NULL, 1, (const char **)&argv[j], (void *)&pid) < 0) {
-		bu_vls_printf(gedp->ged_result_str, "PID argument %s is not a valid process id.", argv[j]);
+		bu_vls_printf(gedp->ged_result_str, "PID argument %s is not a valid process id.\n", argv[j]);
 		return BRLCAD_ERROR;
 	    }
 	    if (ppid == pid) {
@@ -142,11 +151,15 @@ _ged_process_gabort(struct ged *gedp, int argc, const char **argv)
      * can get terminated at most once. */
     for (size_t i = 0; i < BU_PTBL_LEN(&gedp->ged_subp); i++) {
 	rrp = (struct ged_subprocess *)BU_PTBL_GET(&gedp->ged_subp, i);
+	if (!rrp || !rrp->p)
+	    continue;
 	const char *cmd;
 	int argcnt = bu_process_args_n(rrp->p, &cmd, NULL);
 	bu_vls_trunc(&cmdroot, 0);
 	if (argcnt > 0 && bu_path_component(&cmdroot, cmd, BU_PATH_BASENAME_EXTLESS)) {
 	    for (int j = 0; j < argc; j++) {
+		if (!argv[j])
+		    continue;
 		if (!bu_path_match(argv[j], bu_vls_cstr(&cmdroot), 0)) {
 		    (void)bu_process_terminate(rrp->p);
 		    rrp->aborted = 1;
@@ -157,6 +170,7 @@ _ged_process_gabort(struct ged *gedp, int argc, const char **argv)
 	    }
 	}
     }
+    bu_vls_free(&cmdroot);
     return BRLCAD_OK;
 }
 
@@ -176,29 +190,31 @@ ged_process_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
-    if (argc == 2 && !BU_STR_EQUAL(argv[1], "list")) {
-	_process_show_help(gedp);
-	return BRLCAD_ERROR;
-    }
-
-
-    if (argc == 3 && (!BU_STR_EQUAL(argv[1], "gabort") && !BU_STR_EQUAL(argv[1], "pabort"))) {
-	_process_show_help(gedp);
-	return BRLCAD_ERROR;
-    }
-
-    if (argc == 2) {
+    if (BU_STR_EQUAL(argv[1], "list")) {
+	if (argc != 2) {
+	    _process_show_help(gedp);
+	    return BRLCAD_ERROR;
+	}
 	return _ged_process_list(gedp);
     }
 
     if (BU_STR_EQUAL(argv[1], "gabort")) {
+	if (argc < 3) {
+	    _process_show_help(gedp);
+	    return BRLCAD_ERROR;
+	}
 	return _ged_process_gabort(gedp, argc - 2, (const char **)&argv[2]);
     }
 
     if (BU_STR_EQUAL(argv[1], "pabort")) {
+	if (argc < 3) {
+	    _process_show_help(gedp);
+	    return BRLCAD_ERROR;
+	}
 	return _ged_process_pabort(gedp, argc - 2, (const char **)&argv[2]);
     }
 
+    _process_show_help(gedp);
     return BRLCAD_ERROR;
 }
 

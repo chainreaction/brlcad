@@ -128,8 +128,8 @@ mktemp_comb(struct ged *gedp, const char *str)
     counter = 1;
     done = 0;
     while (!done && counter < 99999) {
-	sprintf(ptr, "%d", counter);
-	if (db_lookup(gedp->dbip, str, LOOKUP_QUIET) == RT_DIR_NULL)
+	snprintf(ptr, 6, "%d", counter);
+	if (db_lookup(gedp->dbip, name, LOOKUP_QUIET) == RT_DIR_NULL)
 	    done = 1;
 	else
 	    counter++;
@@ -158,6 +158,7 @@ save_comb(struct ged *gedp, struct directory *dpold)
     dp = db_diradd(gedp->dbip, name, RT_DIR_PHONY_ADDR, 0, dpold->d_flags, (void *)&intern.idb_type);
     if (dp == RT_DIR_NULL) {
 	bu_vls_printf(gedp->ged_result_str, "save_comb: Cannot save copy of %s, no changed made\n", dpold->d_namep);
+	rt_db_free_internal(&intern);
 	return NULL;
     }
 
@@ -355,8 +356,10 @@ put_tree_into_comb_and_export(struct ged *gedp, struct rt_comb_internal *comb, s
 
 	    /* Eliminate trailing white space from name */
 	    i = (int)strlen(ptr);
-	    while (isspace((int)name[--i]))
-		name[i] = '\0';
+	    while (i > 0 && isspace((unsigned char)name[i - 1])) {
+		name[i - 1] = '\0';
+		i--;
+	    }
 
 	    /* Check for existence of member */
 	    if ((db_lookup(gedp->dbip, name, LOOKUP_QUIET)) == RT_DIR_NULL)
@@ -428,6 +431,8 @@ put_tree_into_comb_and_export(struct ged *gedp, struct rt_comb_internal *comb, s
 
     bu_list_free(&comb_lines.l);
     i = make_tree(gedp, comb, dp, node_count, comb_name, dir_name, rt_tree_array, tree_index);
+    if (rt_tree_array)
+	bu_free((char *)rt_tree_array, "red: tree list");
 
     bu_free(str, "dealloc bu_strdup str");
 
@@ -440,7 +445,7 @@ put_rgb_into_comb(struct rt_comb_internal *comb, const char *str)
 {
     int r, g, b;
 
-    if (sscanf(str, "%d%*c%d%*c%d", &r, &g, &b) != 3) {
+    if (!str || bu_sscanf(str, "%d%*c%d%*c%d", &r, &g, &b) != 3) {
 	comb->rgb_valid = 0;
 	return;
     }
@@ -498,12 +503,12 @@ ged_put_comb_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd_name, usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd_name, usage);
 	return GED_HELP;
     }
 
     if (argc < 7 || 11 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd_name, usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd_name, usage);
 	return BRLCAD_ERROR;
     }
 
@@ -550,7 +555,7 @@ ged_put_comb_core(struct ged *gedp, int argc, const char *argv[])
     if (bu_str_true(argv[6])) {
 	if (argc != 11) {
 	    bu_vls_printf(gedp->ged_result_str, "region_flag is set, incorrect number of arguments supplied.\n");
-	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd_name, regionusage);
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd_name, regionusage);
 	    return BRLCAD_ERROR;
 	}
 

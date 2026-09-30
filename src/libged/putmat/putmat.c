@@ -52,12 +52,12 @@ _getmat(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
-    if (argc != 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 2 || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
@@ -76,7 +76,7 @@ _getmat(struct ged *gedp, int argc, const char *argv[])
 	    !(first_fs = strchr(begin, '/')) ||
 	    !(last_fs = strrchr(begin, '/')) ||
 	    first_fs != last_fs) {
-	    bu_vls_printf(gedp->ged_result_str, "%s: bad path specification '%s'", argv[0], argv[1]);
+	    bu_vls_printf(gedp->ged_result_str, "%s: bad path specification '%s'\n", argv[0], argv[1]);
 	    return BRLCAD_ERROR;
 	}
 
@@ -84,7 +84,7 @@ _getmat(struct ged *gedp, int argc, const char *argv[])
 
 	end = strrchr(begin, '\0');
 	if (last_fs == end-1) {
-	    bu_vls_printf(gedp->ged_result_str, "%s: bad path specification '%s'", argv[0], argv[1]);
+	    bu_vls_printf(gedp->ged_result_str, "%s: bad path specification '%s'\n", argv[0], argv[1]);
 	    return BRLCAD_ERROR;
 	}
 	bu_vls_strncpy(&name1, begin, (size_t)(last_fs-begin));
@@ -106,7 +106,7 @@ _getmat(struct ged *gedp, int argc, const char *argv[])
     }
 
     if (rt_db_get_internal(&intern, dp, gedp->dbip, (matp_t)NULL) < 0) {
-	bu_vls_printf(gedp->ged_result_str, "Database read error, aborting");
+	bu_vls_printf(gedp->ged_result_str, "Database read error, aborting\n");
 	bu_vls_free(&name1);
 	bu_vls_free(&name2);
 	return BRLCAD_ERROR;
@@ -115,29 +115,34 @@ _getmat(struct ged *gedp, int argc, const char *argv[])
     comb = (struct rt_comb_internal *)intern.idb_ptr;
     RT_CK_COMB(comb);
     if (!comb->tree) {
-	bu_vls_printf(gedp->ged_result_str, "%s: empty combination", dp->d_namep);
+	bu_vls_printf(gedp->ged_result_str, "%s: empty combination\n", dp->d_namep);
 	goto fail;
     }
 
     /* Search for first mention of arc */
     if ((tp = db_find_named_leaf(comb->tree, bu_vls_addr(&name2))) == TREE_NULL) {
 	bu_vls_printf(gedp->ged_result_str,
-		      "Unable to find instance of '%s' in combination '%s', error",
+		      "Unable to find instance of '%s' in combination '%s', error\n",
 		      bu_vls_addr(&name2), bu_vls_addr(&name1));
 	goto fail;
     }
 
     if (!tp->tr_l.tl_mat) {
-	bu_vls_printf(gedp->ged_result_str, "1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1");
+	bu_vls_printf(gedp->ged_result_str, "1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1\n");
+	bu_vls_free(&name1);
+	bu_vls_free(&name2);
 	rt_db_free_internal(&intern);
 
 	return BRLCAD_OK;
     } else {
-	register int i;
+	int i;
 
 	for (i = 0; i < 16; i++)
 	    bu_vls_printf(gedp->ged_result_str, "%lf ", tp->tr_l.tl_mat[i]);
+	bu_vls_printf(gedp->ged_result_str, "\n");
 
+	bu_vls_free(&name1);
+	bu_vls_free(&name2);
 	rt_db_free_internal(&intern);
 
 	return BRLCAD_OK;
@@ -191,7 +196,7 @@ ged_putmat_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
@@ -199,12 +204,12 @@ ged_putmat_core(struct ged *gedp, int argc, const char *argv[])
 	return _getmat(gedp, argc, argv);
 
     if (argc < 3 || 18 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
-    if (!strchr(argv[1], '/')) {
-	bu_vls_printf(gedp->ged_result_str, "%s: bad path spec '%s'\n", argv[0], argv[1]);
+    if (!argv[1] || !strchr(argv[1], '/')) {
+	bu_vls_printf(gedp->ged_result_str, "%s: bad path spec '%s'\n", argv[0], argv[1] ? argv[1] : "");
 	return BRLCAD_ERROR;
     }
     switch (argc) {
@@ -213,6 +218,10 @@ ged_putmat_core(struct ged *gedp, int argc, const char *argv[])
 	    bu_vls_from_argv(avp, 16, (const char **)argv + 2);
 	    break;
 	case 3:
+	    if (!argv[2] || argv[2][0] == '\0') {
+		bu_vls_printf(gedp->ged_result_str, "%s: error in matrix specification (empty argument)\n", argv[0]);
+		return BRLCAD_ERROR;
+	    }
 	    if ((argv[2][0] == 'I') && (argv[2][1] == '\0')) {
 		avp = bu_vls_vlsinit();
 		bu_vls_printf(avp, "1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 ");
@@ -235,8 +244,8 @@ ged_putmat_core(struct ged *gedp, int argc, const char *argv[])
 
     got = bu_argv_from_string(&newargv[4], 16, bu_vls_addr(avp));
     if (got != 16) {
-	bu_vls_printf(gedp->ged_result_str, "%s: %s:%d: bad matrix, only got %d elements\n",
-		      argv[0], __FILE__, __LINE__, got);
+	bu_vls_printf(gedp->ged_result_str, "%s: bad matrix, only got %d elements (expected 16)\n",
+		      argv[0], got);
 	result = BRLCAD_ERROR;
     }
 

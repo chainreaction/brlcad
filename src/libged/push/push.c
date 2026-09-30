@@ -70,10 +70,14 @@ identitize(struct directory *dp,
     struct rt_db_internal intern;
     struct rt_comb_internal *comb;
 
-    if (dp->d_flags & RT_DIR_SOLID)
+    if (!dp || !dbip || (dp->d_flags & RT_DIR_SOLID))
 	return;
     if (rt_db_get_internal(&intern, dp, dbip, (fastf_t *)NULL) < 0) {
 	bu_vls_printf(msg, "Database read error, aborting\n");
+	return;
+    }
+    if (intern.idb_type != ID_COMBINATION || !intern.idb_ptr) {
+	rt_db_free_internal(&intern);
 	return;
     }
     comb = (struct rt_comb_internal *)intern.idb_ptr;
@@ -84,6 +88,8 @@ identitize(struct directory *dp,
 	    bu_vls_printf(msg, "Cannot write modified combination (%s) to database\n", dp->d_namep);
 	    return;
 	}
+    } else {
+	rt_db_free_internal(&intern);
     }
 }
 
@@ -200,7 +206,7 @@ ged_push_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
@@ -237,6 +243,13 @@ ged_push_core(struct ged *gedp, int argc, const char *argv[])
     argc -= bu_optind;
     argv += bu_optind;
 
+    if (argc < 1) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0 - bu_optind], usage);
+	rt_debug = old_debug;
+	BU_PUT(gpdp, struct push_data);
+	return BRLCAD_ERROR;
+    }
+
     /*
      * build a linked list of solids with the correct
      * matrix to apply to each solid.  This will also
@@ -244,9 +257,19 @@ ged_push_core(struct ged *gedp, int argc, const char *argv[])
      * different directions at the same time.
      */
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    struct db_tree_state init_state;
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "ged_push_core: cannot open database for tree state\n");
+	rt_debug = old_debug;
+	BU_PUT(gpdp, struct push_data);
+	return BRLCAD_ERROR;
+    }
+    init_state = wdbp->wdb_initial_tree_state;
+    wdb_close(wdbp);
+
     i = db_walk_tree(gedp->dbip, argc, (const char **)argv,
 		     ncpu,
-		     &wdbp->wdb_initial_tree_state,
+		     &init_state,
 		     0,				/* take all regions */
 		     push_region_end,
 		     push_leaf, (void *)gpdp);
@@ -264,7 +287,7 @@ ged_push_core(struct ged *gedp, int argc, const char *argv[])
 	}
 	rt_debug = old_debug;
 	BU_PUT(gpdp, struct push_data);
-	bu_vls_printf(gedp->ged_result_str, "ged_push_core:\tdb_walk_tree failed or there was a solid moving\n\tin two or more directions");
+	bu_vls_printf(gedp->ged_result_str, "ged_push_core:\tdb_walk_tree failed or there was a solid moving\n\tin two or more directions\n");
 	return BRLCAD_ERROR;
     }
 /*

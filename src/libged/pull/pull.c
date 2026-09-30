@@ -68,10 +68,11 @@ pull_comb_mat(struct db_i *dbip, struct rt_comb_internal *UNUSED(comb), union tr
     }
 
     /* invert the matrix transformation of the leaf and store new matrix  at comb */
-    bn_mat_inverse(inv_mat, comb_leaf->tr_l.tl_mat );
+    if (!bn_mat_inverse(inv_mat, comb_leaf->tr_l.tl_mat))
+	return;
 
     /* multiply inverse and store at combination */
-    bn_mat_mul2(inv_mat,mat);
+    bn_mat_mul2(inv_mat, mat);
     MAT_COPY(comb_leaf->tr_l.tl_mat, mat);
     pull_comb(dbip, dp, mp);
 }
@@ -92,10 +93,15 @@ pull_comb(struct db_i *dbip,
     mat_t m = MAT_INIT_ZERO;
     mat_t invMat;
 
-    if (dp->d_flags & RT_DIR_SOLID)
+    if (!dbip || !dp || (dp->d_flags & RT_DIR_SOLID))
 	return;
-    if (rt_db_get_internal(&intern, dp, dbip, m) < 0) {
+    if (rt_db_get_internal(&intern, dp, dbip, (fastf_t *)NULL) < 0) {
 	bu_log("Database read error, aborting\n");
+	return;
+    }
+
+    if (intern.idb_type != ID_COMBINATION || !intern.idb_ptr) {
+	rt_db_free_internal(&intern);
 	return;
     }
 
@@ -103,11 +109,14 @@ pull_comb(struct db_i *dbip,
 
     /* checks if matrix pointer is valid */
     if (mat == NULL) {
-	mat = (matp_t)bu_malloc(sizeof(mat_t), "cur_mat");
-	MAT_IDN(mat);
+	MAT_IDN(m);
+	mat = m;
     }
 
-    bn_mat_inverse(invMat, mat);
+    if (!bn_mat_inverse(invMat, mat)) {
+	rt_db_free_internal(&intern);
+	return;
+    }
     bn_mat_mul2(mat, m);
     MAT_COPY(mat, m);/* updates current matrix pointer */
 
@@ -119,6 +128,8 @@ pull_comb(struct db_i *dbip,
 	    bu_log("Cannot write modified combination (%s) to database\n", dp->d_namep);
 	    return;
 	}
+    } else {
+	rt_db_free_internal(&intern);
     }
 }
 
@@ -169,26 +180,32 @@ pull_leaf(struct db_i *dbip, struct directory *dp, void *mp)
     point_t max;             /* maximum point of bbox */
     matp_t mat = (matp_t)mp; /* current transformation matrix */
     mat_t matrix, invXform;
+    mat_t local_mat;
 
     BN_TOL_INIT(&tol); /* initializes the tolerance */
 
     if (mat == NULL) {
-	mat = (matp_t)bu_malloc(sizeof(mat_t), "cur_mat");
-	MAT_IDN(mat);
+	MAT_IDN(local_mat);
+	mat = local_mat;
     }
 
-    if (!(dp->d_flags & RT_DIR_SOLID))
+    if (!dbip || !dp || !(dp->d_flags & RT_DIR_SOLID))
 	return;
     if (rt_db_get_internal(&intern, dp, dbip, mat) < 0) {
-	bu_vls_printf((struct bu_vls *)mp, "Database read error, aborting\n");
+	bu_log("pull_leaf: Database read error, aborting\n");
 	return;
     }
 
     MAT_IDN(mat);
     MAT_IDN(matrix);
 
+    if (!intern.idb_meth || !intern.idb_meth->ft_bbox || !intern.idb_meth->ft_xform) {
+	rt_db_free_internal(&intern);
+	return;
+    }
+
     /* this computes the AABB bounding box of the leaf object
-     * using the bbox call back routine in its rt_functab table.
+     * using the bbox callback routine in its rt_functab table.
      * it then passes the minimum and maximum point to translate()
      * which then extracts the translation.
      */
@@ -197,13 +214,18 @@ pull_leaf(struct db_i *dbip, struct directory *dp, void *mp)
     /* pulls primitive translation matrix copying inverse
      * transformation to restore primitive and bbox
      */
-    translate(mat,matrix, min, max);
-    bn_mat_inverse(invXform, matrix);
+    translate(mat, matrix, min, max);
+    if (!bn_mat_inverse(invXform, matrix)) {
+	rt_db_free_internal(&intern);
+	return;
+    }
 
     /* restores the primitive */
     (intern.idb_meth)->ft_xform(&intern, invXform, &intern, 0, dbip);
 
-    return;
+    if (rt_db_put_internal(dp, dbip, &intern) < 0) {
+	bu_log("Cannot write modified primitive (%s) to database\n", dp->d_namep);
+    }
 }
 
 
@@ -213,7 +235,8 @@ ged_pull_core(struct ged *gedp, int argc, const char *argv[])
     struct directory *dp;
     mat_t mat;
     int c;
-    static const char *usage = "object";
+    const char *cmd_name = argv[0];
+    static const char *usage = "[-d] object";
 
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
@@ -224,38 +247,43 @@ ged_pull_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd_name, usage);
 	return GED_HELP;
-    }
-
-    if (argc != 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
-	return BRLCAD_ERROR;
-    }
-
-    /* get directory pointer for arg */
-    if ((dp = db_lookup(gedp->dbip,  argv[1], LOOKUP_NOISY)) == RT_DIR_NULL)
-	return BRLCAD_ERROR;
-
-    /* Checks whether the object is a primitive.*/
-    if (dp->d_flags & RT_DIR_SOLID) {
-	bu_log("Attempt to pull primitive, aborting.\n");
-	return BRLCAD_ERROR;
     }
 
     /* Parse options */
     bu_optind = 1;	/* re-init bu_getopt() */
     while ((c = bu_getopt(argc, (char * const *)argv, "d")) != -1) {
 	switch (c) {
-	   case 'd':
+	    case 'd':
 		rt_debug |= RT_DEBUG_TREEWALK;
 		break;
-	  case '?':
-	  default:
-		bu_vls_printf(gedp->ged_result_str, "ged_pull_core: usage pull [-d] root \n");
-		break;
+	    case '?':
+	    default:
+		bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd_name, usage);
+		return BRLCAD_ERROR;
 	}
     }
+
+    argc -= bu_optind;
+    argv += bu_optind;
+
+    if (argc != 1 || !argv[0] || argv[0][0] == '\0') {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd_name, usage);
+	return BRLCAD_ERROR;
+    }
+
+    /* get directory pointer for arg */
+    if ((dp = db_lookup(gedp->dbip, argv[0], LOOKUP_NOISY)) == RT_DIR_NULL)
+	return BRLCAD_ERROR;
+
+    /* Checks whether the object is a primitive.*/
+    if (dp->d_flags & RT_DIR_SOLID) {
+	bu_vls_printf(gedp->ged_result_str, "Attempt to pull primitive, aborting.\n");
+	return BRLCAD_ERROR;
+    }
+
+    MAT_IDN(mat);
 
     /*
      * uses a no frills walk routine recursively moving up the tree
@@ -265,7 +293,7 @@ ged_pull_core(struct ged *gedp, int argc, const char *argv[])
      */
     db_treewalk_basic(gedp->dbip, dp, pull_comb, pull_leaf, &mat);
 
-   return  BRLCAD_OK;
+    return BRLCAD_OK;
 }
 
 

@@ -45,6 +45,9 @@ prefix_do(struct db_i *dbip, struct rt_comb_internal *UNUSED(comb), union tree *
     prefix = (char *)prefix_ptr;
     obj = (char *)obj_ptr;
 
+    if (!prefix || !obj || obj[0] == '\0' || !comb_leaf->tr_l.tl_name)
+	return;
+
     if (!BU_STR_EQUAL(comb_leaf->tr_l.tl_name, obj))
 	return;
 
@@ -54,11 +57,10 @@ prefix_do(struct db_i *dbip, struct rt_comb_internal *UNUSED(comb), union tree *
 	bu_strlcat(tempstring_v4, obj, len);
 	comb_leaf->tr_l.tl_name = bu_strdup(tempstring_v4);
     } else {
-	len = strlen(prefix)+strlen(obj)+1;
-	comb_leaf->tr_l.tl_name = (char *)bu_malloc(len, "Adding prefix");
-
-	bu_strlcpy(comb_leaf->tr_l.tl_name , prefix, len);
-	bu_strlcat(comb_leaf->tr_l.tl_name , obj, len);
+	struct bu_vls newname = BU_VLS_INIT_ZERO;
+	bu_vls_sprintf(&newname, "%s%s", prefix, obj);
+	comb_leaf->tr_l.tl_name = bu_strdup(bu_vls_cstr(&newname));
+	bu_vls_free(&newname);
     }
 }
 
@@ -85,19 +87,25 @@ ged_prefix_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc < 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
-    bu_log("!!! ged_prefix_core: step 1\n");
+    if (BU_STR_EMPTY(argv[1])) {
+	bu_vls_printf(gedp->ged_result_str, "%s: prefix cannot be empty\n", argv[0]);
+	return BRLCAD_ERROR;
+    }
 
     /* First, check validity, and change node names */
     for (i = 2; i < argc; i++) {
+	if (!argv[i] || argv[i][0] == '\0')
+	    continue;
+
 	if ((dp = db_lookup(gedp->dbip, argv[i], LOOKUP_NOISY)) == RT_DIR_NULL) {
 	    argv[i] = "";
 	    continue;
@@ -136,16 +144,17 @@ ged_prefix_core(struct ged *gedp, int argc, const char *argv[])
 	}
 
 	if (rt_db_get_internal(&intern, dp, gedp->dbip, (fastf_t *)NULL) < 0) {
-	    bu_vls_printf(gedp->ged_result_str, "Database read error, aborting");
+	    bu_vls_free(&tempstring_v5);
+	    bu_vls_printf(gedp->ged_result_str, "Database read error, aborting\n");
 	    return BRLCAD_ERROR;
 	}
 
 	/* Change object name on disk. */
 	if (rt_db_put_internal(dp, gedp->dbip, &intern)) {
-	    bu_vls_printf(gedp->ged_result_str, "Database write error, aborting");
+	    bu_vls_free(&tempstring_v5);
+	    bu_vls_printf(gedp->ged_result_str, "Database write error, aborting\n");
 	    return BRLCAD_ERROR;
 	}
-	bu_log("XXXged_prefix_core: changed name from %s to %s\n", argv[i], tempstring);
     }
 
     bu_vls_free(&tempstring_v5);
@@ -156,16 +165,23 @@ ged_prefix_core(struct ged *gedp, int argc, const char *argv[])
 	    continue;
 
 	if (rt_db_get_internal(&intern, dp, gedp->dbip, (fastf_t *)NULL) < 0) {
-	    bu_vls_printf(gedp->ged_result_str, "Database read error, aborting");
+	    bu_vls_printf(gedp->ged_result_str, "Database read error, aborting\n");
 	    return BRLCAD_ERROR;
+	}
+	if (intern.idb_type != ID_COMBINATION || !intern.idb_ptr) {
+	    rt_db_free_internal(&intern);
+	    continue;
 	}
 	comb = (struct rt_comb_internal *)intern.idb_ptr;
 
-	for (k = 2; k < argc; k++)
+	for (k = 2; k < argc; k++) {
+	    if (!argv[k] || argv[k][0] == '\0')
+		continue;
 	    db_tree_funcleaf(gedp->dbip, comb, comb->tree, prefix_do,
 			     (void *)argv[1], (void *)argv[k], (void *)NULL, (void *)NULL);
+	}
 	if (rt_db_put_internal(dp, gedp->dbip, &intern)) {
-	    bu_vls_printf(gedp->ged_result_str, "Database write error, aborting");
+	    bu_vls_printf(gedp->ged_result_str, "Database write error, aborting\n");
 	    return BRLCAD_ERROR;
 	}
     } FOR_ALL_DIRECTORY_END;
