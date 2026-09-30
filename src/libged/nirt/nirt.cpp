@@ -211,10 +211,10 @@ ged_nirt_core(struct ged *gedp, int argc, const char *argv[])
     /* To mimic normal option parsing, we want a "last option supplied wins"
      * behavior. */
     for (int i = 0; i < argc; i++) {
-	if (BU_STR_EQUAL(argv[i], "-h") ||
+	if (argv[i] && (BU_STR_EQUAL(argv[i], "-h") ||
 		BU_STR_EQUAL(argv[i], "-?") ||
 		BU_STR_EQUAL(argv[i], "--help") ||
-		BU_STR_EQUAL(argv[i], "-L")) {
+		BU_STR_EQUAL(argv[i], "-L"))) {
 	    info_arg = argv[i];
 	}
     }
@@ -252,12 +252,16 @@ ged_nirt_core(struct ged *gedp, int argc, const char *argv[])
 	if (retcode != 0)
 	    _ged_wait_status(gedp->ged_result_str, retcode);
 
-	dl_set_wflag(gedp->i->ged_gdp->gd_headDisplay, DOWN);
+	if (gedp->i && gedp->i->ged_gdp)
+	    dl_set_wflag(gedp->i->ged_gdp->gd_headDisplay, DOWN);
 
 	return BRLCAD_OK;
     }
 
     /* Doing work with the database - start setting up */
+    if (!gedp || !gedp->dbip || !gedp->ged_gvp) {
+	bu_free(nirt, "nirt exec");
+    }
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_VIEW(gedp, BRLCAD_ERROR);
 
@@ -337,13 +341,14 @@ ged_nirt_core(struct ged *gedp, int argc, const char *argv[])
 	if (ac < 0) {
 	    bu_free(d, "nirt opt desc");
 	    nirt_opt_vals_free(&nv);
+	    bu_free(nirt, "nirt exec");
 	    bu_vls_printf(gedp->ged_result_str, "ERROR: option parsing failed: %s.\n", bu_vls_cstr(&optparse_msg));
 	    bu_vls_free(&optparse_msg);
 	    return BRLCAD_ERROR;
 	} else if (ac > 0) {
 	    size_t badopts = 0;
 	    for (int i=0; i < ac; i++) {
-		if (argv[i][0] == '-') {
+		if (argv[i] && argv[i][0] == '-') {
 		    bu_log("ERROR: unrecognized option %s\n", argv[i]);
 		    badopts++;
 		}
@@ -351,6 +356,7 @@ ged_nirt_core(struct ged *gedp, int argc, const char *argv[])
 	    if (badopts) {
 		bu_free(d, "nirt opt desc");
 		nirt_opt_vals_free(&nv);
+		bu_free(nirt, "nirt exec");
 		bu_vls_free(&optparse_msg);
 		return BRLCAD_ERROR;
 	    }
@@ -396,18 +402,18 @@ ged_nirt_core(struct ged *gedp, int argc, const char *argv[])
     int skip_drawn = 0;
     int invalid_obj = 0;
     for (int i = 0; i < argc; i++) {
-	if (argv[i][0] == '-') {
+	if (!argv[i] || argv[i][0] == '-') {
 	    /* ignore obvious trailing flag */
 	    break;
 	}
-	if (db_lookup(gedp->dbip, argv[0], 0) != RT_DIR_NULL) {
+	if (db_lookup(gedp->dbip, argv[i], 0) != RT_DIR_NULL) {
 	    skip_drawn = 1;
 	    continue;
 	}
 	/* It might be a path, not just a solid specifier - try that as well */
 	struct db_full_path pp;
 	db_full_path_init(&pp);
-	if (!db_string_to_path(&pp, gedp->dbip, argv[0])) {
+	if (!db_string_to_path(&pp, gedp->dbip, argv[i])) {
 	    skip_drawn = 1;
 	    db_free_full_path(&pp);
 	    continue;
@@ -417,8 +423,9 @@ ged_nirt_core(struct ged *gedp, int argc, const char *argv[])
     }
     if (invalid_obj) {
 	bu_vls_printf(gedp->ged_result_str, "\nUser specified invalid objects.\n");
+	bu_free(nirt, "nirt exec");
+	nirt_opt_vals_free(&nv);
 	return BRLCAD_ERROR;
-
     }
 
     /*****************************************************************/
@@ -471,12 +478,12 @@ ged_nirt_core(struct ged *gedp, int argc, const char *argv[])
 	    bu_vls_printf(gedp->ged_result_str, "%s ", av[i]);
 	bu_vls_printf(gedp->ged_result_str, "\n");
 	for (size_t i = 0; i < BU_PTBL_LEN(&av_args); i++) {
-	    struct bu_vls *a = (struct bu_vls *)BU_PTBL_GET(&av_args, i);
-	    bu_vls_free(a);
-	    BU_PUT(a, struct bu_vls);
+	    char *a = (char *)BU_PTBL_GET(&av_args, i);
+	    bu_free(a, "av arg");
 	}
 	bu_ptbl_free(&av_args);
 	bu_free(av, "av");
+	nirt_opt_vals_free(&nv);
 	return BRLCAD_ERROR;
     }
 
@@ -546,11 +553,10 @@ ged_nirt_core(struct ged *gedp, int argc, const char *argv[])
      * who list */
     if (skip_drawn) {
 	for (int i = 0; i < argc; i++) {
-	    struct bu_vls *obj;
-	    BU_GET(obj, struct bu_vls);
-	    bu_vls_init(obj);
-	    bu_vls_sprintf(obj, "%s", argv[i]);
-	    bu_ptbl_ins(&av_args, (long *)obj);
+	    if (argv[i]) {
+		bu_vls_sprintf(&nirt_cmd, "draw %s", argv[i]);
+		fprintf(np.fp_in, "%s\n", bu_vls_cstr(&nirt_cmd));
+	    }
 	}
     } else {
 	size_t drawn_cnt = ged_who_argc(gedp);
@@ -607,7 +613,8 @@ ged_nirt_core(struct ged *gedp, int argc, const char *argv[])
     if (retcode != 0)
 	_ged_wait_status(gedp->ged_result_str, retcode);
 
-    dl_set_wflag(gedp->i->ged_gdp->gd_headDisplay, DOWN);
+    if (gedp->i && gedp->i->ged_gdp)
+	dl_set_wflag(gedp->i->ged_gdp->gd_headDisplay, DOWN);
 
     /* Whether or not we're doing graphics, if we took a shot we should clear any
      * old objects from prior shots. */
@@ -617,13 +624,15 @@ ged_nirt_core(struct ged *gedp, int argc, const char *argv[])
 	if (nobj)
 	    bv_obj_put(nobj);
     } else {
-	struct directory **dpv;
+	struct directory **dpv = NULL;
 	struct bu_vls dp_pattern = BU_VLS_INIT_ZERO;
 	bu_vls_sprintf(&dp_pattern, "%s*", bu_vls_cstr(&gedp->i->ged_gdp->gd_qray_basename));
 	size_t lscnt = db_ls(gedp->dbip, DB_LS_PHONY, bu_vls_cstr(&dp_pattern), &dpv);
 	for (size_t i = 0; i < lscnt; i++)
 	    dl_erasePathFromDisplay(gedp, dpv[i]->d_namep, 0);
 	bu_vls_free(&dp_pattern);
+	if (dpv)
+	    bu_free(dpv, "dpv");
     }
 
     /* If we're supposed to do graphics, look for the plot file */
@@ -686,14 +695,17 @@ ged_vnirt_core(struct ged *gedp, int argc, const char *argv[])
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    if (!argv)
+	return BRLCAD_ERROR;
+
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
-    if (argc < 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc < 3 || !argv[argc-2] || !argv[argc-1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0] ? argv[0] : "vnirt", usage);
 	return BRLCAD_ERROR;
     }
 
@@ -705,8 +717,9 @@ ged_vnirt_core(struct ged *gedp, int argc, const char *argv[])
      * being handed to nirt. All other arguments are passed straight
      * through to nirt.
      */
-    if (sscanf(argv[argc-2], "%lf", &scan[X]) != 1 ||
-	sscanf(argv[argc-1], "%lf", &scan[Y]) != 1) {
+    if (bu_sscanf(argv[argc-2], "%lf", &scan[X]) != 1 ||
+	bu_sscanf(argv[argc-1], "%lf", &scan[Y]) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
     scan[Z] = BV_MAX;
@@ -738,7 +751,7 @@ ged_vnirt_core(struct ged *gedp, int argc, const char *argv[])
     for (i = 1; i < argc; ++i)
 	av[i+4] = (char *)argv[i];
 
-    av[i] = (char *)NULL;
+    av[argc+4] = (char *)NULL;
 
     status = ged_nirt_core(gedp, argc + 4, (const char **)av);
 

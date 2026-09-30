@@ -50,22 +50,28 @@ ged_mrot_core(struct ged *gedp, int argc, const char *argv[])
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    if (!argv)
+	return BRLCAD_ERROR;
+
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc != 2 && argc != 4) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
     av[0] = (char *)argv[0];
     av[1] = "-m";
     ac = argc+1;
-    for (i = 1; i < argc; ++i)
+    for (i = 1; i < argc; ++i) {
+	if (!argv[i])
+	    return BRLCAD_ERROR;
 	av[i+1] = (char *)argv[i];
+    }
     av[i+1] = (char *)0;
 
     if ((ret = ged_rot_args(gedp, ac, (const char **)av, &coord, rmat)) != BRLCAD_OK)

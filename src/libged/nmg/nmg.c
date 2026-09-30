@@ -40,13 +40,13 @@
 
 
 static void
-get_face_list( const struct model* m, struct bu_list* f_list )
+get_face_list(const struct model *m, struct bu_list *f_list)
 {
     struct nmgregion *r;
     struct shell *s;
     struct faceuse *fu;
     struct face *f;
-    struct face* curr_f;
+    struct face *curr_f;
     int found;
 
     NMG_CK_MODEL(m);
@@ -80,8 +80,15 @@ get_face_list( const struct model* m, struct bu_list* f_list )
 		    }
 		}
 
-		if ( !found )
-		    BU_LIST_INSERT( f_list, &(f->l) );
+		if (!found) {
+		    struct face *copy_f;
+		    BU_GET(copy_f, struct face);
+		    memset(copy_f, 0, sizeof(struct face));
+		    copy_f->index = f->index;
+		    VMOVE(copy_f->min_pt, f->min_pt);
+		    VMOVE(copy_f->max_pt, f->max_pt);
+		    BU_LIST_INSERT(f_list, &(copy_f->l));
+		}
 
 		if (f->g.magic_p) switch (*f->g.magic_p) {
 		    case NMG_FACE_G_PLANE_MAGIC:
@@ -92,6 +99,16 @@ get_face_list( const struct model* m, struct bu_list* f_list )
 
 	    }
 	}
+    }
+}
+
+static void
+free_face_list(struct bu_list *f_list)
+{
+    struct face *curr_f;
+    while (BU_LIST_WHILE(curr_f, face, f_list)) {
+	BU_LIST_DEQUEUE(&(curr_f->l));
+	BU_PUT(curr_f, struct face);
     }
 }
 
@@ -112,27 +129,33 @@ ged_labelface_core(struct ged *gedp, int argc, const char *argv[])
     struct bu_list f_list;
     static const char *usage = "object(s) - label faces of wireframes of objects (currently NMG only)";
 
-    BU_LIST_INIT( &f_list );
+    BU_LIST_INIT(&f_list);
 
-    if (!gedp || !gedp->dbip)
+    GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
+    GED_CHECK_VIEW(gedp, BRLCAD_ERROR);
+    GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
+    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+
+    if (!argv)
 	return BRLCAD_ERROR;
 
     if (argc < 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     /* attempt to resolve and verify */
     name = argv[1];
+    if (!name)
+	return BRLCAD_ERROR;
 
-    if ( (dp=db_lookup(gedp->dbip, name, LOOKUP_QUIET))
-	    == RT_DIR_NULL ) {
+    if ((dp = db_lookup(gedp->dbip, name, LOOKUP_QUIET)) == RT_DIR_NULL) {
 	bu_vls_printf(gedp->ged_result_str, "%s does not exist\n", name);
 	return BRLCAD_ERROR;
     }
 
-    if (rt_db_get_internal(&internal, dp, gedp->dbip,
-		bn_mat_identity) < 0) {
+    RT_DB_INTERNAL_INIT(&internal);
+    if (rt_db_get_internal(&internal, dp, gedp->dbip, bn_mat_identity) < 0) {
 	bu_vls_printf(gedp->ged_result_str, "rt_db_get_internal() error\n");
 	return BRLCAD_ERROR;
     }
@@ -150,8 +173,10 @@ ged_labelface_core(struct ged *gedp, int argc, const char *argv[])
     MAT_IDN(mat);
     bn_mat_inv(mat, gedp->ged_gvp->gv_rotation);
     scale = gedp->ged_gvp->gv_size / 100;      /* divide by # chars/screen */
-    for (i=1; i<argc; i++) {
+    for (i = 1; i < argc; i++) {
 	struct bv_scene_obj *s;
+	if (!argv[i])
+	    continue;
 	if ((dp = db_lookup(gedp->dbip, argv[i], LOOKUP_NOISY)) == RT_DIR_NULL)
 	    continue;
 
@@ -166,6 +191,7 @@ ged_labelface_core(struct ged *gedp, int argc, const char *argv[])
 		if (db_full_path_search(&bdata->s_fullpath, dp)) {
 		    get_face_list(m, &f_list);
 		    rt_label_vlist_faces(vbp, &f_list, mat, scale, gedp->dbip->dbi_base2local);
+		    free_face_list(&f_list);
 		}
 	    }
 
@@ -176,6 +202,7 @@ ged_labelface_core(struct ged *gedp, int argc, const char *argv[])
     _ged_cvt_vlblock_to_solids(gedp, vbp, "_LABELFACE_", 0);
 
     bv_vlblock_free(vbp);
+    rt_db_free_internal(&internal);
 
     struct dm *dmp = (struct dm *)gedp->ged_gvp->dmp;
     if (dmp)
@@ -200,81 +227,95 @@ ged_nmg_core(struct ged *gedp, int argc, const char *argv[])
     static const char *usage = "nmg object subcommand [V|F|R|S] [suffix]";
 
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
+    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+
+    if (!argv)
+	return BRLCAD_ERROR;
 
     /* must be wanting help */
     if (argc < 3) {
-    bu_vls_printf(gedp->ged_result_str, "Usage: %s\n\t%s\n", argv[0], usage);
-    bu_vls_printf(gedp->ged_result_str, "commands:\n");
-    bu_vls_printf(gedp->ged_result_str,
-		  "\tmm             -  creates a new "
-		  "NMG model structure and fills the appropriate fields. The result "
-		  "is an empty model.\n");
-    bu_vls_printf(gedp->ged_result_str,
-		  "\tcmface         -  creates a "
-		  "manifold face in the first encountered shell of the NMG "
-		  "object. Vertices are listed as the suffix and define the "
-		  "winding-order of the face.\n");
-    bu_vls_printf(gedp->ged_result_str,
-		  "\tkill V         -  removes the "
-		  "vertexuse and vertex geometry of the selected vertex (via its "
-		  "coordinates) and higher-order topology containing the vertex. "
-		  "When specifying vertex to be removed, user generally will display "
-		  "vertex coordinates in object via the GED command labelvert.\n");
-    bu_vls_printf(gedp->ged_result_str,
-		  "\tkill F         -  removes the "
-		  "faceuse and face geometry of the selected face (via its "
-		  "index). When specifying the face to be removed, user generally "
-		  "will display face indices in object via the MGED command "
-		  "labelface.\n");
-    bu_vls_printf(gedp->ged_result_str,
-		  "\tmove V         -  moves an existing "
-		  "vertex specified by the coordinates x_initial y_initial "
-		  "z_initial to the position with coordinates x_final y_final "
-		  "z_final.\n");
-    bu_vls_printf(gedp->ged_result_str,
-		  "\tmake V         -  creates a new "
-		  "vertex in the nmg object.\n");
-    return GED_HELP;
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s\n\t%s\n", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "commands:\n");
+	bu_vls_printf(gedp->ged_result_str,
+		      "\tmm             -  creates a new "
+		      "NMG model structure and fills the appropriate fields. The result "
+		      "is an empty model.\n");
+	bu_vls_printf(gedp->ged_result_str,
+		      "\tcmface         -  creates a "
+		      "manifold face in the first encountered shell of the NMG "
+		      "object. Vertices are listed as the suffix and define the "
+		      "winding-order of the face.\n");
+	bu_vls_printf(gedp->ged_result_str,
+		      "\tkill V         -  removes the "
+		      "vertexuse and vertex geometry of the selected vertex (via its "
+		      "coordinates) and higher-order topology containing the vertex. "
+		      "When specifying vertex to be removed, user generally will display "
+		      "vertex coordinates in object via the GED command labelvert.\n");
+	bu_vls_printf(gedp->ged_result_str,
+		      "\tkill F         -  removes the "
+		      "faceuse and face geometry of the selected face (via its "
+		      "index). When specifying the face to be removed, user generally "
+		      "will display face indices in object via the MGED command "
+		      "labelface.\n");
+	bu_vls_printf(gedp->ged_result_str,
+		      "\tmove V         -  moves an existing "
+		      "vertex specified by the coordinates x_initial y_initial "
+		      "z_initial to the position with coordinates x_final y_final "
+		      "z_final.\n");
+	bu_vls_printf(gedp->ged_result_str,
+		      "\tmake V         -  creates a new "
+		      "vertex in the nmg object.\n");
+	return GED_HELP;
     }
 
-    if (argc < 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
-	return BRLCAD_ERROR;
-    }
-
-    /* advance CLI arguments for subcommands */
+    /* advance CLI arguments for subcommands: argv[0] becomes object name */
     --argc;
     ++argv;
 
-    const char *subcmd = argv[0];
-    if( BU_STR_EQUAL( "mm", subcmd ) ) {
-	ged_nmg_mm_core(gedp, argc, argv);
+    if (!argv[0] || !argv[1])
+	return BRLCAD_ERROR;
+
+    const char *subcmd = argv[1];
+    if (BU_STR_EQUAL("mm", subcmd)) {
+	return ged_nmg_mm_core(gedp, argc, argv);
     }
-    else if( BU_STR_EQUAL( "cmface", subcmd ) ) {
-	ged_nmg_cmface_core(gedp, argc, argv);
+    else if (BU_STR_EQUAL("cmface", subcmd)) {
+	return ged_nmg_cmface_core(gedp, argc, argv);
     }
-    else if( BU_STR_EQUAL( "kill", subcmd ) ) {
-	const char* opt = argv[2];
-	if ( BU_STR_EQUAL( "V", opt ) ) {
-	    ged_nmg_kill_v_core(gedp, argc, argv);
-	} else if ( BU_STR_EQUAL( "F", opt ) ) {
-	    ged_nmg_kill_f_core(gedp, argc, argv);
+    else if (BU_STR_EQUAL("kill", subcmd)) {
+	if (argc < 3 || !argv[2]) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: kill [V|F] ...\n");
+	    return BRLCAD_ERROR;
+	}
+	const char *opt = argv[2];
+	if (BU_STR_EQUAL("V", opt)) {
+	    return ged_nmg_kill_v_core(gedp, argc, argv);
+	} else if (BU_STR_EQUAL("F", opt)) {
+	    return ged_nmg_kill_f_core(gedp, argc, argv);
 	}
     }
-    else if( BU_STR_EQUAL( "move", subcmd ) ) {
-	const char* opt = argv[2];
-	if ( BU_STR_EQUAL( "V", opt ) ) {
-	    ged_nmg_move_v_core(gedp, argc, argv);
+    else if (BU_STR_EQUAL("move", subcmd)) {
+	if (argc < 3 || !argv[2]) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: move V ...\n");
+	    return BRLCAD_ERROR;
+	}
+	const char *opt = argv[2];
+	if (BU_STR_EQUAL("V", opt)) {
+	    return ged_nmg_move_v_core(gedp, argc, argv);
 	}
     }
-    else if( BU_STR_EQUAL( "make", subcmd ) ) {
-	const char* opt = argv[2];
-	if ( BU_STR_EQUAL( "V", opt ) ) {
-	    ged_nmg_make_v_core(gedp, argc, argv);
+    else if (BU_STR_EQUAL("make", subcmd)) {
+	if (argc < 3 || !argv[2]) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: make V ...\n");
+	    return BRLCAD_ERROR;
+	}
+	const char *opt = argv[2];
+	if (BU_STR_EQUAL("V", opt)) {
+	    return ged_nmg_make_v_core(gedp, argc, argv);
 	}
     }
     else {
-	bu_vls_printf(gedp->ged_result_str, "%s is not a subcommand.", subcmd );
+	bu_vls_printf(gedp->ged_result_str, "%s is not a subcommand.\n", subcmd);
 	return BRLCAD_ERROR;
     }
 

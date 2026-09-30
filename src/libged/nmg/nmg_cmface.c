@@ -63,14 +63,19 @@ ged_nmg_cmface_core(struct ged *gedp, int argc, const char *argv[])
 
     num_verts = (argc - 2) / 3;
 
+    if (!argv)
+	return BRLCAD_ERROR;
+
     /* check for less than three vertices or incomplete vertex coordinates */
     if (argc < ELEMENTS_PER_POINT * 3 + 2 || (argc - 2) % 3 != 0) {
-       bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+       bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
        return GED_HELP;
     }
 
     /* attempt to resolve and verify */
     name = argv[0];
+    if (!name)
+	return BRLCAD_ERROR;
 
     dp = db_lookup(gedp->dbip, name, LOOKUP_QUIET);
     if (dp == RT_DIR_NULL) {
@@ -78,6 +83,7 @@ ged_nmg_cmface_core(struct ged *gedp, int argc, const char *argv[])
        return BRLCAD_ERROR;
     }
 
+    RT_DB_INTERNAL_INIT(&internal);
     if (rt_db_get_internal(&internal, dp, gedp->dbip,
        bn_mat_identity) < 0) {
        bu_vls_printf(gedp->ged_result_str, "rt_db_get_internal() error\n");
@@ -104,28 +110,37 @@ ged_nmg_cmface_core(struct ged *gedp, int argc, const char *argv[])
     NMG_CK_REGION(r);
     NMG_CK_SHELL(s);
 
-    verts = (struct cmface_tmp_v *)NULL;
     verts = (struct cmface_tmp_v *)bu_calloc(num_verts,
 				      sizeof(struct cmface_tmp_v), "verts");
-    face_verts = (struct vertex ***) bu_calloc( num_verts,
+    face_verts = (struct vertex ***)bu_calloc(num_verts,
 						sizeof(struct vertex **), "face_verts");
 
-    for (idx=0; idx < num_verts; idx++){
-	verts[idx].pt[0] = (fastf_t)atof(argv[idx*3+2]);
-	verts[idx].pt[1] = (fastf_t)atof(argv[idx*3+3]);
-	verts[idx].pt[2] = (fastf_t)atof(argv[idx*3+4]);
+    for (idx = 0; idx < num_verts; idx++) {
+	double p[3];
+	if (!argv[idx*3+2] || !argv[idx*3+3] || !argv[idx*3+4] ||
+	    bu_sscanf(argv[idx*3+2], "%lf", &p[0]) != 1 ||
+	    bu_sscanf(argv[idx*3+3], "%lf", &p[1]) != 1 ||
+	    bu_sscanf(argv[idx*3+4], "%lf", &p[2]) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "bad vertex coordinate\n");
+	    bu_free(face_verts, "face_verts");
+	    bu_free(verts, "verts");
+	    rt_db_free_internal(&internal);
+	    return BRLCAD_ERROR;
+	}
+	VMOVE(verts[idx].pt, p);
 	face_verts[idx] = &verts[idx].v;
     }
 
-    nmg_cmface( s, face_verts, num_verts );
-    bu_free((char *) face_verts, "face_verts");
+    nmg_cmface(s, face_verts, num_verts);
+    bu_free((char *)face_verts, "face_verts");
 
     /* assign geometry for entire vertex list (if we have one) */
-    for (idx=0; idx < num_verts; idx++) {
+    for (idx = 0; idx < num_verts; idx++) {
 	if (verts[idx].v) {
 	    nmg_vertex_gv(verts[idx].v, verts[idx].pt);
 	}
     }
+    bu_free(verts, "verts");
 
     /* assign face geometry */
     if (s) {
@@ -146,15 +161,21 @@ ged_nmg_cmface_core(struct ged *gedp, int argc, const char *argv[])
     nmg_rebound(m, &tol);
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
-    if (wdb_put_internal(wdbp, name, &internal, 1.0) < 0 ) {
-	bu_vls_printf(gedp->ged_result_str, "wdb_put_internal(%s)", argv[1]);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "Failed to open database handle\n");
 	rt_db_free_internal(&internal);
 	return BRLCAD_ERROR;
     }
 
+    int ret = BRLCAD_OK;
+    if (wdb_put_internal(wdbp, name, &internal, 1.0) < 0) {
+	bu_vls_printf(gedp->ged_result_str, "wdb_put_internal(%s) error\n", name);
+	ret = BRLCAD_ERROR;
+    }
+    wdb_close(wdbp);
     rt_db_free_internal(&internal);
 
-    return BRLCAD_OK;
+    return ret;
 }
 
 /*

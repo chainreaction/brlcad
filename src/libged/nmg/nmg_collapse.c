@@ -51,19 +51,20 @@ ged_nmg_collapse_core(struct ged *gedp, int argc, const char *argv[])
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
-    struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
-
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    if (!argv)
+	return BRLCAD_ERROR;
+
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
-    if (argc < 4) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc < 4 || argc > 5 || !argv[1] || !argv[2] || !argv[3]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0] ? argv[0] : "nmg_collapse", usage);
 	return BRLCAD_ERROR;
     }
 
@@ -88,6 +89,7 @@ ged_nmg_collapse_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
+    RT_DB_INTERNAL_INIT(&intern);
     if (rt_db_get_internal(&intern, dp, gedp->dbip, (matp_t)NULL) < 0) {
 	bu_vls_printf(gedp->ged_result_str, "Failed to get internal form of %s!!!!\n", argv[1]);
 	return BRLCAD_ERROR;
@@ -99,16 +101,29 @@ ged_nmg_collapse_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
-    tol_coll = atof(argv[3]) * gedp->dbip->dbi_local2base;
-    if (tol_coll <= 0.0) {
+    double dval = 0.0;
+    if (bu_sscanf(argv[3], "%lf", &dval) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "bad tolerance distance: %s\n", argv[3]);
+	rt_db_free_internal(&intern);
+	return BRLCAD_ERROR;
+    }
+    tol_coll = dval * gedp->dbip->dbi_local2base;
+    if (ZERO(tol_coll) || tol_coll < 0.0) {
 	bu_vls_printf(gedp->ged_result_str, "tolerance distance too small\n");
+	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
     if (argc == 5) {
-	min_angle = atof(argv[4]);
+	if (!argv[4] || bu_sscanf(argv[4], "%lf", &dval) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "bad minimum angle: %s\n", argv[4] ? argv[4] : "");
+	    rt_db_free_internal(&intern);
+	    return BRLCAD_ERROR;
+	}
+	min_angle = dval;
 	if (min_angle < 0.0) {
 	    bu_vls_printf(gedp->ged_result_str, "Minimum angle cannot be less than zero\n");
+	    rt_db_free_internal(&intern);
 	    return BRLCAD_ERROR;
 	}
     } else
@@ -125,10 +140,18 @@ ged_nmg_collapse_core(struct ged *gedp, int argc, const char *argv[])
 	    bu_ptbl_free(&faces);
 	    bu_vls_printf(gedp->ged_result_str,
 			  "nmg_collapse can only be applied to NMG primitives with planar faces\n");
+	    rt_db_free_internal(&intern);
 	    return BRLCAD_ERROR;
 	}
     }
     bu_ptbl_free(&faces);
+
+    struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "Failed to open database handle\n");
+	rt_db_free_internal(&intern);
+	return BRLCAD_ERROR;
+    }
 
     /* triangulate model */
     nmg_triangulate_model(m, vlfree, &wdbp->wdb_tol);
@@ -138,16 +161,19 @@ ged_nmg_collapse_core(struct ged *gedp, int argc, const char *argv[])
     dp = db_diradd(gedp->dbip, new_name, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&intern.idb_type);
     if (dp == RT_DIR_NULL) {
 	bu_vls_printf(gedp->ged_result_str, "Cannot add %s to directory\n", new_name);
+	wdb_close(wdbp);
 	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
     if (rt_db_put_internal(dp, gedp->dbip, &intern) < 0) {
+	wdb_close(wdbp);
 	rt_db_free_internal(&intern);
 	bu_vls_printf(gedp->ged_result_str, "Database write error, aborting.\n");
 	return BRLCAD_ERROR;
     }
 
+    wdb_close(wdbp);
     rt_db_free_internal(&intern);
 
     bu_vls_printf(gedp->ged_result_str, "%zu edges collapsed\n", count);

@@ -89,20 +89,23 @@ ged_move_arb_face_core(struct ged *gedp, int argc, const char *argv[])
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    if (!argv)
+	return BRLCAD_ERROR;
+
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc < 4 || 5 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
     if (argc == 5) {
-	if (argv[1][0] != '-' || argv[1][1] != 'r' || argv[1][2] != '\0') {
-	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	if (!argv[1] || argv[1][0] != '-' || argv[1][1] != 'r' || argv[1][2] != '\0') {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	    return BRLCAD_ERROR;
 	}
 
@@ -111,47 +114,57 @@ ged_move_arb_face_core(struct ged *gedp, int argc, const char *argv[])
 	++argv;
     }
 
+    if (!argv[1] || !argv[2] || !argv[3])
+	return BRLCAD_ERROR;
+
     if ((last = strrchr(argv[1], '/')) == NULL)
 	last = (char *)argv[1];
     else
 	++last;
 
     if (last[0] == '\0') {
-	bu_vls_printf(gedp->ged_result_str, "illegal input - %s", argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "illegal input - %s\n", argv[1]);
 	return BRLCAD_ERROR;
     }
 
     if ((dp = db_lookup(gedp->dbip, last, LOOKUP_QUIET)) == RT_DIR_NULL) {
-	bu_vls_printf(gedp->ged_result_str, "%s not found", argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s not found\n", argv[1]);
 	return BRLCAD_ERROR;
     }
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "Failed to open database handle\n");
+	return BRLCAD_ERROR;
+    }
+
+    RT_DB_INTERNAL_INIT(&intern);
     if (wdb_import_from_path2(gedp->ged_result_str, &intern, argv[1], wdbp, mat) & BRLCAD_ERROR) {
+	wdb_close(wdbp);
 	return BRLCAD_ERROR;
     }
 
     if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD ||
 	intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_ARB8) {
-	bu_vls_printf(gedp->ged_result_str, "Object not an ARB");
+	bu_vls_printf(gedp->ged_result_str, "Object not an ARB\n");
 	rt_db_free_internal(&intern);
-
-	return BRLCAD_OK;
+	wdb_close(wdbp);
+	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[2], "%d", &face) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "bad face - %s", argv[2]);
+    if (bu_sscanf(argv[2], "%d", &face) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "bad face - %s\n", argv[2]);
 	rt_db_free_internal(&intern);
-
+	wdb_close(wdbp);
 	return BRLCAD_ERROR;
     }
 
     face -= 1;
 
-    if (sscanf(argv[3], "%lf %lf %lf", &scan[X], &scan[Y], &scan[Z]) != 3) {
-	bu_vls_printf(gedp->ged_result_str, "bad point - %s", argv[3]);
+    if (bu_sscanf(argv[3], "%lf %lf %lf", &scan[X], &scan[Y], &scan[Z]) != 3) {
+	bu_vls_printf(gedp->ged_result_str, "bad point - %s\n", argv[3]);
 	rt_db_free_internal(&intern);
-
+	wdb_close(wdbp);
 	return BRLCAD_ERROR;
     }
     /* convert from double to fastf_t */
@@ -164,50 +177,55 @@ ged_move_arb_face_core(struct ged *gedp, int argc, const char *argv[])
 
     if (rt_arb_calc_planes(gedp->ged_result_str, arb, arb_type, planes, &wdbp->wdb_tol)) {
 	rt_db_free_internal(&intern);
-
+	wdb_close(wdbp);
 	return BRLCAD_ERROR;
     }
 
     VSCALE(pt, pt, gedp->dbip->dbi_local2base);
 
-#define CHECK_FACE(face_idx, max_idx) \
-if (face_idx > max_idx) { \
-    bu_vls_printf(gedp->ged_result_str, "bad face - %s", argv[2]); \
-    rt_db_free_internal(&intern); \
-    return BRLCAD_ERROR; \
-}
+    int max_face_index = -1;
+    int arb_pt_index = 0;
+    switch (arb_type) {
+	case ARB4:
+	    max_face_index = ARB4_MAX_FACE_INDEX;
+	    if (face >= 0 && face <= max_face_index)
+		arb_pt_index = arb4_faces_first_vertex[face];
+	    break;
+	case ARB5:
+	    max_face_index = ARB5_MAX_FACE_INDEX;
+	    if (face >= 0 && face <= max_face_index)
+		arb_pt_index = arb5_faces_first_vertex[face];
+	    break;
+	case ARB6:
+	    max_face_index = ARB6_MAX_FACE_INDEX;
+	    if (face >= 0 && face <= max_face_index)
+		arb_pt_index = arb6_faces_first_vertex[face];
+	    break;
+	case ARB7:
+	    max_face_index = ARB7_MAX_FACE_INDEX;
+	    if (face >= 0 && face <= max_face_index)
+		arb_pt_index = arb7_faces_first_vertex[face];
+	    break;
+	case ARB8:
+	    max_face_index = ARB8_MAX_FACE_INDEX;
+	    if (face >= 0 && face <= max_face_index)
+		arb_pt_index = arb8_faces_first_vertex[face];
+	    break;
+	default:
+	    bu_vls_printf(gedp->ged_result_str, "unrecognized arb type\n");
+	    rt_db_free_internal(&intern);
+	    wdb_close(wdbp);
+	    return BRLCAD_ERROR;
+    }
+
+    if (face < 0 || face > max_face_index) {
+	bu_vls_printf(gedp->ged_result_str, "bad face - %s\n", argv[2]);
+	rt_db_free_internal(&intern);
+	wdb_close(wdbp);
+	return BRLCAD_ERROR;
+    }
 
     if (rflag) {
-	int arb_pt_index;
-
-	switch (arb_type) {
-	    case ARB4:
-		CHECK_FACE(face, ARB4_MAX_FACE_INDEX);
-		arb_pt_index = arb4_faces_first_vertex[face];
-		break;
-	    case ARB5:
-		CHECK_FACE(face, ARB5_MAX_FACE_INDEX);
-		arb_pt_index = arb5_faces_first_vertex[face];
-		break;
-	    case ARB6:
-		CHECK_FACE(face, ARB6_MAX_FACE_INDEX);
-		arb_pt_index = arb6_faces_first_vertex[face];
-		break;
-	    case ARB7:
-		CHECK_FACE(face, ARB7_MAX_FACE_INDEX);
-		arb_pt_index = arb7_faces_first_vertex[face];
-		break;
-	    case ARB8:
-		CHECK_FACE(face, ARB8_MAX_FACE_INDEX);
-		arb_pt_index = arb8_faces_first_vertex[face];
-		break;
-	    default:
-		bu_vls_printf(gedp->ged_result_str, "unrecognized arb type");
-		rt_db_free_internal(&intern);
-
-		return BRLCAD_ERROR;
-	}
-
 	VADD2(pt, pt, arb->pt[arb_pt_index]);
     }
 
@@ -220,6 +238,7 @@ if (face_idx > max_idx) { \
     if (rt_arb_calc_points(arb, arb_type, (const plane_t *)planes, &wdbp->wdb_tol) < 0) {
 	wdbp->wdb_tol.dist = save_tol_dist;
 	rt_db_free_internal(&intern);
+	wdb_close(wdbp);
 	return BRLCAD_ERROR;
     }
     wdbp->wdb_tol.dist = save_tol_dist;
@@ -237,7 +256,15 @@ if (face_idx > max_idx) { \
 	    VMOVE(arb->pt[i], arb_pt);
 	}
 
-	GED_DB_PUT_INTERN(gedp, dp, &intern, BRLCAD_ERROR);
+	int ret = BRLCAD_OK;
+	if (rt_db_put_internal(dp, gedp->dbip, &intern) < 0) {
+	    bu_vls_printf(gedp->ged_result_str, "Database write failure.\n");
+	    ret = BRLCAD_ERROR;
+	}
+	wdb_close(wdbp);
+	rt_db_free_internal(&intern);
+
+	return ret;
     }
 
     return BRLCAD_OK;

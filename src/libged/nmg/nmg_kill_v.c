@@ -32,236 +32,155 @@
 
 #include "../ged_private.h"
 
-void remove_vertex(const struct model* m, point_t rv)
+void remove_vertex(const struct model *m, point_t rv)
 {
     struct nmgregion *r;
     struct shell *s;
     struct faceuse *fu;
-    struct face *f;
     struct loopuse *lu;
-    struct loop *l;
     struct edgeuse *eu;
-    struct edge *e;
     struct vertexuse *vu;
-    struct vertex *v;
+    int changed;
 
     NMG_CK_MODEL(m);
 
-    /* Traverse NMG model and remove instances of vertexuses.
-     * In addition to vertex being removed, associated faceuses, loopuses
-     * and edgeuses need to be removed that contained the deleted vertexuse.
+    /* Traverse NMG model and remove instances of vertexuses matching rv.
+     * After deleting an element, topology may change, so we restart
+     * the search to avoid Use-After-Free or iterator invalidation.
      */
+    do {
+	changed = 0;
 
-    for (BU_LIST_FOR(r, nmgregion, &m->r_hd)) {
-	NMG_CK_REGION(r);
-
-	if (r->ra_p) {
-	    NMG_CK_REGION_A(r->ra_p);
-	}
-
-	for (BU_LIST_FOR(s, shell, &r->s_hd)) {
-	    NMG_CK_SHELL(s);
-
-	    if (s->sa_p) {
-		NMG_CK_SHELL_A(s->sa_p);
-	    }
-
-	    /* Faces in shell */
-	    for (BU_LIST_FOR(fu, faceuse, &s->fu_hd)) {
-		NMG_CK_FACEUSE(fu);
-		f = fu->f_p;
-		NMG_CK_FACE(f);
-
-		if (f->g.magic_p) switch (*f->g.magic_p) {
-		    case NMG_FACE_G_PLANE_MAGIC:
-			break;
-		    case NMG_FACE_G_SNURB_MAGIC:
-			break;
+	/* 1. Check lone vertices in shells */
+	for (BU_LIST_FOR(r, nmgregion, &m->r_hd)) {
+	    NMG_CK_REGION(r);
+	    for (BU_LIST_FOR(s, shell, &r->s_hd)) {
+		NMG_CK_SHELL(s);
+		vu = s->vu_p;
+		if (vu) {
+		    NMG_CK_VERTEXUSE(vu);
+		    if (vu->v_p && vu->v_p->vg_p) {
+			NMG_CK_VERTEX_G(vu->v_p->vg_p);
+			if (VNEAR_EQUAL(vu->v_p->vg_p->coord, rv, BN_TOL_DIST)) {
+			    nmg_kvu(vu);
+			    changed = 1;
+			    break;
+			}
+		    }
 		}
+	    }
+	    if (changed) break;
+	}
+	if (changed) continue;
 
-		/* Loops in face */
-		for (BU_LIST_FOR(lu, loopuse, &fu->lu_hd)) {
+	/* 2. Check wire loops and wire edges in shells */
+	for (BU_LIST_FOR(r, nmgregion, &m->r_hd)) {
+	    NMG_CK_REGION(r);
+	    for (BU_LIST_FOR(s, shell, &r->s_hd)) {
+		NMG_CK_SHELL(s);
+		for (BU_LIST_FOR(lu, loopuse, &s->lu_hd)) {
 		    NMG_CK_LOOPUSE(lu);
-		    l = lu->l_p;
-		    NMG_CK_LOOP(l);
-
-		    if (l->la_p) {
-			NMG_CK_LOOP_A(l->la_p);
-		    }
-
 		    if (BU_LIST_FIRST_MAGIC(&lu->down_hd) == NMG_VERTEXUSE_MAGIC) {
-			/* Loop of Lone vertex */
 			vu = BU_LIST_FIRST(vertexuse, &lu->down_hd);
-
-			/* check and remove vertexuse */
 			NMG_CK_VERTEXUSE(vu);
-			v = vu->v_p;
-			NMG_CK_VERTEX(v);
-
-			if (v->vg_p) {
-			    NMG_CK_VERTEX_G(v->vg_p);
-
-			    if ( VNEAR_EQUAL(v->vg_p->coord, rv, BN_TOL_DIST) ) {
-				nmg_kvu(vu);
+			if (vu->v_p && vu->v_p->vg_p) {
+			    NMG_CK_VERTEX_G(vu->v_p->vg_p);
+			    if (VNEAR_EQUAL(vu->v_p->vg_p->coord, rv, BN_TOL_DIST)) {
 				nmg_klu(lu);
-			    }
-			}
-
-			continue;
-		    }
-
-		    for (BU_LIST_FOR(eu, edgeuse, &lu->down_hd)) {
-			NMG_CK_EDGEUSE(eu);
-			e = eu->e_p;
-			NMG_CK_EDGE(e);
-
-			if (eu->g.magic_p) {
-			    switch (*eu->g.magic_p) {
-			    case NMG_EDGE_G_LSEG_MAGIC:
-				break;
-			    case NMG_EDGE_G_CNURB_MAGIC:
+				changed = 1;
 				break;
 			    }
 			}
-
-			vu = eu->vu_p;
-
-			/* check and remove vertexuse */
-			NMG_CK_VERTEXUSE(vu);
-			v = vu->v_p;
-			NMG_CK_VERTEX(v);
-
-			if (v->vg_p) {
-			    NMG_CK_VERTEX_G(v->vg_p);
-
-			    if ( VNEAR_EQUAL(v->vg_p->coord,
-				 rv, BN_TOL_DIST) ) {
-				nmg_kvu(vu);
-				nmg_keu(eu);
-				nmg_klu(lu);
+		    } else {
+			for (BU_LIST_FOR(eu, edgeuse, &lu->down_hd)) {
+			    NMG_CK_EDGEUSE(eu);
+			    vu = eu->vu_p;
+			    if (vu && vu->v_p && vu->v_p->vg_p) {
+				NMG_CK_VERTEX_G(vu->v_p->vg_p);
+				if (VNEAR_EQUAL(vu->v_p->vg_p->coord, rv, BN_TOL_DIST)) {
+				    nmg_keu(eu);
+				    changed = 1;
+				    break;
+				}
 			    }
 			}
 		    }
+		    if (changed) break;
 		}
-	    }
+		if (changed) break;
 
-	    /* Wire loops in shell */
-	    for (BU_LIST_FOR(lu, loopuse, &s->lu_hd)) {
-		NMG_CK_LOOPUSE(lu);
-		l = lu->l_p;
-		NMG_CK_LOOP(l);
-
-		if (l->la_p) {
-		    NMG_CK_LOOP_A(l->la_p);
-		}
-
-		if (BU_LIST_FIRST_MAGIC(&lu->down_hd) == NMG_VERTEXUSE_MAGIC) {
-		    /* Wire loop of Lone vertex */
-		    vu = BU_LIST_FIRST(vertexuse, &lu->down_hd);
-		    /* check and remove vertexuse */
-		    NMG_CK_VERTEXUSE(vu);
-		    v = vu->v_p;
-		    NMG_CK_VERTEX(v);
-		    if (v->vg_p) {
-			NMG_CK_VERTEX_G(v->vg_p);
-			if ( VNEAR_EQUAL(v->vg_p->coord, rv, BN_TOL_DIST) ) {
-			    nmg_kvu(vu);
-			    nmg_klu(lu);
-			}
-		    }
-		    continue;
-		}
-
-		for (BU_LIST_FOR(eu, edgeuse, &lu->down_hd)) {
+		for (BU_LIST_FOR(eu, edgeuse, &s->eu_hd)) {
 		    NMG_CK_EDGEUSE(eu);
-		    e = eu->e_p;
-		    NMG_CK_EDGE(e);
-
-		    if (eu->g.magic_p) switch (*eu->g.magic_p) {
-			case NMG_EDGE_G_LSEG_MAGIC:
-			break;
-			case NMG_EDGE_G_CNURB_MAGIC:
-			break;
-		    }
 		    vu = eu->vu_p;
-
-		    /* check and remove vertexuse */
-		    NMG_CK_VERTEXUSE(vu);
-		    v = vu->v_p;
-		    NMG_CK_VERTEX(v);
-
-		    if (v->vg_p) {
-			NMG_CK_VERTEX_G(v->vg_p);
-			if ( VNEAR_EQUAL(v->vg_p->coord, rv, BN_TOL_DIST) ) {
-			    nmg_kvu(vu);
+		    if (vu && vu->v_p && vu->v_p->vg_p) {
+			NMG_CK_VERTEX_G(vu->v_p->vg_p);
+			if (VNEAR_EQUAL(vu->v_p->vg_p->coord, rv, BN_TOL_DIST)) {
 			    nmg_keu(eu);
-			    nmg_klu(lu);
+			    changed = 1;
+			    break;
 			}
 		    }
 		}
+		if (changed) break;
 	    }
-
-	    /* Wire edges in shell */
-	    for (BU_LIST_FOR(eu, edgeuse, &s->eu_hd)) {
-		NMG_CK_EDGEUSE(eu);
-		e = eu->e_p;
-		NMG_CK_EDGE(e);
-
-		if (eu->g.magic_p) {
-		    switch (*eu->g.magic_p) {
-		    case NMG_EDGE_G_LSEG_MAGIC:
-			break;
-		    case NMG_EDGE_G_CNURB_MAGIC:
-			break;
-		    }
-		}
-
-		vu = eu->vu_p;
-
-		/* check and remove vertexuse */
-		NMG_CK_VERTEXUSE(vu);
-		v = vu->v_p;
-		NMG_CK_VERTEX(v);
-
-		if (v->vg_p) {
-		    NMG_CK_VERTEX_G(v->vg_p);
-
-		    if ( VNEAR_EQUAL(v->vg_p->coord, rv, BN_TOL_DIST) ) {
-			nmg_kvu(vu);
-			nmg_keu(eu);
-		    }
-		}
-	    }
-
-	    /* Lone vertex in shell */
-	    vu = s->vu_p;
-
-	    if (vu) {
-		/* check and remove vertexuse */
-		NMG_CK_VERTEXUSE(vu);
-		v = vu->v_p;
-		NMG_CK_VERTEX(v);
-
-		if (v->vg_p) {
-		    NMG_CK_VERTEX_G(v->vg_p);
-
-		    if ( VNEAR_EQUAL(v->vg_p->coord, rv, BN_TOL_DIST) ) {
-			nmg_kvu(vu);
-		    }
-		}
-	    }
+	    if (changed) break;
 	}
-    }
+	if (changed) continue;
+
+	/* 3. Check face loops */
+	for (BU_LIST_FOR(r, nmgregion, &m->r_hd)) {
+	    NMG_CK_REGION(r);
+	    for (BU_LIST_FOR(s, shell, &r->s_hd)) {
+		NMG_CK_SHELL(s);
+		for (BU_LIST_FOR(fu, faceuse, &s->fu_hd)) {
+		    NMG_CK_FACEUSE(fu);
+		    for (BU_LIST_FOR(lu, loopuse, &fu->lu_hd)) {
+			NMG_CK_LOOPUSE(lu);
+			if (BU_LIST_FIRST_MAGIC(&lu->down_hd) == NMG_VERTEXUSE_MAGIC) {
+			    vu = BU_LIST_FIRST(vertexuse, &lu->down_hd);
+			    NMG_CK_VERTEXUSE(vu);
+			    if (vu->v_p && vu->v_p->vg_p) {
+				NMG_CK_VERTEX_G(vu->v_p->vg_p);
+				if (VNEAR_EQUAL(vu->v_p->vg_p->coord, rv, BN_TOL_DIST)) {
+				    nmg_klu(lu);
+				    changed = 1;
+				    break;
+				}
+			    }
+			} else {
+			    for (BU_LIST_FOR(eu, edgeuse, &lu->down_hd)) {
+				NMG_CK_EDGEUSE(eu);
+				vu = eu->vu_p;
+				if (vu && vu->v_p && vu->v_p->vg_p) {
+				    NMG_CK_VERTEX_G(vu->v_p->vg_p);
+				    if (VNEAR_EQUAL(vu->v_p->vg_p->coord, rv, BN_TOL_DIST)) {
+					nmg_keu(eu);
+					changed = 1;
+					break;
+				    }
+				}
+			    }
+			}
+			if (changed) break;
+		    }
+		    if (changed) break;
+		}
+		if (changed) break;
+	    }
+	    if (changed) break;
+	}
+    } while (changed);
 }
 
 int
-ged_nmg_kill_v_core(struct ged* gedp, int argc, const char* argv[])
+ged_nmg_kill_v_core(struct ged *gedp, int argc, const char *argv[])
 {
     struct rt_db_internal internal;
     struct directory *dp;
-    struct model* m;
-    const char* name;
+    struct model *m;
+    const char *name;
     point_t vt;
+    double p[3];
 
     static const char *usage = "kill V x y z";
 
@@ -273,10 +192,13 @@ ged_nmg_kill_v_core(struct ged* gedp, int argc, const char* argv[])
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    if (!argv)
+	return BRLCAD_ERROR;
+
     /* must be wanting help */
-    if (argc < 6) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
-	return GED_HELP;
+    if (argc < 6 || !argv[0] || !argv[3] || !argv[4] || !argv[5]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0] ? argv[0] : "nmg", usage);
+	return (argc == 1) ? GED_HELP : BRLCAD_ERROR;
     }
 
     /* attempt to resolve and verify */
@@ -288,6 +210,7 @@ ged_nmg_kill_v_core(struct ged* gedp, int argc, const char* argv[])
 	return BRLCAD_ERROR;
     }
 
+    RT_DB_INTERNAL_INIT(&internal);
     if (rt_db_get_internal(&internal, dp, gedp->dbip, bn_mat_identity) < 0) {
 	bu_vls_printf(gedp->ged_result_str, "rt_db_get_internal() error\n");
 	return BRLCAD_ERROR;
@@ -299,7 +222,15 @@ ged_nmg_kill_v_core(struct ged* gedp, int argc, const char* argv[])
 	return BRLCAD_ERROR;
     }
 
-    vt[0] = atof(argv[3]); vt[1] = atof(argv[4]); vt[2] = atof(argv[5]);
+    if (bu_sscanf(argv[3], "%lf", &p[0]) != 1 ||
+	bu_sscanf(argv[4], "%lf", &p[1]) != 1 ||
+	bu_sscanf(argv[5], "%lf", &p[2]) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "bad vertex coordinates: %s %s %s\n",
+		      argv[3], argv[4], argv[5]);
+	rt_db_free_internal(&internal);
+	return BRLCAD_ERROR;
+    }
+    VMOVE(vt, p);
 
     m = (struct model *)internal.idb_ptr;
     NMG_CK_MODEL(m);
@@ -307,15 +238,22 @@ ged_nmg_kill_v_core(struct ged* gedp, int argc, const char* argv[])
     remove_vertex(m, vt);
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
-    if (wdb_put_internal(wdbp, name, &internal, 1.0) < 0 ) {
-	bu_vls_printf(gedp->ged_result_str, "wdb_put_internal(%s)", argv[1]);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "Failed to open database handle\n");
 	rt_db_free_internal(&internal);
 	return BRLCAD_ERROR;
     }
 
+    int ret = BRLCAD_OK;
+    if (wdb_put_internal(wdbp, name, &internal, 1.0) < 0) {
+	bu_vls_printf(gedp->ged_result_str, "wdb_put_internal(%s) error\n", name);
+	ret = BRLCAD_ERROR;
+    }
+
+    wdb_close(wdbp);
     rt_db_free_internal(&internal);
 
-    return BRLCAD_OK;
+    return ret;
 }
 
 /*

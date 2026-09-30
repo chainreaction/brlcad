@@ -32,7 +32,7 @@
 
 #include "../ged_private.h"
 
-void remove_face(const struct model* m, long int fid)
+void remove_face(const struct model *m, long int fid)
 {
     struct nmgregion *r;
     struct shell *s;
@@ -42,43 +42,44 @@ void remove_face(const struct model* m, long int fid)
     NMG_CK_MODEL(m);
 
     for (BU_LIST_FOR(r, nmgregion, &m->r_hd)) {
-       NMG_CK_REGION(r);
+	NMG_CK_REGION(r);
 
-       if (r->ra_p) {
-	   NMG_CK_REGION_A(r->ra_p);
-       }
+	if (r->ra_p) {
+	    NMG_CK_REGION_A(r->ra_p);
+	}
 
-       for (BU_LIST_FOR(s, shell, &r->s_hd)) {
-	   NMG_CK_SHELL(s);
+	for (BU_LIST_FOR(s, shell, &r->s_hd)) {
+	    NMG_CK_SHELL(s);
 
-	   if (s->sa_p) {
-	       NMG_CK_SHELL_A(s->sa_p);
-	   }
+	    if (s->sa_p) {
+		NMG_CK_SHELL_A(s->sa_p);
+	    }
 
-	   /* Faces in shell */
-	   for (BU_LIST_FOR(fu, faceuse, &s->fu_hd)) {
-	       NMG_CK_FACEUSE(fu);
-	       f = fu->f_p;
-	       NMG_CK_FACE(f);
+	    /* Faces in shell */
+	    for (BU_LIST_FOR(fu, faceuse, &s->fu_hd)) {
+		NMG_CK_FACEUSE(fu);
+		f = fu->f_p;
+		NMG_CK_FACE(f);
 
-	       if ( fid == f->index ) {
-		   /* this kills both facesuses using the face,
-		    * and the face itself.
-		    */
-		   nmg_kfu(fu);
-	       }
-	   }
-       }
+		if (fid == f->index) {
+		    /* this kills both faceuses using the face,
+		     * and the face itself.
+		     */
+		    nmg_kfu(fu);
+		    return;
+		}
+	    }
+	}
     }
 }
 
 int
-ged_nmg_kill_f_core(struct ged* gedp, int argc, const char* argv[])
+ged_nmg_kill_f_core(struct ged *gedp, int argc, const char *argv[])
 {
     struct rt_db_internal internal;
     struct directory *dp;
-    struct model* m;
-    const char* name;
+    struct model *m;
+    const char *name;
     long int fid;
 
     static const char *usage = "kill F id";
@@ -91,10 +92,13 @@ ged_nmg_kill_f_core(struct ged* gedp, int argc, const char* argv[])
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    if (!argv)
+	return BRLCAD_ERROR;
+
     /* must be wanting help */
-    if (argc < 4) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
-	return GED_HELP;
+    if (argc < 4 || !argv[0] || !argv[3]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0] ? argv[0] : "nmg", usage);
+	return (argc == 1) ? GED_HELP : BRLCAD_ERROR;
     }
 
     /* attempt to resolve and verify */
@@ -106,7 +110,8 @@ ged_nmg_kill_f_core(struct ged* gedp, int argc, const char* argv[])
 	return BRLCAD_ERROR;
     }
 
-    if (rt_db_get_internal(&internal, dp, gedp->dbip,	bn_mat_identity) < 0) {
+    RT_DB_INTERNAL_INIT(&internal);
+    if (rt_db_get_internal(&internal, dp, gedp->dbip, bn_mat_identity) < 0) {
 	bu_vls_printf(gedp->ged_result_str, "rt_db_get_internal() error\n");
 	return BRLCAD_ERROR;
     }
@@ -118,7 +123,11 @@ ged_nmg_kill_f_core(struct ged* gedp, int argc, const char* argv[])
     }
 
     /* get face index from command line */
-    fid = (long int)atoi(argv[3]);
+    if (bu_sscanf(argv[3], "%ld", &fid) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "bad face id: %s\n", argv[3]);
+	rt_db_free_internal(&internal);
+	return BRLCAD_ERROR;
+    }
 
     m = (struct model *)internal.idb_ptr;
     NMG_CK_MODEL(m);
@@ -126,15 +135,22 @@ ged_nmg_kill_f_core(struct ged* gedp, int argc, const char* argv[])
     remove_face(m, fid);
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
-    if (wdb_put_internal(wdbp, name, &internal, 1.0) < 0 ) {
-	bu_vls_printf(gedp->ged_result_str, "wdb_put_internal(%s)", argv[1]);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "Failed to open database handle\n");
 	rt_db_free_internal(&internal);
 	return BRLCAD_ERROR;
     }
 
+    int ret = BRLCAD_OK;
+    if (wdb_put_internal(wdbp, name, &internal, 1.0) < 0) {
+	bu_vls_printf(gedp->ged_result_str, "wdb_put_internal(%s) error\n", name);
+	ret = BRLCAD_ERROR;
+    }
+
+    wdb_close(wdbp);
     rt_db_free_internal(&internal);
 
-    return BRLCAD_OK;
+    return ret;
 }
 
 /*

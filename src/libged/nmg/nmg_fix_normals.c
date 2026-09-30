@@ -52,6 +52,9 @@ ged_nmg_fix_normals_core(struct ged *gedp, int argc, const char *argv[])
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
+    if (!argv)
+	return BRLCAD_ERROR;
+
     /* in theory, we should probably allow the user to override this. */
     tol.magic = BN_TOL_MAGIC;
     tol.dist = 0.01;
@@ -59,19 +62,20 @@ ged_nmg_fix_normals_core(struct ged *gedp, int argc, const char *argv[])
     tol.perp = 0.001;
     tol.para = 0.999;
 
-    if (argc != 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
-	return GED_HELP;
+    if (argc != 2 || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0] ? argv[0] : "nmg_fix_normals", usage);
+	return (argc == 1) ? GED_HELP : BRLCAD_ERROR;
     }
 
     /* attempt to resolve and verify before we jump in */
     nmg_name = argv[1];
 
-    if ((dp=db_lookup(gedp->dbip, nmg_name, LOOKUP_QUIET)) == RT_DIR_NULL) {
+    if ((dp = db_lookup(gedp->dbip, nmg_name, LOOKUP_QUIET)) == RT_DIR_NULL) {
 	bu_vls_printf(gedp->ged_result_str, "%s does not exist\n", nmg_name);
 	return BRLCAD_ERROR;
     }
 
+    RT_DB_INTERNAL_INIT(&nmg_intern);
     if (rt_db_get_internal(&nmg_intern, dp, gedp->dbip, bn_mat_identity) < 0) {
 	bu_vls_printf(gedp->ged_result_str, "rt_db_get_internal() error\n");
 	return BRLCAD_ERROR;
@@ -91,7 +95,14 @@ ged_nmg_fix_normals_core(struct ged *gedp, int argc, const char *argv[])
 	for (BU_LIST_FOR(s, shell, &r->s_hd))
 	    nmg_fix_normals(s, vlfree, &tol);
 
-    return BRLCAD_OK;
+    int ret = BRLCAD_OK;
+    if (rt_db_put_internal(dp, gedp->dbip, &nmg_intern) < 0) {
+	bu_vls_printf(gedp->ged_result_str, "Database write error.\n");
+	ret = BRLCAD_ERROR;
+    }
+    rt_db_free_internal(&nmg_intern);
+
+    return ret;
 }
 
 
