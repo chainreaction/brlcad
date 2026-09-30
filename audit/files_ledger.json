@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 535,
-    "pending_files": 2958,
-    "last_updated": "2026-09-30T03:42:00Z",
-    "total_issues": 259,
-    "reviewed_count": 505
+    "reviewed_files": 545,
+    "pending_files": 2948,
+    "last_updated": "2026-09-30T03:52:00Z",
+    "total_issues": 260,
+    "reviewed_count": 515
   },
   "files": [
     {
@@ -24857,100 +24857,120 @@
       "path": "src/libged/osg.cpp",
       "subsystem": "src/libged",
       "lines": 206,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T03:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0260"
+      ]
     },
     {
       "id": 2350,
       "path": "src/libged/otranslate/otranslate.c",
       "subsystem": "src/libged",
       "lines": 122,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T03:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0260"
+      ]
     },
     {
       "id": 2351,
       "path": "src/libged/overlay/overlay.c",
       "subsystem": "src/libged",
       "lines": 344,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T03:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0260"
+      ]
     },
     {
       "id": 2352,
       "path": "src/libged/path.c",
       "subsystem": "src/libged",
       "lines": 121,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T03:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0260"
+      ]
     },
     {
       "id": 2353,
       "path": "src/libged/pathlist/pathlist.c",
       "subsystem": "src/libged",
       "lines": 125,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T03:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0260"
+      ]
     },
     {
       "id": 2354,
       "path": "src/libged/pathsum/pathsum.c",
       "subsystem": "src/libged",
       "lines": 158,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T03:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0260"
+      ]
     },
     {
       "id": 2355,
       "path": "src/libged/perspective/perspective.c",
       "subsystem": "src/libged",
       "lines": 96,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T03:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0260"
+      ]
     },
     {
       "id": 2356,
       "path": "src/libged/pipe/pipe.c",
       "subsystem": "src/libged",
       "lines": 468,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T03:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0260"
+      ]
     },
     {
       "id": 2357,
       "path": "src/libged/pix2fb/pix2fb.c",
       "subsystem": "src/libged",
       "lines": 263,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T03:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0260"
+      ]
     },
     {
       "id": 2358,
       "path": "src/libged/plot/plot.c",
       "subsystem": "src/libged",
       "lines": 311,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T03:52:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0260"
+      ]
     },
     {
       "id": 2359,
