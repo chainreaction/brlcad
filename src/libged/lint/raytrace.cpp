@@ -160,16 +160,18 @@ subtree_has_halfspace(struct db_i *dbip, struct directory *dp,
     if (rt_db_get_internal(&in, dp, dbip, NULL) < 0)
 	return false;
 
-    struct rt_comb_internal *comb = (struct rt_comb_internal *)in.idb_ptr;
     bool found = false;
-    if (comb->tree) {
-	std::vector<std::string> children;
-	collect_tree_leaves(comb->tree, children);
-	for (const auto &cname : children) {
-	    struct directory *cdp = db_lookup(dbip, cname.c_str(), LOOKUP_QUIET);
-	    if (cdp && subtree_has_halfspace(dbip, cdp, visited)) {
-		found = true;
-		break;
+    if (in.idb_type == ID_COMBINATION && in.idb_ptr) {
+	struct rt_comb_internal *comb = (struct rt_comb_internal *)in.idb_ptr;
+	if (comb->tree) {
+	    std::vector<std::string> children;
+	    collect_tree_leaves(comb->tree, children);
+	    for (const auto &cname : children) {
+		struct directory *cdp = db_lookup(dbip, cname.c_str(), LOOKUP_QUIET);
+		if (cdp && subtree_has_halfspace(dbip, cdp, visited)) {
+		    found = true;
+		    break;
+		}
 	    }
 	}
     }
@@ -196,12 +198,14 @@ collect_subtree(struct db_i *dbip, struct directory *dp,
 	RT_DB_INTERNAL_INIT(&in);
 	int gret = rt_db_get_internal(&in, dp, dbip, NULL);
 	if (gret >= 0) {
-	    struct rt_comb_internal *comb = (struct rt_comb_internal *)in.idb_ptr;
-	    if (comb->tree) {
-		std::vector<std::string> children;
-		collect_tree_leaves(comb->tree, children);
-		for (const auto &c : children)
-		    info.children.insert(c); /* deduplicate via set */
+	    if (in.idb_type == ID_COMBINATION && in.idb_ptr) {
+		struct rt_comb_internal *comb = (struct rt_comb_internal *)in.idb_ptr;
+		if (comb->tree) {
+		    std::vector<std::string> children;
+		    collect_tree_leaves(comb->tree, children);
+		    for (const auto &c : children)
+			info.children.insert(c); /* deduplicate via set */
+		}
 	    }
 	    rt_db_free_internal(&in);
 	}

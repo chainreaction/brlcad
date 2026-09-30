@@ -65,8 +65,8 @@ comb_find_missing(lint_data *mdata, const char *parent, struct db_i *dbip, union
 	    }
 	    break;
 	default:
-	    bu_log("ged_lint: comb_find_invalid: unrecognized operator %d\n", tp->tr_op);
-	    bu_bomb("ged_lint: comb_find_invalid\n");
+	    bu_log("ged_lint: comb_find_missing: unrecognized operator %d\n", tp->tr_op);
+	    return;
     }
 }
 
@@ -77,7 +77,6 @@ shape_find_missing(lint_data *mdata, struct db_i *dbip, struct directory *dp)
     struct db5_raw_internal raw;
     unsigned char *cp;
     char datasrc;
-    char *sketch_name;
     struct bu_vls dsp_name = BU_VLS_INIT_ZERO;
 
     if (!mdata || !dbip || !dp) return;
@@ -91,11 +90,18 @@ shape_find_missing(lint_data *mdata, struct db_i *dbip, struct directory *dp)
 		bu_free_external(&ext);
 		return;
 	    }
-	    cp = (unsigned char *)raw.body.ext_buf;
-	    cp += 2*SIZEOF_NETWORK_LONG + SIZEOF_NETWORK_DOUBLE * ELEMENTS_PER_MAT + SIZEOF_NETWORK_SHORT;
-	    datasrc = *cp;
-	    cp++; cp++;
-	    bu_vls_strncpy(&dsp_name, (char *)cp, raw.body.ext_nbytes - (cp - (unsigned char *)raw.body.ext_buf));
+	    {
+		size_t dsp_hdr_len = 2*SIZEOF_NETWORK_LONG + SIZEOF_NETWORK_DOUBLE * ELEMENTS_PER_MAT + SIZEOF_NETWORK_SHORT + 2;
+		if (raw.body.ext_nbytes <= dsp_hdr_len) {
+		    bu_free_external(&ext);
+		    return;
+		}
+		cp = (unsigned char *)raw.body.ext_buf;
+		cp += 2*SIZEOF_NETWORK_LONG + SIZEOF_NETWORK_DOUBLE * ELEMENTS_PER_MAT + SIZEOF_NETWORK_SHORT;
+		datasrc = *cp;
+		cp++; cp++;
+		bu_vls_strncpy(&dsp_name, (char *)cp, raw.body.ext_nbytes - (cp - (unsigned char *)raw.body.ext_buf));
+	    }
 	    if (datasrc == RT_DSP_SRC_OBJ) {
 		if (db_lookup(dbip, bu_vls_addr(&dsp_name), LOOKUP_QUIET) == RT_DIR_NULL) {
 		    std::string inst = std::string(dp->d_namep) + std::string("/") + std::string(bu_vls_addr(&dsp_name));
@@ -125,14 +131,24 @@ shape_find_missing(lint_data *mdata, struct db_i *dbip, struct directory *dp)
 		bu_free_external(&ext);
 		return;
 	    }
-	    cp = (unsigned char *)raw.body.ext_buf;
-	    sketch_name = (char *)cp + ELEMENTS_PER_VECT*4*SIZEOF_NETWORK_DOUBLE + SIZEOF_NETWORK_LONG;
-	    if (db_lookup(dbip, sketch_name, LOOKUP_QUIET) == RT_DIR_NULL) {
-		std::string inst = std::string(dp->d_namep) + std::string("/") + std::string(sketch_name);
-		nlohmann::json missing_json;
-		missing_json["problem_type"] = "missing_extrude_sketch";
-		missing_json["path"] = inst;
-		mdata->j.push_back(missing_json);
+	    {
+		size_t ext_hdr_len = ELEMENTS_PER_VECT*4*SIZEOF_NETWORK_DOUBLE + SIZEOF_NETWORK_LONG;
+		if (raw.body.ext_nbytes <= ext_hdr_len) {
+		    bu_free_external(&ext);
+		    return;
+		}
+		cp = (unsigned char *)raw.body.ext_buf;
+		char *sketch_name = (char *)cp + ext_hdr_len;
+		struct bu_vls sk_name = BU_VLS_INIT_ZERO;
+		bu_vls_strncpy(&sk_name, sketch_name, raw.body.ext_nbytes - ext_hdr_len);
+		if (db_lookup(dbip, bu_vls_cstr(&sk_name), LOOKUP_QUIET) == RT_DIR_NULL) {
+		    std::string inst = std::string(dp->d_namep) + std::string("/") + std::string(bu_vls_cstr(&sk_name));
+		    nlohmann::json missing_json;
+		    missing_json["problem_type"] = "missing_extrude_sketch";
+		    missing_json["path"] = inst;
+		    mdata->j.push_back(missing_json);
+		}
+		bu_vls_free(&sk_name);
 	    }
 	    bu_free_external(&ext);
 	    break;
@@ -144,7 +160,7 @@ shape_find_missing(lint_data *mdata, struct db_i *dbip, struct directory *dp)
 int
 _ged_missing_check(lint_data *mdata)
 {
-    if (!mdata)
+    if (!mdata || !mdata->gedp || !mdata->gedp->dbip)
 	return BRLCAD_ERROR;
     if (mdata->argc && !mdata->dpa)
 	return BRLCAD_ERROR;
@@ -160,12 +176,17 @@ _ged_missing_check(lint_data *mdata)
 	} else {
 	    for (unsigned int i = 0; i < BU_PTBL_LEN(&pc); i++) {
 		struct directory *dp = (struct directory *)BU_PTBL_GET(&pc, i);
+		if (!dp) continue;
 		if (dp->d_flags & RT_DIR_COMB) {
 		    struct rt_db_internal in;
 		    struct rt_comb_internal *comb;
+		    RT_DB_INTERNAL_INIT(&in);
 		    if (rt_db_get_internal(&in, dp, gedp->dbip, NULL) < 0) continue;
-		    comb = (struct rt_comb_internal *)in.idb_ptr;
-		    comb_find_missing(mdata, dp->d_namep, gedp->dbip, comb->tree);
+		    if (in.idb_type == ID_COMBINATION && in.idb_ptr) {
+			comb = (struct rt_comb_internal *)in.idb_ptr;
+			comb_find_missing(mdata, dp->d_namep, gedp->dbip, comb->tree);
+		    }
+		    rt_db_free_internal(&in);
 		} else {
 		    shape_find_missing(mdata, gedp->dbip, dp);
 		}
@@ -178,9 +199,13 @@ _ged_missing_check(lint_data *mdata)
 	    if (dp->d_flags & RT_DIR_COMB) {
 		struct rt_db_internal in;
 		struct rt_comb_internal *comb;
+		RT_DB_INTERNAL_INIT(&in);
 		if (rt_db_get_internal(&in, dp, gedp->dbip, NULL) < 0) continue;
-		comb = (struct rt_comb_internal *)in.idb_ptr;
-		comb_find_missing(mdata, dp->d_namep, gedp->dbip, comb->tree);
+		if (in.idb_type == ID_COMBINATION && in.idb_ptr) {
+		    comb = (struct rt_comb_internal *)in.idb_ptr;
+		    comb_find_missing(mdata, dp->d_namep, gedp->dbip, comb->tree);
+		}
+		rt_db_free_internal(&in);
 	    } else {
 		shape_find_missing(mdata, gedp->dbip, dp);
 	    }

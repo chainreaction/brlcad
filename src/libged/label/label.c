@@ -43,6 +43,11 @@ ged_label_core(struct ged *gedp, int argc, const char *argv[])
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    if (argc < 2 || !argv || !argv[0]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", (argv && argv[0]) ? argv[0] : "label", usage);
+	return BRLCAD_ERROR;
+    }
+
     bu_vls_printf(gedp->ged_result_str, "Not yet implemented!\n%s\n%s\n", argv[0], usage);
     return BRLCAD_OK;
 }

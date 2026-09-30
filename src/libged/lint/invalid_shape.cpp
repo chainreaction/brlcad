@@ -59,6 +59,7 @@ _ged_invalid_prim_check(lint_data *ldata, struct directory *dp)
     if (dp->d_flags & RT_DIR_HIDDEN) return;
     if (dp->d_addr == RT_DIR_PHONY_ADDR) return;
 
+    RT_DB_INTERNAL_INIT(&intern);
     if (rt_db_get_internal(&intern, dp, ldata->gedp->dbip, (fastf_t *)NULL) < 0) return;
     if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD) {
 	rt_db_free_internal(&intern);
@@ -70,11 +71,10 @@ _ged_invalid_prim_check(lint_data *ldata, struct directory *dp)
 	    bot = (struct rt_bot_internal *)intern.idb_ptr;
 	    RT_BOT_CK_MAGIC(bot);
 	    bot_checks(ldata, dp, bot);
-	    rt_db_free_internal(&intern);
 	    break;
 	case DB5_MINORTYPE_BRLCAD_BREP:
 	    if (imt.size() && imt.find(std::string("brep")) == imt.end())
-		return;
+		break;
 	    not_valid = !rt_brep_valid(&vlog, &intern, 0);
 	    if (not_valid) {
 		nlohmann::json berr;
@@ -87,7 +87,7 @@ _ged_invalid_prim_check(lint_data *ldata, struct directory *dp)
 	    break;
 	case DB5_MINORTYPE_BRLCAD_ARB8:
 	    if (imt.size() && imt.find(std::string("arb")) == imt.end())
-		return;
+		break;
 	    {
 		struct rt_arb_internal *arb = (struct rt_arb_internal *)intern.idb_ptr;
 		RT_ARB_CK_MAGIC(arb);
@@ -138,12 +138,12 @@ _ged_invalid_prim_check(lint_data *ldata, struct directory *dp)
 	    break;
 	case DB5_MINORTYPE_BRLCAD_DSP:
 	    if (imt.size() && imt.find(std::string("dsp")) == imt.end())
-		return;
+		break;
 	    // TODO - check for empty data object and zero length dimension vectors.
 	    break;
 	case DB5_MINORTYPE_BRLCAD_EXTRUDE:
 	    if (imt.size() && imt.find(std::string("extrude")) == imt.end())
-		return;
+		break;
 	    // TODO - check for zero length dimension vectors.
 	    break;
 	default:
@@ -181,6 +181,7 @@ _ged_invalid_prim_check(lint_data *ldata, struct directory *dp)
 	    break;
     }
 
+    rt_db_free_internal(&intern);
     bu_vls_free(&vlog);
 }
 
@@ -192,19 +193,24 @@ _ged_invalid_shape_check(lint_data *ldata)
     unsigned int i;
     struct bu_ptbl *pc = NULL;
     struct bu_vls sopts = BU_VLS_INIT_ZERO;
+
+    if (!ldata || !ldata->gedp || !ldata->gedp->dbip)
+	return BRLCAD_ERROR;
+
     bu_vls_sprintf(&sopts, "! -type comb %s", ldata->filter.c_str());
     BU_ALLOC(pc, struct bu_ptbl);
+    bu_ptbl_init(pc, 64, "pc");
     if (db_search(pc, DB_SEARCH_RETURN_UNIQ_DP, bu_vls_cstr(&sopts), ldata->argc, ldata->dpa, ldata->gedp->dbip, NULL, NULL, NULL) < 0) {
 	ret = BRLCAD_ERROR;
-	bu_free(pc, "pc table");
     } else {
 	for (i = 0; i < BU_PTBL_LEN(pc); i++) {
 	    dp = (struct directory *)BU_PTBL_GET(pc, i);
-	    _ged_invalid_prim_check(ldata, dp);
+	    if (dp)
+		_ged_invalid_prim_check(ldata, dp);
 	}
-	bu_ptbl_free(pc);
-	bu_free(pc, "pc table");
     }
+    bu_ptbl_free(pc);
+    bu_free(pc, "pc table");
     bu_vls_free(&sopts);
     return ret;
 }

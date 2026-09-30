@@ -249,7 +249,8 @@ lint_data::summary()
 	    for (o_it = obj_problems[*s_it].begin(); o_it != obj_problems[*s_it].end(); o_it++) {
 		ostr.append(*o_it + std::string(","));
 	    }
-	    ostr.pop_back();
+	    if (!obj_problems[*s_it].empty())
+		ostr.pop_back();
 	    ostr.append(std::string("]"));
 	    ostr.append(std::string("\n"));
 	}
@@ -294,7 +295,7 @@ techniques_parse(std::map<std::string, std::set<std::string>> *im_techniques, co
 	while (std::getline(ostream, optstr, ':')) {
 	    key_val.push_back(optstr);
 	}
-	if (key_val.size() != 2)
+	if (key_val.size() != 2 || key_val[0].empty() || key_val[1].empty())
 	    continue;
 	(*im_techniques)[key_val[0]].insert(key_val[1]);
     }
@@ -423,10 +424,10 @@ ged_lint_core(struct ged *gedp, int argc, const char *argv[])
     if (argc) {
 	dpa = (struct directory **)bu_calloc(argc+1, sizeof(struct directory *), "dp array");
 	int nonexist_obj_cnt = _ged_sort_existing_objs(gedp->dbip, argc, argv, dpa);
-	if (nonexist_obj_cnt) {
+	if (nonexist_obj_cnt > 0) {
 	    int i;
 	    bu_vls_printf(gedp->ged_result_str, "Object argument(s) supplied to lint that do not exist in the database:\n");
-	    for (i = argc - nonexist_obj_cnt - 1; i < argc; i++) {
+	    for (i = argc - nonexist_obj_cnt; i < argc; i++) {
 		bu_vls_printf(gedp->ged_result_str, " %s\n", argv[i]);
 	    }
 	    bu_free(dpa, "dpa");
@@ -535,7 +536,8 @@ ged_lint_core(struct ged *gedp, int argc, const char *argv[])
 	    std::set<std::string>::iterator o_it;
 	    for (o_it = onames.begin(); o_it != onames.end(); o_it++)
 		(void)mk_addmember(o_it->c_str(), &(wcomb.l), NULL, DB_OP_UNION);
-	    mk_lcomb(wdbp, bu_vls_cstr(&gname), &wcomb, 1, NULL, NULL, NULL, 0);
+	    mk_lcomb(wdbp, bu_vls_cstr(&gname), &wcomb, 0, NULL, NULL, NULL, 0);
+	    mk_freemembers(&wcomb.l);
 	}
     }
 

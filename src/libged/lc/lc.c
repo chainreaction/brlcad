@@ -60,16 +60,19 @@ cmp_regions(const void *a, const void *b, void *UNUSED(arg))
     struct region_record *r2 = (struct region_record *)b;
     int cmp;
 
-    cmp = bu_strcmp(r1->region_id, r2->region_id);
+    if (!r1 || !r2)
+	return (r1 ? 1 : (r2 ? -1 : 0));
+
+    cmp = bu_strcmp(r1->region_id ? r1->region_id : "", r2->region_id ? r2->region_id : "");
     if (cmp)
 	return cmp;
-    cmp = bu_strcmp(r1->material_id, r2->material_id);
+    cmp = bu_strcmp(r1->material_id ? r1->material_id : "", r2->material_id ? r2->material_id : "");
     if (cmp)
 	return cmp;
-    cmp = bu_strcmp(r1->los, r2->los);
+    cmp = bu_strcmp(r1->los ? r1->los : "", r2->los ? r2->los : "");
     if (cmp)
 	return cmp;
-    cmp = bu_strcmp(r1->aircode, r2->aircode);
+    cmp = bu_strcmp(r1->aircode ? r1->aircode : "", r2->aircode ? r2->aircode : "");
     return cmp;
 }
 
@@ -83,34 +86,37 @@ sort_regions(const void *a, const void *b, void *arg)
     struct region_record *r1 = (struct region_record *)a;
     struct region_record *r2 = (struct region_record *)b;
     int *sort_type = (int *)arg;
-    int temp1,temp2;
+    int temp1, temp2;
+
+    if (!r1 || !r2 || !sort_type)
+	return (r1 ? 1 : (r2 ? -1 : 0));
 
     switch (*sort_type) {
 	case 1:
-	    temp1=atoi(r1->region_id);
-	    temp2=atoi(r2->region_id);
+	    temp1 = r1->region_id ? atoi(r1->region_id) : 0;
+	    temp2 = r2->region_id ? atoi(r2->region_id) : 0;
 	    goto continue_run;
 	case 2:
-	    temp1=atoi(r1->material_id);
-	    temp2=atoi(r2->material_id);
+	    temp1 = r1->material_id ? atoi(r1->material_id) : 0;
+	    temp2 = r2->material_id ? atoi(r2->material_id) : 0;
 	    goto continue_run;
 	case 3:
-	    temp1=atoi(r1->los);
-	    temp2=atoi(r2->los);
+	    temp1 = r1->los ? atoi(r1->los) : 0;
+	    temp2 = r2->los ? atoi(r2->los) : 0;
 	    goto continue_run;
 	case 4:
-	    temp1=atoi(r1->aircode);
-	    temp2=atoi(r2->aircode);
+	    temp1 = r1->aircode ? atoi(r1->aircode) : 0;
+	    temp2 = r2->aircode ? atoi(r2->aircode) : 0;
 continue_run:
-	    if ( temp1 > temp2 )
+	    if (temp1 > temp2)
 		return 1;
-	    if ( temp1 == temp2 )
+	    if (temp1 == temp2)
 		return 0;
 	    return -1;
 	case 5:
-	    return bu_strcmp(r1->obj_name, r2->obj_name);
+	    return bu_strcmp(r1->obj_name ? r1->obj_name : "", r2->obj_name ? r2->obj_name : "");
 	case 6:
-	    return bu_strcmp(r1->obj_parent, r2->obj_parent);
+	    return bu_strcmp(r1->obj_parent ? r1->obj_parent : "", r2->obj_parent ? r2->obj_parent : "");
     }
     /* This should never be executed */
     return 0;
@@ -187,13 +193,10 @@ ged_lc_core(struct ged *gedp, int argc, const char *argv[])
     size_t aircode_len_max = 3;
     size_t obj_len_max = 6;
 
-    /* For the output at the end */
-    size_t start, end, incr;
-
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
-    if (argc == 1) {
+    if (argc < 2 || !argv || !argv[0]) {
 	bu_vls_printf(gedp->ged_result_str, "Usage: %s\n", usage);
 	return GED_HELP;
     }
@@ -278,7 +281,7 @@ ged_lc_core(struct ged *gedp, int argc, const char *argv[])
 	    bu_vls_printf(gedp->ged_result_str, "Error: File name can not start with '-'.\n");
 	    error_cnt++;
 	} else if (bu_file_exists(file_name, NULL)) {
-	    bu_vls_printf(gedp->ged_result_str, "Error: Output file %s already exists.\n",norm_name);
+	    bu_vls_printf(gedp->ged_result_str, "Error: Output file %s already exists.\n", norm_name ? norm_name : file_name);
 	    error_cnt++;
 	} else {
 	    outfile = fopen(file_name, "w");
@@ -287,8 +290,9 @@ ged_lc_core(struct ged *gedp, int argc, const char *argv[])
 		error_cnt++;
 	    }
 	}
-	bu_vls_printf(gedp->ged_result_str, "Output filename: %s\n", norm_name);
-	bu_free(norm_name, "ged_lc_core");
+	bu_vls_printf(gedp->ged_result_str, "Output filename: %s\n", norm_name ? norm_name : file_name);
+	if (norm_name)
+	    bu_free(norm_name, "ged_lc_core");
 	output = bu_vls_vlsinit();
     } else {
 	output = gedp->ged_result_str;
@@ -297,6 +301,10 @@ ged_lc_core(struct ged *gedp, int argc, const char *argv[])
     if (error_cnt > 0) {
 	if (outfile)
 	    fclose(outfile);
+	if (file_name && output) {
+	    bu_vls_free(output);
+	    bu_free(output, "bu_vls");
+	}
 	return BRLCAD_ERROR;
     }
 
@@ -310,25 +318,43 @@ ged_lc_core(struct ged *gedp, int argc, const char *argv[])
     plan = (char *) bu_malloc(sizeof(char) * (strlen(group_name) + 7), "ged_lc_core");
     sprintf(plan, "-name %s", group_name);
     matches = db_search(&results1, DB_SEARCH_TREE, plan, 0, NULL, gedp->dbip, NULL, NULL, NULL);
+    bu_free(plan, "ged_lc_core");
     if (matches < 1) {
+	db_search_free(&results1);
 	bu_vls_printf(gedp->ged_result_str, "Error: Group '%s' does not exist.\n", group_name);
+	if (outfile)
+	    fclose(outfile);
+	if (file_name && output) {
+	    bu_vls_free(output);
+	    bu_free(output, "bu_vls");
+	}
 	return BRLCAD_ERROR;
     }
-    bu_free(plan, "ged_lc_core");
     db_search_free(&results1);
 
     if (skip_subtracted_regions_flag) {
-	plan = "-type region ! -bool -";
+	plan = (char *)"-type region ! -bool -";
     } else {
-	plan = "-type region";
+	plan = (char *)"-type region";
     }
     path = (char *) bu_malloc(sizeof(char) * (strlen(group_name) + 2), "ged_lc_core");
     sprintf(path, "/%s", group_name);
+    db_full_path_init(&root);
     db_string_to_path(&root, gedp->dbip, path);
-    matches = db_search(&results2, DB_SEARCH_TREE, plan, (int)root.fp_len, root.fp_names, gedp->dbip, NULL, NULL, NULL);
     bu_free(path, "ged_lc_core");
-    if (matches < 1) { return BRLCAD_ERROR; }
-    regions = (struct region_record *) bu_malloc(sizeof(struct region_record) * BU_PTBL_LEN(&results2), "ged_lc_core");
+    matches = db_search(&results2, DB_SEARCH_TREE, plan, (int)root.fp_len, root.fp_names, gedp->dbip, NULL, NULL, NULL);
+    db_free_full_path(&root);
+    if (matches < 1) {
+	db_search_free(&results2);
+	if (outfile)
+	    fclose(outfile);
+	if (file_name && output) {
+	    bu_vls_free(output);
+	    bu_free(output, "bu_vls");
+	}
+	return BRLCAD_ERROR;
+    }
+    regions = (struct region_record *) bu_calloc(BU_PTBL_LEN(&results2), sizeof(struct region_record), "ged_lc_core");
     for (i = 0; i < BU_PTBL_LEN(&results2); i++) {
 	struct db_full_path *entry = (struct db_full_path *)BU_PTBL_GET(&results2, i);
 	struct directory *dp_curr_dir = DB_FULL_PATH_CUR_DIR(entry);
@@ -340,23 +366,24 @@ ged_lc_core(struct ged *gedp, int argc, const char *argv[])
 	bu_avs_init_empty(&avs);
 	db5_get_attributes(gedp->dbip, &avs, dp_curr_dir);
 
-	regions[j].region_id = get_attr(&avs, "region_id");
+	regions[j].region_id = bu_strdup(get_attr(&avs, "region_id"));
 	V_MAX(region_id_len_max, strlen(regions[j].region_id));
-	regions[j].material_id = get_attr(&avs, "material_id");
+	regions[j].material_id = bu_strdup(get_attr(&avs, "material_id"));
 	V_MAX(material_id_len_max, strlen(regions[j].material_id));
-	regions[j].los = get_attr(&avs, "los");
+	regions[j].los = bu_strdup(get_attr(&avs, "los"));
 	V_MAX(los_len_max, strlen(regions[j].los));
-	regions[j].aircode = get_attr(&avs, "aircode");
+	regions[j].aircode = bu_strdup(get_attr(&avs, "aircode"));
 	V_MAX(aircode_len_max, strlen(regions[j].aircode));
-	regions[j].obj_name = dp_curr_dir->d_namep;
+	regions[j].obj_name = (dp_curr_dir && dp_curr_dir->d_namep) ? dp_curr_dir->d_namep : "--";
 	V_MAX(obj_len_max, strlen(regions[j].obj_name));
 
-	if (entry->fp_len > 1) {
+	if (entry && entry->fp_len > 1) {
 	    struct directory *dp_parent = DB_FULL_PATH_GET(entry, entry->fp_len - 2);
-	    regions[j].obj_parent = dp_parent->d_namep;
+	    regions[j].obj_parent = (dp_parent && dp_parent->d_namep) ? dp_parent->d_namep : "--";
 	} else {
 	    regions[j].obj_parent = "--";
 	}
+	bu_avs_free(&avs);
     }
 
     if (find_mismatched) {
@@ -453,10 +480,19 @@ ged_lc_core(struct ged *gedp, int argc, const char *argv[])
 		bu_vls_printf(output, "No duplicate region_id\n");
 		bu_vls_fwrite(outfile, output);
 		fclose(outfile);
+		bu_vls_free(output);
+		bu_free(output, "bu_vls");
 	    }
 	    bu_vls_printf(gedp->ged_result_str, "No duplicate region_id\n");
 	    bu_vls_printf(gedp->ged_result_str, "Done.");
+	    for (size_t k = 0; k < BU_PTBL_LEN(&results2); k++) {
+		if (regions[k].region_id) bu_free((void *)regions[k].region_id, "region_id");
+		if (regions[k].material_id) bu_free((void *)regions[k].material_id, "material_id");
+		if (regions[k].los) bu_free((void *)regions[k].los, "los");
+		if (regions[k].aircode) bu_free((void *)regions[k].aircode, "aircode");
+	    }
 	    bu_free(regions, "ged_lc_core");
+	    db_search_free(&results2);
 	    return BRLCAD_ERROR;
 	} else {
 	    goto print_results;
@@ -480,30 +516,47 @@ print_results:
 		  (int)aircode_len_max, "AIR",
 		  (int)obj_len_max,  "REGION",
 		  "PARENT");
-    end = BU_PTBL_LEN(&results2);
     if (descending_sort_flag) {
-	start = end - 1; end = -1; incr = -1;
+	for (size_t idx = BU_PTBL_LEN(&results2); idx > 0; idx--) {
+	    i = idx - 1;
+	    if (regions[i].ignore) { continue; }
+	    bu_vls_printf(output, "%-*s %-*s %-*s %-*s %-*s %s\n",
+			  (int)region_id_len_max + 1, regions[i].region_id ? regions[i].region_id : "--",
+			  (int)material_id_len_max + 1, regions[i].material_id ? regions[i].material_id : "--",
+			  (int)los_len_max, regions[i].los ? regions[i].los : "--",
+			  (int)aircode_len_max, regions[i].aircode ? regions[i].aircode : "--",
+			  (int)obj_len_max, regions[i].obj_name ? regions[i].obj_name : "--",
+			  regions[i].obj_parent ? regions[i].obj_parent : "--");
+	}
     } else {
-	start = 0; incr = 1;
-    }
-    for (i = start; i != end; i += incr) {
-	if (regions[i].ignore) { continue; }
-	bu_vls_printf(output, "%-*s %-*s %-*s %-*s %-*s %s\n",
-		      (int)region_id_len_max + 1, regions[i].region_id,
-		      (int)material_id_len_max + 1, regions[i].material_id,
-		      (int)los_len_max, regions[i].los,
-		      (int)aircode_len_max, regions[i].aircode,
-		      (int)obj_len_max, regions[i].obj_name,
-		      regions[i].obj_parent);
+	for (i = 0; i < BU_PTBL_LEN(&results2); i++) {
+	    if (regions[i].ignore) { continue; }
+	    bu_vls_printf(output, "%-*s %-*s %-*s %-*s %-*s %s\n",
+			  (int)region_id_len_max + 1, regions[i].region_id ? regions[i].region_id : "--",
+			  (int)material_id_len_max + 1, regions[i].material_id ? regions[i].material_id : "--",
+			  (int)los_len_max, regions[i].los ? regions[i].los : "--",
+			  (int)aircode_len_max, regions[i].aircode ? regions[i].aircode : "--",
+			  (int)obj_len_max, regions[i].obj_name ? regions[i].obj_name : "--",
+			  regions[i].obj_parent ? regions[i].obj_parent : "--");
+	}
     }
     bu_vls_printf(gedp->ged_result_str, "Done.");
 
     if (file_name) {
 	bu_vls_fwrite(outfile, output);
 	fclose(outfile);
+	bu_vls_free(output);
+	bu_free(output, "bu_vls");
     }
 
+    for (size_t k = 0; k < BU_PTBL_LEN(&results2); k++) {
+	if (regions[k].region_id) bu_free((void *)regions[k].region_id, "region_id");
+	if (regions[k].material_id) bu_free((void *)regions[k].material_id, "material_id");
+	if (regions[k].los) bu_free((void *)regions[k].los, "los");
+	if (regions[k].aircode) bu_free((void *)regions[k].aircode, "aircode");
+    }
     bu_free(regions, "ged_lc_core");
+    db_search_free(&results2);
 
     return BRLCAD_OK;
 }

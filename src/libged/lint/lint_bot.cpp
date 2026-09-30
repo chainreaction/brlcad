@@ -52,17 +52,22 @@ struct lint_worker_vars {
 static bool
 bot_face_normal(vect_t *n, struct rt_bot_internal *bot, int i)
 {
-    vect_t a,b;
+    vect_t a, b;
 
     /* sanity */
-    if (!n || !bot || i < 0 || (size_t)i > bot->num_faces ||
-	    bot->faces[i*3+2] < 0 || (size_t)bot->faces[i*3+2] > bot->num_vertices) {
+    if (!n || !bot || i < 0 || (size_t)i >= bot->num_faces ||
+	bot->faces[i*3] < 0 || (size_t)bot->faces[i*3] >= bot->num_vertices ||
+	bot->faces[i*3+1] < 0 || (size_t)bot->faces[i*3+1] >= bot->num_vertices ||
+	bot->faces[i*3+2] < 0 || (size_t)bot->faces[i*3+2] >= bot->num_vertices) {
 	return false;
     }
 
     VSUB2(a, &bot->vertices[bot->faces[i*3+1]*3], &bot->vertices[bot->faces[i*3]*3]);
     VSUB2(b, &bot->vertices[bot->faces[i*3+2]*3], &bot->vertices[bot->faces[i*3]*3]);
     VCROSS(*n, a, b);
+    if (MAGNITUDE(*n) < SMALL_FASTF) {
+	return false;
+    }
     VUNITIZE(*n);
     if (bot->orientation == RT_BOT_CW) {
 	VREVERSE(*n, *n);
@@ -101,10 +106,17 @@ ray_to_json(nlohmann::json *pc, struct xray *r)
 static void
 tri_to_json(nlohmann::json *pc, struct rt_bot_internal *bot, int ind)
 {
+    if (!pc || !bot || ind < 0 || (size_t)ind >= bot->num_faces)
+	return;
+
     nlohmann::json tri;
     point_t v[3];
-    for (int i = 0; i < 3; i++)
-	VMOVE(v[i], &bot->vertices[bot->faces[ind*3+i]*3]);
+    for (int i = 0; i < 3; i++) {
+	int vert_idx = bot->faces[ind*3+i];
+	if (vert_idx < 0 || (size_t)vert_idx >= bot->num_vertices)
+	    return;
+	VMOVE(v[i], &bot->vertices[vert_idx*3]);
+    }
 
     tri["face_index"] = ind;
     pt_to_json(&tri, "V0", v[0]);
@@ -266,9 +278,20 @@ lint_worker_data::plot_bad_tris(struct bv_vlblock *vbp, struct bu_list *vhead, s
 
     for (tr_it = flagged_tris.begin(); tr_it != flagged_tris.end(); tr_it++) {
 	int tri_ind = *tr_it;
+	if (tri_ind < 0 || !bot || (size_t)tri_ind >= bot->num_faces)
+	    continue;
 	point_t v[3];
-	for (int i = 0; i < 3; i++)
-	    VMOVE(v[i], &bot->vertices[bot->faces[tri_ind*3+i]*3]);
+	bool valid_verts = true;
+	for (int i = 0; i < 3; i++) {
+	    int vert_idx = bot->faces[tri_ind*3+i];
+	    if (vert_idx < 0 || (size_t)vert_idx >= bot->num_vertices) {
+		valid_verts = false;
+		break;
+	    }
+	    VMOVE(v[i], &bot->vertices[vert_idx*3]);
+	}
+	if (!valid_verts)
+	    continue;
 	BV_ADD_VLIST(vlfree, vhead, v[0], BV_VLIST_LINE_MOVE);
 	BV_ADD_VLIST(vlfree, vhead, v[1], BV_VLIST_LINE_DRAW);
 	BV_ADD_VLIST(vlfree, vhead, v[2], BV_VLIST_LINE_DRAW);
@@ -487,7 +510,7 @@ bot_check(struct lint_worker_vars *state, const char *test_type, fhit_t hf, fmis
     if (imt.size()) {
 	std::map<std::string, std::set<std::string>>::const_iterator i_it;
 	i_it = imt.find(std::string("bot"));
-	if (i_it->second.find(ttype) == i_it->second.end())
+	if (i_it == imt.end() || i_it->second.find(ttype) == i_it->second.end())
 	    return 0;
     }
 
@@ -592,19 +615,26 @@ bot_checks(lint_data *bdata, struct directory *dp, struct rt_bot_internal *bot)
 
 
     size_t ncpus = bu_avail_cpus();
-    struct lint_worker_vars *state = (struct lint_worker_vars *)bu_calloc(ncpus+1, sizeof(struct lint_worker_vars ), "state");
+    if (ncpus > bot->num_faces)
+	ncpus = bot->num_faces;
+    if (ncpus < 1)
+	ncpus = 1;
+
+    struct lint_worker_vars *state = (struct lint_worker_vars *)bu_calloc(ncpus+1, sizeof(struct lint_worker_vars), "state");
     struct resource *resp = (struct resource *)bu_calloc(ncpus+1, sizeof(struct resource), "resources");
 
     // We need to divy up the faces.  Since all triangle intersections will
     // (hopefully) take about the same length of time to run, we don't do anything
     // fancy about chunking up the work.
-    int tri_step = bot->num_faces / ncpus;
+    int tri_step = (int)(bot->num_faces / ncpus);
+    if (tri_step < 1)
+	tri_step = 1;
 
     for (size_t i = 0; i < ncpus; i++) {
 	state[i].rtip = rtip;
 	state[i].resp = &resp[i];
 	rt_init_resource(state[i].resp, (int)i, state[i].rtip);
-	state[i].tri_start = i * tri_step;
+	state[i].tri_start = (int)i * tri_step;
 	state[i].tri_end = state[i].tri_start + tri_step;
 	//bu_log("%d: tri_state: %d, tri_end %d\n", (int)i, state[i].tri_start, state[i].tri_end);
 	state[i].reverse = false;
@@ -620,7 +650,7 @@ bot_checks(lint_data *bdata, struct directory *dp, struct rt_bot_internal *bot)
     }
 
     // Make sure the last thread ends on the last face
-    state[ncpus-1].tri_end = bot->num_faces - 1;
+    state[ncpus-1].tri_end = (int)bot->num_faces;
     //bu_log("%d: tri_end %d\n", (int)ncpus-1, state[ncpus-1].tri_end);
 
     /* Note that we are deliberately using onehit=1 for the miss test to check
@@ -667,10 +697,12 @@ bot_checks(lint_data *bdata, struct directory *dp, struct rt_bot_internal *bot)
     for (size_t i = 0; i < ncpus; i++) {
 	lint_worker_data *d = (lint_worker_data *)state[i].ptr;
 	delete d;
+	rt_clean_resource(rtip, &resp[i]);
     }
 
     rt_i_destroy(rtip);
     bu_free(resp, "resp");
+    bu_free(state, "state");
 }
 
 

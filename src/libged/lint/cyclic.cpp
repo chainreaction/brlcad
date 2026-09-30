@@ -82,14 +82,15 @@ cyclic_search_subtree(struct db_full_path *path, int curr_bool, union tree *tp,
 		    cyclic_json["problem_type"] = "cyclic_path";
 		    cyclic_json["path"] = path_string;
 		    cdata->j.push_back(cyclic_json);
+		    bu_free(path_string, "db_path_to_string");
 		}
 		DB_FULL_PATH_POP(path);
 		break;
 	    }
 
 	default:
-	    bu_log("db_functree_subtree: unrecognized operator %d\n", tp->tr_op);
-	    bu_bomb("db_functree_subtree: unrecognized operator\n");
+	    bu_log("cyclic_search_subtree: unrecognized operator %d\n", tp->tr_op);
+	    return;
     }
 }
 
@@ -112,10 +113,13 @@ cyclic_search(struct db_full_path *fp, void *client_data)
 	struct rt_db_internal in;
 	struct rt_comb_internal *comb;
 
+	RT_DB_INTERNAL_INIT(&in);
 	if (rt_db_get_internal(&in, dp, gedp->dbip, NULL) < 0) return;
 
-	comb = (struct rt_comb_internal *)in.idb_ptr;
-	cyclic_search_subtree(fp, OP_UNION, comb->tree, cyclic_search, client_data);
+	if (in.idb_type == ID_COMBINATION && in.idb_ptr) {
+	    comb = (struct rt_comb_internal *)in.idb_ptr;
+	    cyclic_search_subtree(fp, OP_UNION, comb->tree, cyclic_search, client_data);
+	}
 	rt_db_free_internal(&in);
     }
 }
@@ -127,7 +131,7 @@ _ged_cyclic_check(lint_data *cdata)
     struct directory *dp;
     struct db_full_path *start_path = NULL;
     int ret = BRLCAD_OK;
-    if (!cdata)
+    if (!cdata || !cdata->gedp || !cdata->gedp->dbip)
 	return BRLCAD_ERROR;
     if (cdata->argc && !cdata->dpa)
 	return BRLCAD_ERROR;
@@ -137,6 +141,8 @@ _ged_cyclic_check(lint_data *cdata)
 
     if (cdata->argc) {
 	for (i = 0; i < cdata->argc; i++) {
+	    if (!cdata->dpa[i])
+		continue;
 	    db_add_node_to_full_path(start_path, cdata->dpa[i]);
 	    cyclic_search(start_path, (void *)cdata);
 	    DB_FULL_PATH_POP(start_path);
