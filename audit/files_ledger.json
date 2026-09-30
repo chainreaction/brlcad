@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 545,
-    "pending_files": 2948,
-    "last_updated": "2026-09-30T03:52:00Z",
-    "total_issues": 260,
-    "reviewed_count": 515
+    "reviewed_files": 555,
+    "pending_files": 2938,
+    "last_updated": "2026-09-30T04:05:00Z",
+    "total_issues": 261,
+    "reviewed_count": 525
   },
   "files": [
     {
@@ -24977,68 +24977,80 @@
       "path": "src/libged/pmat/pmat.c",
       "subsystem": "src/libged",
       "lines": 83,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T04:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0261"
+      ]
     },
     {
       "id": 2360,
       "path": "src/libged/pmodel2view/pmodel2view.c",
       "subsystem": "src/libged",
       "lines": 71,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T04:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0261"
+      ]
     },
     {
       "id": 2361,
       "path": "src/libged/png/png.c",
       "subsystem": "src/libged",
       "lines": 497,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T04:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0261"
+      ]
     },
     {
       "id": 2362,
       "path": "src/libged/png2fb/png2fb.c",
       "subsystem": "src/libged",
       "lines": 221,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T04:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0261"
+      ]
     },
     {
       "id": 2363,
       "path": "src/libged/pnts/pnts.cpp",
       "subsystem": "src/libged",
       "lines": 1660,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T04:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0261"
+      ]
     },
     {
       "id": 2364,
       "path": "src/libged/pnts_util.c",
       "subsystem": "src/libged",
       "lines": 488,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T04:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0261"
+      ]
     },
     {
       "id": 2365,
       "path": "src/libged/pnts_util.h",
       "subsystem": "src/libged",
       "lines": 77,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T04:05:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -25047,30 +25059,36 @@
       "path": "src/libged/points_eval.c",
       "subsystem": "src/libged",
       "lines": 76,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T04:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0261"
+      ]
     },
     {
       "id": 2367,
       "path": "src/libged/polyclip.cpp",
       "subsystem": "src/libged",
       "lines": 563,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T04:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0261"
+      ]
     },
     {
       "id": 2368,
       "path": "src/libged/prcolor/prcolor.c",
       "subsystem": "src/libged",
       "lines": 142,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30T04:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0261"
+      ]
     },
     {
       "id": 2369,
