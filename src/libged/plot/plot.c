@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
+#include <errno.h>
 
 #include "bn.h"
 #include "bv/plot3.h"
@@ -50,10 +51,10 @@ dl_plot(struct bu_list *hdlp, FILE *fp, mat_t model2view, int floating, mat_t ce
     struct display_list *next_gdlp;
     struct bv_scene_obj *sp;
     struct bv_vlist *vp;
-    static vect_t clipmin, clipmax;
-    static vect_t last;         /* last drawn point */
-    static vect_t fin;
-    static vect_t start;
+    vect_t clipmin, clipmax;
+    vect_t last;         /* last drawn point */
+    vect_t fin;
+    vect_t start;
     int Dashing;                        /* linetype is dashed */
 
     if (floating) {
@@ -205,17 +206,20 @@ ged_plot_core(struct ged *gedp, int argc, const char *argv[])
     int floating;			/* 3-D floating point plot */
     int is_pipe = 0;
     static const char *plot_usage = "file [2|3] [f] [g] [z]";
+    const char *cmd_name;
 
     GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
     GED_CHECK_VIEW(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+
+    cmd_name = argv[0];
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], plot_usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd_name, plot_usage);
 	return GED_HELP;
     }
 
@@ -236,22 +240,22 @@ ged_plot_core(struct ged *gedp, int argc, const char *argv[])
 		break;
 	    case 'g':
 		/* do grid */
-		bu_vls_printf(gedp->ged_result_str, "%s: grid unimplemented\n", argv[0]);
+		bu_vls_printf(gedp->ged_result_str, "%s: grid unimplemented\n", cmd_name);
 		break;
 	    case 'z':
 	    case 'Z':
 		/* Enable Z clipping */
-		bu_vls_printf(gedp->ged_result_str, "%s: Clipped in Z to viewing cube\n", argv[0]);
+		bu_vls_printf(gedp->ged_result_str, "%s: Clipped in Z to viewing cube\n", cmd_name);
 		Z_clip = 1;
 		break;
 	    default:
-		bu_vls_printf(gedp->ged_result_str, "%s: bad PLOT option %s\n", argv[0], argv[1]);
+		bu_vls_printf(gedp->ged_result_str, "%s: bad PLOT option %s\n", cmd_name, argv[1]);
 		break;
 	}
 	argv++;
     }
     if (argv[1] == (char *)0) {
-	bu_vls_printf(gedp->ged_result_str, "%s: no filename or filter specified\n", argv[0]);
+	bu_vls_printf(gedp->ged_result_str, "%s: no filename or filter specified\n", cmd_name);
 	return BRLCAD_ERROR;
     }
     if (argv[1][0] == '|') {
@@ -263,7 +267,9 @@ ged_plot_core(struct ged *gedp, int argc, const char *argv[])
 	}
 	fp = popen(bu_vls_addr(&str), "wb");
 	if (fp == NULL) {
-	    perror(bu_vls_addr(&str));
+	    bu_vls_printf(gedp->ged_result_str, "%s: popen failed for \"%s\": %s\n",
+			  cmd_name, bu_vls_addr(&str), strerror(errno));
+	    bu_vls_free(&str);
 	    return BRLCAD_ERROR;
 	}
 
@@ -273,7 +279,8 @@ ged_plot_core(struct ged *gedp, int argc, const char *argv[])
     } else {
 	fp = fopen(argv[1], "wb");
 	if (fp == NULL) {
-	    perror(argv[1]);
+	    bu_vls_printf(gedp->ged_result_str, "%s: cannot open \"%s\" for writing: %s\n",
+			  cmd_name, argv[1], strerror(errno));
 	    return BRLCAD_ERROR;
 	}
 

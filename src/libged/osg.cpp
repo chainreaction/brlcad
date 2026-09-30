@@ -53,10 +53,8 @@ struct osg_stuff {
 };
 
 static void
-_osgLoadHiddenSolid(osg::Geode *geode, struct bv_scene_obj *sp)
+_osgLoadHiddenSolid(osg::Geode *UNUSED(geode), struct bv_scene_obj *UNUSED(sp))
 {
-    register struct bv_vlist *vp = (struct bv_vlist *)&sp->s_vlist;
-    osg::Vec3dArray* vertices;
 }
 
 
@@ -65,10 +63,14 @@ _osgLoadSolid(osg::Geode *geode, osg::Geometry *geom, osg::Vec3dArray *vertices,
 {
     struct bv_vlist *tvp;
     int first;
-    register struct bv_vlist *vp = (struct bv_vlist *)&sp->s_vlist;
+    register struct bv_vlist *vp;
     int begin;
     int nverts;
 
+    if (!geode || !geom || !vertices || !normals || !sp)
+	return;
+
+    vp = (struct bv_vlist *)&sp->s_vlist;
     bu_log("_ged_osgLoadSolid: enter\n");
 
 
@@ -153,6 +155,9 @@ _ged_osgLoadScene(struct bu_list *hdlp, void *osgData)
     register struct display_list *next_gdlp;
     struct bv_scene_obj *sp;
     struct osg_stuff *osp = (struct osg_stuff *)osgData;
+
+    if (!hdlp || !osp || !osp->viewer.valid())
+	return;
 
     bu_log("_ged_osgLoadScene: part B\n");
     osg::Group* root = new osg::Group();

@@ -27,6 +27,7 @@
 #include "common.h"
 
 #include <stdlib.h>
+#include <errno.h>
 #ifdef HAVE_SYS_TYPES_H
 #  include <sys/types.h>
 #endif
@@ -70,15 +71,14 @@ struct pix2fb_state {
 
 #define PIX2FB_STATE_INIT_ZERO {512, 512, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 
-static char pix2fb_usage[] = "\
-Usage: pix-fb [-a -h -i -c -z -1] [-m #lines] [-F framebuffer]\n\
+static const char *pix2fb_usage = "[-a -h -i -c -z -1] [-m #lines] [-F framebuffer]\n\
 	[-s squarefilesize] [-w file_width] [-n file_height]\n\
 	[-x file_xoff] [-y file_yoff] [-X scr_xoff] [-Y scr_yoff]\n\
 	[-S squarescrsize] [-W scr_width] [-N scr_height] [-p seconds]\n\
 	[file.pix]\n";
 
 static int
-pix2fb_get_args(struct pix2fb_state *s, int argc, char **argv)
+pix2fb_get_args(struct ged *gedp, struct pix2fb_state *s, int argc, char **argv)
 {
     int c;
 
@@ -159,18 +159,16 @@ pix2fb_get_args(struct pix2fb_state *s, int argc, char **argv)
 	s->file_name = argv[bu_optind];
 	s->infd = open(s->file_name, 0);
 	if (s->infd < 0) {
-	    perror(s->file_name);
-	    fprintf(stderr,
-			  "pix-fb: cannot open \"%s\" for reading\n",
-			  s->file_name);
-	    bu_exit(1, NULL);
+	    bu_vls_printf(gedp->ged_result_str, "%s: cannot open \"%s\" for reading: %s\n",
+			  argv[0], s->file_name, strerror(errno));
+	    return -1;
 	}
 	setmode(s->infd, O_BINARY);
 	s->fileinput++;
     }
 
     if (argc > ++bu_optind)
-	fprintf(stderr, "pix-fb: excess argument(s) ignored\n");
+	bu_log("%s: excess argument(s) ignored\n", argv[0]);
 
     return 1;		/* OK */
 }
@@ -180,26 +178,27 @@ int
 ged_pix2fb_core(struct ged *gedp, int argc, const char *argv[])
 {
     int ret;
+    int arg_ret;
 
     struct pix2fb_state p2fbs = PIX2FB_STATE_INIT_ZERO;
 
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
     if (!gedp->ged_gvp) {
-	bu_vls_printf(gedp->ged_result_str, ": no current view set\n");
+	bu_vls_printf(gedp->ged_result_str, "%s: no current view set\n", argv[0]);
 	return BRLCAD_ERROR;
     }
 
     struct dm *dmp = (struct dm *)gedp->ged_gvp->dmp;
     if (!dmp) {
-	bu_vls_printf(gedp->ged_result_str, ": no current display manager set\n");
+	bu_vls_printf(gedp->ged_result_str, "%s: no current display manager set\n", argv[0]);
 	return BRLCAD_ERROR;
     }
 
     struct fb *fbp = dm_get_fb(dmp);
 
     if (!fbp) {
-	bu_vls_printf(gedp->ged_result_str, "display manager does not have a framebuffer");
+	bu_vls_printf(gedp->ged_result_str, "%s: display manager does not have a framebuffer\n", argv[0]);
 	return BRLCAD_ERROR;
     }
 
@@ -213,9 +212,13 @@ ged_pix2fb_core(struct ged *gedp, int argc, const char *argv[])
 	return GED_HELP;
     }
 
-    if (!pix2fb_get_args(&p2fbs, argc, (char **)argv)) {
+    arg_ret = pix2fb_get_args(gedp, &p2fbs, argc, (char **)argv);
+    if (arg_ret == 0) {
 	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], pix2fb_usage);
 	return GED_HELP;
+    }
+    if (arg_ret < 0) {
+	return BRLCAD_ERROR;
     }
 
     ret = fb_read_fd(fbp, p2fbs.infd,
@@ -227,7 +230,7 @@ ged_pix2fb_core(struct ged *gedp, int argc, const char *argv[])
 		     p2fbs.autosize, p2fbs.inverse, p2fbs.clear, p2fbs.zoom,
 		     gedp->ged_result_str);
 
-    if (p2fbs.infd != 0)
+    if (p2fbs.infd > 0)
 	close(p2fbs.infd);
 
     bu_snooze(BU_SEC2USEC(p2fbs.pause_sec));

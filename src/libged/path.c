@@ -48,7 +48,11 @@ path_validate_recurse(struct ged *gedp, struct db_full_path *path,
     /* get comb object */
     if (rt_db_get_internal(&intern, root, gedp->dbip,
 			   (fastf_t *)NULL) < 0) {
-	bu_vls_printf(gedp->ged_result_str, "Database read error, aborting");
+	bu_vls_printf(gedp->ged_result_str, "Database read error, aborting\n");
+	return BRLCAD_ERROR;
+    }
+    if (intern.idb_type != ID_COMBINATION) {
+	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
     comb = (struct rt_comb_internal *)intern.idb_ptr;
@@ -60,18 +64,19 @@ path_validate_recurse(struct ged *gedp, struct db_full_path *path,
 	    return BRLCAD_OK; /* no more children */
 	else if (roots_child->d_flags & RT_DIR_COMB) {
 	    /* remove root dir */
+	    int ret;
 	    ++(path->fp_names);
 	    --(path->fp_len);
-	    path_validate_recurse(gedp, path, DB_FULL_PATH_GET(path, 1));
+	    ret = path_validate_recurse(gedp, path, DB_FULL_PATH_GET(path, 1));
 	    --(path->fp_names);
 	    ++(path->fp_len);
+	    return ret;
 	} else
 	    return BRLCAD_ERROR; /* non-combinations shouldn't have children */
     } else {
 	rt_db_free_internal(&intern);
 	return BRLCAD_ERROR; /* that child doesn't exist under root */
     }
-    return BRLCAD_OK; /* for compiler */
 }
 
 
