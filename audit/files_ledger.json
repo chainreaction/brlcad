@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 495,
-    "pending_files": 2998,
-    "last_updated": "2026-09-30T03:00:00Z",
-    "total_issues": 255,
-    "reviewed_count": 485
+    "reviewed_files": 505,
+    "pending_files": 2988,
+    "last_updated": "2026-09-30T03:10:00Z",
+    "total_issues": 256,
+    "reviewed_count": 495
   },
   "files": [
     {
@@ -24377,100 +24377,120 @@
       "path": "src/libged/list/list.c",
       "subsystem": "src/libged",
       "lines": 165,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0256"
+      ]
     },
     {
       "id": 2310,
       "path": "src/libged/lod/lod.c",
       "subsystem": "src/libged",
       "lines": 144,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0256"
+      ]
     },
     {
       "id": 2311,
       "path": "src/libged/lod/lod2.cpp",
       "subsystem": "src/libged",
       "lines": 52,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0256"
+      ]
     },
     {
       "id": 2312,
       "path": "src/libged/log/log.c",
       "subsystem": "src/libged",
       "lines": 111,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0256"
+      ]
     },
     {
       "id": 2313,
       "path": "src/libged/ls/ls.c",
       "subsystem": "src/libged",
       "lines": 493,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0256"
+      ]
     },
     {
       "id": 2314,
       "path": "src/libged/lt/lt.c",
       "subsystem": "src/libged",
       "lines": 182,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0256"
+      ]
     },
     {
       "id": 2315,
       "path": "src/libged/m2v_point/m2v_point.c",
       "subsystem": "src/libged",
       "lines": 109,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0256"
+      ]
     },
     {
       "id": 2316,
       "path": "src/libged/make/make.c",
       "subsystem": "src/libged",
       "lines": 206,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0256"
+      ]
     },
     {
       "id": 2317,
       "path": "src/libged/make_name/make_name.c",
       "subsystem": "src/libged",
       "lines": 117,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0256"
+      ]
     },
     {
       "id": 2318,
       "path": "src/libged/man/man.c",
       "subsystem": "src/libged",
       "lines": 237,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0256"
+      ]
     },
     {
       "id": 2319,
@@ -36252,5 +36272,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-09-30T03:00:00Z"
+  "last_updated": "2026-09-30T03:10:00Z"
 }
