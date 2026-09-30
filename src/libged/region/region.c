@@ -51,22 +51,31 @@ ged_region_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc < 4) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
+	return BRLCAD_ERROR;
+    }
+
+    if (!argv[1] || strlen(argv[1]) == 0) {
+	bu_vls_printf(gedp->ged_result_str, "Error: missing region name\n");
 	return BRLCAD_ERROR;
     }
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "Database open for writing failed\n");
+	return BRLCAD_ERROR;
+    }
     ident = wdbp->wdb_item_default;
     air = wdbp->wdb_air_default;
 
     /* Check for even number of arguments */
     if (argc & 01) {
-	bu_vls_printf(gedp->ged_result_str, "error in number of args!");
+	bu_vls_printf(gedp->ged_result_str, "error in number of args!\n");
 	return BRLCAD_ERROR;
     }
 
@@ -81,6 +90,11 @@ ged_region_core(struct ged *gedp, int argc, const char *argv[])
 
     /* Get operation and solid name for each solid */
     for (i = 2; i < argc; i += 2) {
+	if (!argv[i] || !argv[i+1]) {
+	    bu_vls_printf(gedp->ged_result_str, "error: null argument encountered\n");
+	    return BRLCAD_ERROR;
+	}
+
 	if ((dp = db_lookup(gedp->dbip,  argv[i+1], LOOKUP_NOISY)) == RT_DIR_NULL) {
 	    bu_vls_printf(gedp->ged_result_str, "skipping %s\n", argv[i+1]);
 	    continue;
@@ -88,7 +102,7 @@ ged_region_core(struct ged *gedp, int argc, const char *argv[])
 
 	oper = db_str2op(argv[i]);
 	if (oper == DB_OP_NULL) {
-	    bu_vls_printf(gedp->ged_result_str, "bad operation: %c (0x%x) skip member: %s\n", argv[i][0], argv[i][0], dp->d_namep);
+	    bu_vls_printf(gedp->ged_result_str, "bad operation: %c (0x%x) skip member: %s\n", argv[i][0], (unsigned int)argv[i][0], dp->d_namep);
 	    continue;
 	}
 
@@ -98,7 +112,7 @@ ged_region_core(struct ged *gedp, int argc, const char *argv[])
 	}
 
 	if (_ged_combadd(gedp, dp, (char *)argv[1], 1, oper, ident, air) == RT_DIR_NULL) {
-	    bu_vls_printf(gedp->ged_result_str, "error in combadd");
+	    bu_vls_printf(gedp->ged_result_str, "error in combadd\n");
 	    return BRLCAD_ERROR;
 	}
     }

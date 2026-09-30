@@ -63,12 +63,17 @@ ged_rfarb_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc != 16) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
+	return BRLCAD_ERROR;
+    }
+
+    if (!argv[1] || strlen(argv[1]) == 0) {
+	bu_vls_printf(gedp->ged_result_str, "%s: missing solid name\n", argv[0]);
 	return BRLCAD_ERROR;
     }
 
@@ -77,21 +82,21 @@ ged_rfarb_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[2], "%lf", &known_pt[X]) != 1 ||
-	sscanf(argv[3], "%lf", &known_pt[Y]) != 1 ||
-	sscanf(argv[4], "%lf", &known_pt[Z]) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "%s: bad value - %s %s %s",
+    if (bu_sscanf(argv[2], "%lf", &known_pt[X]) != 1 ||
+	bu_sscanf(argv[3], "%lf", &known_pt[Y]) != 1 ||
+	bu_sscanf(argv[4], "%lf", &known_pt[Z]) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "%s: bad value - %s %s %s\n",
 		      argv[0], argv[2], argv[3], argv[4]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[5], "%lf", &rota) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "%s: bad rotation angle - %s", argv[0], argv[5]);
+    if (bu_sscanf(argv[5], "%lf", &rota) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "%s: bad rotation angle - %s\n", argv[0], argv[5]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[6], "%lf", &fba) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "%s: bad fallback angle - %s", argv[0], argv[6]);
+    if (bu_sscanf(argv[6], "%lf", &fba) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "%s: bad fallback angle - %s\n", argv[0], argv[6]);
 	return BRLCAD_ERROR;
     }
 
@@ -104,6 +109,10 @@ ged_rfarb_core(struct ged *gedp, int argc, const char *argv[])
     norm[2] = sin(fba);
 
     for (i = 0; i < 3; i++) {
+	if (!argv[7+3*i] || !argv[7+3*i+1] || !argv[7+3*i+2]) {
+	    bu_vls_printf(gedp->ged_result_str, "%s: missing point arguments\n", argv[0]);
+	    return BRLCAD_ERROR;
+	}
 	switch (argv[7+3*i][0]) {
 	    case 'x':
 		if (ZERO(norm[0])) {
@@ -112,10 +121,11 @@ ged_rfarb_core(struct ged *gedp, int argc, const char *argv[])
 		}
 		solve[i] = X;
 
-		if (sscanf(argv[7+3*i+1], "%lf", &pt[i][X]) != 1 ||
-		    sscanf(argv[7+3*i+2], "%lf", &pt[i][Y]) != 1) {
-		    bu_vls_printf(gedp->ged_result_str, "%s: at least one bad value - %s %s",
+		if (bu_sscanf(argv[7+3*i+1], "%lf", &pt[i][X]) != 1 ||
+		    bu_sscanf(argv[7+3*i+2], "%lf", &pt[i][Y]) != 1) {
+		    bu_vls_printf(gedp->ged_result_str, "%s: at least one bad value - %s %s\n",
 				  argv[0], argv[7+3*i+1], argv[7+3*i+2]);
+		    return BRLCAD_ERROR;
 		}
 
 		pt[i][X] *= gedp->dbip->dbi_local2base;
@@ -129,10 +139,11 @@ ged_rfarb_core(struct ged *gedp, int argc, const char *argv[])
 		}
 		solve[i] = Y;
 
-		if (sscanf(argv[7+3*i+1], "%lf", &pt[i][X]) != 1 ||
-		    sscanf(argv[7+3*i+2], "%lf", &pt[i][Y]) != 1) {
-		    bu_vls_printf(gedp->ged_result_str, "%s: at least one bad value - %s %s",
+		if (bu_sscanf(argv[7+3*i+1], "%lf", &pt[i][X]) != 1 ||
+		    bu_sscanf(argv[7+3*i+2], "%lf", &pt[i][Y]) != 1) {
+		    bu_vls_printf(gedp->ged_result_str, "%s: at least one bad value - %s %s\n",
 				  argv[0], argv[7+3*i+1], argv[7+3*i+2]);
+		    return BRLCAD_ERROR;
 		}
 
 		pt[i][X] *= gedp->dbip->dbi_local2base;
@@ -146,10 +157,11 @@ ged_rfarb_core(struct ged *gedp, int argc, const char *argv[])
 		}
 		solve[i] = Z;
 
-		if (sscanf(argv[7+3*i+1], "%lf", &pt[i][X]) != 1 ||
-		    sscanf(argv[7+3*i+2], "%lf", &pt[i][Y]) != 1) {
-		    bu_vls_printf(gedp->ged_result_str, "%s: at least one bad value - %s %s",
+		if (bu_sscanf(argv[7+3*i+1], "%lf", &pt[i][X]) != 1 ||
+		    bu_sscanf(argv[7+3*i+2], "%lf", &pt[i][Y]) != 1) {
+		    bu_vls_printf(gedp->ged_result_str, "%s: at least one bad value - %s %s\n",
 				  argv[0], argv[7+3*i+1], argv[7+3*i+2]);
+		    return BRLCAD_ERROR;
 		}
 
 		pt[i][X] *= gedp->dbip->dbi_local2base;
@@ -162,8 +174,8 @@ ged_rfarb_core(struct ged *gedp, int argc, const char *argv[])
 	}
     }
 
-    if (sscanf(argv[7+3*3], "%lf", &thick) != 1 || ZERO(thick)) {
-	bu_vls_printf(gedp->ged_result_str, "%s: bad thickness - %s", argv[0], argv[7+3*3]);
+    if (!argv[7+3*3] || bu_sscanf(argv[7+3*3], "%lf", &thick) != 1 || ZERO(thick)) {
+	bu_vls_printf(gedp->ged_result_str, "%s: bad thickness - %s\n", argv[0], argv[7+3*3] ? argv[7+3*3] : "(null)");
 	return BRLCAD_ERROR;
     }
     thick *= gedp->dbip->dbi_local2base;
@@ -228,12 +240,13 @@ ged_rfarb_core(struct ged *gedp, int argc, const char *argv[])
     dp = db_diradd(gedp->dbip, argv[1], RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&internal.idb_type);
     if (dp == RT_DIR_NULL) {
 	bu_vls_printf(gedp->ged_result_str, "%s: Cannot add %s to the directory\n", argv[0], argv[1]);
+	rt_db_free_internal(&internal);
 	return BRLCAD_ERROR;
     }
 
     if (rt_db_put_internal(dp, gedp->dbip, &internal) < 0) {
-	rt_db_free_internal(&internal);
 	bu_vls_printf(gedp->ged_result_str, "%s: Database write error, aborting.\n", argv[0]);
+	return BRLCAD_ERROR;
     }
 
     return BRLCAD_OK;

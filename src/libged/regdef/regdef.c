@@ -42,8 +42,12 @@ ged_regdef_core(struct ged *gedp, int argc, const char *argv[])
 
     /* Get region defaults */
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "Database open for writing failed\n");
+	return BRLCAD_ERROR;
+    }
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "ident %d air %d los %d material %d",
+	bu_vls_printf(gedp->ged_result_str, "ident %d air %d los %d material %d\n",
 		      wdbp->wdb_item_default,
 		      wdbp->wdb_air_default,
 		      wdbp->wdb_los_default,
@@ -52,12 +56,12 @@ ged_regdef_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     if (argc < 2 || 5 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[1], "%d", &item) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (bu_sscanf(argv[1], "%d", &item) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
     wdbp->wdb_item_default = item;
@@ -66,8 +70,8 @@ ged_regdef_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_OK;
     }
 
-    if (sscanf(argv[2], "%d", &air) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (bu_sscanf(argv[2], "%d", &air) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
     wdbp->wdb_air_default = air;
@@ -80,8 +84,8 @@ ged_regdef_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_OK;
     }
 
-    if (sscanf(argv[3], "%d", &los) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (bu_sscanf(argv[3], "%d", &los) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
     wdbp->wdb_los_default = los;
@@ -90,8 +94,8 @@ ged_regdef_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_OK;
     }
 
-    if (sscanf(argv[4], "%d", &mat) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (bu_sscanf(argv[4], "%d", &mat) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 

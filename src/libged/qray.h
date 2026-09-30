@@ -38,7 +38,7 @@ __BEGIN_DECLS
 #define DG_QRAY_GRAPHICS(_dgop) ((_dgop)->gd_qray_effects == 'g' || (_dgop)->gd_qray_effects == 'b')
 
 #define DG_QRAY_BASENAME "query_ray"
-#define DG_QRAY_BOTH ((_dgop)->gd_qray_effects == 'b')
+#define DG_QRAY_BOTH(_dgop) ((_dgop)->gd_qray_effects == 'b')
 
 GED_EXPORT extern struct ged_qray_color def_qray_odd_color;
 GED_EXPORT extern struct ged_qray_color def_qray_even_color;

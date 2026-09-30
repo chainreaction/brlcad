@@ -37,6 +37,13 @@ ged_repair(struct ged *gedp, int argc, const char *argv[])
     struct bu_vls out_name = BU_VLS_INIT_ZERO;
     int print_help = 0;
 
+    GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
+    GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
+    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+
+    /* initialize result */
+    bu_vls_trunc(gedp->ged_result_str, 0);
+
     struct bu_opt_desc d[3];
     BU_OPT(d[0], "h", "help", "", NULL, &print_help, "Print help");
     BU_OPT(d[1], "o", "output-name", "<name>", bu_opt_vls, &out_name, "Output object name");
@@ -47,6 +54,12 @@ ged_repair(struct ged *gedp, int argc, const char *argv[])
     for (int i = 0; i < argc; i++) original_argv[i] = argv[i];
 
     int ac = bu_opt_parse(NULL, argc, argv, d);
+    if (ac < 0) {
+        repair_usage(gedp->ged_result_str, original_argv[0]);
+        bu_free(original_argv, "argv copy");
+        bu_vls_free(&out_name);
+        return BRLCAD_ERROR;
+    }
     argc = ac;
 
     if (print_help || argc < 2) {
@@ -57,6 +70,7 @@ ged_repair(struct ged *gedp, int argc, const char *argv[])
     }
 
     for (int i = 1; i < argc; i++) {
+        if (!argv[i] || argv[i][0] == '\0') continue;
         if (argv[i][0] == '-') continue;
         dp = db_lookup(gedp->dbip, argv[i], LOOKUP_QUIET);
         if (dp != RT_DIR_NULL) {
@@ -66,7 +80,7 @@ ged_repair(struct ged *gedp, int argc, const char *argv[])
     }
 
     if (!objname || dp == RT_DIR_NULL) {
-        bu_vls_printf(gedp->ged_result_str, "{\"status\":\"error\",\"message\":\"No valid object specified for repair\"}");
+        bu_vls_printf(gedp->ged_result_str, "{\"status\":\"error\",\"message\":\"No valid object specified for repair\"}\n");
         bu_free(original_argv, "argv copy");
         bu_vls_free(&out_name);
         return BRLCAD_ERROR;
@@ -78,7 +92,7 @@ ged_repair(struct ged *gedp, int argc, const char *argv[])
 
     if (!in_place_repair) {
         if (db_lookup(gedp->dbip, bu_vls_cstr(&out_name), LOOKUP_QUIET) != RT_DIR_NULL) {
-            bu_vls_printf(gedp->ged_result_str, "{\"status\":\"error\",\"message\":\"Object %s already exists!\"}", bu_vls_cstr(&out_name));
+            bu_vls_printf(gedp->ged_result_str, "{\"status\":\"error\",\"message\":\"Object %s already exists!\"}\n", bu_vls_cstr(&out_name));
             bu_free(original_argv, "argv copy");
             bu_vls_free(&out_name);
             return BRLCAD_ERROR;
@@ -87,14 +101,14 @@ ged_repair(struct ged *gedp, int argc, const char *argv[])
 
     RT_DB_INTERNAL_INIT(&intern);
     if (rt_db_get_internal(&intern, dp, gedp->dbip, bn_mat_identity) < 0) {
-        bu_vls_printf(gedp->ged_result_str, "{\"status\":\"error\",\"message\":\"Failed to get object\"}");
+        bu_vls_printf(gedp->ged_result_str, "{\"status\":\"error\",\"message\":\"Failed to get object\"}\n");
         bu_free(original_argv, "argv copy");
         bu_vls_free(&out_name);
         return BRLCAD_ERROR;
     }
 
     if (!EDOBJ[intern.idb_type].ft_repair) {
-        bu_vls_printf(gedp->ged_result_str, "{\"status\":\"error\",\"message\":\"Repair operation not supported for this object type\"}");
+        bu_vls_printf(gedp->ged_result_str, "{\"status\":\"error\",\"message\":\"Repair operation not supported for this object type\"}\n");
         rt_db_free_internal(&intern);
         bu_free(original_argv, "argv copy");
         bu_vls_free(&out_name);
@@ -110,7 +124,7 @@ ged_repair(struct ged *gedp, int argc, const char *argv[])
             rname = bu_vls_cstr(&out_name);
             out_dp = db_diradd(gedp->dbip, rname, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&intern.idb_type);
             if (out_dp == RT_DIR_NULL) {
-                bu_vls_printf(gedp->ged_result_str, "{\"status\":\"error\",\"message\":\"Failed to add new directory entry\"}");
+                bu_vls_printf(gedp->ged_result_str, "{\"status\":\"error\",\"message\":\"Failed to add new directory entry\"}\n");
                 bu_vls_free(&log_str);
                 rt_db_free_internal(&intern);
                 bu_free(original_argv, "argv copy");
@@ -120,25 +134,27 @@ ged_repair(struct ged *gedp, int argc, const char *argv[])
         }
 
         if (rt_db_put_internal(out_dp, gedp->dbip, &intern) < 0) {
-            bu_vls_printf(gedp->ged_result_str, "{\"status\":\"error\",\"message\":\"Failed to write repaired object back to database\"}");
+            bu_vls_printf(gedp->ged_result_str, "{\"status\":\"error\",\"message\":\"Failed to write repaired object back to database\"}\n");
             bu_vls_free(&log_str);
-            rt_db_free_internal(&intern);
+            /* Note: rt_db_put_internal unconditionally frees intern on both success and failure */
             bu_free(original_argv, "argv copy");
             bu_vls_free(&out_name);
             return BRLCAD_ERROR;
         }
+    } else {
+        /* Repair returned non-zero, intern was not written to DB and must be freed here */
+        rt_db_free_internal(&intern);
     }
 
     if (bu_vls_strlen(&log_str) > 0) {
         bu_vls_printf(gedp->ged_result_str, "%s", bu_vls_cstr(&log_str));
     } else if (ret == 0 || ret == 1) {
-        bu_vls_printf(gedp->ged_result_str, "{\"status\":\"success\",\"message\":\"Successfully processed repair command\"}");
+        bu_vls_printf(gedp->ged_result_str, "{\"status\":\"success\",\"message\":\"Successfully processed repair command\"}\n");
     } else {
-        bu_vls_printf(gedp->ged_result_str, "{\"status\":\"error\",\"message\":\"Failed to repair object\"}");
+        bu_vls_printf(gedp->ged_result_str, "{\"status\":\"error\",\"message\":\"Failed to repair object\"}\n");
     }
 
     bu_vls_free(&log_str);
-    rt_db_free_internal(&intern);
     bu_free(original_argv, "argv copy");
     bu_vls_free(&out_name);
 

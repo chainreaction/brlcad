@@ -56,6 +56,9 @@ rect_usage(struct ged *gedp, const char *argv0)
 static void
 rect_vls_print(struct ged *gedp)
 {
+    if (!gedp || !gedp->ged_gvp || !gedp->ged_gvp->gv_s)
+	return;
+
     bu_vls_printf(gedp->ged_result_str, "bg = %d %d %d\n",
 		  gedp->ged_gvp->gv_s->gv_rect.bg[0],
 		  gedp->ged_gvp->gv_s->gv_rect.bg[1],
@@ -86,6 +89,9 @@ rect_vls_print(struct ged *gedp)
 static void
 rect_image2view(struct bv_interactive_rect_state *grsp)
 {
+    if (!grsp || grsp->cdim[X] <= 0 || grsp->cdim[Y] <= 0 || ZERO(grsp->aspect))
+	return;
+
     grsp->x = (grsp->pos[X] / (fastf_t)grsp->cdim[X] - 0.5) * 2.0;
     grsp->y = ((0.5 - (grsp->cdim[Y] - grsp->pos[Y]) / (fastf_t)grsp->cdim[Y]) / grsp->aspect * 2.0);
     grsp->width = grsp->dim[X] * 2.0 / (fastf_t)grsp->cdim[X];
@@ -100,6 +106,9 @@ static void
 rect_adjust_for_zoom(struct bv_interactive_rect_state *grsp)
 {
     fastf_t width, height;
+
+    if (!grsp || ZERO(grsp->aspect))
+	return;
 
     if (grsp->width >= 0.0)
 	width = grsp->width;
@@ -220,6 +229,10 @@ rect_zoom(struct ged *gedp)
     point_t new_view_center;
 
     GED_CHECK_VIEW(gedp, BRLCAD_ERROR);
+    if (!gedp->ged_gvp->gv_s) {
+	bu_vls_printf(gedp->ged_result_str, "View state does not exist.\n");
+	return BRLCAD_ERROR;
+    }
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -288,12 +301,16 @@ ged_rect_core(struct ged *gedp,
 
     GED_CHECK_VIEW(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+    if (!gedp->ged_gvp->gv_s) {
+	bu_vls_printf(gedp->ged_result_str, "View state does not exist.\n");
+	return BRLCAD_ERROR;
+    }
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
-    if (argc < 2 || 5 < argc) {
-	rect_usage(gedp, argv[0]);
+    if (argc < 2 || 5 < argc || !argv[0] || !argv[1]) {
+	rect_usage(gedp, argv ? argv[0] : "rect");
 	return BRLCAD_ERROR;
     }
 
@@ -317,7 +334,7 @@ ged_rect_core(struct ged *gedp,
     for (i = 0; i < argc; ++i) {
 	double scan;
 
-	if (sscanf(argp[i], "%lf", &scan) != 1) {
+	if (bu_sscanf(argp[i], "%lf", &scan) != 1) {
 	    rect_usage(gedp, argv[0]);
 	    return BRLCAD_ERROR;
 	}
@@ -351,6 +368,10 @@ ged_rect_core(struct ged *gedp,
 			  gedp->ged_gvp->gv_s->gv_rect.cdim[Y]);
 	    return BRLCAD_OK;
 	} else if (argc == 2) {
+	    if (user_pt[X] <= 0 || user_pt[Y] <= 0) {
+		bu_vls_printf(gedp->ged_result_str, "cdim: dimensions must be positive integers\n");
+		return BRLCAD_ERROR;
+	    }
 	    gedp->ged_gvp->gv_s->gv_rect.cdim[X] = user_pt[X];
 	    gedp->ged_gvp->gv_s->gv_rect.cdim[Y] = user_pt[Y];
 	    gedp->ged_gvp->gv_s->gv_rect.aspect = (fastf_t)gedp->ged_gvp->gv_s->gv_rect.cdim[X] / gedp->ged_gvp->gv_s->gv_rect.cdim[Y];

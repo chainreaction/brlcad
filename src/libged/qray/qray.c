@@ -58,6 +58,9 @@ qray_print_fmts(struct ged *gedp)
 {
     int i;
 
+    if (!gedp || !gedp->i || !gedp->i->ged_gdp || !gedp->i->ged_gdp->gd_qray_fmts)
+	return;
+
     for (i = 0; gedp->i->ged_gdp->gd_qray_fmts[i].type != (char)0; ++i)
 	bu_vls_printf(gedp->ged_result_str, "%s\n", bu_vls_addr(&gedp->i->ged_gdp->gd_qray_fmts[i].fmt));
 }
@@ -66,6 +69,9 @@ qray_print_fmts(struct ged *gedp)
 static void
 qray_print_vars(struct ged *gedp)
 {
+    if (!gedp || !gedp->i || !gedp->i->ged_gdp)
+	return;
+
     bu_vls_printf(gedp->ged_result_str, "basename = %s\n", bu_vls_addr(&gedp->i->ged_gdp->gd_qray_basename));
     bu_vls_printf(gedp->ged_result_str, "script = %s\n", bu_vls_addr(&gedp->i->ged_gdp->gd_qray_script));
     bu_vls_printf(gedp->ged_result_str, "effects = %c\n", gedp->i->ged_gdp->gd_qray_effects);
@@ -88,6 +94,9 @@ qray_get_fmt_index(struct ged *gedp,
 		   char c)
 {
     int i;
+
+    if (!gedp || !gedp->i || !gedp->i->ged_gdp || !gedp->i->ged_gdp->gd_qray_fmts)
+	return -1;
 
     for (i = 0; gedp->i->ged_gdp->gd_qray_fmts[i].type != (char)0; ++i)
 	if (c == gedp->i->ged_gdp->gd_qray_fmts[i].type)
@@ -113,6 +122,11 @@ ged_qray_core(struct ged *gedp,
     if (argc == 1) {
 	qray_usage(gedp, argv[0]);
 	return GED_HELP;
+    }
+
+    if (!gedp->i || !gedp->i->ged_gdp) {
+	bu_vls_printf(gedp->ged_result_str, "qray: graphics context not initialized\n");
+	return BRLCAD_ERROR;
     }
 
     /* catch bug introduced pre 7.26.0 where .mgedrc ends up with qray
@@ -200,7 +214,7 @@ ged_qray_core(struct ged *gedp,
 	    return BRLCAD_OK;
 	}
 
-	bu_vls_printf(gedp->ged_result_str, "The 'qray scripts' command accepts 0 or 1 argument\n");
+	bu_vls_printf(gedp->ged_result_str, "The 'qray script' command accepts 0 or 1 argument\n");
 	return BRLCAD_ERROR;
     }
 
@@ -213,7 +227,7 @@ ged_qray_core(struct ged *gedp,
 	} else if (argc == 3) {
 	    /* set value */
 	    if (*argv[2] != 't' && *argv[2] != 'g' && *argv[2] != 'b') {
-		bu_vls_printf(gedp->ged_result_str, "qray effects: bad value - %s", argv[2]);
+		bu_vls_printf(gedp->ged_result_str, "qray effects: bad value - %s\n", argv[2]);
 
 		return BRLCAD_ERROR;
 	    }
@@ -240,8 +254,8 @@ ged_qray_core(struct ged *gedp,
 	    /* set value */
 	    int ival;
 
-	    if (sscanf(argv[2], "%d", &ival) < 1) {
-		bu_vls_printf(gedp->ged_result_str, "qray echo: bad value - %s", argv[2]);
+	    if (bu_sscanf(argv[2], "%d", &ival) < 1) {
+		bu_vls_printf(gedp->ged_result_str, "qray echo: bad value - %s\n", argv[2]);
 
 		return BRLCAD_ERROR;
 	    }
@@ -271,12 +285,12 @@ ged_qray_core(struct ged *gedp,
 	    /* set value */
 	    int r, g, b;
 
-	    if (sscanf(argv[2], "%d", &r) != 1 ||
-		sscanf(argv[3], "%d", &g) != 1 ||
-		sscanf(argv[4], "%d", &b) != 1 ||
+	    if (bu_sscanf(argv[2], "%d", &r) != 1 ||
+		bu_sscanf(argv[3], "%d", &g) != 1 ||
+		bu_sscanf(argv[4], "%d", &b) != 1 ||
 		r < 0 || g < 0 || b < 0 ||
 		255 < r || 255 < g || 255 < b) {
-		bu_vls_printf(gedp->ged_result_str, "qray oddcolor %s %s %s - bad value",
+		bu_vls_printf(gedp->ged_result_str, "qray oddcolor %s %s %s - bad value\n",
 			      argv[2], argv[3], argv[4]);
 
 		return BRLCAD_ERROR;
@@ -306,12 +320,12 @@ ged_qray_core(struct ged *gedp,
 	    /* set value */
 	    int r, g, b;
 
-	    if (sscanf(argv[2], "%d", &r) != 1 ||
-		sscanf(argv[3], "%d", &g) != 1 ||
-		sscanf(argv[4], "%d", &b) != 1 ||
+	    if (bu_sscanf(argv[2], "%d", &r) != 1 ||
+		bu_sscanf(argv[3], "%d", &g) != 1 ||
+		bu_sscanf(argv[4], "%d", &b) != 1 ||
 		r < 0 || g < 0 || b < 0 ||
 		255 < r || 255 < g || 255 < b) {
-		bu_vls_printf(gedp->ged_result_str, "qray evencolor %s %s %s - bad value",
+		bu_vls_printf(gedp->ged_result_str, "qray evencolor %s %s %s - bad value\n",
 			      argv[2], argv[3], argv[4]);
 
 		return BRLCAD_ERROR;
@@ -341,12 +355,12 @@ ged_qray_core(struct ged *gedp,
 	    /* set value */
 	    int r, g, b;
 
-	    if (sscanf(argv[2], "%d", &r) != 1 ||
-		sscanf(argv[3], "%d", &g) != 1 ||
-		sscanf(argv[4], "%d", &b) != 1 ||
+	    if (bu_sscanf(argv[2], "%d", &r) != 1 ||
+		bu_sscanf(argv[3], "%d", &g) != 1 ||
+		bu_sscanf(argv[4], "%d", &b) != 1 ||
 		r < 0 || g < 0 || b < 0 ||
 		255 < r || 255 < g || 255 < b) {
-		bu_vls_printf(gedp->ged_result_str, "qray voidcolor %s %s %s - bad value",
+		bu_vls_printf(gedp->ged_result_str, "qray voidcolor %s %s %s - bad value\n",
 			      argv[2], argv[3], argv[4]);
 
 		return BRLCAD_ERROR;
@@ -376,13 +390,13 @@ ged_qray_core(struct ged *gedp,
 	    /* set value */
 	    int r, g, b;
 
-	    if (sscanf(argv[2], "%d", &r) != 1 ||
-		sscanf(argv[3], "%d", &g) != 1 ||
-		sscanf(argv[4], "%d", &b) != 1 ||
+	    if (bu_sscanf(argv[2], "%d", &r) != 1 ||
+		bu_sscanf(argv[3], "%d", &g) != 1 ||
+		bu_sscanf(argv[4], "%d", &b) != 1 ||
 		r < 0 || g < 0 || b < 0 ||
 		255 < r || 255 < g || 255 < b) {
 		bu_vls_printf(gedp->ged_result_str,
-			      "qray overlapcolor %s %s %s - bad value",
+			      "qray overlapcolor %s %s %s - bad value\n",
 			      argv[2], argv[3], argv[4]);
 		return BRLCAD_ERROR;
 	    }

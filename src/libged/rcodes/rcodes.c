@@ -55,18 +55,18 @@ ged_rcodes_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s filename", argv[0]);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s filename\n", argv[0]);
 	return GED_HELP;
     }
 
-    if (argc != 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s filename", argv[0]);
+    if (argc != 2 || !argv[1] || argv[1][0] == '\0') {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s filename\n", argv[0]);
 	return BRLCAD_ERROR;
     }
 
     fp = fopen(argv[1], "r");
     if (fp == NULL) {
-	bu_vls_printf(gedp->ged_result_str, "%s: Failed to read file - %s", argv[0], argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s: Failed to read file - %s\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
 
@@ -74,7 +74,7 @@ ged_rcodes_core(struct ged *gedp, int argc, const char *argv[])
 	int changed;
 
 	/* character and/or whitespace delimited numbers */
-	if (sscanf(line, "%d%*c%d%*c%d%*c%d%s", &item, &air, &mat, &los, name) != 5)
+	if (bu_sscanf(line, "%d%*c%d%*c%d%*c%d%s", &item, &air, &mat, &los, name) != 5)
 	    continue; /* not useful */
 
 	/* skip over the path */
@@ -98,6 +98,7 @@ ged_rcodes_core(struct ged *gedp, int argc, const char *argv[])
 
 	if (rt_db_get_internal(&intern, dp, gedp->dbip, (matp_t)NULL) != ID_COMBINATION) {
 	    bu_vls_printf(gedp->ged_result_str, "%s: Warning - %s not a region\n", argv[1], cp);
+	    rt_db_free_internal(&intern);
 	    continue;
 	}
 
@@ -126,16 +127,17 @@ ged_rcodes_core(struct ged *gedp, int argc, const char *argv[])
 	}
 
 	if (changed) {
-	    /* write out all changes */
+	    /* write out all changes - rt_db_put_internal frees intern on both success and failure */
 	    if (rt_db_put_internal(dp, gedp->dbip, &intern)) {
 		bu_vls_printf(gedp->ged_result_str, "Database write error, aborting.\n");
 		bu_vls_printf(gedp->ged_result_str,
 			      "The in-memory table of contents may not match the status of the on-disk\ndatabase.  The on-disk database should still be intact.  For safety, \nyou should exit now, and resolve the I/O problem, before continuing.\n");
 
-		rt_db_free_internal(&intern);
 		fclose(fp);
 		return BRLCAD_ERROR;
 	    }
+	} else {
+	    rt_db_free_internal(&intern);
 	}
 	g_changed += (size_t)changed;
 
