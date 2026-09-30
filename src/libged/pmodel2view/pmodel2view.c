@@ -47,7 +47,7 @@ ged_pmodel2view_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_OK;
     }
 
-    bu_vls_printf(gedp->ged_result_str, "Usage: %s", argv[0]);
+    bu_vls_printf(gedp->ged_result_str, "Usage: %s\n", argv[0]);
     return BRLCAD_ERROR;
 }
 

@@ -56,7 +56,7 @@ struct png2fb_state {
 #define PNG2FB_STATE_INIT_ZERO {1.0, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 
 static char png2fb_usage[] = "\
-Usage: png2fb [-H -i -c -v -z -1] [-m #lines]\n\
+[-H -i -c -v -z -1] [-m #lines]\n\
 	[-g screen_gamma]\n\
 	[-x file_xoff] [-y file_yoff] [-X scr_xoff] [-Y scr_yoff]\n\
 	[-S squarescrsize] [file.png]\n";
@@ -116,23 +116,19 @@ png2fb_get_args(struct png2fb_state *s, int argc, char **argv)
     if (bu_optind >= argc) {
 	if (isatty(fileno(stdin)))
 	    return 0;
-	s->file_name = "-";
+	s->file_name = (char *)"-";
 	s->fp_in = stdin;
 	setmode(fileno(s->fp_in), O_BINARY);
     } else {
 	s->file_name = argv[bu_optind];
 	s->fp_in = fopen(s->file_name, "rb");
 	if (s->fp_in == NULL) {
-	    perror(s->file_name);
-	    fprintf(stderr,
-		    "png-fb: cannot open \"%s\" for reading\n",
-		    s->file_name);
-	    return 0;
+	    return -1;
 	}
     }
 
     if (argc > ++bu_optind)
-	fprintf(stderr, "png-fb: excess argument(s) ignored\n");
+	bu_log("%s: excess argument(s) ignored\n", argv[0]);
 
     return 1;		/* OK */
 }
@@ -142,6 +138,7 @@ int
 ged_png2fb_core(struct ged *gedp, int argc, const char *argv[])
 {
     int ret;
+    int arg_status;
 
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
@@ -154,14 +151,14 @@ ged_png2fb_core(struct ged *gedp, int argc, const char *argv[])
 
     struct dm *dmp = (struct dm *)gedp->ged_gvp->dmp;
     if (!dmp) {
-	bu_vls_printf(gedp->ged_result_str, "no display manager currently active");
+	bu_vls_printf(gedp->ged_result_str, "no display manager currently active\n");
 	return BRLCAD_ERROR;
     }
 
     struct fb *fbp = dm_get_fb(dmp);
 
     if (!fbp) {
-	bu_vls_printf(gedp->ged_result_str, "display manager does not have a framebuffer");
+	bu_vls_printf(gedp->ged_result_str, "display manager does not have a framebuffer\n");
 	return BRLCAD_ERROR;
     }
 
@@ -170,12 +167,17 @@ ged_png2fb_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], png2fb_usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], png2fb_usage);
 	return GED_HELP;
     }
 
-    if (!png2fb_get_args(&p2fbs, argc, (char **)argv)) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], png2fb_usage);
+    arg_status = png2fb_get_args(&p2fbs, argc, (char **)argv);
+    if (arg_status < 0) {
+	bu_vls_printf(gedp->ged_result_str, "%s: cannot open \"%s\" for reading\n", argv[0], p2fbs.file_name);
+	return BRLCAD_ERROR;
+    }
+    if (arg_status == 0) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], png2fb_usage);
 	return GED_HELP;
     }
 

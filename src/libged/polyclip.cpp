@@ -46,6 +46,9 @@ ged_export_polygon(struct ged *gedp, bv_data_polygon_state *gdpsp, size_t polygo
     point_t vorigin;
     mat_t invRot;
 
+    if (!gedp || !gdpsp || !sname)
+	return BRLCAD_ERROR;
+
     GED_CHECK_EXISTS(gedp, sname, LOOKUP_QUIET, BRLCAD_ERROR);
     RT_DB_INTERNAL_INIT(&internal);
 
@@ -123,9 +126,15 @@ ged_export_polygon(struct ged *gedp, bv_data_polygon_state *gdpsp, size_t polygo
 	}
     }
 
-
-    GED_DB_DIRADD(gedp, dp, sname, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&internal.idb_type, BRLCAD_ERROR);
-    GED_DB_PUT_INTERN(gedp, dp, &internal, BRLCAD_ERROR);
+    dp = db_diradd(gedp->dbip, sname, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&internal.idb_type);
+    if (dp == RT_DIR_NULL) {
+	rt_db_free_internal(&internal);
+	return BRLCAD_ERROR;
+    }
+    if (rt_db_put_internal(dp, gedp->dbip, &internal) < 0) {
+	bu_vls_printf(gedp->ged_result_str, "Database write failure.\n");
+	return BRLCAD_ERROR;
+    }
 
     return BRLCAD_OK;
 }
@@ -160,12 +169,14 @@ ged_import_polygon(struct ged *gedp, const char *sname)
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
     if (wdb_import_from_path(gedp->ged_result_str, &intern, sname, wdbp) & BRLCAD_ERROR) {
+	wdb_close(wdbp);
 	return (struct bg_polygon *)0;
     }
 
     sketch_ip = (rt_sketch_internal *)intern.idb_ptr;
     if (sketch_ip->vert_count < 3 || sketch_ip->curve.count < 1) {
 	rt_db_free_internal(&intern);
+	wdb_close(wdbp);
 	return (struct bg_polygon *)0;
     }
 
@@ -271,6 +282,7 @@ ged_import_polygon(struct ged *gedp, const char *sname)
     /* Clean up */
     bu_free((void *)all_segment_nodes, "all_segment_nodes");
     rt_db_free_internal(&intern);
+    wdb_close(wdbp);
 
     return gpp;
 }
@@ -297,7 +309,9 @@ ged_polygons_overlap(struct ged *gedp, struct bg_polygon *polyA, struct bg_polyg
     plane_t pl;
     bv_view_plane(&pl, gedp->ged_gvp);
 
-    return bg_polygons_overlap(polyA, polyB, &pl, &wdbp->wdb_tol, gedp->ged_gvp->gv_scale);
+    int ret = bg_polygons_overlap(polyA, polyB, &pl, &wdbp->wdb_tol, gedp->ged_gvp->gv_scale);
+    wdb_close(wdbp);
+    return ret;
 }
 
 static int
@@ -337,7 +351,10 @@ ged_polygon_fill_segments(struct ged *gedp, struct bg_polygon *poly, vect2d_t vf
     int tweakCount;
     static size_t isectSize = 8;
     static int maxTweaks = 10;
-    struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    struct rt_wdb *wdbp;
+
+    if (!gedp || !poly || !gedp->ged_gvp)
+	return;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -347,6 +364,13 @@ ged_polygon_fill_segments(struct ged *gedp, struct bg_polygon *poly, vect2d_t vf
 
     if (vfilldelta < 0)
 	vfilldelta = -vfilldelta;
+
+    if (vfilldelta <= SMALL_FASTF) {
+	bu_vls_printf(gedp->ged_result_str, "fill delta must be greater than zero\n");
+	return;
+    }
+
+    wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
 
     isect2 = (point2d_t *)bu_calloc(isectSize, sizeof(point2d_t), "isect2");
     final_isect2 = (point2d_t *)bu_calloc(isectSize, sizeof(point2d_t), "final_isect2");
@@ -548,8 +572,16 @@ ged_polygon_fill_segments(struct ged *gedp, struct bg_polygon *poly, vect2d_t vf
     }
 
     bu_vls_printf(gedp->ged_result_str, "%s", bu_vls_addr(&result_vls));
+    bu_vls_free(&result_vls);
     bu_free((void *)isect2, "isect2");
     bu_free((void *)final_isect2, "final_isect2");
+
+    for (i = 0; i < poly_2d.p_num_contours; ++i) {
+	bu_free(poly_2d.p_contour[i].pc_point, "pc_point");
+    }
+    bu_free(poly_2d.p_contour, "p_contour");
+    bu_free(poly_2d.p_hole, "p_hole");
+    wdb_close(wdbp);
 }
 
 // Local Variables:

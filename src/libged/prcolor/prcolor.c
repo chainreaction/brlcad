@@ -84,9 +84,9 @@ pr_mater(struct ged *gedp,
 {
     char buf[128];
 
-    (void)sprintf(buf, "%5ld..%ld", mp->mt_low, mp->mt_high);
+    (void)snprintf(buf, sizeof(buf), "%5ld..%ld", mp->mt_low, mp->mt_high);
     pr_vls_col_item(gedp->ged_result_str, buf, ccp, clp);
-    (void)sprintf(buf, "%3d, %3d, %3d", mp->mt_r, mp->mt_g, mp->mt_b);
+    (void)snprintf(buf, sizeof(buf), "%3d, %3d, %3d", mp->mt_r, mp->mt_g, mp->mt_b);
     pr_vls_col_item(gedp->ged_result_str, buf, ccp, clp);
     pr_vls_col_eol(gedp->ged_result_str, ccp, clp);
 }
@@ -107,12 +107,12 @@ ged_prcolor_core(struct ged *gedp, int argc, const char *argv[])
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     if (argc != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s", argv[0]);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s\n", argv[0]);
 	return BRLCAD_ERROR;
     }
 
     if (db_mater_head(gedp->dbip) == MATER_NULL) {
-	bu_vls_printf(gedp->ged_result_str, "none");
+	bu_vls_printf(gedp->ged_result_str, "none\n");
 	return BRLCAD_OK;
     }
 

@@ -50,8 +50,10 @@ ged_pmat_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_OK;
     } else if (argc == 2) {
 	/* set perspective matrix */
-	if (bn_decode_mat(pmat, argv[1]) != 16)
+	if (bn_decode_mat(pmat, argv[1]) != 16) {
+	    bu_vls_printf(gedp->ged_result_str, "%s: failed to decode matrix '%s'\n", argv[0], argv[1]);
 	    return BRLCAD_ERROR;
+	}
 
 	MAT_COPY(gedp->ged_gvp->gv_pmat, pmat);
 	bv_update(gedp->ged_gvp);
@@ -59,7 +61,7 @@ ged_pmat_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_OK;
     }
 
-    bu_vls_printf(gedp->ged_result_str, "Usage: %s", argv[0]);
+    bu_vls_printf(gedp->ged_result_str, "Usage: %s [matrix]\n", argv[0]);
     return BRLCAD_ERROR;
 }
 

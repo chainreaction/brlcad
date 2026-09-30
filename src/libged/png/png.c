@@ -40,12 +40,13 @@
 #include "../ged_private.h"
 
 
-static unsigned int img_size = 512;
-static unsigned int img_half_size = 256;
-
-static unsigned char bg_red = 255;
-static unsigned char bg_green = 255;
-static unsigned char bg_blue = 255;
+struct png_state {
+    unsigned int img_size;
+    unsigned int img_half_size;
+    unsigned char bg_red;
+    unsigned char bg_green;
+    unsigned char bg_blue;
+};
 
 struct coord {
     short x;
@@ -79,9 +80,11 @@ raster(unsigned char **image, struct stroke *vp, const unsigned char *color, siz
     for (dy = vp->pixel.y; dy <= size;) {
 
         /* set the appropriate pixel in the buffer to color */
-        image[size-dy][vp->pixel.x*3] = color[0];
-        image[size-dy][vp->pixel.x*3+1] = color[1];
-        image[size-dy][vp->pixel.x*3+2] = color[2];
+        if (vp->pixel.x >= 0 && (size_t)vp->pixel.x <= size && dy <= size) {
+            image[size-dy][vp->pixel.x*3] = color[0];
+            image[size-dy][vp->pixel.x*3+1] = color[1];
+            image[size-dy][vp->pixel.x*3+2] = color[2];
+        }
 
         if (vp->major-- == 0)
             return;             /* Done */
@@ -145,7 +148,7 @@ draw_stroke(unsigned char **image, struct coord *coord1, struct coord *coord2, c
 static void
 draw_png_solid(fastf_t perspective, unsigned char **image, struct bv_scene_obj *sp, matp_t psmat, size_t size, size_t half_size)
 {
-    static vect_t last;
+    vect_t last;
     point_t clipmin = {-1.0, -1.0, -MAX_FASTF};
     point_t clipmax = {1.0, 1.0, MAX_FASTF};
     struct bv_vlist *tvp;
@@ -156,6 +159,8 @@ draw_png_solid(fastf_t perspective, unsigned char **image, struct bv_scene_obj *
     fastf_t delta;
     struct coord coord1;
     struct coord coord2;
+
+    VSETALL(last, 0.0);
 
     /* delta is used in clipping to insure clipped endpoint is slightly
      * in front of eye plane (perspective mode only).
@@ -173,7 +178,9 @@ draw_png_solid(fastf_t perspective, unsigned char **image, struct bv_scene_obj *
         int *cmd = tvp->cmd;
         point_t *pt = tvp->pt;
         for (i = 0; i < nused; i++, cmd++, pt++) {
-            static vect_t start, fin;
+            vect_t start, fin;
+            VSETALL(start, 0.0);
+            VSETALL(fin, 0.0);
             switch (*cmd) {
                 case BV_VLIST_POLY_START:
                 case BV_VLIST_POLY_VERTNORM:
@@ -316,7 +323,7 @@ dl_png(struct bu_list *hdlp, mat_t model2view, fastf_t perspective, vect_t eye_p
 
 
 static int
-draw_png(struct ged *gedp, FILE *fp)
+draw_png(struct ged *gedp, FILE *fp, const struct png_state *ps)
 {
     long i;
     png_structp png_p;
@@ -324,34 +331,36 @@ draw_png(struct ged *gedp, FILE *fp)
     double out_gamma = 1.0;
 
     /* TODO: explain why this is size+1 */
-    size_t num_bytes_per_row = (img_size+1) * 3;
-    size_t num_bytes = num_bytes_per_row * (img_size+1);
-    unsigned char **image = (unsigned char **)bu_malloc(sizeof(unsigned char *) * (img_size+1), "draw_png, image");
+    size_t num_bytes_per_row = (ps->img_size+1) * 3;
+    size_t num_bytes = num_bytes_per_row * (ps->img_size+1);
+    unsigned char **image = (unsigned char **)bu_malloc(sizeof(unsigned char *) * (ps->img_size+1), "draw_png, image");
     unsigned char *bytes = (unsigned char *)bu_malloc(num_bytes, "draw_png, bytes");
 
     /* Initialize bytes using the background color */
-    if (bg_red == bg_green && bg_red == bg_blue)
-	memset((void *)bytes, bg_red, num_bytes);
+    if (ps->bg_red == ps->bg_green && ps->bg_red == ps->bg_blue)
+	memset((void *)bytes, ps->bg_red, num_bytes);
     else {
 	for (i = 0; (size_t)i < num_bytes; i += 3) {
-	    bytes[i] = bg_red;
-	    bytes[i+1] = bg_green;
-	    bytes[i+2] = bg_blue;
+	    bytes[i] = ps->bg_red;
+	    bytes[i+1] = ps->bg_green;
+	    bytes[i+2] = ps->bg_blue;
 	}
     }
 
     png_p = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     if (!png_p) {
 	bu_vls_printf(gedp->ged_result_str, "Could not create PNG write structure\n");
+	bu_free((void *)image, "draw_png, image");
+	bu_free((void *)bytes, "draw_png, bytes");
 	return BRLCAD_ERROR;
     }
 
     info_p = png_create_info_struct(png_p);
     if (!info_p) {
 	bu_vls_printf(gedp->ged_result_str, "Could not create PNG info structure\n");
+	png_destroy_write_struct(&png_p, NULL);
 	bu_free((void *)image, "draw_png, image");
 	bu_free((void *)bytes, "draw_png, bytes");
-
 	return BRLCAD_ERROR;
     }
 
@@ -359,7 +368,7 @@ draw_png(struct ged *gedp, FILE *fp)
     png_set_filter(png_p, 0, PNG_FILTER_NONE);
     png_set_compression_level(png_p, 9);
     png_set_IHDR(png_p, info_p,
-		 img_size, img_size, 8,
+		 ps->img_size, ps->img_size, 8,
 		 PNG_COLOR_TYPE_RGB,
 		 PNG_INTERLACE_NONE,
 		 PNG_COMPRESSION_TYPE_DEFAULT,
@@ -368,15 +377,16 @@ draw_png(struct ged *gedp, FILE *fp)
     png_write_info(png_p, info_p);
 
     /* Arrange the rows of data/pixels */
-    for (i = img_size; i >= 0; --i) {
-	image[i] = (unsigned char *)(bytes + ((img_size-i) * num_bytes_per_row));
+    for (i = ps->img_size; i >= 0; --i) {
+	image[i] = (unsigned char *)(bytes + ((ps->img_size-i) * num_bytes_per_row));
     }
 
-    dl_png(gedp->i->ged_gdp->gd_headDisplay, gedp->ged_gvp->gv_model2view, gedp->ged_gvp->gv_perspective, gedp->ged_gvp->gv_eye_pos, (size_t)img_size, (size_t)img_half_size, image);
+    dl_png(gedp->i->ged_gdp->gd_headDisplay, gedp->ged_gvp->gv_model2view, gedp->ged_gvp->gv_perspective, gedp->ged_gvp->gv_eye_pos, (size_t)ps->img_size, (size_t)ps->img_half_size, image);
 
     /* Write out pixels */
     png_write_image(png_p, image);
     png_write_end(png_p, NULL);
+    png_destroy_write_struct(&png_p, &info_p);
 
     bu_free((void *)image, "draw_png, image");
     bu_free((void *)bytes, "draw_png, bytes");
@@ -392,7 +402,14 @@ ged_png_core(struct ged *gedp, int argc, const char *argv[])
     int k;
     int ret;
     int r, g, b;
+    struct png_state ps;
     static const char *png_usage = "[-c r/g/b] [-s size] file";
+
+    ps.img_size = 512;
+    ps.img_half_size = 256;
+    ps.bg_red = 255;
+    ps.bg_green = 255;
+    ps.bg_blue = 255;
 
     GED_CHECK_VIEW(gedp, BRLCAD_ERROR);
     GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
@@ -403,7 +420,7 @@ ged_png_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], png_usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], png_usage);
 	return GED_HELP;
     }
 
@@ -413,8 +430,8 @@ ged_png_core(struct ged *gedp, int argc, const char *argv[])
 	switch (k) {
 	    case 'c':
 		/* parse out a delimited rgb color value */
-		if (sscanf(bu_optarg, "%d%*c%d%*c%d", &r, &g, &b) != 3) {
-		    bu_vls_printf(gedp->ged_result_str, "%s: bad color - %s", argv[0], bu_optarg);
+		if (bu_sscanf(bu_optarg, "%d%*c%d%*c%d", &r, &g, &b) != 3) {
+		    bu_vls_printf(gedp->ged_result_str, "%s: bad color - %s\n", argv[0], bu_optarg);
 		    return BRLCAD_ERROR;
 		}
 
@@ -434,33 +451,33 @@ ged_png_core(struct ged *gedp, int argc, const char *argv[])
 		else if (b > 255)
 		    b = 255;
 
-		bg_red = (unsigned char)r;
-		bg_green = (unsigned char)g;
-		bg_blue = (unsigned char)b;
+		ps.bg_red = (unsigned char)r;
+		ps.bg_green = (unsigned char)g;
+		ps.bg_blue = (unsigned char)b;
 
 		break;
 	    case 's':
-		if (sscanf(bu_optarg, "%u", &img_size) != 1) {
-		    bu_vls_printf(gedp->ged_result_str, "%s: bad size - %s", argv[0], bu_optarg);
+		if (bu_sscanf(bu_optarg, "%u", &ps.img_size) != 1) {
+		    bu_vls_printf(gedp->ged_result_str, "%s: bad size - %s\n", argv[0], bu_optarg);
 		    return BRLCAD_ERROR;
 		}
 
-		if (img_size < 50) {
-		    bu_vls_printf(gedp->ged_result_str, "%s: bad size - %s, must be greater than or equal to 50\n", argv[0], bu_optarg);
+		if (ps.img_size < 50 || ps.img_size > 16384) {
+		    bu_vls_printf(gedp->ged_result_str, "%s: bad size - %s, must be between 50 and 16384\n", argv[0], bu_optarg);
 		    return BRLCAD_ERROR;
 		}
 
-		img_half_size = img_size * 0.5;
+		ps.img_half_size = (unsigned int)(ps.img_size * 0.5);
 
 		break;
 	    default:
-		bu_vls_printf(gedp->ged_result_str, "%s: Unrecognized option - %s", argv[0], argv[bu_optind-1]);
+		bu_vls_printf(gedp->ged_result_str, "%s: Unrecognized option - %s\n", argv[0], argv[bu_optind-1]);
 		return BRLCAD_ERROR;
 	}
     }
 
     if ((argc - bu_optind) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], png_usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], png_usage);
 	return BRLCAD_ERROR;
     }
 
@@ -470,7 +487,7 @@ ged_png_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
-    ret = draw_png(gedp, fp);
+    ret = draw_png(gedp, fp, &ps);
     fclose(fp);
 
     return ret;

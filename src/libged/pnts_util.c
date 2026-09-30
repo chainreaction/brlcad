@@ -125,6 +125,7 @@ _ged_pnt_default_fmt_str(rt_pnt_type type) {
 
 void
 _ged_pnt_v_set(void *point, rt_pnt_type type, char key, fastf_t val) {
+    if (!point) return;
     switch (type) {
 	case RT_PNT_TYPE_PNT:
 	    PNT_V_IN(pnt, key, val);
@@ -157,6 +158,7 @@ _ged_pnt_v_set(void *point, rt_pnt_type type, char key, fastf_t val) {
 
 void
 _ged_pnt_c_set(void *point, rt_pnt_type type, char key, fastf_t val) {
+    if (!point) return;
     switch (type) {
 	case RT_PNT_TYPE_COL:
 	    PNT_C_IN(pnt_color, key, val);
@@ -177,6 +179,7 @@ _ged_pnt_c_set(void *point, rt_pnt_type type, char key, fastf_t val) {
 
 void
 _ged_pnt_s_set(void *point, rt_pnt_type type, char key, fastf_t val) {
+    if (!point) return;
     switch (type) {
 	case RT_PNT_TYPE_SCA:
 	    PNT_S_IN(pnt_scale, key, val);
@@ -197,6 +200,7 @@ _ged_pnt_s_set(void *point, rt_pnt_type type, char key, fastf_t val) {
 
 void
 _ged_pnt_n_set(void *point, rt_pnt_type type, char key, fastf_t val) {
+    if (!point) return;
     switch (type) {
 	case RT_PNT_TYPE_NRM:
 	    PNT_N_IN(pnt_normal, key, val);
@@ -291,7 +295,7 @@ _ged_pnts_fmt_match(rt_pnt_type t, int numcnt)
 void
 _ged_pnts_init_head_pnt(struct rt_pnts_internal *pnts)
 {
-    if (!pnts) return;
+    if (!pnts || !pnts->point) return;
     switch (pnts->type) {
 	case RT_PNT_TYPE_PNT:
 	    BU_LIST_INIT(&(((struct pnt *)pnts->point)->l));
@@ -362,6 +366,7 @@ _ged_pnts_new_pnt(rt_pnt_type t)
 void
 _ged_pnts_add(struct rt_pnts_internal *pnts, void *point)
 {
+    if (!pnts || !pnts->point || !point) return;
     switch (pnts->type) {
 	case RT_PNT_TYPE_PNT:
 	    BU_LIST_PUSH(&(((struct pnt *)pnts->point)->l), &((struct pnt *)point)->l);
@@ -404,6 +409,8 @@ _ged_pnts_dup(void *point, rt_pnt_type type)
     struct pnt_color_normal *pcn, *pcnnew = NULL;
     struct pnt_scale_normal *psn, *psnnew = NULL;
     struct pnt_color_scale_normal *pcsn, *pcsnnew = NULL;
+
+    if (!point) return NULL;
 
     switch (type) {
 	case RT_PNT_TYPE_PNT:

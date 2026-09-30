@@ -46,15 +46,16 @@ draw_points(struct bv_scene_obj *s)
 	return BRLCAD_OK; /* nothing to do is fine */
 
     struct draw_update_data_t *d = (struct draw_update_data_t *)s->s_i_data;
-    if (!d)
+    if (!d || !d->dbip)
 	return BRLCAD_OK; /* nothing to do is fine */
 
     struct db_full_path *fp = (struct db_full_path *)s->s_path;
-    struct directory *dp = (fp) ? DB_FULL_PATH_CUR_DIR(fp) : (struct directory *)s->dp;
+    struct directory *dp = (fp && fp->fp_len > 0) ? DB_FULL_PATH_CUR_DIR(fp) : (struct directory *)s->dp;
     if (!dp)
 	return BRLCAD_OK; /* nothing to do is fine */
 
     struct rt_db_internal intern;
+    RT_DB_INTERNAL_INIT(&intern);
     if (rt_db_get_internal(&intern, dp, d->dbip, NULL) < 0)
 	return BRLCAD_ERROR;
 
