@@ -54,7 +54,7 @@ ged_opendb_core(struct ged *gedp, int argc, const char *argv[])
     /* get database filename */
     if (argc == 1) {
 	if (!gedp->dbip) {
-	    bu_vls_printf(gedp->ged_result_str, "No database currently open.");
+	    bu_vls_printf(gedp->ged_result_str, "No database currently open.\n");
 	} else {
 	    bu_vls_printf(gedp->ged_result_str, "%s", gedp->dbip->dbi_filename);
 	}
@@ -75,14 +75,14 @@ ged_opendb_core(struct ged *gedp, int argc, const char *argv[])
 	int ac = bu_opt_parse(NULL, argc, argv, d);
 	argc = ac;
 
-	if (argc != 1) {
+	if (print_help || argc != 1) {
 	    bu_vls_printf(gedp->ged_result_str, "%s ", cmdname);
 	    _ged_cmd_help(gedp, usage, d);
-	    return BRLCAD_ERROR;
+	    return (print_help) ? BRLCAD_OK : BRLCAD_ERROR;
 	}
     } else {
 	// If we're doing reopen, the options aren't active
-	bu_vls_printf(gedp->ged_result_str, "%s filename", cmdname);
+	bu_vls_printf(gedp->ged_result_str, "%s filename\n", cmdname);
 	return BRLCAD_ERROR;
     }
 
@@ -138,12 +138,15 @@ ged_opendb_core(struct ged *gedp, int argc, const char *argv[])
 
     // LoD context creation (DbiState initialization can use info
     // stored here, so do this first)
-    if (gedp->new_cmd_forms)
+    if (gedp->new_cmd_forms) {
+	if (gedp->ged_lod)
+	    bv_mesh_lod_context_destroy(gedp->ged_lod);
 	gedp->ged_lod = bv_mesh_lod_context_create(argv[0]);
 
-    // If enabled, set up the DbiState container for fast structure access
-    if (gedp->new_cmd_forms)
+	if (gedp->dbi_state)
+	    delete (DbiState *)gedp->dbi_state;
 	gedp->dbi_state = new DbiState(gedp);
+    }
 
     // Set the view units, if we have a view
     if (gedp->ged_gvp) {

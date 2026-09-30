@@ -89,14 +89,14 @@ ged_nmg_simplify_core(struct ged *gedp, int argc, const char *argv[])
 	} else {
 	    bu_vls_printf(gedp->ged_result_str,
 			  "%s is unknown or simplification is not yet supported\n", argv[1]);
-	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	    ret = BRLCAD_ERROR;
 	    goto out3;
 	}
 	new_name = (char *)argv[2];
 	nmg_name = (char *)argv[3];
     } else {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	ret = BRLCAD_ERROR;
 	goto out3;
     }
@@ -236,6 +236,11 @@ ged_nmg_simplify_core(struct ged *gedp, int argc, const char *argv[])
 	}
     }
 
+    if (!success) {
+	ret = BRLCAD_ERROR;
+	goto out2;
+    }
+
 out1:
     r = BU_LIST_FIRST(nmgregion, &m->r_hd);
     s = BU_LIST_FIRST(shell, &r->s_hd);
@@ -292,6 +297,8 @@ out2:
     }
 
 out3:
+    if (wdbp)
+	wdb_close(wdbp);
     return ret;
 }
 

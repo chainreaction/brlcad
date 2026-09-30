@@ -62,7 +62,7 @@ ged_nmg_make_v_core(struct ged *gedp, int argc, const char *argv[])
 
     /* check for less than three vertices or incomplete vertex coordinates */
     if (argc < ELEMENTS_PER_POINT + 3 || (argc - 3) % 3 != 0) {
-       bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+       bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
        return GED_HELP;
     }
 
@@ -101,18 +101,27 @@ ged_nmg_make_v_core(struct ged *gedp, int argc, const char *argv[])
     NMG_CK_REGION(r);
     NMG_CK_SHELL(s);
 
-    verts = (struct makev_tmp_v *)NULL;
     verts = (struct makev_tmp_v *)bu_calloc(num_verts, sizeof(struct makev_tmp_v), "verts");
 
     for (idx=0; idx < num_verts; idx++){
+	double val[3];
 	struct shell* ns = nmg_msv(r);
 	NMG_CK_SHELL(ns);
 
-	verts[idx].pt[0] = (fastf_t)atof(argv[idx*3+3]);
-	verts[idx].pt[1] = (fastf_t)atof(argv[idx*3+4]);
-	verts[idx].pt[2] = (fastf_t)atof(argv[idx*3+5]);
+	if (bu_sscanf(argv[idx*3+3], "%lf", &val[0]) != 1 ||
+	    bu_sscanf(argv[idx*3+4], "%lf", &val[1]) != 1 ||
+	    bu_sscanf(argv[idx*3+5], "%lf", &val[2]) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "Invalid coordinate value for vertex %d\n", idx);
+	    bu_free(verts, "new verts");
+	    rt_db_free_internal(&internal);
+	    return BRLCAD_ERROR;
+	}
 
-	nmg_vertex_gv( ns->vu_p->v_p, verts[idx].pt);
+	verts[idx].pt[0] = (fastf_t)val[0];
+	verts[idx].pt[1] = (fastf_t)val[1];
+	verts[idx].pt[2] = (fastf_t)val[2];
+
+	nmg_vertex_gv(ns->vu_p->v_p, verts[idx].pt);
     }
 
     tol.magic = BN_TOL_MAGIC;
@@ -124,12 +133,15 @@ ged_nmg_make_v_core(struct ged *gedp, int argc, const char *argv[])
     nmg_rebound(m, &tol);
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
-    if (wdb_put_internal(wdbp, name, &internal, 1.0) < 0 ) {
-	bu_vls_printf(gedp->ged_result_str, "wdb_put_internal(%s)", argv[1]);
+    if (wdb_put_internal(wdbp, name, &internal, 1.0) < 0) {
+	bu_vls_printf(gedp->ged_result_str, "wdb_put_internal(%s) error\n", name);
+	wdb_close(wdbp);
+	bu_free(verts, "new verts");
 	rt_db_free_internal(&internal);
 	return BRLCAD_ERROR;
     }
 
+    wdb_close(wdbp);
     rt_db_free_internal(&internal);
     bu_free(verts, "new verts");
 

@@ -60,17 +60,17 @@ ged_oscale_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc != 3 && argc != 6) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[2], "%lf", &sf) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "%s: bad sf value - %s", argv[0], argv[2]);
+    if (bu_sscanf(argv[2], "%lf", &sf) != 1 || sf <= SQRT_SMALL_FASTF) {
+	bu_vls_printf(gedp->ged_result_str, "%s: bad sf value - %s\n", argv[0], argv[2]);
 	return BRLCAD_ERROR;
     }
 
@@ -78,7 +78,9 @@ ged_oscale_core(struct ged *gedp, int argc, const char *argv[])
 	if (_ged_get_obj_bounds2(gedp, 1, argv+1, &gtd, rpp_min, rpp_max) & BRLCAD_ERROR)
 	    return BRLCAD_ERROR;
 
-	dp = gtd.gtd_obj[gtd.gtd_objpos-1];
+	if (gtd.gtd_objpos <= 0 || (dp = gtd.gtd_obj[gtd.gtd_objpos-1]) == RT_DIR_NULL)
+	    return BRLCAD_ERROR;
+
 	if (!(dp->d_flags & RT_DIR_SOLID)) {
 	    if (rt_obj_bounds(gedp->ged_result_str, gedp->dbip, 1, argv+1, 1, rpp_min, rpp_max) == BRLCAD_ERROR)
 		return BRLCAD_ERROR;
@@ -92,25 +94,25 @@ ged_oscale_core(struct ged *gedp, int argc, const char *argv[])
 	/* The user has provided the keypoint. */
 	MAT_IDN(gtd.gtd_xform);
 
-	if (sscanf(argv[3], "%lf", &scan[X]) != 1) {
-	    bu_vls_printf(gedp->ged_result_str, "%s: bad kx value - %s", argv[0], argv[3]);
+	if (bu_sscanf(argv[3], "%lf", &scan[X]) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "%s: bad kx value - %s\n", argv[0], argv[3]);
 	    return BRLCAD_ERROR;
 	}
 
-	if (sscanf(argv[4], "%lf", &scan[Y]) != 1) {
-	    bu_vls_printf(gedp->ged_result_str, "%s: bad ky value - %s", argv[0], argv[4]);
+	if (bu_sscanf(argv[4], "%lf", &scan[Y]) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "%s: bad ky value - %s\n", argv[0], argv[4]);
 	    return BRLCAD_ERROR;
 	}
 
-	if (sscanf(argv[5], "%lf", &scan[Z]) != 1) {
-	    bu_vls_printf(gedp->ged_result_str, "%s: bad kz value - %s", argv[0], argv[5]);
+	if (bu_sscanf(argv[5], "%lf", &scan[Z]) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "%s: bad kz value - %s\n", argv[0], argv[5]);
 	    return BRLCAD_ERROR;
 	}
 
 	VSCALE(keypoint, scan, gedp->dbip->dbi_local2base);
 
 	if ((dp = db_lookup(gedp->dbip, argv[1], LOOKUP_QUIET)) == RT_DIR_NULL) {
-	    bu_vls_printf(gedp->ged_result_str, "%s: %s not found", argv[0], argv[1]);
+	    bu_vls_printf(gedp->ged_result_str, "%s: %s not found\n", argv[0], argv[1]);
 	    return BRLCAD_ERROR;
 	}
     }

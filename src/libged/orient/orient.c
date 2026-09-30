@@ -47,19 +47,19 @@ ged_orient_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc != 2 && argc != 5) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
     /* set view orientation */
     if (argc == 2) {
 	if (bn_decode_quat(quat, argv[1]) != 4) {
-	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	    return BRLCAD_ERROR;
 	}
     } else {
@@ -67,8 +67,8 @@ ged_orient_core(struct ged *gedp, int argc, const char *argv[])
 
 	for (i = 1; i < 5; ++i) {
 	    double scan;
-	    if (sscanf(argv[i], "%lf", &scan) != 1) {
-		bu_vls_printf(gedp->ged_result_str, "ged_orient_core: bad value - %s\n", argv[i-1]);
+	    if (bu_sscanf(argv[i], "%lf", &scan) != 1) {
+		bu_vls_printf(gedp->ged_result_str, "ged_orient_core: bad value - %s\n", argv[i]);
 		return BRLCAD_ERROR;
 	    }
 	    /* convert from double to fastf_t */

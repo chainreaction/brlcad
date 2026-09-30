@@ -55,12 +55,12 @@ ged_ocenter_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc != 2 && argc != 5) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
@@ -71,7 +71,9 @@ ged_ocenter_core(struct ged *gedp, int argc, const char *argv[])
     if (_ged_get_obj_bounds2(gedp, 1, argv+1, &gtd, rpp_min, rpp_max) & BRLCAD_ERROR)
 	return BRLCAD_ERROR;
 
-    dp = gtd.gtd_obj[gtd.gtd_objpos-1];
+    if (gtd.gtd_objpos <= 0 || (dp = gtd.gtd_obj[gtd.gtd_objpos-1]) == RT_DIR_NULL)
+	return BRLCAD_ERROR;
+
     if (!(dp->d_flags & RT_DIR_SOLID)) {
 	if (rt_obj_bounds(gedp->ged_result_str, gedp->dbip, 1, argv+1, 1, rpp_min, rpp_max) == BRLCAD_ERROR)
 	    return BRLCAD_ERROR;
@@ -90,18 +92,18 @@ ged_ocenter_core(struct ged *gedp, int argc, const char *argv[])
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
 
     /* Read in the new center */
-    if (sscanf(argv[2], "%lf", &scan[X]) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "%s: bad x value - %s", argv[0], argv[2]);
+    if (bu_sscanf(argv[2], "%lf", &scan[X]) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "%s: bad x value - %s\n", argv[0], argv[2]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[3], "%lf", &scan[Y]) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "%s: bad y value - %s", argv[0], argv[3]);
+    if (bu_sscanf(argv[3], "%lf", &scan[Y]) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "%s: bad y value - %s\n", argv[0], argv[3]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[4], "%lf", &scan[Z]) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "%s: bad z value - %s", argv[0], argv[4]);
+    if (bu_sscanf(argv[4], "%lf", &scan[Z]) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "%s: bad z value - %s\n", argv[0], argv[4]);
 	return BRLCAD_ERROR;
     }
 

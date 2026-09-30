@@ -1191,6 +1191,9 @@ ged_npush_core(struct ged *gedp, int argc, const char *argv[])
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    struct bn_tol tol = wdbp->wdb_tol;
+    wdb_close(wdbp);
+    wdbp = NULL;
     struct db_i *dbip = gedp->dbip;
 
     /* Need nref current for db_ls to work */
@@ -1204,7 +1207,7 @@ ged_npush_core(struct ged *gedp, int argc, const char *argv[])
      * instances involved with matrices */
     struct push_state s;
     s.verbosity = verbosity;
-    s.tol = &wdbp->wdb_tol;
+    s.tol = &tol;
     s.max_depth = max_depth;
     s.stop_at_regions = (to_regions) ? true : false;
     s.stop_at_shapes = (to_solids) ? true : false;
@@ -1236,7 +1239,7 @@ ged_npush_core(struct ged *gedp, int argc, const char *argv[])
 	validate_walk(dbip, dfp, &s);
 	if (!s.valid_push) {
 	    if (BU_STR_EQUAL(dp->d_namep, s.problem_obj.c_str())) {
-		bu_vls_printf(gedp->ged_result_str, "NOTE: cyclic path found: %s is below itself", dp->d_namep);
+		bu_vls_printf(gedp->ged_result_str, "NOTE: cyclic path found: %s is below itself\n", dp->d_namep);
 	    }
 	    db_free_full_path(dfp);
 	    BU_PUT(dfp, struct db_full_path);
@@ -1275,7 +1278,7 @@ ged_npush_core(struct ged *gedp, int argc, const char *argv[])
 
 	    /* Sanity - if we didn't end up with m back at the identity matrix,
 	     * something went wrong with the walk */
-	    if (!bn_mat_is_equal(m, bn_mat_identity, &wdbp->wdb_tol)) {
+	    if (!bn_mat_is_equal(m, bn_mat_identity, s.tol)) {
 		bu_vls_sprintf(gedp->ged_result_str, "Error - initial tree walk down %s finished with non-IDN matrix.\n", dp->d_namep);
 		bu_free(all_paths, "free db_ls output");
 		return BRLCAD_ERROR;
@@ -1382,7 +1385,8 @@ ged_npush_core(struct ged *gedp, int argc, const char *argv[])
 	    // If we're not being verbose, the first failure means we can just
 	    // immediately bail.
 	    if (!verbosity) {
-		bu_vls_printf(gedp->ged_result_str, "Operation failed - force not enabled and one or more solids are being moved in conflicting directions by multiple comb instances.");
+		bu_vls_printf(gedp->ged_result_str, "Operation failed - force not enabled and one or more solids are being moved in conflicting directions by multiple comb instances.\n");
+		bu_vls_free(&msgs);
 		return BRLCAD_ERROR;
 	    }
 	}
@@ -1437,7 +1441,7 @@ ged_npush_core(struct ged *gedp, int argc, const char *argv[])
 		    }
 		}
 	    }
-	    bu_vls_printf(gedp->ged_result_str, "%s\nOperation failed - force not enabled and one or more solids are being moved in conflicting directions by multiple comb instances.", bu_vls_cstr(&msgs));
+	    bu_vls_printf(gedp->ged_result_str, "%s\nOperation failed - force not enabled and one or more solids are being moved in conflicting directions by multiple comb instances.\n", bu_vls_cstr(&msgs));
 	    bu_vls_free(&msgs);
 	    return BRLCAD_ERROR;
 	}
@@ -1671,7 +1675,7 @@ ged_npush_core(struct ged *gedp, int argc, const char *argv[])
 	    BU_PUT(dfp, struct db_full_path);
 	}
 	if (!s.valid_push) {
-	    bu_vls_printf(gedp->ged_result_str, "failed to generate one or more objects listed in pushed trees.");
+	    bu_vls_printf(gedp->ged_result_str, "failed to generate one or more objects listed in pushed trees.\n");
 	    return BRLCAD_ERROR;
 	}
 
@@ -1692,10 +1696,10 @@ ged_npush_core(struct ged *gedp, int argc, const char *argv[])
 	std::set_difference(tops1.begin(), tops1.end(), tops2.begin(), tops2.end(), std::inserter(removed_tops, removed_tops.end()));
 	std::set_difference(tops2.begin(), tops2.end(), tops1.begin(), tops1.end(), std::inserter(added_tops, added_tops.end()));
 	for (s_it = removed_tops.begin(); s_it != removed_tops.end(); s_it++) {
-	    bu_vls_sprintf(gedp->ged_result_str, "Error: object %s is no longer a tops object\n", (*s_it).c_str());
+	    bu_vls_printf(gedp->ged_result_str, "Error: object %s is no longer a tops object\n", (*s_it).c_str());
 	}
 	for (s_it = added_tops.begin(); s_it != added_tops.end(); s_it++) {
-	    bu_vls_sprintf(gedp->ged_result_str, "Error: object %s is now a tops object\n", (*s_it).c_str());
+	    bu_vls_printf(gedp->ged_result_str, "Error: object %s is now a tops object\n", (*s_it).c_str());
 	}
 
 	if (removed_tops.size() || added_tops.size()) {

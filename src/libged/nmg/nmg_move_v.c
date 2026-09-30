@@ -278,8 +278,8 @@ ged_nmg_move_v_core(struct ged* gedp, int argc, const char* argv[])
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
-    if (argc != 9 ) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 9) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
@@ -303,13 +303,21 @@ ged_nmg_move_v_core(struct ged* gedp, int argc, const char* argv[])
 	return BRLCAD_ERROR;
     }
 
-    vtold[0] = atof(argv[3]);
-    vtold[1] = atof(argv[4]);
-    vtold[2] = atof(argv[5]);
+    double scan_old[3];
+    double scan_new[3];
+    if (bu_sscanf(argv[3], "%lf", &scan_old[0]) != 1 ||
+	bu_sscanf(argv[4], "%lf", &scan_old[1]) != 1 ||
+	bu_sscanf(argv[5], "%lf", &scan_old[2]) != 1 ||
+	bu_sscanf(argv[6], "%lf", &scan_new[0]) != 1 ||
+	bu_sscanf(argv[7], "%lf", &scan_new[1]) != 1 ||
+	bu_sscanf(argv[8], "%lf", &scan_new[2]) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "Invalid coordinate value\n");
+	rt_db_free_internal(&internal);
+	return BRLCAD_ERROR;
+    }
 
-    vtnew[0] = atof(argv[6]);
-    vtnew[1] = atof(argv[7]);
-    vtnew[2] = atof(argv[8]);
+    VSET(vtold, scan_old[0], scan_old[1], scan_old[2]);
+    VSET(vtnew, scan_new[0], scan_new[1], scan_new[2]);
 
     m = (struct model *)internal.idb_ptr;
     NMG_CK_MODEL(m);
@@ -317,12 +325,14 @@ ged_nmg_move_v_core(struct ged* gedp, int argc, const char* argv[])
     move_vertex(m, vtold, vtnew);
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
-    if (wdb_put_internal(wdbp, name, &internal, 1.0) < 0 ) {
-	bu_vls_printf(gedp->ged_result_str, "wdb_put_internal(%s)", argv[1]);
+    if (wdb_put_internal(wdbp, name, &internal, 1.0) < 0) {
+	bu_vls_printf(gedp->ged_result_str, "wdb_put_internal(%s) error\n", name);
+	wdb_close(wdbp);
 	rt_db_free_internal(&internal);
 	return BRLCAD_ERROR;
     }
 
+    wdb_close(wdbp);
     rt_db_free_internal(&internal);
 
     return BRLCAD_OK;
