@@ -12,10 +12,10 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 515,
-    "pending_files": 2978,
-    "last_updated": "2026-09-30T03:19:04Z",
-    "total_issues": 257,
+    "reviewed_files": 525,
+    "pending_files": 2968,
+    "last_updated": "2026-09-30T03:31:55Z",
+    "total_issues": 258,
     "reviewed_count": 495
   },
   "files": [
@@ -24617,100 +24617,120 @@
       "path": "src/libged/move_arb_edge/move_arb_edge.c",
       "subsystem": "src/libged",
       "lines": 320,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0258"
+      ]
     },
     {
       "id": 2330,
       "path": "src/libged/move_arb_face/move_arb_face.c",
       "subsystem": "src/libged",
       "lines": 263,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0258"
+      ]
     },
     {
       "id": 2331,
       "path": "src/libged/mrot/mrot.c",
       "subsystem": "src/libged",
       "lines": 94,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0258"
+      ]
     },
     {
       "id": 2332,
       "path": "src/libged/nirt/nirt.cpp",
       "subsystem": "src/libged",
       "lines": 774,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0258"
+      ]
     },
     {
       "id": 2333,
       "path": "src/libged/nmg/nmg.c",
       "subsystem": "src/libged",
       "lines": 311,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0258"
+      ]
     },
     {
       "id": 2334,
       "path": "src/libged/nmg/nmg_cmface.c",
       "subsystem": "src/libged",
       "lines": 168,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0258"
+      ]
     },
     {
       "id": 2335,
       "path": "src/libged/nmg/nmg_collapse.c",
       "subsystem": "src/libged",
       "lines": 166,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0258"
+      ]
     },
     {
       "id": 2336,
       "path": "src/libged/nmg/nmg_fix_normals.c",
       "subsystem": "src/libged",
       "lines": 106,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0258"
+      ]
     },
     {
       "id": 2337,
       "path": "src/libged/nmg/nmg_kill_f.c",
       "subsystem": "src/libged",
       "lines": 148,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0258"
+      ]
     },
     {
       "id": 2338,
       "path": "src/libged/nmg/nmg_kill_v.c",
       "subsystem": "src/libged",
       "lines": 329,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0258"
+      ]
     },
     {
       "id": 2339,
@@ -36292,5 +36312,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-09-30T03:19:04Z"
+  "last_updated": "2026-09-30T03:31:55Z"
 }
