@@ -41,6 +41,10 @@ main(int ac, char *av[]) {
     if (ac > 1) {
 	size_t invocations = 0;
 	seconds = atoi(av[1]);
+	if (seconds <= 0) {
+	    printf("seconds must be a positive integer\n");
+	    return 1;
+	}
 	start = bu_gettime();
 
 	while ((double)(bu_gettime() - start) < (seconds * 1000000.0)) {
@@ -60,7 +64,13 @@ main(int ac, char *av[]) {
 	    invocations++;
 	    /* bu_snooze(BU_SEC2USEC(1)); */
 	}
-	bu_log("Invoked %zu times (%.1lf per sec)\n", invocations, invocations / ((bu_gettime() - start) / 1000000.0));
+	{
+	    double elapsed_sec = (bu_gettime() - start) / 1000000.0;
+	    if (elapsed_sec > 0)
+		bu_log("Invoked %zu times (%.1lf per sec)\n", invocations, invocations / elapsed_sec);
+	    else
+		bu_log("Invoked %zu times\n", invocations);
+	}
     } else {
 	ged_init(&g);
 	ged_exec_l(&g, 1, list);

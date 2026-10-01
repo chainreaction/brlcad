@@ -125,6 +125,10 @@ main(int ac, char* av[])
     }
     bu_setprogname(av[0]);
     g = ged_open("db", av[1], 0);
+    if (!g) {
+	printf("Could not open database %s\n", av[1]);
+	return 1;
+    }
 
     /* FIXME: needs to actually return an error when tests fail. */
     material_creation_test(g);
@@ -133,6 +137,7 @@ main(int ac, char* av[])
     material_destroy_test(g);
     material_import_test(g);
 
+    ged_close(g);
     return 0;
 }
 

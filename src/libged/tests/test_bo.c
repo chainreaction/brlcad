@@ -77,6 +77,11 @@ check_object(struct ged *gedp, const char *name, const uint16_t *expected, size_
     }
 
     bip = (struct rt_binunif_internal *)intern.idb_ptr;
+    if (!bip) {
+	record_failure("bo object has null internal pointer");
+	rt_db_free_internal(&intern);
+	return;
+    }
     if (bip->type != DB5_MINORTYPE_BINU_16BITINT_U ||
 	bip->count != count ||
 	memcmp(bip->u.uint16, expected, count * sizeof(*expected)) != 0)
@@ -112,7 +117,7 @@ main(int argc, char **argv)
     wdbp = wdb_fopen(database_path);
     if (!wdbp)
 	bu_exit(1, "Could not create temporary database\n");
-    db_close(wdbp->dbip);
+    wdb_close(wdbp);
 
     if (write_input_file(host_path, values, sizeof(values)) != 0 ||
 	write_input_file(network_path, network_values, sizeof(network_values)) != 0)

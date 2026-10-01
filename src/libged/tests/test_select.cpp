@@ -52,6 +52,10 @@ main(int ac, char *av[]) {
     bu_setenv("BU_DIR_CACHE", lcache, 1);
 
     gedp = ged_open("db", av[1], 1);
+    if (!gedp) {
+	printf("Could not open database %s\n", av[1]);
+	return 1;
+    }
 
     // Set up new cmd data (not yet done by default in ged_open
     gedp->dbi_state = new DbiState(gedp);
@@ -177,7 +181,10 @@ main(int ac, char *av[]) {
     ged_exec_select(gedp, 3, s_av);
     printf("collapse after expand:\n%s\n", bu_vls_addr(gedp->ged_result_str));
 
+    delete static_cast<DbiState *>(gedp->dbi_state);
+    gedp->dbi_state = NULL;
     ged_close(gedp);
+    bu_dirclear(lcache);
 
     return 0;
 }

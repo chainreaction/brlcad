@@ -61,8 +61,15 @@ split_data split_newline(char* input) {
 }
 
 int run_search_check_count(struct ged *dbp, int expected_count, int num_args, ...) {
+    const int max_plan_args = 5;
     const char *cmd[6] = {"search", NULL, NULL, NULL, NULL, NULL};
     va_list args;
+
+    if (num_args > max_plan_args) {
+	printf("ERROR: too many args for run_search_check_count (max %d)\n", max_plan_args);
+	return 1;
+    }
+
     va_start(args, num_args);
 
     for (int i = 1; i < num_args + 1; i++) {	// offset start by 1 so 'search' is first in cmd array
@@ -102,6 +109,10 @@ main(int ac, char *av[]) {
     }
 
     dbp = ged_open("db", av[1], 1);
+    if (!dbp) {
+	printf("Could not open database %s\n", av[1]);
+	return 1;
+    }
 
     int curr_test = 0;
     int ret_code = 0;

@@ -63,6 +63,8 @@ main(int ac, char *av[]) {
     }
 
     gedp = ged_open("db", av[1], 1);
+    if (!gedp)
+	bu_exit(EXIT_FAILURE, "Could not open database %s\n", av[1]);
     if (ged_exec_gqa(gedp, 5, gqa) != BRLCAD_OK)
 	bu_exit(EXIT_FAILURE, "GQA overlap analysis failed: %s\n", bu_vls_cstr(gedp->ged_result_str));
     printf("%s\n", bu_vls_cstr(gedp->ged_result_str));
