@@ -564,6 +564,14 @@ _rm_tree_remove_named_leaf_instance(union tree *tp, const char *child_name,
 		return tp;
 	    if (tp->tr_b.tb_left && tp->tr_b.tb_right)
 		return tp;
+	    if (tp->tr_op == OP_SUBTRACT && !tp->tr_b.tb_left) {
+		if (tp->tr_b.tb_right) {
+		    db_free_tree(tp->tr_b.tb_right);
+		    tp->tr_b.tb_right = TREE_NULL;
+		}
+		BU_PUT(tp, union tree);
+		return TREE_NULL;
+	    }
 	    replacement = tp->tr_b.tb_left ? tp->tr_b.tb_left : tp->tr_b.tb_right;
 	    tp->tr_b.tb_left = TREE_NULL;
 	    tp->tr_b.tb_right = TREE_NULL;
@@ -894,6 +902,9 @@ _rm_expand_operand(const char *operand, struct db_i *dbip, struct bu_ptbl *out)
     struct bu_glob_context *gp;
     int i;
 
+    if (!operand || !operand[0] || !out)
+	return;
+
     /* If no metacharacters, pass through verbatim */
     if (!strchr(operand, '*') && !strchr(operand, '?') && !strchr(operand, '[')) {
 	struct bu_vls *v;
@@ -907,12 +918,21 @@ _rm_expand_operand(const char *operand, struct db_i *dbip, struct bu_ptbl *out)
     gp = bu_glob_ctx_create();
     db_path_glob(gp, operand, BU_GLOB_NOSORT, dbip);
 
-    for (i = 0; i < gp->gl_pathc; i++) {
+    if (gp->gl_pathc == 0) {
+	/* If glob matched nothing, retain literal operand for standard error reporting */
 	struct bu_vls *v;
 	BU_GET(v, struct bu_vls);
 	bu_vls_init(v);
-	bu_vls_strcpy(v, bu_vls_cstr(gp->gl_pathv[i]));
+	bu_vls_strcpy(v, operand);
 	bu_ptbl_ins(out, (long *)v);
+    } else {
+	for (i = 0; i < gp->gl_pathc; i++) {
+	    struct bu_vls *v;
+	    BU_GET(v, struct bu_vls);
+	    bu_vls_init(v);
+	    bu_vls_strcpy(v, bu_vls_cstr(gp->gl_pathv[i]));
+	    bu_ptbl_ins(out, (long *)v);
+	}
     }
 
     bu_glob_ctx_destroy(gp);
@@ -1193,7 +1213,7 @@ ged_rm_core(struct ged *gedp, int argc, const char *argv[])
     bu_vls_free(&optparse_msg);
 
     if (argc < 1) {
-	bu_vls_printf(gedp->ged_result_str, "%s", usage);
+	bu_vls_printf(gedp->ged_result_str, "%s\n", usage);
 	return BRLCAD_ERROR;
     }
 
@@ -1203,6 +1223,8 @@ ged_rm_core(struct ged *gedp, int argc, const char *argv[])
     /* Expand glob patterns; build flat list of resolved operands */
     bu_ptbl_init(&operands, 64, "rm operands");
     for (i = 0; i < (size_t)argc; i++) {
+	if (!argv[i] || !argv[i][0])
+	    continue;
 	_rm_expand_operand(argv[i], gedp->dbip, &operands);
     }
 

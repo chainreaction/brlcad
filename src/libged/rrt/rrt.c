@@ -54,13 +54,21 @@ ged_rrt_core(struct ged *gedp, int argc, const char *argv[])
     gd_rt_cmd = (char **)bu_calloc(args, sizeof(char *), "alloc gd_rt_cmd");
 
     vp = &gd_rt_cmd[0];
-    for (i = 1; i < argc; i++)
+    for (i = 1; i < argc; i++) {
+	if (!argv[i])
+	    continue;
 	*vp++ = (char *)argv[i];
+    }
     *vp++ = gedp->dbip->dbi_filename;
 
-    gd_rt_cmd_len = ged_who_argv(gedp, vp, (const char **)&gd_rt_cmd[args]);
+    int cmd_prev_len = vp - gd_rt_cmd;
+    gd_rt_cmd_len = cmd_prev_len + ged_who_argv(gedp, vp, (const char **)&gd_rt_cmd[args]);
 
     (void)_ged_run_rt(gedp, gd_rt_cmd_len, (const char **)gd_rt_cmd, -1, NULL, 0, NULL, NULL, NULL);
+
+    for (i = cmd_prev_len; i < gd_rt_cmd_len; i++) {
+	bu_free(gd_rt_cmd[i], "free who obj");
+    }
 
     bu_free(gd_rt_cmd, "free gd_rt_cmd");
 

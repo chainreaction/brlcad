@@ -39,6 +39,10 @@ ged_rot_core(struct ged *gedp, int argc, const char *argv[])
     char coord;
     mat_t rmat;
 
+    GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
+    GED_CHECK_VIEW(gedp, BRLCAD_ERROR);
+    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+
     if ((ret = ged_rot_args(gedp, argc, argv, &coord, rmat)) != BRLCAD_OK)
 	return ret;
 

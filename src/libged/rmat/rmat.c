@@ -50,8 +50,10 @@ ged_rmat_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_OK;
     } else if (argc == 2) {
 	/* set rotation matrix */
-	if (bn_decode_mat(rotation, argv[1]) != 16)
+	if (!argv[1] || bn_decode_mat(rotation, argv[1]) != 16) {
+	    bu_vls_printf(gedp->ged_result_str, "%s: invalid rotation matrix format\n", argv[0]);
 	    return BRLCAD_ERROR;
+	}
 
 	MAT_COPY(gedp->ged_gvp->gv_rotation, rotation);
 	bv_update(gedp->ged_gvp);
@@ -59,7 +61,7 @@ ged_rmat_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_OK;
     }
 
-    bu_vls_printf(gedp->ged_result_str, "Usage: %s", argv[0]);
+    bu_vls_printf(gedp->ged_result_str, "Usage: %s [rot_matrix]\n", argv[0]);
     return BRLCAD_ERROR;
 }
 

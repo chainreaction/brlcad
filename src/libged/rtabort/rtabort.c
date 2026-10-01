@@ -53,16 +53,18 @@ ged_rtabort_core(struct ged *gedp, int argc, const char *argv[])
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     if (argc != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s", argv[0]);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s\n", argv[0]);
 	return BRLCAD_ERROR;
     }
 
     for (size_t i = 0; i < BU_PTBL_LEN(&gedp->ged_subp); i++) {
 	rrp = (struct ged_subprocess *)BU_PTBL_GET(&gedp->ged_subp, i);
-	const char *cmd;
+	if (!rrp || !rrp->p)
+	    continue;
+	const char *cmd = NULL;
 	int argcnt = bu_process_args_n(rrp->p, &cmd, NULL);
 	bu_vls_trunc(&cmdroot, 0);
-	if (argcnt > 0 && bu_path_component(&cmdroot, cmd, BU_PATH_BASENAME_EXTLESS)) {
+	if (argcnt > 0 && cmd && bu_path_component(&cmdroot, cmd, BU_PATH_BASENAME_EXTLESS)) {
 	    if (BU_STR_EQUAL(bu_vls_cstr(&cmdroot), "rt") ||
 		    BU_STR_EQUAL(bu_vls_cstr(&cmdroot), "rtwizard") || BU_STR_EQUAL(bu_vls_cstr(&cmdroot), "art") ||
 		    BU_STR_EQUAL(bu_vls_cstr(&cmdroot), "rtcheck"))  {

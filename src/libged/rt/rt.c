@@ -83,7 +83,9 @@ ged_rt_core(struct ged *gedp, int argc, const char *argv[])
 
     bin = bu_dir(NULL, 0, BU_DIR_BIN, NULL);
     if (bin) {
-	snprintf(rt, 256, "%s/%s", bin, argv[0]);
+	snprintf(rt, sizeof(rt), "%s/%s", bin, argv[0]);
+    } else {
+	snprintf(rt, sizeof(rt), "%s", argv[0]);
     }
 
     vp = &gd_rt_cmd[0];
@@ -98,11 +100,14 @@ ged_rt_core(struct ged *gedp, int argc, const char *argv[])
     *vp++ = "-M";
 
     if (gedp->ged_gvp->gv_perspective > 0) {
-	(void)sprintf(pstring, "-p%g", gedp->ged_gvp->gv_perspective);
+	snprintf(pstring, sizeof(pstring), "-p%g", gedp->ged_gvp->gv_perspective);
 	*vp++ = pstring;
     }
 
     for (i = 1; i < argc; i++) {
+	if (!argv[i])
+	    continue;
+
 	if (argv[i][0] == '-' && argv[i][1] == '-' &&
 		   argv[i][2] == '\0') {
 	    ++i;
@@ -125,6 +130,7 @@ ged_rt_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     *vp++ = gedp->dbip->dbi_filename;
+    *vp = NULL;
     gd_rt_cmd_len = vp - gd_rt_cmd;
 
     ret = _ged_run_rt(gedp, gd_rt_cmd_len, (const char **)gd_rt_cmd, (argc - i), &(argv[i]), stdout_txt, NULL, NULL, NULL);

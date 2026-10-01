@@ -42,6 +42,23 @@ struct _ged_id_to_names {
     struct _ged_id_names headName;      /**< head of list of names */
 };
 
+static void
+_ged_rmap_free_list(struct _ged_id_to_names *head)
+{
+    struct _ged_id_to_names *itnp;
+    struct _ged_id_names *inp;
+
+    while (BU_LIST_WHILE(itnp, _ged_id_to_names, &head->l)) {
+	while (BU_LIST_WHILE(inp, _ged_id_names, &itnp->headName.l)) {
+	    BU_LIST_DEQUEUE(&inp->l);
+	    bu_vls_free(&inp->name);
+	    BU_PUT(inp, struct _ged_id_names);
+	}
+	BU_LIST_DEQUEUE(&itnp->l);
+	BU_PUT(itnp, struct _ged_id_to_names);
+    }
+}
+
 int
 ged_rmap_core(struct ged *gedp, int argc, const char *argv[])
 {
@@ -59,7 +76,7 @@ ged_rmap_core(struct ged *gedp, int argc, const char *argv[])
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     if (argc != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s", argv[0]);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s\n", argv[0]);
 	return BRLCAD_ERROR;
     }
 
@@ -82,8 +99,14 @@ ged_rmap_core(struct ged *gedp, int argc, const char *argv[])
 				   dp,
 				   gedp->dbip,
 				   (fastf_t *)NULL) < 0) {
-		bu_vls_printf(gedp->ged_result_str, "%s: Database read error, aborting", argv[0]);
+		bu_vls_printf(gedp->ged_result_str, "%s: Database read error, aborting\n", argv[0]);
+		_ged_rmap_free_list(&headIdName);
 		return BRLCAD_ERROR;
+	    }
+
+	    if (intern.idb_type != ID_COMBINATION || !intern.idb_ptr) {
+		rt_db_free_internal(&intern);
+		continue;
 	    }
 
 	    comb = (struct rt_comb_internal *)intern.idb_ptr;
@@ -129,8 +152,8 @@ ged_rmap_core(struct ged *gedp, int argc, const char *argv[])
 
 	/* start sublist of names associated with this id */
 	while (BU_LIST_WHILE(inp, _ged_id_names, &itnp->headName.l)) {
-	    /* add the this name to this sublist */
-	    bu_vls_printf(gedp->ged_result_str, " %s", bu_vls_addr(&inp->name));
+	    /* add this name to this sublist */
+	    bu_vls_printf(gedp->ged_result_str, " %s", bu_vls_cstr(&inp->name));
 
 	    BU_LIST_DEQUEUE(&inp->l);
 	    bu_vls_free(&inp->name);

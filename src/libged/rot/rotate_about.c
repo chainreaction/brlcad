@@ -46,12 +46,12 @@ ged_rotate_about_core(struct ged *gedp, int argc, const char *argv[])
 
     /* get "rotate about" point */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "%c", gedp->ged_gvp->gv_rotate_about);
+	bu_vls_printf(gedp->ged_result_str, "%c\n", gedp->ged_gvp->gv_rotate_about);
 	return BRLCAD_OK;
     }
 
     /* Set rotate_about */
-    if (argc == 2 && argv[1][1] == '\0') {
+    if (argc == 2 && argv[1] && argv[1][0] != '\0' && argv[1][1] == '\0') {
 	switch (argv[1][0]) {
 	    case 'e':
 	    case 'k':
@@ -62,7 +62,7 @@ ged_rotate_about_core(struct ged *gedp, int argc, const char *argv[])
 	}
     }
 
-    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
     return BRLCAD_ERROR;
 }
 

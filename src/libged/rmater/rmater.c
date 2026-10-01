@@ -29,21 +29,31 @@
 static int
 extract_mater_from_line(char *line,
 			char *name,
+			size_t name_len,
 			char *shader,
+			size_t shader_len,
 			int *r,
 			int *g,
 			int *b,
 			int *override,
 			int *inherit)
 {
-    int i, j, k;
-    char *str[3];
+    int i, j;
+    size_t k;
+    char *str[2];
+    size_t maxlen[2];
+
+    if (!line || !name || name_len == 0 || !shader || shader_len == 0 ||
+	!r || !g || !b || !override || !inherit)
+	return BRLCAD_ERROR;
 
     str[0] = name;
+    maxlen[0] = name_len - 1;
     str[1] = shader;
+    maxlen[1] = shader_len - 1;
 
     /* Extract first 2 strings. */
-    for (i = j =0; i < 2; ++i) {
+    for (i = j = 0; i < 2; ++i) {
 
 	/* skip white space */
 	while (line[j] == ' ' || line[j] == '\t')
@@ -54,11 +64,15 @@ extract_mater_from_line(char *line,
 
 	/* We found a double quote, so use everything between the quotes */
 	if (line[j] == '"') {
-	    for (k = 0, ++j; line[j] != '"' && line[j] != '\0'; ++j, ++k)
-		str[i][k] = line[j];
+	    for (k = 0, ++j; line[j] != '"' && line[j] != '\0'; ++j) {
+		if (k < maxlen[i])
+		    str[i][k++] = line[j];
+	    }
 	} else {
-	    for (k = 0; line[j] != ' ' && line[j] != '\t' && line[j] != '\0'; ++j, ++k)
-		str[i][k] = line[j];
+	    for (k = 0; line[j] != ' ' && line[j] != '\t' && line[j] != '\0'; ++j) {
+		if (k < maxlen[i])
+		    str[i][k++] = line[j];
+	    }
 	}
 
 	if (line[j] == '\0')
@@ -69,7 +83,7 @@ extract_mater_from_line(char *line,
     }
 
     /* character and/or whitespace delimited numbers */
-    if ((sscanf(line + j, "%d%*c%d%*c%d%*c%d%*c%d", r, g, b, override, inherit)) != 5)
+    if ((bu_sscanf(line + j, "%d%*c%d%*c%d%*c%d%*c%d", r, g, b, override, inherit)) != 5)
 	return BRLCAD_ERROR;
 
     return BRLCAD_OK;
@@ -104,23 +118,28 @@ ged_rmater_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc != 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
+	return BRLCAD_ERROR;
+    }
+
+    if (!argv[1] || argv[1][0] == '\0') {
+	bu_vls_printf(gedp->ged_result_str, "ged_rmater: missing filename\n");
 	return BRLCAD_ERROR;
     }
 
     fp = fopen(argv[1], "r");
     if (fp == NULL) {
-	bu_vls_printf(gedp->ged_result_str, "ged_rmater: Failed to read file - %s", argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "ged_rmater: Failed to read file - %s\n", argv[1]);
 	return BRLCAD_ERROR;
     }
 
     while (bu_fgets(line, LINELEN, fp) != NULL) {
-	if ((extract_mater_from_line(line, name, shader,
+	if ((extract_mater_from_line(line, name, sizeof(name), shader, sizeof(shader),
 				     &r, &g, &b, &override, &inherit)) & BRLCAD_ERROR)
 	    continue;
 
@@ -133,13 +152,22 @@ ged_rmater_core(struct ged *gedp, int argc, const char *argv[])
 	if (rt_db_get_internal(&intern, dp, gedp->dbip, (fastf_t *)NULL) < 0) {
 	    bu_vls_printf(gedp->ged_result_str, "Database read error, aborting\n");
 	    status = BRLCAD_ERROR;
+	    continue;
 	}
+
+	if (intern.idb_type != ID_COMBINATION || !intern.idb_ptr) {
+	    bu_vls_printf(gedp->ged_result_str, "ged_rmater: %s is not a combination\n", name);
+	    rt_db_free_internal(&intern);
+	    status = BRLCAD_ERROR;
+	    continue;
+	}
+
 	comb = (struct rt_comb_internal *)intern.idb_ptr;
 	RT_CK_COMB(comb);
 
 	/* Assign new values */
 	if (shader[0] == '-')
-	    bu_vls_free(&comb->shader);
+	    bu_vls_trunc(&comb->shader, 0);
 	else
 	    bu_vls_strcpy(&comb->shader, shader);
 
