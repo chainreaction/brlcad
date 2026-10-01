@@ -32,6 +32,9 @@ extern int ged_solid_report_shared_core(struct ged *gedp, int argc, const char *
 int
 ged_solid_report_core(struct ged *gedp, int argc, const char *argv[])
 {
+    if (!gedp)
+	return BRLCAD_ERROR;
+
     return ged_solid_report_shared_core(gedp, argc, argv);
 }
 

@@ -43,7 +43,7 @@ namespace
 	    RT_CK_DBI(&db);
 
 	    if (!other_matrix)
-		bu_bomb("missing argument");
+		return false;
 
 	    db_full_path full_path;
 	    db_full_path_init(&full_path);
@@ -337,7 +337,8 @@ namespace
 int
 main(int UNUSED(argc), const char **argv)
 {
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
     return simulate_test() ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 

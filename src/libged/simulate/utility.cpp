@@ -46,7 +46,7 @@ current_dir(const db_full_path &path)
     RT_CK_FULL_PATH(&path);
 
     if (path.fp_len <= 0)
-	bu_bomb("empty simulation path");
+	throw simulate::InvalidSimulationError("empty simulation path");
 
     return *DB_FULL_PATH_CUR_DIR(&path);
 }
@@ -59,31 +59,30 @@ set_region(db_i &db, directory &dir, const bool is_region)
     RT_CK_DIR(&dir);
 
     if (!(dir.d_flags & RT_DIR_COMB))
-	bu_bomb("invalid directory type");
+	return;
 
     if (is_region) {
 	if (dir.d_flags & RT_DIR_REGION)
-	    bu_bomb("already a region");
+	    return;
 
 	if (db5_update_attribute(dir.d_namep, "region", "R", &db))
-	    bu_bomb("db5_update_attribute() failed");
+	    bu_log("WARNING: simulate: db5_update_attribute() failed for '%s'\n", dir.d_namep);
 
 	dir.d_flags |= RT_DIR_REGION;
     } else {
 	if (!(dir.d_flags & RT_DIR_REGION))
-	    bu_bomb("not a region");
+	    return;
 
 	bu_attribute_value_set avs = BU_AVS_INIT_ZERO;
 	const simulate::AutoPtr<bu_attribute_value_set, bu_avs_free> autofree_avs(&avs);
 
 	if (db5_get_attributes(&db, &avs, &dir))
-	    bu_bomb("db5_get_attributes() failed");
+	    return;
 
-	if (bu_avs_remove(&avs, "region"))
-	    bu_bomb("bu_avs_remove() failed");
+	(void)bu_avs_remove(&avs, "region");
 
 	if (db5_replace_attributes(&dir, &avs, &db))
-	    bu_bomb("db5_replace_attributes() failed");
+	    bu_log("WARNING: simulate: db5_replace_attributes() failed for '%s'\n", dir.d_namep);
 
 	dir.d_flags &= ~RT_DIR_REGION;
     }

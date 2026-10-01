@@ -105,8 +105,9 @@ private:
     /* AVI MJPEG encoding helpers */
     int readPixToJpeg(const std::string &pix_path,
 		      std::vector<unsigned char> &jpeg_data) const;
-    int writeMjpegAvi(const std::vector<std::string> &frame_paths,
-		      const std::string &out_path) const;
+
+    SimAnimState(const SimAnimState &);
+    SimAnimState &operator=(const SimAnimState &);
 };
 
 

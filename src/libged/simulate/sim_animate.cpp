@@ -96,6 +96,9 @@ static void
 az_el_to_offset(double az_deg, double el_deg, double dist,
 		double off[3])
 {
+    if (!off)
+	return;
+
     const double deg2rad = M_PI / 180.0;
     double az = az_deg * deg2rad;
     double el = el_deg * deg2rad;
@@ -117,6 +120,9 @@ static void
 look_at_quaternion(const double eye[3], const double look_at[3],
 		   double quat_out[4])
 {
+    if (!eye || !look_at || !quat_out)
+	return;
+
     /* forward = normalize(look_at - eye) */
     double fwd[3];
     fwd[0] = look_at[0] - eye[0];
@@ -213,6 +219,9 @@ look_at_quaternion(const double eye[3], const double look_at[3],
 static void
 ae_to_quaternion(double az_deg, double el_deg, double quat_out[4])
 {
+    if (!quat_out)
+	return;
+
     double off[3];
     az_el_to_offset(az_deg, el_deg, 1.0, off);
     const double origin[3] = {0.0, 0.0, 0.0};
@@ -291,20 +300,24 @@ SimAnimState::framePixPath(int frame_num) const
 int
 SimAnimState::getSceneCenter(double center[3]) const
 {
+    if (!center)
+	return BRLCAD_ERROR;
+
+    center[0] = center[1] = center[2] = 0.0;
+
+    if (!m_gedp || !m_gedp->dbip)
+	return BRLCAD_ERROR;
+
     /* Use rt_bound_internal to compute the axis-aligned bounding box
      * of the scene object, then take its midpoint as the center. */
     struct directory *dp = db_lookup(m_gedp->dbip,
 				     m_scene_path.c_str(), LOOKUP_QUIET);
-    if (!dp) {
-	center[0] = center[1] = center[2] = 0.0;
+    if (!dp)
 	return BRLCAD_ERROR;
-    }
 
     point_t rpp_min, rpp_max;
-    if (rt_bound_internal(m_gedp->dbip, dp, rpp_min, rpp_max) < 0) {
-	center[0] = center[1] = center[2] = 0.0;
+    if (rt_bound_internal(m_gedp->dbip, dp, rpp_min, rpp_max) < 0)
 	return BRLCAD_ERROR;
-    }
 
     center[0] = 0.5 * (rpp_min[X] + rpp_max[X]);
     center[1] = 0.5 * (rpp_min[Y] + rpp_max[Y]);
@@ -318,6 +331,9 @@ SimAnimState::computeChaseCamera(const double center[3],
 				 double eye_out[3],
 				 double quat_out[4]) const
 {
+    if (!center || !eye_out || !quat_out)
+	return;
+
     /* Default chase-camera parameters matching render_frames.py */
     const double AZ  = CHASE_AZ_DEG;
     const double EL  = CHASE_EL_DEG;
@@ -340,6 +356,11 @@ SimAnimState::renderFrame(int frame_num)
 {
     if (m_opts.output_file.empty())
 	return BRLCAD_OK; /* animation not requested */
+
+    if (!m_gedp || !m_gedp->dbip || !m_gedp->dbip->dbi_filename) {
+	bu_log("simulate: invalid database pointer\n");
+	return BRLCAD_ERROR;
+    }
 
     /* --------------------------------------------------------------- */
     /* Determine camera parameters                                      */
@@ -553,7 +574,8 @@ SimAnimState::readPixToJpeg(const std::string &pix_path,
     fseek(rfp, 0, SEEK_END);
     long jsize = ftell(rfp);
     fseek(rfp, 0, SEEK_SET);
-    if (jsize > 0) {
+    jpeg_data.clear();
+    if (jsize > 0 && jsize < 500000000L) {
 	jpeg_data.resize((size_t)jsize);
 	size_t nr = fread(jpeg_data.data(), 1, (size_t)jsize, rfp);
 	if ((long)nr != jsize)
@@ -577,6 +599,11 @@ SimAnimState::encodeVideo()
 {
     if (m_opts.output_file.empty() || m_frame_count == 0)
         return BRLCAD_OK;
+
+    if (m_opts.width <= 0 || m_opts.height <= 0 || m_opts.fps <= 0) {
+        bu_log("simulate: invalid animation dimensions or frame rate\n");
+        return BRLCAD_ERROR;
+    }
 
     icv_anim_format_t fmt = ICV_ANIM_UNKNOWN;
     if (m_opts.output_file.find(".apng") != std::string::npos ||

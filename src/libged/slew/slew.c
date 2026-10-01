@@ -47,16 +47,21 @@ ged_slew_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc == 2) {
 	int n;
 
+	if (!argv[1]) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
+	    return BRLCAD_ERROR;
+	}
+
 	if ((n = bn_decode_vect(svec, argv[1])) != 3) {
 	    if (n != 2) {
-		bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+		bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 		return BRLCAD_ERROR;
 	    }
 
@@ -69,18 +74,23 @@ ged_slew_core(struct ged *gedp, int argc, const char *argv[])
     if (argc == 3 || argc == 4) {
 	double scan[3];
 
-	if (sscanf(argv[1], "%lf", &scan[X]) != 1) {
+	if (!argv[1] || !argv[2] || (argc == 4 && !argv[3])) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
+	    return BRLCAD_ERROR;
+	}
+
+	if (bu_sscanf(argv[1], "%lf", &scan[X]) != 1) {
 	    bu_vls_printf(gedp->ged_result_str, "slew: bad X value %s\n", argv[1]);
 	    return BRLCAD_ERROR;
 	}
 
-	if (sscanf(argv[2], "%lf", &scan[Y]) != 1) {
+	if (bu_sscanf(argv[2], "%lf", &scan[Y]) != 1) {
 	    bu_vls_printf(gedp->ged_result_str, "slew: bad Y value %s\n", argv[2]);
 	    return BRLCAD_ERROR;
 	}
 
 	if (argc == 4) {
-	    if (sscanf(argv[3], "%lf", &scan[Z]) != 1) {
+	    if (bu_sscanf(argv[3], "%lf", &scan[Z]) != 1) {
 		bu_vls_printf(gedp->ged_result_str, "slew: bad Z value %s\n", argv[3]);
 		return BRLCAD_ERROR;
 	    }
@@ -93,7 +103,7 @@ ged_slew_core(struct ged *gedp, int argc, const char *argv[])
 	return _ged_do_slew(gedp, svec);
     }
 
-    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
     return BRLCAD_ERROR;
 }
 

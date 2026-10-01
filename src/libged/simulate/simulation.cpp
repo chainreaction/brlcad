@@ -135,12 +135,12 @@ get_aabb(db_i &db, const db_full_path &path)
     const simulate::AutoPtr<rt_i, rt_i_destroy> rti(rt_i_create(&db));
 
     if (!rti.ptr)
-	bu_bomb("rt_i_create() failed");
+	throw simulate::InvalidSimulationError(error_at("rt_i_create() failed", path));
 
     const simulate::AutoPtr<char> path_str(db_path_to_string(&path));
 
-    if (rt_gettree(rti.ptr, path_str.ptr))
-	bu_bomb("rt_gettree() failed");
+    if (!path_str.ptr || rt_gettree(rti.ptr, path_str.ptr))
+	throw simulate::InvalidSimulationError(error_at("rt_gettree() failed", path));
 
     rt_prep_parallel(rti.ptr, 0);
     std::stack<const tree *> stack;
@@ -186,7 +186,7 @@ get_aabb(db_i &db, const db_full_path &path)
 		break;
 
 	    default:
-		bu_bomb("invalid tree operation");
+		throw simulate::InvalidSimulationError(error_at("invalid tree operation", path));
 	}
     }
 
@@ -267,7 +267,7 @@ SimulationParameters::get_simulation_parameters(const db_i &db,
     const simulate::AutoPtr<bu_attribute_value_set, bu_avs_free> avs_autoptr(&avs);
 
     if (db5_get_attributes(&db, &avs, DB_FULL_PATH_CUR_DIR(&path)))
-	bu_bomb("db5_get_attributes() failed");
+	throw simulate::InvalidSimulationError(error_at("db5_get_attributes() failed", path));
 
     SimulationParameters result;
 
@@ -350,6 +350,9 @@ public:
 
 
 private:
+    Region(const Region &);
+    Region &operator=(const Region &);
+
     explicit Region(db_i &db, const db_full_path &path,
 		    btDiscreteDynamicsWorld &world, const std::pair<btVector3, btVector3> &aabb,
 		    const btVector3 &center_of_mass, btScalar mass,
@@ -388,7 +391,7 @@ Simulation::Region::get_region(db_i &db, const db_full_path &path,
 	const AutoPtr<bu_attribute_value_set, bu_avs_free> avs_autoptr(&avs);
 
 	if (db5_get_attributes(&db, &avs, DB_FULL_PATH_CUR_DIR(&path)))
-	    bu_bomb("db5_get_attributes() failed");
+	    throw InvalidSimulationError(error_at("db5_get_attributes() failed", path));
 
 	for (std::size_t i = 0; i < avs.count; ++i)
 	    if (!bu_strncmp(avs.avp[i].name, attribute_prefix, strlen(attribute_prefix))) {
@@ -466,7 +469,7 @@ Simulation::Region::get_regions(db_i &db, const db_full_path &path,
     if (0 > db_search(&found, DB_SEARCH_TREE,
 		      (std::string() + "-attr " + attribute_prefix + "type=region -below -attr " +
 		       attribute_prefix + "type=region").c_str(), path.fp_len, path.fp_names, &db, NULL, NULL, NULL))
-	bu_bomb("db_search() failed");
+	throw InvalidSimulationError("db_search() failed");
 
     if (BU_PTBL_LEN(&found))
 	throw InvalidSimulationError(std::string() + "nested objects with " +
@@ -477,7 +480,7 @@ Simulation::Region::get_regions(db_i &db, const db_full_path &path,
 		       attribute_prefix + "type=region -or ( -type shape -not -below -attr " +
 		       attribute_prefix + "type=region ) )").c_str(), path.fp_len,
 		      path.fp_names, &db, NULL, NULL, NULL))
-	bu_bomb("db_search() failed");
+	throw InvalidSimulationError("db_search() failed");
 
     if (BU_PTBL_LEN(&found))
 	throw InvalidSimulationError(std::string() +
@@ -488,7 +491,7 @@ Simulation::Region::get_regions(db_i &db, const db_full_path &path,
 		      (std::string() + "-attr " + attribute_prefix +
 		       "type=region -or -type shape -not -below -attr " + attribute_prefix +
 		       "type=region").c_str(), path.fp_len, path.fp_names, &db, NULL, NULL, NULL))
-	bu_bomb("db_search() failed");
+	throw InvalidSimulationError("db_search() failed");
 
     if (!BU_PTBL_LEN(&found))
 	throw InvalidSimulationError("no regions found");
@@ -594,31 +597,35 @@ Simulation::Simulation(db_i &db, const db_full_path &path, bool use_saved_state)
     m_world.setGravity(parameters.m_gravity);
 
     // Register collision algorithms for standard RtCollisionShape
+    btCollisionAlgorithmCreateFunc *cf1 = new RtCollisionAlgorithm::CreateFunc(
+	m_rt_instance, parameters.m_grid_radius, *m_world.getDebugDrawer());
+    m_create_funcs.push_back(cf1);
     m_collision_dispatcher.registerCollisionCreateFunc(
 	RtCollisionShape::RT_COLLISION_SHAPE_TYPE,
-	RtCollisionShape::RT_COLLISION_SHAPE_TYPE,
-	new RtCollisionAlgorithm::CreateFunc(m_rt_instance, parameters.m_grid_radius,
-					    *m_world.getDebugDrawer()));
+	RtCollisionShape::RT_COLLISION_SHAPE_TYPE, cf1);
 
     // Register collision algorithms for RtRoiCollisionShape
     // ROI shapes need custom collision algorithm with both other ROI shapes and regular shapes
+    btCollisionAlgorithmCreateFunc *cf2 = new RtCollisionAlgorithm::CreateFunc(
+	m_rt_instance, parameters.m_grid_radius, *m_world.getDebugDrawer());
+    m_create_funcs.push_back(cf2);
     m_collision_dispatcher.registerCollisionCreateFunc(
 	RtRoiCollisionShape::RT_ROI_COLLISION_SHAPE_TYPE,
-	RtRoiCollisionShape::RT_ROI_COLLISION_SHAPE_TYPE,
-	new RtCollisionAlgorithm::CreateFunc(m_rt_instance, parameters.m_grid_radius,
-					    *m_world.getDebugDrawer()));
+	RtRoiCollisionShape::RT_ROI_COLLISION_SHAPE_TYPE, cf2);
 
+    btCollisionAlgorithmCreateFunc *cf3 = new RtCollisionAlgorithm::CreateFunc(
+	m_rt_instance, parameters.m_grid_radius, *m_world.getDebugDrawer());
+    m_create_funcs.push_back(cf3);
     m_collision_dispatcher.registerCollisionCreateFunc(
 	RtCollisionShape::RT_COLLISION_SHAPE_TYPE,
-	RtRoiCollisionShape::RT_ROI_COLLISION_SHAPE_TYPE,
-	new RtCollisionAlgorithm::CreateFunc(m_rt_instance, parameters.m_grid_radius,
-					    *m_world.getDebugDrawer()));
+	RtRoiCollisionShape::RT_ROI_COLLISION_SHAPE_TYPE, cf3);
 
+    btCollisionAlgorithmCreateFunc *cf4 = new RtCollisionAlgorithm::CreateFunc(
+	m_rt_instance, parameters.m_grid_radius, *m_world.getDebugDrawer());
+    m_create_funcs.push_back(cf4);
     m_collision_dispatcher.registerCollisionCreateFunc(
 	RtRoiCollisionShape::RT_ROI_COLLISION_SHAPE_TYPE,
-	RtCollisionShape::RT_COLLISION_SHAPE_TYPE,
-	new RtCollisionAlgorithm::CreateFunc(m_rt_instance, parameters.m_grid_radius,
-					    *m_world.getDebugDrawer()));
+	RtCollisionShape::RT_COLLISION_SHAPE_TYPE, cf4);
 }
 
 
@@ -626,6 +633,9 @@ Simulation::~Simulation()
 {
     for (Region * const region : m_regions)
 	delete region;
+
+    for (btCollisionAlgorithmCreateFunc * const func : m_create_funcs)
+	delete func;
 }
 
 
@@ -819,11 +829,11 @@ Simulation::saveState()
 
 	if (db5_update_attribute(name, "simulate::state_linear_velocity",
 				 linear_vel_str.c_str(), &m_db))
-	    bu_bomb("db5_update_attribute() failed");
+	    bu_log("WARNING: simulate: db5_update_attribute() failed for '%s'\n", name);
 
 	if (db5_update_attribute(name, "simulate::state_angular_velocity",
 				 angular_vel_str.c_str(), &m_db))
-	    bu_bomb("db5_update_attribute() failed");
+	    bu_log("WARNING: simulate: db5_update_attribute() failed for '%s'\n", name);
     }
 }
 

@@ -37,8 +37,11 @@
 int parse_bbox(const char *output, point_t min, point_t max) {
     double xmin, ymin, zmin, xmax, ymax, zmax;
 
-    if (sscanf(output, "%lf %lf %lf %lf %lf %lf",
-		&xmin, &ymin, &zmin, &xmax, &ymax, &zmax) == 6) {
+    if (!output || !min || !max)
+	return 0;
+
+    if (bu_sscanf(output, "%lf %lf %lf %lf %lf %lf",
+		  &xmin, &ymin, &zmin, &xmax, &ymax, &zmax) == 6) {
 	VSET(min, xmin, ymin, zmin);
 	VSET(max, xmax, ymax, zmax);
 	return 1;
@@ -50,13 +53,16 @@ int parse_bbox(const char *output, point_t min, point_t max) {
  * Get bounding box of an object using ged
  */
 int get_bbox(struct ged *gedp, const char *obj_name, point_t min, point_t max) {
+    if (!gedp || !obj_name || !min || !max)
+	return 0;
+
     const char *argv[] = {"bb", "-q", obj_name};
 
     if (ged_exec(gedp, 3, argv) != BRLCAD_OK) {
 	return 0;
     }
 
-    const char *output = bu_vls_addr(gedp->ged_result_str);
+    const char *output = bu_vls_cstr(gedp->ged_result_str);
     return parse_bbox(output, min, max);
 }
 
@@ -68,6 +74,9 @@ int check_presim(const char *db_path, const char *truck_name, const char *terrai
     point_t truck_min, truck_max, terrain_min, terrain_max;
     double separation;
     int result = 1;
+
+    if (!db_path || !truck_name || !terrain_name)
+	return 0;
 
     printf("\n");
     printf("================================================================\n");
@@ -162,6 +171,9 @@ int check_postsim(const char *db_path, const char *truck_name, const char *terra
     double separation, truck_height;
     int result = 1;
 
+    if (!db_path || !truck_name || !terrain_name)
+	return 0;
+
     printf("\n");
     printf("================================================================\n");
     printf("POST-SIMULATION VERIFICATION\n");
@@ -224,9 +236,10 @@ int check_postsim(const char *db_path, const char *truck_name, const char *terra
 	printf("PASS: Truck landed with wheels on terrain\n");
 	printf("        Penetration = %.2f mm (expected for wheel contact)\n", -separation);
     } else {
+	double pct = (!ZERO(truck_height)) ? ((-separation / truck_height) * 100.0) : 0.0;
 	printf("FAIL: Truck appears to have excessive penetration\n");
 	printf("         Penetration = %.2f mm (%.1f%% of truck height)\n",
-		-separation, (-separation / truck_height) * 100);
+		-separation, pct);
 	result = 0;
     }
 
@@ -252,6 +265,9 @@ int main(int argc, char **argv) {
     const char *terrain_name;
     const char *mode;
     int result;
+
+    if (argc < 1 || !argv || !argv[0])
+	return 1;
 
     bu_setprogname(argv[0]);
 

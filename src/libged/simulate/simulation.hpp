@@ -88,6 +88,10 @@ private:
     btDiscreteDynamicsWorld m_world;
     std::vector<Region *> m_regions;
     const RtInstance m_rt_instance;
+    std::vector<btCollisionAlgorithmCreateFunc *> m_create_funcs;
+
+    Simulation(const Simulation &);
+    Simulation &operator=(const Simulation &);
 };
 
 
