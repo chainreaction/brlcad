@@ -120,7 +120,11 @@ struct _ged_select_info {
 int
 _select_cmd_msgs(void *bs, int argc, const char **argv, const char *us, const char *ps)
 {
+    if (!bs)
+	return 0;
     struct _ged_select_info *gd = (struct _ged_select_info *)bs;
+    if (!gd->gedp)
+	return 0;
     if (argc == 2 && BU_STR_EQUAL(argv[1], HELPFLAG)) {
         bu_vls_printf(gd->gedp->ged_result_str, "%s\n%s\n", us, ps);
         return 1;
@@ -231,7 +235,7 @@ _select_cmd_add(void *bs, int argc, const char **argv)
 
     struct ged *gedp = gd->gedp;
     if (!argc) {
-	bu_vls_printf(gedp->ged_result_str, "need at least one path to add");
+	bu_vls_printf(gedp->ged_result_str, "need at least one path to add\n");
 	return BRLCAD_ERROR;
     }
 
@@ -257,7 +261,7 @@ _select_cmd_add(void *bs, int argc, const char **argv)
 	if (bu_vls_cstr(&dpath)[0] != '/')
 	    bu_vls_prepend(&dpath, "/");
 	if (!ss[0]->select_path(bu_vls_cstr(&dpath), false)) {
-	    bu_vls_printf(gedp->ged_result_str, "Selection set %s: unable to add path: %s", (sname) ? sname : "default", argv[i]);
+	    bu_vls_printf(gedp->ged_result_str, "Selection set %s: unable to add path: %s\n", (sname) ? sname : "default", argv[i]);
 	    bu_vls_free(&dpath);
 	    return BRLCAD_ERROR;
 	}
@@ -285,7 +289,7 @@ _select_cmd_rm(void *bs, int argc, const char **argv)
 
     struct ged *gedp = gd->gedp;
     if (!argc) {
-	bu_vls_printf(gedp->ged_result_str, "need at least one path to remove");
+	bu_vls_printf(gedp->ged_result_str, "need at least one path to remove\n");
 	return BRLCAD_ERROR;
     }
 
@@ -311,7 +315,7 @@ _select_cmd_rm(void *bs, int argc, const char **argv)
 	if (bu_vls_cstr(&dpath)[0] != '/')
 	    bu_vls_prepend(&dpath, "/");
 	if (!ss[0]->deselect_path(bu_vls_cstr(&dpath), false)) {
-	    bu_vls_printf(gedp->ged_result_str, "Selection set %s: unable to remove path: %s", (sname) ? sname : "default", argv[i]);
+	    bu_vls_printf(gedp->ged_result_str, "Selection set %s: unable to remove path: %s\n", (sname) ? sname : "default", argv[i]);
 	    bu_vls_free(&dpath);
 	    return BRLCAD_ERROR;
 	}
@@ -442,6 +446,9 @@ ged_select2_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
+    GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
+    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+
     // Initialize select info
     gd.gedp = gedp;
     bu_vls_init(&gd.curr_set);
@@ -461,6 +468,8 @@ ged_select2_core(struct ged *gedp, int argc, const char *argv[])
     // High level options are only defined prior to the subcommand
     int cmd_pos = -1;
     for (int i = 0; i < argc; i++) {
+	if (!argv[i])
+	    continue;
 	if (bu_cmd_valid(_select_cmds, argv[i]) == BRLCAD_OK) {
 	    cmd_pos = i;
 	    break;
@@ -491,11 +500,13 @@ ged_select2_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     int ret;
-    if (bu_cmd(_select_cmds, argc, argv, 0, (void *)&gd, &ret) == BRLCAD_OK) {
+    if (argc <= 0) {
+	bu_vls_printf(gedp->ged_result_str, "no subcommand specified\n");
+    } else if (bu_cmd(_select_cmds, argc, argv, 0, (void *)&gd, &ret) == BRLCAD_OK) {
 	bu_vls_free(&gd.curr_set);
 	return ret;
     } else {
-	bu_vls_printf(gedp->ged_result_str, "subcommand %s not defined", argv[0]);
+	bu_vls_printf(gedp->ged_result_str, "subcommand %s not defined\n", argv[0] ? argv[0] : "");
     }
 
     bu_vls_free(&gd.curr_set);

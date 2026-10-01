@@ -286,7 +286,7 @@ _ged_search_localized_obj_list(struct ged *gedp, struct directory *path, struct 
 
     (void)db_search(tmp_search, DB_SEARCH_RETURN_UNIQ_DP, comb_str, 1, &path, gedp->dbip, clbk, u1, u2);
     path_cnt = BU_PTBL_LEN(tmp_search);
-    (*path_list) = (struct directory **)bu_malloc(sizeof(char *) * (path_cnt+1), "object path array");
+    (*path_list) = (struct directory **)bu_malloc(sizeof(struct directory *) * (path_cnt+1), "object path array");
 
     for (j = 0; j < path_cnt; j++) {
 	(*path_list)[j] = (struct directory *)BU_PTBL_GET(tmp_search, j);
@@ -393,6 +393,9 @@ ged_search_core(struct ged *gedp, int argc, const char *argv_orig[])
     char **argv = NULL;
 
 
+    GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
+    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+
     bu_clbk_t clbk = NULL;
     void *u1 = (void *)gedp;
     void *u2 = NULL;
@@ -408,6 +411,8 @@ ged_search_core(struct ged *gedp, int argc, const char *argv_orig[])
      * toplevel path specifiers, etc. */
     optcnt = 0;
     for (i = 1; i < (size_t)argc; i++) {
+	if (!argv_orig[i])
+	    break;
 	if ((argv_orig[i][0] == '-')) {
 	    int len = strlen(argv_orig[i]);
 	    if ((len == 2) || (len > 1 && argv_orig[i][1] == 'v'))
@@ -459,6 +464,8 @@ ged_search_core(struct ged *gedp, int argc, const char *argv_orig[])
 
     /* COPY argv_orig to argv; */
     argv = bu_argv_dup(argc, argv_orig);
+    if (!argv)
+	return BRLCAD_ERROR;
 
     /* initialize search set */
     BU_ALLOC(search_set, struct bu_ptbl);
@@ -476,7 +483,7 @@ ged_search_core(struct ged *gedp, int argc, const char *argv_orig[])
      * them and construct search structs. */
     while (!plan_found) {
 
-	if (!argv[plan_argv]) {
+	if (plan_argv >= argc || !argv[plan_argv]) {
 	    /* OK, no plan - will use default behavior */
 	    plan_found = 1;
 
@@ -564,7 +571,7 @@ ged_search_core(struct ged *gedp, int argc, const char *argv_orig[])
 
     /* re-assemble search plan into a string - the db search functions break it out themselves */
     bu_vls_trunc(&search_string, 0);
-    while (argv[plan_argv]) {
+    while (plan_argv < argc && argv[plan_argv]) {
 	const char *cp = argv[plan_argv];
 	/* Preserve each original argv element through db_search's
 	 * bu_argv_from_string pass.  Its grammar recognizes only double

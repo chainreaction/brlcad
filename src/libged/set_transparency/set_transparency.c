@@ -31,7 +31,13 @@
 void
 dl_set_transparency(struct ged *gedp, struct directory **dpp, double transparency)
 {
+    if (!gedp || !gedp->i || !gedp->i->ged_gdp || !dpp)
+	return;
+
     struct bu_list *hdlp = gedp->i->ged_gdp->gd_headDisplay;
+    if (!hdlp)
+	return;
+
     struct display_list *gdlp;
     struct display_list *next_gdlp;
     struct bv_scene_obj *sp;
@@ -43,7 +49,7 @@ dl_set_transparency(struct ged *gedp, struct directory **dpp, double transparenc
         next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
 
 	for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
-	    if (!sp->s_u_data)
+	    if (!sp->s_u_data || !sp->s_os)
 		continue;
 	    struct ged_bv_data *bdata = (struct ged_bv_data *)sp->s_u_data;
 
@@ -87,6 +93,7 @@ ged_set_transparency_core(struct ged *gedp, int argc, const char *argv[])
 
     static const char *usage = "node tval";
 
+    GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
@@ -95,29 +102,33 @@ ged_set_transparency_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
-	return BRLCAD_ERROR;
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
+	return GED_HELP;
     }
 
 
     if (argc != 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[2], "%lf", &transparency) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "dgo_set_transparency: bad transparency - %s\n", argv[2]);
+    if (bu_sscanf(argv[2], "%lf", &transparency) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "%s: bad transparency - %s\n", argv[0], argv[2]);
 	return BRLCAD_ERROR;
     }
+
+    if (transparency < 0.0)
+	transparency = 0.0;
+    else if (transparency > 1.0)
+	transparency = 1.0;
 
     if ((dpp = _ged_build_dpp(gedp, argv[1])) == NULL) {
-	return BRLCAD_OK;
+	return BRLCAD_ERROR;
     }
 
     dl_set_transparency(gedp, dpp, transparency);
 
-    if (dpp != (struct directory **)NULL)
-	bu_free((void *)dpp, "ged_set_transparency_core: directory pointers");
+    bu_free((void *)dpp, "ged_set_transparency_core: directory pointers");
 
     return BRLCAD_OK;
 }

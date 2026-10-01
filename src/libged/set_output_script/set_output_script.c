@@ -46,13 +46,14 @@ ged_set_output_script_core(struct ged *gedp, int argc, const char *argv[])
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     if (argc > 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
     /* Get the output handler script */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "%s", gedp->ged_output_script);
+	if (gedp->ged_output_script)
+	    bu_vls_printf(gedp->ged_result_str, "%s\n", gedp->ged_output_script);
 	return BRLCAD_OK;
     }
 

@@ -81,12 +81,16 @@ rtcheck_vector_handler(void *clientData, int UNUSED(mask))
 {
     int value = 0;
     struct ged_rtcheck *rtcp = (struct ged_rtcheck *)clientData;
+    if (!rtcp)
+	return;
     struct ged_subprocess *rrtp = rtcp->rrtp;
     BU_CKMAG(rrtp, GED_CMD_MAGIC, "ged subprocess");
     struct ged *gedp = rrtp->gedp;
+    if (!gedp)
+	return;
 
     /* Get vector output from rtcheck */
-    if (!rtcp->draw_read_failed && (feof(rtcp->fp) || (value = getc(rtcp->fp)) == EOF)) {
+    if (!rtcp->draw_read_failed && (!rtcp->fp || feof(rtcp->fp) || (value = getc(rtcp->fp)) == EOF)) {
 	size_t i;
 	rtcp->draw_read_failed = 1;
 	if (gedp->ged_delete_io_handler)
@@ -156,9 +160,13 @@ rtcheck_output_handler(void *clientData, int UNUSED(mask))
     int count;
     char line[RT_MAXLINE + 1] = {0};
     struct ged_rtcheck *rtcp = (struct ged_rtcheck *)clientData;
+    if (!rtcp)
+	return;
     struct ged_subprocess *rrtp = rtcp->rrtp;
     BU_CKMAG(rrtp, GED_CMD_MAGIC, "ged subprocess");
     struct ged *gedp = rrtp->gedp;
+    if (!gedp || !rrtp->p)
+	return;
 
     /* Get textual output from rtcheck */
     if ((count = bu_process_read_n(rrtp->p, BU_PROCESS_STDERR, RT_MAXLINE, (char *)line)) <= 0) {
@@ -218,20 +226,27 @@ ged_rtcheck2_core(struct ged *gedp, int argc, const char *argv[])
 
     bin = bu_dir(NULL, 0, BU_DIR_BIN, NULL);
     if (bin) {
-	snprintf(rtcheck, 256, "%s/%s", bin, argv[0]);
+	snprintf(rtcheck, sizeof(rtcheck), "%s/%s", bin, argv[0]);
+    } else {
+	snprintf(rtcheck, sizeof(rtcheck), "%s", argv[0]);
     }
 
     args = argc + 7 + 2 + ged_who_argc(gedp);
-    gd_rt_cmd = (char **)bu_calloc(args, sizeof(char *), "alloc gd_rt_cmd");
+    gd_rt_cmd = (char **)bu_calloc(args + 1, sizeof(char *), "alloc gd_rt_cmd");
 
     vp = &gd_rt_cmd[0];
     *vp++ = rtcheck;
     *vp++ = (char *)"-M";
-    for (i = 1; i < argc; i++)
+    for (i = 1; i < argc; i++) {
+	if (!argv[i])
+	    continue;
 	*vp++ = (char *)argv[i];
+    }
 
     *vp++ = gedp->dbip->dbi_filename;
 
+    int who_start = 0;
+    int who_cnt = 0;
     /*
      * Now that we've grabbed all the options, if no args remain,
      * append the names of all stuff currently displayed.
@@ -240,7 +255,9 @@ ged_rtcheck2_core(struct ged *gedp, int argc, const char *argv[])
     if (i == argc) {
 	gd_rt_cmd_len = vp - gd_rt_cmd;
 	int cmd_prev_len = gd_rt_cmd_len;
-	gd_rt_cmd_len += ged_who_argv(gedp, vp, (const char **)&gd_rt_cmd[args]);
+	who_start = cmd_prev_len;
+	who_cnt = ged_who_argv(gedp, vp, (const char **)&gd_rt_cmd[args]);
+	gd_rt_cmd_len += who_cnt;
 	if (gd_rt_cmd_len == cmd_prev_len) {
 	    // Nothing specified, nothing displayed
 	    bu_vls_printf(gedp->ged_result_str, "no objects displayed\n");
@@ -248,8 +265,11 @@ ged_rtcheck2_core(struct ged *gedp, int argc, const char *argv[])
 	    return BRLCAD_ERROR;
 	}
     } else {
-	while (i < argc)
-	    *vp++ = (char *)argv[i++];
+	while (i < argc) {
+	    if (argv[i])
+		*vp++ = (char *)argv[i];
+	    i++;
+	}
 	*vp = 0;
 	vp = &gd_rt_cmd[0];
 	while (*vp) {
@@ -268,6 +288,11 @@ ged_rtcheck2_core(struct ged *gedp, int argc, const char *argv[])
 	    bu_vls_printf(gedp->ged_result_str, "%s ", gd_rt_cmd[pi]);
 	}
 	bu_vls_printf(gedp->ged_result_str, "\n");
+	if (who_cnt > 0) {
+	    for (i = who_start; i < who_start + who_cnt; i++) {
+		bu_free(gd_rt_cmd[i], "free who obj");
+	    }
+	}
 	bu_free(gd_rt_cmd, "free gd_rt_cmd");
 	return BRLCAD_ERROR;
     }
@@ -309,6 +334,11 @@ ged_rtcheck2_core(struct ged *gedp, int argc, const char *argv[])
 	(*gedp->ged_create_io_handler)(rtcp->rrtp, BU_PROCESS_STDERR, rtcheck_output_handler, (void *)rtcp);
     }
 
+    if (who_cnt > 0) {
+	for (i = who_start; i < who_start + who_cnt; i++) {
+	    bu_free(gd_rt_cmd[i], "free who obj");
+	}
+    }
     bu_free(gd_rt_cmd, "free gd_rt_cmd");
 
     return BRLCAD_OK;

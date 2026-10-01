@@ -44,6 +44,9 @@ _ged_select_botpts(struct ged *gedp, struct rt_bot_internal *botip, double vx, d
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_VIEW(gedp, BRLCAD_ERROR);
 
+    if (!botip || !botip->vertices)
+	return BRLCAD_ERROR;
+
     if (rflag) {
 	vr = vwidth;
     } else {
@@ -113,6 +116,9 @@ dl_select(struct bu_list *hdlp, mat_t model2view, struct bu_vls *vls, double vx,
     struct display_list *next_gdlp = NULL;
     struct bv_scene_obj *sp = NULL;
     fastf_t vr = 0.0;
+
+    if (!hdlp || !vls)
+	return BRLCAD_ERROR;
     fastf_t vmin_x = 0.0;
     fastf_t vmin_y = 0.0;
     fastf_t vmax_x = 0.0;
@@ -237,6 +243,9 @@ dl_select_partial(struct bu_list *hdlp, mat_t model2view, struct bu_vls *vls, do
     struct display_list *next_gdlp = NULL;
     struct bv_scene_obj *sp = NULL;
     fastf_t vr = 0.0;
+
+    if (!hdlp || !vls)
+	return BRLCAD_ERROR;
     fastf_t vmin_x = 0.0;
     fastf_t vmin_y = 0.0;
     fastf_t vmax_x = 0.0;
@@ -366,6 +375,7 @@ ged_select_core(struct ged *gedp, int argc, const char *argv[])
     struct rt_bot_internal *botip = NULL;
     int pflag = 0;
     double vminz = -1000.0;
+    struct rt_wdb *wdbp = NULL;
 
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
@@ -375,7 +385,6 @@ ged_select_core(struct ged *gedp, int argc, const char *argv[])
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
-    struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
     /* Get command line options. */
     bu_optind = 1;
     while ((c = bu_getopt(argc, (char * const *)argv, "b:pz:")) != -1) {
@@ -388,16 +397,24 @@ ged_select_core(struct ged *gedp, int argc, const char *argv[])
 	    if (botip != (struct rt_bot_internal *)NULL)
 		break;
 
-	    if (wdb_import_from_path2(gedp->ged_result_str, &intern, bu_optarg, wdbp, mat) & BRLCAD_ERROR) {
-		bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s", cmd, bu_optarg);
+	    wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+	    if (!wdbp) {
+		bu_vls_printf(gedp->ged_result_str, "%s: cannot access database\n", cmd);
 		return BRLCAD_ERROR;
 	    }
 
+	    if (wdb_import_from_path2(gedp->ged_result_str, &intern, bu_optarg, wdbp, mat) & BRLCAD_ERROR) {
+		bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s\n", cmd, bu_optarg);
+		wdb_close(wdbp);
+		return BRLCAD_ERROR;
+	    }
+	    wdb_close(wdbp);
+	    wdbp = NULL;
+
 	    if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD ||
 		intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_BOT) {
-		bu_vls_printf(gedp->ged_result_str, "%s: %s is not a BOT", cmd, bu_optarg);
+		bu_vls_printf(gedp->ged_result_str, "%s: %s is not a BOT\n", cmd, bu_optarg);
 		rt_db_free_internal(&intern);
-
 		return BRLCAD_ERROR;
 	    }
 
@@ -409,17 +426,20 @@ ged_select_core(struct ged *gedp, int argc, const char *argv[])
 	    pflag = 1;
 	    break;
 	case 'z':
-	    if (sscanf(bu_optarg, "%lf", &vminz) != 1) {
+	    if (bu_sscanf(bu_optarg, "%lf", &vminz) != 1) {
 		if (botip != (struct rt_bot_internal *)NULL)
 		    rt_db_free_internal(&intern);
 
-		bu_vls_printf(gedp->ged_result_str, "%s: bad vminz - %s", cmd, bu_optarg);
-		bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage);
+		bu_vls_printf(gedp->ged_result_str, "%s: bad vminz - %s\n", cmd, bu_optarg);
+		bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd, usage);
+		return BRLCAD_ERROR;
 	    }
 
 	    break;
 	default:
-	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage);
+	    if (botip != (struct rt_bot_internal *)NULL)
+		rt_db_free_internal(&intern);
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd, usage);
 	    return BRLCAD_ERROR;
 	}
     }
@@ -428,15 +448,19 @@ ged_select_core(struct ged *gedp, int argc, const char *argv[])
     argv += (bu_optind - 1);
 
     if (argc < 4 || 5 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage);
+	if (botip != (struct rt_bot_internal *)NULL)
+	    rt_db_free_internal(&intern);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd, usage);
 	return BRLCAD_ERROR;
     }
 
     if (argc == 4) {
-	if (sscanf(argv[1], "%lf", &vx) != 1 ||
-	    sscanf(argv[2], "%lf", &vy) != 1 ||
-	    sscanf(argv[3], "%lf", &vr) != 1) {
-	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage);
+	if (bu_sscanf(argv[1], "%lf", &vx) != 1 ||
+	    bu_sscanf(argv[2], "%lf", &vy) != 1 ||
+	    bu_sscanf(argv[3], "%lf", &vr) != 1) {
+	    if (botip != (struct rt_bot_internal *)NULL)
+		rt_db_free_internal(&intern);
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd, usage);
 	    return BRLCAD_ERROR;
 	}
 
@@ -454,11 +478,13 @@ ged_select_core(struct ged *gedp, int argc, const char *argv[])
 		return dl_select(gedp->i->ged_gdp->gd_headDisplay, gedp->ged_gvp->gv_model2view, gedp->ged_result_str, vx, vy, vr, vr, 1);
 	}
     } else {
-	if (sscanf(argv[1], "%lf", &vx) != 1 ||
-	    sscanf(argv[2], "%lf", &vy) != 1 ||
-	    sscanf(argv[3], "%lf", &vw) != 1 ||
-	    sscanf(argv[4], "%lf", &vh) != 1) {
-	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage);
+	if (bu_sscanf(argv[1], "%lf", &vx) != 1 ||
+	    bu_sscanf(argv[2], "%lf", &vy) != 1 ||
+	    bu_sscanf(argv[3], "%lf", &vw) != 1 ||
+	    bu_sscanf(argv[4], "%lf", &vh) != 1) {
+	    if (botip != (struct rt_bot_internal *)NULL)
+		rt_db_free_internal(&intern);
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd, usage);
 	    return BRLCAD_ERROR;
 	}
 
@@ -496,6 +522,7 @@ ged_rselect_core(struct ged *gedp, int argc, const char *argv[])
     struct rt_bot_internal *botip = (struct rt_bot_internal *)NULL;
     int pflag = 0;
     double vminz = -1000.0;
+    struct rt_wdb *wdbp = NULL;
 
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
@@ -504,8 +531,6 @@ ged_rselect_core(struct ged *gedp, int argc, const char *argv[])
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
-
-    struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
 
     /* Get command line options. */
     bu_optind = 1;
@@ -519,16 +544,24 @@ ged_rselect_core(struct ged *gedp, int argc, const char *argv[])
 	    if (botip != (struct rt_bot_internal *)NULL)
 		break;
 
-	    if (wdb_import_from_path2(gedp->ged_result_str, &intern, bu_optarg, wdbp, mat) == BRLCAD_ERROR) {
-		bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s", cmd, bu_optarg);
+	    wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+	    if (!wdbp) {
+		bu_vls_printf(gedp->ged_result_str, "%s: cannot access database\n", cmd);
 		return BRLCAD_ERROR;
 	    }
 
+	    if (wdb_import_from_path2(gedp->ged_result_str, &intern, bu_optarg, wdbp, mat) == BRLCAD_ERROR) {
+		bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s\n", cmd, bu_optarg);
+		wdb_close(wdbp);
+		return BRLCAD_ERROR;
+	    }
+	    wdb_close(wdbp);
+	    wdbp = NULL;
+
 	    if (intern.idb_major_type != DB5_MAJORTYPE_BRLCAD ||
 		intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_BOT) {
-		bu_vls_printf(gedp->ged_result_str, "%s: %s is not a BOT", cmd, bu_optarg);
+		bu_vls_printf(gedp->ged_result_str, "%s: %s is not a BOT\n", cmd, bu_optarg);
 		rt_db_free_internal(&intern);
-
 		return BRLCAD_ERROR;
 	    }
 
@@ -540,17 +573,20 @@ ged_rselect_core(struct ged *gedp, int argc, const char *argv[])
 	    pflag = 1;
 	    break;
 	case 'z':
-	    if (sscanf(bu_optarg, "%lf", &vminz) != 1) {
+	    if (bu_sscanf(bu_optarg, "%lf", &vminz) != 1) {
 		if (botip != (struct rt_bot_internal *)NULL)
 		    rt_db_free_internal(&intern);
 
-		bu_vls_printf(gedp->ged_result_str, "%s: bad vminz - %s", cmd, bu_optarg);
-		bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage);
+		bu_vls_printf(gedp->ged_result_str, "%s: bad vminz - %s\n", cmd, bu_optarg);
+		bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd, usage);
+		return BRLCAD_ERROR;
 	    }
 
 	    break;
 	default:
-	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage);
+	    if (botip != (struct rt_bot_internal *)NULL)
+		rt_db_free_internal(&intern);
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd, usage);
 	    return BRLCAD_ERROR;
 	}
     }
@@ -558,7 +594,16 @@ ged_rselect_core(struct ged *gedp, int argc, const char *argv[])
     argc -= (bu_optind - 1);
 
     if (argc != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage);
+	if (botip != (struct rt_bot_internal *)NULL)
+	    rt_db_free_internal(&intern);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmd, usage);
+	return BRLCAD_ERROR;
+    }
+
+    if (!gedp->ged_gvp->gv_s) {
+	bu_vls_printf(gedp->ged_result_str, "%s: view screen rectangle not available\n", cmd);
+	if (botip != (struct rt_bot_internal *)NULL)
+	    rt_db_free_internal(&intern);
 	return BRLCAD_ERROR;
     }
 
@@ -577,13 +622,15 @@ ged_rselect_core(struct ged *gedp, int argc, const char *argv[])
 	return ret;
     } else {
 	if (pflag)
-	    return dl_select_partial(gedp->i->ged_gdp->gd_headDisplay, gedp->ged_gvp->gv_model2view, gedp->ged_result_str, 				       gedp->ged_gvp->gv_s->gv_rect.x,
+	    return dl_select_partial(gedp->i->ged_gdp->gd_headDisplay, gedp->ged_gvp->gv_model2view, gedp->ged_result_str,
+				     gedp->ged_gvp->gv_s->gv_rect.x,
 				     gedp->ged_gvp->gv_s->gv_rect.y,
 				     gedp->ged_gvp->gv_s->gv_rect.width,
 				     gedp->ged_gvp->gv_s->gv_rect.height,
 				     0);
 	else
-	    return dl_select(gedp->i->ged_gdp->gd_headDisplay, gedp->ged_gvp->gv_model2view, gedp->ged_result_str, 				       gedp->ged_gvp->gv_s->gv_rect.x,
+	    return dl_select(gedp->i->ged_gdp->gd_headDisplay, gedp->ged_gvp->gv_model2view, gedp->ged_result_str,
+			     gedp->ged_gvp->gv_s->gv_rect.x,
 			     gedp->ged_gvp->gv_s->gv_rect.y,
 			     gedp->ged_gvp->gv_s->gv_rect.width,
 			     gedp->ged_gvp->gv_s->gv_rect.height,

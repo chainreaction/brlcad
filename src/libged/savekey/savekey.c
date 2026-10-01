@@ -44,6 +44,9 @@ savekey_rt_oldwrite(struct ged *gedp, FILE *fp, fastf_t *eye_model)
 {
     int i;
 
+    if (!gedp || !gedp->ged_gvp || !fp || !eye_model)
+	return;
+
     fprintf(fp, "%.9e\n", gedp->ged_gvp->gv_size);
     fprintf(fp, "%.9e %.9e %.9e\n",
 		  eye_model[X], eye_model[Y], eye_model[Z]);
@@ -60,7 +63,7 @@ int
 ged_savekey_core(struct ged *gedp, int argc, const char *argv[])
 {
     FILE *fp;
-    fastf_t timearg;
+    fastf_t timearg = 0.0;
     vect_t eye_model;
     vect_t temp;
     static const char *usage = "file [time]";
@@ -74,22 +77,26 @@ ged_savekey_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
-    if (argc < 2 || 3 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc < 2 || 3 < argc || !argv[1] || argv[1][0] == '\0') {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
     fp = fopen(argv[1], "a");
     if (fp == NULL) {
-	perror(argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s: cannot open file for appending\n", argv[1]);
 	return BRLCAD_ERROR;
     }
     if (argc > 2) {
-	timearg = atof(argv[2]);
+	if (!argv[2] || bu_sscanf(argv[2], "%lf", &timearg) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "%s: invalid time value '%s'\n", argv[0], argv[2] ? argv[2] : "");
+	    (void)fclose(fp);
+	    return BRLCAD_ERROR;
+	}
 	fprintf(fp, "%f\n", timearg);
     }
     /*
