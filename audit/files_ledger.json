@@ -25573,100 +25573,120 @@
       "path": "src/libged/set_uplotOutputMode/set_uplotOutputMode.c",
       "subsystem": "src/libged",
       "lines": 97,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0266"
+      ]
     },
     {
       "id": 2410,
       "path": "src/libged/setview/setview.c",
       "subsystem": "src/libged",
       "lines": 110,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0266"
+      ]
     },
     {
       "id": 2411,
       "path": "src/libged/shaded_mode/shaded_mode.c",
       "subsystem": "src/libged",
       "lines": 99,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0266"
+      ]
     },
     {
       "id": 2412,
       "path": "src/libged/shader/shader.c",
       "subsystem": "src/libged",
       "lines": 98,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0266"
+      ]
     },
     {
       "id": 2413,
       "path": "src/libged/shells/shells.c",
       "subsystem": "src/libged",
       "lines": 153,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0266"
+      ]
     },
     {
       "id": 2414,
       "path": "src/libged/showmats/showmats.c",
       "subsystem": "src/libged",
       "lines": 199,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0266"
+      ]
     },
     {
       "id": 2415,
       "path": "src/libged/shrinkwrap/shrinkwrap.c",
       "subsystem": "src/libged",
       "lines": 59,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0266"
+      ]
     },
     {
       "id": 2416,
       "path": "src/libged/simulate/ged_command.cpp",
       "subsystem": "src/libged",
       "lines": 343,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0266"
+      ]
     },
     {
       "id": 2417,
       "path": "src/libged/simulate/rt_collision_algorithm.cpp",
       "subsystem": "src/libged",
       "lines": 346,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0266"
+      ]
     },
     {
       "id": 2418,
       "path": "src/libged/simulate/rt_collision_algorithm.hpp",
       "subsystem": "src/libged",
       "lines": 104,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0266"
+      ]
     },
     {
       "id": 2419,
