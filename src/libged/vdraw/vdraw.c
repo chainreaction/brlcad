@@ -167,7 +167,7 @@ vdraw_write(void *data, int argc, const char *argv[])
 	}
 	cp = vp;
 	idx = vp->nused;
-    } else if (sscanf(argv[2], "%lu", &uind) < 1) {
+    } else if (bu_sscanf(argv[2], "%lu", &uind) < 1) {
 	bu_vls_printf(gedp->ged_result_str, "vdraw: write index not an integer\n");
 	return BRLCAD_ERROR;
     } else {
@@ -207,7 +207,7 @@ vdraw_write(void *data, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[3], "%d", &(cp->cmd[idx])) < 1) {
+    if (bu_sscanf(argv[3], "%d", &(cp->cmd[idx])) < 1) {
 	bu_vls_printf(gedp->ged_result_str, "vdraw: cmd not an integer\n");
 	return BRLCAD_ERROR;
     }
@@ -259,7 +259,7 @@ vdraw_insert(void *data, int argc, const char *argv[])
 	bu_vls_printf(gedp->ged_result_str, "vdraw: not enough args");
 	return BRLCAD_ERROR;
     }
-    if (sscanf(argv[2], "%lu", &uind) < 1) {
+    if (bu_sscanf(argv[2], "%lu", &uind) < 1) {
 	bu_vls_printf(gedp->ged_result_str, "vdraw: insert index not an integer\n");
 	return BRLCAD_ERROR;
     }
@@ -311,7 +311,7 @@ vdraw_insert(void *data, int argc, const char *argv[])
 	vp->cmd[i] = vp->cmd[i-1];
 	VMOVE(vp->pt[i], vp->pt[i-1]);
     }
-    if (sscanf(argv[3], "%d", &(vp->cmd[idx])) < 1) {
+    if (bu_sscanf(argv[3], "%d", &(vp->cmd[idx])) < 1) {
 	bu_vls_printf(gedp->ged_result_str, "vdraw: cmd not an integer\n");
 	return BRLCAD_ERROR;
     }
@@ -367,7 +367,7 @@ vdraw_delete(void *data, int argc, const char *argv[])
 	}
 	return BRLCAD_OK;
     }
-    if (sscanf(argv[2], "%lu", &uind) < 1) {
+    if (bu_sscanf(argv[2], "%lu", &uind) < 1) {
 	bu_vls_printf(gedp->ged_result_str, "%s %s: delete index not an integer\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
@@ -475,7 +475,7 @@ vdraw_read(void *data, int argc, const char *argv[])
 	bu_vls_printf(gedp->ged_result_str, "%d", length);
 	return BRLCAD_OK;
     }
-    if (sscanf(argv[2], "%lu", &uind) < 1) {
+    if (bu_sscanf(argv[2], "%lu", &uind) < 1) {
 	bu_vls_printf(gedp->ged_result_str, "%s %s: read index not an integer\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
@@ -578,7 +578,7 @@ vdraw_params(void *data, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     }
     if (argv[2][0] == 'c') {
-	if (sscanf(argv[3], "%lx", &rgb)>0)
+	if (bu_sscanf(argv[3], "%lx", &rgb)>0)
 	    gedp->i->ged_gdp->gd_currVHead->vdc_rgb = rgb;
 	return BRLCAD_OK;
     }

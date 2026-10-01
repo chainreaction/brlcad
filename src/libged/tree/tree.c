@@ -138,11 +138,12 @@ _tree_print_node(struct ged *gedp,
 	    }
 	    for (i = 0, avpp = avs.avp; i < avs.count; i++, avpp++) {
 		bu_vls_printf(gedp->ged_result_str, "%s       @ %-*.*s    %s\n",
-			      tmp_str.vls_str,
+			      bu_vls_cstr(&tmp_str),
 			      max_attr_name_len, max_attr_name_len,
 			      avpp->name, avpp->value);
 	    }
 	}
+	bu_avs_free(&avs);
 	bu_vls_free(&tmp_str);
     }
 
@@ -169,6 +170,7 @@ _tree_print_node(struct ged *gedp,
 	    db_non_union_push(comb->tree);
 	    if (db_ck_v4gift_tree(comb->tree) < 0) {
 		bu_vls_printf(gedp->ged_result_str, "Cannot flatten tree for listing");
+		rt_db_free_internal(&intern);
 		return;
 	    }
 	}
@@ -312,7 +314,7 @@ ged_tree_core(struct ged *gedp, int argc, const char *argv[])
     if (argc == 1) {
 	const char *whocmd[1] = {"who"};
 	if (ged_exec_who(gedp, 1, (const char **)whocmd) == BRLCAD_OK) {
-	    buffer = bu_strdup(bu_vls_addr(gedp->ged_result_str));
+	    buffer = bu_strdup(bu_vls_cstr(gedp->ged_result_str));
 	    bu_vls_trunc(gedp->ged_result_str, 0);
 
 	    argc += (int)bu_argv_from_string(whoargv, WHOARGVMAX, buffer);
@@ -338,7 +340,7 @@ ged_tree_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     if (fdout != NULL) {
-	fprintf(fdout, "%s", bu_vls_addr(gedp->ged_result_str));
+	fprintf(fdout, "%s", bu_vls_cstr(gedp->ged_result_str));
 	fclose(fdout);
     }
 

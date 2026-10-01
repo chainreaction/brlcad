@@ -2560,6 +2560,7 @@ extrude_in(struct ged *gedp, const char **cmd_argvs, struct rt_db_internal *inte
     if (rt_db_get_internal(&tmp_ip, dp, gedp->dbip, bn_mat_identity) != ID_SKETCH) {
 	bu_vls_printf(gedp->ged_result_str, "Cannot import sketch (%s) for extrusion (%s)\n",
 		      eip->sketch_name, cmd_argvs[1]);
+	rt_db_free_internal(&tmp_ip);
 	eip->skt = (struct rt_sketch_internal *)NULL;
 	return BRLCAD_ERROR;
     } else
@@ -2603,17 +2604,18 @@ revolve_in(struct ged *gedp, const char **cmd_argvs, struct rt_db_internal *inte
     VUNITIZE(rip->r);
     VUNITIZE(rip->axis3d);
 
-    dp = db_lookup(gedp->dbip, bu_vls_addr(&rip->sketch_name), LOOKUP_NOISY);
+    dp = db_lookup(gedp->dbip, bu_vls_cstr(&rip->sketch_name), LOOKUP_NOISY);
     if (dp == RT_DIR_NULL) {
 	bu_vls_printf(gedp->ged_result_str, "Cannot find sketch (%s) for revolve (%s)\n",
-		      bu_vls_addr(&rip->sketch_name), cmd_argvs[1]);
+		      bu_vls_cstr(&rip->sketch_name), cmd_argvs[1]);
 	rip->skt = (struct rt_sketch_internal *)NULL;
 	return BRLCAD_ERROR;
     }
 
     if (rt_db_get_internal(&tmp_ip, dp, gedp->dbip, bn_mat_identity) != ID_SKETCH) {
 	bu_vls_printf(gedp->ged_result_str, "Cannot import sketch (%s) for revolve (%s)\n",
-		      bu_vls_addr(&rip->sketch_name), cmd_argvs[1]);
+		      bu_vls_cstr(&rip->sketch_name), cmd_argvs[1]);
+	rt_db_free_internal(&tmp_ip);
 	rip->skt = (struct rt_sketch_internal *)NULL;
 	return BRLCAD_ERROR;
     } else
@@ -2955,7 +2957,7 @@ pnts_in(struct ged *gedp, int argc, const char **argv, struct rt_db_internal *in
 		      prompt[nextAsk],
 		      (argc + valuesPerPoint) / valuesPerPoint);
 
-	bu_vls_printf(gedp->ged_result_str, "%s", bu_vls_addr(&vls));
+	bu_vls_printf(gedp->ged_result_str, "%s", bu_vls_cstr(&vls));
 
 	bu_vls_free(&vls);
 	return GED_MORE;
