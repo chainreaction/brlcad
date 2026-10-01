@@ -40,41 +40,53 @@ ged_shells_core(struct ged *gedp, int argc, const char *argv[])
     struct model *m_tmp, *m;
     struct nmgregion *r_tmp, *r;
     struct shell *s_tmp, *s;
-    int shell_count=0;
+    int shell_count = 0;
     struct bu_vls shell_name = BU_VLS_INIT_ZERO;
     long **trans_tbl;
     static const char *usage = "nmg_model";
     struct bu_list *vlfree = &rt_vlfree;
+    struct rt_wdb *wdbp = NULL;
+    int ret = BRLCAD_OK;
 
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
-    struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
-    if (argc != 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 2 || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
-    if ((old_dp = db_lookup(gedp->dbip,  argv[1], LOOKUP_NOISY)) == RT_DIR_NULL)
+    wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "Failed to open database handle\n");
 	return BRLCAD_ERROR;
+    }
+
+    if ((old_dp = db_lookup(gedp->dbip, argv[1], LOOKUP_NOISY)) == RT_DIR_NULL) {
+	wdb_close(wdbp);
+	return BRLCAD_ERROR;
+    }
 
     if (rt_db_get_internal(&old_intern, old_dp, gedp->dbip, bn_mat_identity) < 0) {
 	bu_vls_printf(gedp->ged_result_str, "rt_db_get_internal() error\n");
+	wdb_close(wdbp);
 	return BRLCAD_ERROR;
     }
 
     if (old_intern.idb_type != ID_NMG) {
 	bu_vls_printf(gedp->ged_result_str, "Object is not an NMG!!!\n");
+	rt_db_free_internal(&old_intern);
+	wdb_close(wdbp);
 	return BRLCAD_ERROR;
     }
 
@@ -95,6 +107,7 @@ ged_shells_core(struct ged *gedp, int argc, const char *argv[])
 	    nmg_m_reindex(m_tmp, 0);
 	    nmg_m_reindex(m, 0);
 
+	    bu_vls_trunc(&shell_name, 0);
 	    bu_vls_printf(&shell_name, "shell.%d", shell_count);
 	    while (db_lookup(gedp->dbip, bu_vls_addr(&shell_name), 0) != RT_DIR_NULL) {
 		bu_vls_trunc(&shell_name, 0);
@@ -112,25 +125,30 @@ ged_shells_core(struct ged *gedp, int argc, const char *argv[])
 	    new_dp = db_diradd(gedp->dbip, bu_vls_addr(&shell_name), RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&new_intern.idb_type);
 	    if (new_dp == RT_DIR_NULL) {
 		bu_vls_printf(gedp->ged_result_str, "An error has occurred while adding a new object to the database.\n");
-		return BRLCAD_ERROR;
+		nmg_km(m_tmp);
+		ret = BRLCAD_ERROR;
+		goto out;
 	    }
 
 	    /* make sure the geometry/bounding boxes are up to date */
 	    nmg_rebound(m_tmp, &wdbp->wdb_tol);
 
 	    if (rt_db_put_internal(new_dp, gedp->dbip, &new_intern) < 0) {
-		/* Free memory */
-		nmg_km(m_tmp);
 		bu_vls_printf(gedp->ged_result_str, "rt_db_put_internal() failure\n");
-		return BRLCAD_ERROR;
+		ret = BRLCAD_ERROR;
+		goto out;
 	    }
 	    /* Internal representation has been freed by rt_db_put_internal */
 	    new_intern.idb_ptr = (void *)NULL;
 	}
     }
-    bu_vls_free(&shell_name);
 
-    return BRLCAD_OK;
+out:
+    bu_vls_free(&shell_name);
+    rt_db_free_internal(&old_intern);
+    wdb_close(wdbp);
+
+    return ret;
 }
 
 

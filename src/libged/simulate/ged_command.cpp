@@ -41,7 +41,7 @@ ged_simulate_core(ged * const gedp, const int argc, const char ** const argv)
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
     bu_vls_sprintf(gedp->ged_result_str,
-		   "%s: This build of BRL-CAD was not compiled with Bullet support", argv[0]);
+		   "%s: This build of BRL-CAD was not compiled with Bullet support\n", argv[0]);
 
     return BRLCAD_ERROR;
 }
@@ -58,6 +58,7 @@ ged_simulate_core(ged * const gedp, const int argc, const char ** const argv)
 #include "ged.h"
 
 #include <iomanip>
+#include <memory>
 #include <sstream>
 
 
@@ -180,8 +181,16 @@ ged_simulate_core(ged * const gedp, const int argc, const char ** const argv)
 	BU_OPT_DESC_NULL
     };
 
-    if (2 != bu_opt_parse(gedp->ged_result_str, argc - 1, &argv[1],
-			  options_description)) {
+    if (argc < 3 || 2 != bu_opt_parse(gedp->ged_result_str, argc - 1, &argv[1],
+				      options_description)) {
+	const simulate::AutoPtr<char> usage(bu_opt_describe(
+						const_cast<bu_opt_desc *>(options_description), NULL));
+	bu_vls_printf(gedp->ged_result_str,
+		      "USAGE: %s [OPTIONS] path duration\nOptions:\n%s\n", argv[0], usage.ptr);
+	return BRLCAD_ERROR;
+    }
+
+    if (!argv[1] || !argv[2]) {
 	const simulate::AutoPtr<char> usage(bu_opt_describe(
 						const_cast<bu_opt_desc *>(options_description), NULL));
 	bu_vls_printf(gedp->ged_result_str,
@@ -280,10 +289,10 @@ ged_simulate_core(ged * const gedp, const int argc, const char ** const argv)
 	    throw simulate::InvalidSimulationError("invalid path");
 
 	/* Set up animation state if an output file was requested */
-	simulate::SimAnimState *anim_state = NULL;
+	std::unique_ptr<simulate::SimAnimState> anim_state;
 	if (!anim_opts.output_file.empty()) {
-	    anim_state = new simulate::SimAnimState(anim_opts, gedp,
-						   std::string(argv[1]));
+	    anim_state.reset(new simulate::SimAnimState(anim_opts, gedp,
+						       std::string(argv[1])));
 	}
 
 	simulate::Simulation simulation(*gedp->dbip, path, resume_flag != 0);
@@ -310,12 +319,11 @@ ged_simulate_core(ged * const gedp, const int argc, const char ** const argv)
 
 	if (anim_state) {
 	    anim_state->encodeVideo();
-	    delete anim_state;
-	    anim_state = NULL;
+	    anim_state.reset();
 	}
 
     } catch (const simulate::InvalidSimulationError &exception) {
-	bu_vls_sprintf(gedp->ged_result_str, "%s", exception.what());
+	bu_vls_sprintf(gedp->ged_result_str, "%s\n", exception.what());
 	return BRLCAD_ERROR;
     }
 

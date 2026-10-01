@@ -48,18 +48,23 @@ ged_set_uplotOutputMode_core(struct ged *gedp, int argc, const char *argv[])
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     if (argc > 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
     /* Get the plot output mode */
     if (argc == 1) {
 	if (gedp->i->ged_gdp->gd_uplotOutputMode == PL_OUTPUT_MODE_BINARY)
-	    bu_vls_printf(gedp->ged_result_str, "binary");
+	    bu_vls_printf(gedp->ged_result_str, "binary\n");
 	else
-	    bu_vls_printf(gedp->ged_result_str, "text");
+	    bu_vls_printf(gedp->ged_result_str, "text\n");
 
 	return BRLCAD_OK;
+    }
+
+    if (!argv[1] || argv[1][0] == '\0') {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
+	return BRLCAD_ERROR;
     }
 
     if (argv[1][0] == 'b' &&
@@ -69,7 +74,7 @@ ged_set_uplotOutputMode_core(struct ged *gedp, int argc, const char *argv[])
 	     BU_STR_EQUAL("text", argv[1]))
 	gedp->i->ged_gdp->gd_uplotOutputMode = PL_OUTPUT_MODE_TEXT;
     else {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 

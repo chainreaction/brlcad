@@ -99,7 +99,7 @@ void
 free_xrays(xrays * const rays)
 {
     if (!rays)
-	bu_bomb("missing argument");
+	return;
 
     BU_CK_LIST_HEAD(&rays->l);
     RT_CK_RAY(&rays->ray);
@@ -113,8 +113,8 @@ static xrays *
 generate_ray_grid(const btVector3 &center, const btScalar radius,
 		  const btVector3 &normal, const unsigned grid_radius)
 {
-    if (radius < 0.0 || !NEAR_EQUAL(normal.length(), 1.0, RT_DOT_TOL))
-	bu_bomb("invalid argument");
+    if (radius < 0.0 || grid_radius == 0 || !NEAR_EQUAL(normal.length(), 1.0, RT_DOT_TOL))
+	return NULL;
 
     // the xrays `result` must be on the heap because other nodes in the
     // `bu_list` point to it
@@ -154,6 +154,9 @@ static xrays *
 get_rays(const btRigidBody &body_a, const btRigidBody &body_b,
 	 const unsigned grid_radius)
 {
+    if (grid_radius == 0)
+	return NULL;
+
     const btVector3 normal_world_on_b = get_normal_world_on_b(body_a, body_b);
     const std::pair<btVector3, btVector3> aabb_overlap = get_aabb_overlap(body_a,
 									  body_b);
@@ -164,8 +167,8 @@ get_rays(const btRigidBody &body_a, const btRigidBody &body_b,
     const btScalar radius = (aabb_overlap.second - aabb_overlap.first).length() /
     2.0;
 
-    if (NEAR_ZERO(radius, RT_LEN_TOL))
-	bu_bomb("zero radius");
+    if (NEAR_ZERO(radius, RT_LEN_TOL) || radius <= 0.0)
+	return NULL;
 
     // step back from the overlap center, along the normal by `radius`,
     // to ensure that rays start from outside of the overlap region
@@ -184,17 +187,28 @@ calculate_contact_points(btManifoldResult &result,
 			 const unsigned grid_radius,
 			 btIDebugDraw &debug_draw)
 {
-    const btRigidBody &body_a = *btRigidBody::upcast(
+    const btRigidBody * const body_a = btRigidBody::upcast(
 	body_a_wrap.getCollisionObject());
-    const btRigidBody &body_b = *btRigidBody::upcast(
+    const btRigidBody * const body_b = btRigidBody::upcast(
 	body_b_wrap.getCollisionObject());
-    const db_full_path &body_a_path = static_cast<const simulate::RtMotionState *>
-    (body_a.getMotionState())->get_path();
-    const db_full_path &body_b_path = static_cast<const simulate::RtMotionState *>
-    (body_b.getMotionState())->get_path();
+    if (!body_a || !body_b)
+	return;
 
-    const simulate::AutoPtr<xrays, free_xrays> rays(get_rays(body_a, body_b,
+    const simulate::RtMotionState * const motion_a =
+	dynamic_cast<const simulate::RtMotionState *>(body_a->getMotionState());
+    const simulate::RtMotionState * const motion_b =
+	dynamic_cast<const simulate::RtMotionState *>(body_b->getMotionState());
+    if (!motion_a || !motion_b)
+	return;
+
+    const db_full_path &body_a_path = motion_a->get_path();
+    const db_full_path &body_b_path = motion_b->get_path();
+
+    const simulate::AutoPtr<xrays, free_xrays> rays(get_rays(*body_a, *body_b,
 							     grid_radius));
+    if (!rays.ptr)
+	return;
+
     const std::vector<std::pair<btVector3, btVector3> > overlaps =
     rt_instance.get_overlaps(body_a_path, body_b_path, *rays.ptr);
     const btVector3 normal_world_on_b(V3ARGS(rays.ptr->ray.r_dir));

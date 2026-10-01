@@ -51,6 +51,9 @@ Do_showmats(struct db_i *dbip, struct rt_comb_internal *UNUSED(comb), union tree
     RT_CK_TREE(comb_leaf);
 
     smdp = (struct showmats_data *)user_ptr1;
+    if (!smdp || !smdp->smd_child || !comb_leaf->tr_l.tl_name)
+	return;
+
     aflag = *((int *)user_ptr2);
 
     if (!BU_STR_EQUAL(comb_leaf->tr_l.tl_name, smdp->smd_child))
@@ -81,19 +84,26 @@ Run_showmats(struct ged *gedp, const char *path, int aflag)
 {
     struct showmats_data sm_data;
     char *parent;
+    char *path_copy;
     struct directory *dp;
-    int max_count=1;
+    int max_count = 1;
+
+    if (!path)
+	return BRLCAD_ERROR;
 
     sm_data.smd_gedp = gedp;
     MAT_IDN(sm_data.smd_mat);
 
-    parent = strtok((char *)path, "/");
-    while ((sm_data.smd_child = strtok((char *)NULL, "/")) != NULL) {
+    path_copy = bu_strdup(path);
+    parent = strtok(path_copy, "/");
+    while (parent && (sm_data.smd_child = strtok((char *)NULL, "/")) != NULL) {
 	struct rt_db_internal intern;
 	struct rt_comb_internal *comb;
 
-	if ((dp = db_lookup(gedp->dbip, parent, LOOKUP_NOISY)) == RT_DIR_NULL)
+	if ((dp = db_lookup(gedp->dbip, parent, LOOKUP_NOISY)) == RT_DIR_NULL) {
+	    bu_free(path_copy, "path_copy");
 	    return BRLCAD_ERROR;
+	}
 
 	if (!aflag)
 	    bu_vls_printf(gedp->ged_result_str, "%s\n", parent);
@@ -106,6 +116,7 @@ Run_showmats(struct ged *gedp, const char *path, int aflag)
 
 	if (rt_db_get_internal(&intern, dp, gedp->dbip, (fastf_t *)NULL) < 0) {
 	    bu_vls_printf(gedp->ged_result_str, "Database read error, aborting.\n");
+	    bu_free(path_copy, "path_copy");
 	    return BRLCAD_ERROR;
 	}
 	comb = (struct rt_comb_internal *)intern.idb_ptr;
@@ -119,6 +130,7 @@ Run_showmats(struct ged *gedp, const char *path, int aflag)
 
 	if (!sm_data.smd_count) {
 	    bu_vls_printf(gedp->ged_result_str, "%s is not a member of %s\n", sm_data.smd_child, parent);
+	    bu_free(path_copy, "path_copy");
 	    return BRLCAD_ERROR;
 	}
 	if (sm_data.smd_count > max_count)
@@ -127,25 +139,29 @@ Run_showmats(struct ged *gedp, const char *path, int aflag)
 	parent = sm_data.smd_child;
     }
 
-    if (!aflag) {
-	char obuf[1024];
+    if (parent) {
+	if (!aflag) {
+	    char obuf[1024];
 
-	bu_vls_printf(gedp->ged_result_str, "%s\n", parent);
+	    bu_vls_printf(gedp->ged_result_str, "%s\n", parent);
 
-	if (max_count > 1)
-	    bu_vls_printf(gedp->ged_result_str, "\nAccumulated matrix (using first occurrence of each object):\n");
-	else
-	    bu_vls_printf(gedp->ged_result_str, "\nAccumulated matrix:\n");
+	    if (max_count > 1)
+		bu_vls_printf(gedp->ged_result_str, "\nAccumulated matrix (using first occurrence of each object):\n");
+	    else
+		bu_vls_printf(gedp->ged_result_str, "\nAccumulated matrix:\n");
 
-	bn_mat_print_guts("", sm_data.smd_mat, obuf, 1024);
-	bu_vls_printf(gedp->ged_result_str, "%s", obuf);
-    } else {
-	int i;
+	    bn_mat_print_guts("", sm_data.smd_mat, obuf, 1024);
+	    bu_vls_printf(gedp->ged_result_str, "%s", obuf);
+	} else {
+	    int i;
 
-	for (i = 0; i < 16; ++i)
-	    bu_vls_printf(gedp->ged_result_str, " %lf", sm_data.smd_mat[i]);
+	    for (i = 0; i < 16; ++i)
+		bu_vls_printf(gedp->ged_result_str, " %lf", sm_data.smd_mat[i]);
+	    bu_vls_printf(gedp->ged_result_str, "\n");
+	}
     }
 
+    bu_free(path_copy, "path_copy");
     return BRLCAD_OK;
 }
 
@@ -163,16 +179,21 @@ ged_showmats_core(struct ged *gedp, int argc, const char *argv[])
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
-    if (argc == 1 || (argc == 2 && argv[1][0] == '-')) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc == 1 || (argc == 2 && (!argv[1] || argv[1][0] == '-'))) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
-    if (argc == 3 && argv[1][0] == '-' && argv[1][1] == 'a' && argv[1][2] == '\0') {
+    if (argc == 3 && argv[1] && argv[1][0] == '-' && argv[1][1] == 'a' && argv[1][2] == '\0') {
 	aflag = 1;
 	++argv;
     } else if (argc != 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
+	return BRLCAD_ERROR;
+    }
+
+    if (!argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 

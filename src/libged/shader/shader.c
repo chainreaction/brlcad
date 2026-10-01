@@ -42,8 +42,13 @@ ged_shader_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
+    }
+
+    if (!argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
+	return BRLCAD_ERROR;
     }
 
     GED_DB_LOOKUP(gedp, dp, argv[1], LOOKUP_NOISY, BRLCAD_ERROR);
@@ -55,14 +60,23 @@ ged_shader_core(struct ged *gedp, int argc, const char *argv[])
 
     if (argc == 2) {
 	/* Return the current shader string */
-	bu_vls_printf(gedp->ged_result_str, "%s", bu_vls_addr(&comb->shader));
+	bu_vls_printf(gedp->ged_result_str, "%s\n", bu_vls_cstr(&comb->shader));
 	rt_db_free_internal(&intern);
     } else {
+	int i;
+
 	if (gedp->dbip->dbi_read_only) {
-	    bu_vls_printf(gedp->ged_result_str, "Sorry, this database is READ-ONLY");
+	    bu_vls_printf(gedp->ged_result_str, "Sorry, this database is READ-ONLY\n");
 	    rt_db_free_internal(&intern);
 
 	    return BRLCAD_ERROR;
+	}
+
+	for (i = 2; i < argc; ++i) {
+	    if (!argv[i]) {
+		rt_db_free_internal(&intern);
+		return BRLCAD_ERROR;
+	    }
 	}
 
 	/* Replace with new shader string from command line */
