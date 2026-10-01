@@ -49,28 +49,37 @@ extern "C" void ged_changed_callback(struct db_i *dbip, struct directory *dp, in
 void
 dm_refresh(struct ged *gedp, int vnum)
 {
+    if (!gedp || !gedp->dbi_state)
+	return;
     struct bu_ptbl *views = bv_set_views(&gedp->ged_views);
+    if (!views || vnum < 0 || (size_t)vnum >= BU_PTBL_LEN(views))
+	return;
     struct bview *v = (struct bview *)BU_PTBL_GET(views, vnum);
     if (!v)
 	return;
     DbiState *dbis = (DbiState *)gedp->dbi_state;
     BViewState *bvs = dbis->get_view_state(v);
+    if (!bvs)
+	return;
     dbis->update();
     std::unordered_set<struct bview *> uset;
     uset.insert(v);
     bvs->redraw(NULL, uset, 1);
 
     struct dm *dmp = (struct dm *)v->dmp;
+    if (!dmp)
+	return;
     /* Ensure rendering goes to this view's DM context, not the last-active one.
      * With multiple DMs (e.g. quad views), each has its own OSMesa context.
      * Without making the correct context current here, dm_set_bg and
      * dm_draw_objs will operate on whichever context was last activated,
      * leaving this view's buffer empty when swrast_getDisplayImage reads it. */
     dm_make_current(dmp);
-    unsigned char *dm_bg1;
-    unsigned char *dm_bg2;
+    unsigned char *dm_bg1 = NULL;
+    unsigned char *dm_bg2 = NULL;
     dm_get_bg(&dm_bg1, &dm_bg2, dmp);
-    dm_set_bg(dmp, dm_bg1[0], dm_bg1[1], dm_bg1[2], dm_bg2[0], dm_bg2[1], dm_bg2[2]);
+    if (dm_bg1 && dm_bg2)
+	dm_set_bg(dmp, dm_bg1[0], dm_bg1[1], dm_bg1[2], dm_bg2[0], dm_bg2[1], dm_bg2[2]);
     dm_set_dirty(dmp, 0);
     dm_draw_objs(v, NULL, NULL);
     dm_draw_end(dmp);
@@ -79,6 +88,8 @@ dm_refresh(struct ged *gedp, int vnum)
 void
 scene_clear(struct ged *gedp, int vnum, int cnum)
 {
+    if (!gedp)
+	return;
     const char *s_av[4] = {NULL};
     if (cnum < 0) {
 	s_av[0] = "Z";
@@ -99,6 +110,9 @@ scene_clear(struct ged *gedp, int vnum, int cnum)
 int
 img_cmp(int vnum, int id, struct ged *gedp, const char *cdir, bool clear, int soft_fail)
 {
+    if (!gedp || !cdir)
+	return BRLCAD_ERROR;
+
     icv_image_t *ctrl, *timg;
     struct bu_vls tname = BU_VLS_INIT_ZERO;
     struct bu_vls cname = BU_VLS_INIT_ZERO;
@@ -113,9 +127,21 @@ img_cmp(int vnum, int id, struct ged *gedp, const char *cdir, bool clear, int so
     dm_refresh(gedp, vnum);
 
     struct bu_ptbl *views = bv_set_views(&gedp->ged_views);
-    struct bview *v = (struct bview *)BU_PTBL_GET(views, vnum);
-    if (!v)
+    if (!views || vnum < 0 || (size_t)vnum >= BU_PTBL_LEN(views)) {
+	bu_vls_free(&tname);
+	bu_vls_free(&cname);
+	if (soft_fail)
+	    return BRLCAD_ERROR;
 	bu_exit(EXIT_FAILURE, "Invalid view specifier: %d\n", vnum);
+    }
+    struct bview *v = (struct bview *)BU_PTBL_GET(views, vnum);
+    if (!v || !v->dmp) {
+	bu_vls_free(&tname);
+	bu_vls_free(&cname);
+	if (soft_fail)
+	    return BRLCAD_ERROR;
+	bu_exit(EXIT_FAILURE, "Invalid view or display manager for view: %d\n", vnum);
+    }
     struct dm *dmp = (struct dm *)v->dmp;
     int cnum = (v->independent) ? vnum : -1;
 
@@ -129,6 +155,7 @@ img_cmp(int vnum, int id, struct ged *gedp, const char *cdir, bool clear, int so
 	if (clear)
 	    scene_clear(gedp, vnum, cnum);
 	bu_vls_free(&tname);
+	bu_vls_free(&cname);
 	return BRLCAD_ERROR;
     }
 
@@ -139,8 +166,11 @@ img_cmp(int vnum, int id, struct ged *gedp, const char *cdir, bool clear, int so
 	    if (clear)
 		scene_clear(gedp, vnum, cnum);
 	    bu_vls_free(&tname);
+	    bu_vls_free(&cname);
 	    return BRLCAD_ERROR;
 	}
+	bu_vls_free(&tname);
+	bu_vls_free(&cname);
 	bu_exit(EXIT_FAILURE, "failed to read %s\n", bu_vls_cstr(&tname));
     }
     ctrl = icv_read(bu_vls_cstr(&cname), BU_MIME_IMAGE_PNG, 0, 0);
@@ -149,26 +179,34 @@ img_cmp(int vnum, int id, struct ged *gedp, const char *cdir, bool clear, int so
 	    bu_log("Failed to read %s\n", bu_vls_cstr(&cname));
 	    if (clear)
 		scene_clear(gedp, vnum, cnum);
+	    icv_destroy(timg);
 	    bu_vls_free(&tname);
 	    bu_vls_free(&cname);
 	    return BRLCAD_ERROR;
 	}
+	icv_destroy(timg);
+	bu_vls_free(&tname);
+	bu_vls_free(&cname);
 	bu_exit(EXIT_FAILURE, "failed to read %s\n", bu_vls_cstr(&cname));
     }
     bu_vls_free(&cname);
     int matching_cnt = 0;
     int off_by_1_cnt = 0;
     int off_by_many_cnt = 0;
-    int iret = icv_diff(&matching_cnt, &off_by_1_cnt, &off_by_many_cnt, ctrl,timg);
+    int iret = icv_diff(&matching_cnt, &off_by_1_cnt, &off_by_many_cnt, ctrl, timg);
     if (iret) {
 	if (soft_fail) {
 	    bu_log("%d wireframe diff failed.  %d matching, %d off by 1, %d off by many\n", id, matching_cnt, off_by_1_cnt, off_by_many_cnt);
 	    icv_destroy(ctrl);
 	    icv_destroy(timg);
+	    bu_vls_free(&tname);
 	    if (clear)
 		scene_clear(gedp, vnum, cnum);
 	    return BRLCAD_ERROR;
 	}
+	icv_destroy(ctrl);
+	icv_destroy(timg);
+	bu_vls_free(&tname);
 	bu_exit(EXIT_FAILURE, "%d wireframe diff failed.  %d matching, %d off by 1, %d off by many\n", id, matching_cnt, off_by_1_cnt, off_by_many_cnt);
     }
 
@@ -189,6 +227,9 @@ img_cmp(int vnum, int id, struct ged *gedp, const char *cdir, bool clear, int so
 void
 poly_circ(struct ged *gedp, int v_id, int local)
 {
+    if (!gedp)
+	return;
+
     const char *s_av[15] = {NULL};
     struct bu_vls vname = BU_VLS_INIT_ZERO;
     bu_vls_sprintf(&vname, "V%d", v_id);
@@ -240,6 +281,9 @@ poly_circ(struct ged *gedp, int v_id, int local)
 void
 vline(struct ged *gedp, int l_id, int x0, int y0, int z0, int x1, int y1, int z1)
 {
+    if (!gedp)
+	return;
+
     const char *s_av[15] = {NULL};
     struct bu_vls lname = BU_VLS_INIT_ZERO;
     bu_vls_sprintf(&lname, "l%d", l_id);
@@ -293,6 +337,9 @@ vline(struct ged *gedp, int l_id, int x0, int y0, int z0, int x1, int y1, int z1
 void
 l_line(struct ged *gedp, int v_id, int l_id, int x0, int y0, int z0, int x1, int y1, int z1)
 {
+    if (!gedp)
+	return;
+
     const char *s_av[15] = {NULL};
     struct bu_vls vname = BU_VLS_INIT_ZERO;
     bu_vls_sprintf(&vname, "V%d", v_id);
@@ -362,6 +409,9 @@ main(int ac, char *av[]) {
     int soft_fail = 0;
     int ret = BRLCAD_OK;
 
+    if (ac < 1 || !av || !av[0])
+	return 1;
+
     bu_setprogname(av[0]);
 
     struct bu_opt_desc d[4];
@@ -371,10 +421,17 @@ main(int ac, char *av[]) {
     BU_OPT_NULL(d[3]);
 
     /* Done with program name */
-    (void)bu_opt_parse(NULL, ac, (const char **)av, d);
+    int opt_ret = bu_opt_parse(NULL, ac, (const char **)av, d);
+    if (opt_ret < 0 || need_help || ac < 2 || !av[1]) {
+	char *help = bu_opt_describe(d, NULL);
+	bu_log("Usage: %s [options] <control_image_dir>\n%s\n", av[0], help ? help : "");
+	bu_free(help, "help");
+	return need_help ? 0 : 1;
+    }
 
     if (!bu_file_directory(av[1])) {
 	printf("ERROR: [%s] is not a directory.  Expecting control image directory\n", av[1]);
+	bu_vls_free(&fname);
 	return 2;
     }
 
@@ -383,6 +440,7 @@ main(int ac, char *av[]) {
 
     if (!bu_file_exists(av[1], NULL)) {
 	printf("ERROR: [%s] does not exist, expecting .g file\n", av[1]);
+	bu_vls_free(&fname);
 	return 2;
     }
 
@@ -414,6 +472,12 @@ main(int ac, char *av[]) {
     /* Open the temp file */
     const char *s_av[15] = {NULL};
     gedp = ged_open("db", "moss_quad_tmp.g", 1);
+    if (!gedp || !gedp->dbip) {
+	bu_vls_free(&fname);
+	bu_file_delete("moss_quad_tmp.g");
+	bu_dirclear(lcache);
+	return 1;
+    }
 
     // Set up new cmd data (not yet done by default in ged_open
     gedp->dbi_state = new DbiState(gedp);
@@ -455,6 +519,14 @@ main(int ac, char *av[]) {
 	ged_exec_dm(gedp, 6, s_av);
 
 	struct dm *dmp = (struct dm *)v->dmp;
+	if (!dmp) {
+	    bu_vls_free(&dm_name);
+	    ged_close(gedp);
+	    bu_vls_free(&fname);
+	    bu_file_delete("moss_quad_tmp.g");
+	    bu_dirclear(lcache);
+	    return 1;
+	}
 	dm_set_width(dmp, 512);
 	dm_set_height(dmp, 512);
 
@@ -1071,6 +1143,8 @@ main(int ac, char *av[]) {
     //bu_setenv("BV_LOG", "1", 1);
 
     ged_close(gedp);
+    bu_vls_free(&fname);
+    bu_file_delete("moss_quad_tmp.g");
 
     /* Remove the local cache files */
     bu_dirclear(lcache);

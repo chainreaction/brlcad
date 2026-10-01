@@ -51,11 +51,11 @@ static int g_failures = 0;
 } while (0)
 
 #define CHECK_PRESENT(gedp, name) \
-    CHECK(db_lookup((gedp)->dbip, (name), LOOKUP_QUIET) != RT_DIR_NULL, \
+    CHECK((gedp) && (gedp)->dbip && db_lookup((gedp)->dbip, (name), LOOKUP_QUIET) != RT_DIR_NULL, \
 	    "expected '" name "' to exist")
 
 #define CHECK_ABSENT(gedp, name) \
-    CHECK(db_lookup((gedp)->dbip, (name), LOOKUP_QUIET) == RT_DIR_NULL, \
+    CHECK((gedp) && (gedp)->dbip && db_lookup((gedp)->dbip, (name), LOOKUP_QUIET) == RT_DIR_NULL, \
 	    "expected '" name "' to be gone")
 
 #define CHECK_CONTAINS(str, needle, msg) \
@@ -129,6 +129,9 @@ member_count(struct ged *gedp, const char *comb_name, const char *member_name)
     struct directory *dp;
     size_t count = 0;
 
+    if (!gedp || !gedp->dbip || !comb_name)
+	return 0;
+
     dp = db_lookup(gedp->dbip, comb_name, LOOKUP_QUIET);
     if (dp == RT_DIR_NULL || !(dp->d_flags & RT_DIR_COMB))
 	return 0;
@@ -153,6 +156,9 @@ comb_has_op(struct ged *gedp, const char *comb_name, int op)
     struct directory *dp;
     int ret = 0;
 
+    if (!gedp || !gedp->dbip || !comb_name)
+	return 0;
+
     dp = db_lookup(gedp->dbip, comb_name, LOOKUP_QUIET);
     if (dp == RT_DIR_NULL || !(dp->d_flags & RT_DIR_COMB))
 	return 0;
@@ -174,7 +180,24 @@ comb_has_op(struct ged *gedp, const char *comb_name, int op)
 	    "unexpected member count for '" comb "/" member "'")
 
 
-/** Open a fresh temporary .g database.  Caller must ged_close(). */
+static void
+close_test_db(struct ged *gedp)
+{
+    if (!gedp)
+	return;
+
+    if (gedp->dbip && gedp->dbip->dbi_filename) {
+	char path[MAXPATHLEN];
+	bu_strlcpy(path, gedp->dbip->dbi_filename, sizeof(path));
+	ged_close(gedp);
+	bu_file_delete(path);
+    } else {
+	ged_close(gedp);
+    }
+}
+
+
+/** Open a fresh temporary .g database.  Caller must close_test_db(). */
 static struct ged *
 open_test_db(void)
 {
@@ -186,8 +209,10 @@ open_test_db(void)
 
     /* Create a fresh .g at the temp path */
     struct rt_wdb *wdbp = wdb_fopen(tmppath);
-    if (!wdbp)
+    if (!wdbp) {
+	bu_file_delete(tmppath);
 	return NULL;
+    }
 
     /* --- primitives --- */
     point_t origin = VINIT_ZERO;
@@ -270,9 +295,13 @@ open_test_db(void)
 		0, 0, 0, 0, 0, 0, 0);
     }
 
-    db_close(wdbp->dbip);
+    wdb_close(wdbp);
 
     struct ged *gedp = ged_open("db", tmppath, 1);
+    if (!gedp) {
+	bu_file_delete(tmppath);
+	return NULL;
+    }
     return gedp;
 }
 
@@ -293,7 +322,7 @@ test_safe_primitive_delete(void)
     CHECK(ret == BRLCAD_OK, "T1: rm standalone_prim.s should succeed");
     CHECK_ABSENT(gedp, "standalone_prim.s");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -309,7 +338,7 @@ test_referenced_primitive_fails(void)
     CHECK(ret != BRLCAD_OK, "T2: rm of referenced sph.s should fail");
     CHECK_PRESENT(gedp, "sph.s");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -325,7 +354,7 @@ test_force_delete(void)
     CHECK(ret == BRLCAD_OK, "T3: rm -f sph.s should succeed");
     CHECK_ABSENT(gedp, "sph.s");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -341,7 +370,7 @@ test_empty_comb_delete(void)
     CHECK(ret == BRLCAD_OK, "T4: rm empty_comb.c should succeed");
     CHECK_ABSENT(gedp, "empty_comb.c");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -357,7 +386,7 @@ test_nonempty_comb_fails(void)
     CHECK(ret != BRLCAD_OK, "T5: rm of non-empty comb should fail");
     CHECK_PRESENT(gedp, "leaf_comb.c");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -378,7 +407,7 @@ test_recursive_safe_delete_blocks_external_refs(void)
     CHECK_PRESENT(gedp, "sph2.s");
     CHECK_PRESENT(gedp, "sph3.s");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -397,7 +426,7 @@ test_recursive_force_delete(void)
     CHECK_ABSENT(gedp, "sph3.s");
     CHECK_PRESENT(gedp, "parent_comb.c");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -415,7 +444,7 @@ test_path_instance_delete(void)
     CHECK_PRESENT(gedp, "leaf_comb.c");
     CHECK_MEMBER_COUNT(gedp, "parent_comb.c", "leaf_comb.c", 0);
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -440,7 +469,7 @@ test_legacy_rm_comb_obj_guard(void)
     CHECK_CONTAINS(bu_vls_cstr(gedp->ged_result_str), "rm parent_comb.c/leaf_comb.c",
 	    "T9: diagnostic should show explicit path syntax");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -469,7 +498,7 @@ test_duplicate_path_instance_delete(void)
 	CHECK_PRESENT(gedp, "dup_prim.s");
     }
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -488,7 +517,7 @@ test_nested_path_instance_delete(void)
     CHECK_MEMBER_COUNT(gedp, "child_comb.c", "sph2.s", 0);
     CHECK_MEMBER_COUNT(gedp, "child_comb.c", "sph3.s", 1);
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -514,7 +543,7 @@ test_path_delete_preserves_boolean_ops(void)
     CHECK(comb_has_op(gedp, "bool_preserve.c", OP_SUBTRACT),
 	    "T12: removing an unrelated member must preserve subtraction");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -542,7 +571,7 @@ test_recursive_safe_delete_blocks_shared_descendant(void)
 	CHECK_PRESENT(gedp, "sph.s");
     }
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -568,7 +597,7 @@ test_recursive_force_preserves_shared_descendant(void)
 	CHECK_PRESENT(gedp, "shared.c");
     }
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -588,7 +617,7 @@ test_primitive_dependency_blocks_plain_delete(void)
     CHECK_PRESENT(gedp, "dsp_child.s");
     CHECK_PRESENT(gedp, "dsp_data.bin");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -605,7 +634,7 @@ test_recursive_primitive_dependency_delete(void)
     CHECK_ABSENT(gedp, "dsp_child.s");
     CHECK_ABSENT(gedp, "dsp_data.bin");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -625,7 +654,7 @@ test_dry_run(void)
     /* Object must still exist */
     CHECK_PRESENT(gedp, "standalone_prim.s");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -640,7 +669,7 @@ test_missing_operand_error(void)
     int ret = ged_exec_rm(gedp, 2, av);
     CHECK(ret != BRLCAD_OK, "T17: rm of nonexistent object should fail");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -655,7 +684,7 @@ test_missing_operand_force(void)
     int ret = ged_exec_rm(gedp, 3, av);
     CHECK(ret == BRLCAD_OK, "T18: rm -f of nonexistent object should succeed silently");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -683,7 +712,7 @@ test_glob_delete(void)
     /* Combinations should be untouched */
     CHECK_PRESENT(gedp, "leaf_comb.c");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -698,11 +727,12 @@ test_comb_legacy_operator_form(void)
     int ret = ged_exec_comb(gedp, 5, av);
     CHECK(ret == BRLCAD_OK, "T20: legacy comb construction should succeed");
     CHECK_MEMBER_COUNT(gedp, "rm", "leaf_comb.c", 1);
-    CHECK((db_lookup(gedp->dbip, "rm", LOOKUP_QUIET)->d_flags & RT_DIR_REGION) != 0,
+    struct directory *dp = db_lookup(gedp->dbip, "rm", LOOKUP_QUIET);
+    CHECK(dp && (dp->d_flags & RT_DIR_REGION) != 0,
 	    "T20: legacy -r should set the region flag");
     CHECK_PRESENT(gedp, "leaf_comb.c");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -719,7 +749,7 @@ test_comb_target_first_command_form(void)
     CHECK_MEMBER_COUNT(gedp, "parent_comb.c", "leaf_comb.c", 0);
     CHECK_PRESENT(gedp, "leaf_comb.c");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -736,7 +766,7 @@ test_comb_selector_first_command_form(void)
     CHECK_MEMBER_COUNT(gedp, "parent_comb.c", "leaf_comb.c", 0);
     CHECK_PRESENT(gedp, "leaf_comb.c");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -752,7 +782,7 @@ test_comb_selector_first_operator_form(void)
     CHECK(ret == BRLCAD_OK, "T23: selector-first union should succeed");
     CHECK_MEMBER_COUNT(gedp, "u", "leaf_comb.c", 1);
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -771,7 +801,7 @@ test_long_options(void)
 	    "T24: long-option dry-run output should name the object");
     CHECK_PRESENT(gedp, "standalone_prim.s");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 
@@ -797,8 +827,10 @@ open_perf_db(size_t primitive_count)
     fclose(fp);
 
     wdbp = wdb_fopen(tmppath);
-    if (!wdbp)
+    if (!wdbp) {
+	bu_file_delete(tmppath);
 	return NULL;
+    }
 
     BU_LIST_INIT(&root_wm.l);
     for (g = 0; g < group_count; g++) {
@@ -827,8 +859,13 @@ open_perf_db(size_t primitive_count)
     mk_comb(wdbp, "perf_root.c", &root_wm.l, 0, NULL, NULL, NULL,
 	    0, 0, 0, 0, 0, 0, 0);
 
-    db_close(wdbp->dbip);
-    return ged_open("db", tmppath, 1);
+    wdb_close(wdbp);
+    struct ged *gedp = ged_open("db", tmppath, 1);
+    if (!gedp) {
+	bu_file_delete(tmppath);
+	return NULL;
+    }
+    return gedp;
 }
 
 
@@ -892,7 +929,7 @@ run_perf(size_t primitive_count)
     printf("rm perf_root.c seconds=%.6f\n", child_fail_sec);
     printf("rm -n -r perf_root.c seconds=%.6f\n", recursive_sec);
 
-    ged_close(gedp);
+    close_test_db(gedp);
 
     if (g_failures) {
 	fprintf(stderr, "\nged_test_rm --perf: %d check(s) FAILED\n", g_failures);
@@ -910,6 +947,9 @@ run_perf(size_t primitive_count)
 int
 main(int argc, char *argv[])
 {
+    if (argc < 1 || !argv || !argv[0])
+	return 1;
+
     bu_setprogname(argv[0]);
 
     if (argc > 1 && BU_STR_EQUAL(argv[1], "--perf")) {

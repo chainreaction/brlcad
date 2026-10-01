@@ -45,15 +45,20 @@
 extern "C" void
 ged_changed_callback(struct db_i *UNUSED(dbip), struct directory *dp, int mode, void *u_data)
 {
+    if (!dp || !u_data)
+	return;
+
     unsigned long long hash;
     struct ged *gedp = (struct ged *)u_data;
+    if (!gedp->dbi_state)
+	return;
     DbiState *ctx = (DbiState *)gedp->dbi_state;
 
     // Clear cached GED drawing data and update
     ctx->clear_cache(dp);
 
     // Need to invalidate any LoD caches associated with this dp
-    if (dp->d_minor_type == DB5_MINORTYPE_BRLCAD_BOT && ctx->gedp) {
+    if (dp->d_namep && dp->d_minor_type == DB5_MINORTYPE_BRLCAD_BOT && ctx->gedp && ctx->gedp->ged_lod) {
 	unsigned long long key = bv_mesh_lod_key_get(ctx->gedp->ged_lod, dp->d_namep);
 	if (key) {
 	    bv_mesh_lod_clear_cache(ctx->gedp->ged_lod, key);
@@ -72,9 +77,11 @@ ged_changed_callback(struct db_i *UNUSED(dbip), struct directory *dp, int mode, 
 	    // When this callback is made, dp is still valid, but in subsequent
 	    // processing it will not be.  We need to capture everything we
 	    // will need from this dp now, for later use when updating state
-	    hash = bu_data_hash(dp->d_namep, strlen(dp->d_namep)*sizeof(char));
-	    ctx->removed.insert(hash);
-	    ctx->old_names[hash] = std::string(dp->d_namep);
+	    if (dp->d_namep) {
+		hash = bu_data_hash(dp->d_namep, strlen(dp->d_namep)*sizeof(char));
+		ctx->removed.insert(hash);
+		ctx->old_names[hash] = std::string(dp->d_namep);
+	    }
 	    break;
 	default:
 	    bu_log("changed callback mode error: %d\n", mode);
@@ -84,19 +91,27 @@ ged_changed_callback(struct db_i *UNUSED(dbip), struct directory *dp, int mode, 
 extern "C" void
 dm_refresh(struct ged *gedp)
 {
-    struct bview *v= gedp->ged_gvp;
+    if (!gedp || !gedp->dbi_state || !gedp->ged_gvp)
+	return;
+
+    struct bview *v = gedp->ged_gvp;
     DbiState *dbis = (DbiState *)gedp->dbi_state;
     BViewState *bvs = dbis->get_view_state(v);
+    if (!bvs)
+	return;
     dbis->update();
     std::unordered_set<struct bview *> uset;
     uset.insert(v);
     bvs->redraw(NULL, uset, 1);
 
     struct dm *dmp = (struct dm *)v->dmp;
-    unsigned char *dm_bg1;
-    unsigned char *dm_bg2;
+    if (!dmp)
+	return;
+    unsigned char *dm_bg1 = NULL;
+    unsigned char *dm_bg2 = NULL;
     dm_get_bg(&dm_bg1, &dm_bg2, dmp);
-    dm_set_bg(dmp, dm_bg1[0], dm_bg1[1], dm_bg1[2], dm_bg2[0], dm_bg2[1], dm_bg2[2]);
+    if (dm_bg1 && dm_bg2)
+	dm_set_bg(dmp, dm_bg1[0], dm_bg1[1], dm_bg1[2], dm_bg2[0], dm_bg2[1], dm_bg2[2]);
     dm_set_dirty(dmp, 0);
     dm_draw_objs(v, NULL, NULL);
     dm_draw_end(dmp);
@@ -105,6 +120,8 @@ dm_refresh(struct ged *gedp)
 extern "C" void
 scene_clear(struct ged *gedp)
 {
+    if (!gedp)
+	return;
     const char *s_av[1] = {"Z"};
     ged_exec_Z(gedp, 1, s_av);
     dm_refresh(gedp);
@@ -113,6 +130,8 @@ scene_clear(struct ged *gedp)
 extern "C" int
 unpack_apng(const char *src_dir, const char *apng_name, const char *out_dir, const char *prefix)
 {
+    if (!src_dir || !apng_name || !out_dir || !prefix)
+	return -1;
     // copy empty.png
     struct bu_vls empty_src = BU_VLS_INIT_ZERO;
     struct bu_vls empty_dst = BU_VLS_INIT_ZERO;
@@ -166,6 +185,9 @@ unpack_apng(const char *src_dir, const char *apng_name, const char *out_dir, con
 extern "C" int
 img_cmp(int id, struct ged *gedp, const char *cdir, bool clear_scene, bool clear_image, int soft_fail, fastf_t approximate_check, const char *clear_root, const char *img_root)
 {
+    if (!gedp || !cdir || !clear_root || !img_root)
+	return BRLCAD_ERROR;
+
     icv_image_t *ctrl, *timg;
     struct bu_vls tname = BU_VLS_INIT_ZERO;
     struct bu_vls cname = BU_VLS_INIT_ZERO;
@@ -189,8 +211,11 @@ img_cmp(int id, struct ged *gedp, const char *cdir, bool clear_scene, bool clear
 	    if (clear_scene)
 		scene_clear(gedp);
 	    bu_vls_free(&tname);
+	    bu_vls_free(&cname);
 	    return BRLCAD_ERROR;
 	}
+	bu_vls_free(&tname);
+	bu_vls_free(&cname);
 	bu_exit(EXIT_FAILURE, "failed to read %s\n", bu_vls_cstr(&tname));
     }
     ctrl = icv_read(bu_vls_cstr(&cname), BU_MIME_IMAGE_PNG, 0, 0);
@@ -199,10 +224,14 @@ img_cmp(int id, struct ged *gedp, const char *cdir, bool clear_scene, bool clear
 	    bu_log("Failed to read %s\n", bu_vls_cstr(&cname));
 	    if (clear_scene)
 		scene_clear(gedp);
+	    icv_destroy(timg);
 	    bu_vls_free(&tname);
 	    bu_vls_free(&cname);
 	    return BRLCAD_ERROR;
 	}
+	icv_destroy(timg);
+	bu_vls_free(&tname);
+	bu_vls_free(&cname);
 	bu_exit(EXIT_FAILURE, "failed to read %s\n", bu_vls_cstr(&cname));
     }
     bu_vls_free(&cname);

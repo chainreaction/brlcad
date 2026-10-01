@@ -63,11 +63,31 @@ static double
 parse_bb_volume(const char *result)
 {
     const char *tag = "Bounding Box Volume:";
-    const char *p = strstr(result, tag);
+    const char *p;
+    if (!result)
+	return -1.0;
+    p = strstr(result, tag);
     if (!p)
 	return -1.0;
     p += strlen(tag);
     return strtod(p, NULL);
+}
+
+
+static void
+close_test_db(struct ged *gedp)
+{
+    if (!gedp)
+	return;
+
+    if (gedp->dbip && gedp->dbip->dbi_filename) {
+	char path[MAXPATHLEN];
+	bu_strlcpy(path, gedp->dbip->dbi_filename, sizeof(path));
+	ged_close(gedp);
+	bu_file_delete(path);
+    } else {
+	ged_close(gedp);
+    }
 }
 
 
@@ -78,14 +98,17 @@ open_test_db(void)
     char tmppath[MAXPATHLEN] = {0};
     FILE *fp = bu_temp_file(tmppath, MAXPATHLEN);
     struct rt_wdb *wdbp;
+    struct ged *gedp;
 
     if (!fp)
 	return NULL;
     fclose(fp);
 
     wdbp = wdb_fopen(tmppath);
-    if (!wdbp)
+    if (!wdbp) {
+	bu_file_delete(tmppath);
 	return NULL;
+    }
 
     /* Big positive box: X in [0,100], Y in [0,40], Z in [0,40]. */
     {
@@ -113,9 +136,14 @@ open_test_db(void)
 		0, 0, 0, 0, 0, 0, 0);
     }
 
-    db_close(wdbp->dbip);
+    wdb_close(wdbp);
 
-    return ged_open("db", tmppath, 1);
+    gedp = ged_open("db", tmppath, 1);
+    if (!gedp) {
+	bu_file_delete(tmppath);
+	return NULL;
+    }
+    return gedp;
 }
 
 
@@ -124,6 +152,8 @@ static double
 run_bb_volume(struct ged *gedp, int argc, const char *argv[])
 {
     int ret;
+    if (!gedp || argc < 1 || !argv)
+	return -1.0;
     bu_vls_trunc(gedp->ged_result_str, 0);
     ret = ged_exec_bb(gedp, argc, argv);
     if (ret != BRLCAD_OK && ret != GED_HELP)
@@ -138,8 +168,10 @@ main(int argc, char *argv[])
     struct ged *gedp;
     double loose_vol, tight_vol, loose_obb_vol, tight_obb_vol;
 
+    if (argc < 1 || !argv || !argv[0])
+	return 1;
+
     bu_setprogname(argv[0]);
-    (void)argc;
 
     gedp = open_test_db();
     if (!gedp) {
@@ -188,7 +220,7 @@ main(int argc, char *argv[])
 		"tight volume should not be degenerate/near-zero");
     }
 
-    ged_close(gedp);
+    close_test_db(gedp);
 
     if (g_failures) {
 	fprintf(stderr, "\nged_test_bb_tight: %d check(s) FAILED\n", g_failures);

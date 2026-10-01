@@ -31,23 +31,27 @@ int
 main(int ac, char *av[]) {
     struct ged *gbp;
 
-    bu_setprogname(av[0]);
-
-    if (ac < 2) {
-	printf("Usage: %s file.g\n", av[0]);
+    if (ac < 2 || !av || !av[0]) {
+	if (av && av[0])
+	    printf("Usage: %s file.g\n", av[0]);
 	return 1;
     }
 
+    bu_setprogname(av[0]);
+
     ac--; av++;
+
+    if (!av[0])
+	return 1;
 
     if (BU_STR_EQUAL(av[0], "-l")) {
 	const char *imsgs = ged_init_msgs();
-	bu_log("%s\n", ged_init_msgs());
-	return (strlen(imsgs) > 0) ? BRLCAD_ERROR : BRLCAD_OK;
+	bu_log("%s\n", imsgs ? imsgs : "");
+	return (imsgs && strlen(imsgs) > 0) ? BRLCAD_ERROR : BRLCAD_OK;
     }
 
     if (!bu_file_exists(av[0], NULL)) {
-	printf("ERROR: [%s] does not exist, expecting .g file\n", av[1]);
+	printf("ERROR: [%s] does not exist, expecting .g file\n", av[0]);
 	return 2;
     }
 
@@ -60,10 +64,15 @@ main(int ac, char *av[]) {
     const char * const *cmds = NULL;
     size_t cmds_cnt = ged_cmd_list(&cmds);
 
-    bu_log("%s\n", ged_init_msgs());
+    const char *imsgs = ged_init_msgs();
+    if (imsgs)
+	bu_log("%s\n", imsgs);
 
-    for (size_t i = 0; i < cmds_cnt; i++) {
-	bu_log("%s\n", cmds[i]);
+    if (cmds) {
+	for (size_t i = 0; i < cmds_cnt; i++) {
+	    if (cmds[i])
+		bu_log("%s\n", cmds[i]);
+	}
     }
 
 #if 0
@@ -414,8 +423,11 @@ main(int ac, char *av[]) {
 	}
 	// Also add libged's list in case there are any
 	// we missed calling out explicitly above...
-	for (size_t i = 0; i < cmds_cnt; i++) {
-	    cmd_set.insert(std::string(cmds[i]));
+	if (cmds) {
+	    for (size_t i = 0; i < cmds_cnt; i++) {
+		if (cmds[i])
+		    cmd_set.insert(std::string(cmds[i]));
+	    }
 	}
 
 	std::set<std::string>::iterator cs_it;

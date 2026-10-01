@@ -83,17 +83,23 @@ bool search_count_helper(const int expected_count,
 			 void *u1,
 			 void *u2)
 {
+    if (!dbip || !filter || expected_count < 0)
+	return false;
+
     // ensure good return, and count inside ptbl match expectations
     struct bu_ptbl search_results = BU_PTBL_INIT_ZERO;
     int ret = db_search(&search_results, flags, filter, path_c, path_v, dbip, clbk, u1, u2);
 
-    bool count_matches = (ret >= 0 && BU_PTBL_LEN(&search_results) == (unsigned long)expected_count);
+    bool count_matches = (ret >= 0 && (size_t)BU_PTBL_LEN(&search_results) == (size_t)expected_count);
     db_search_free(&search_results);
 
     return count_matches;
 }
 
 bool GenericSearches(struct ged* gedp) {
+    if (!gedp || !gedp->dbip)
+	return false;
+
     const int EXPECTED_TREE = 10;
     const int EXPECTED_FLAT = 8;
     const int EXPECTED_HIDD = 11;
@@ -108,16 +114,24 @@ bool GenericSearches(struct ged* gedp) {
 }
 
 bool PathSearches(struct ged* gedp) {
+    if (!gedp || !gedp->dbip)
+	return false;
+
     const int EXPECTED_PATH = 5;
     const char* COMB_NAME = "ball_inside";
 
     struct directory* path_dp = db_lookup(gedp->dbip, COMB_NAME, LOOKUP_QUIET);
+    if (!path_dp)
+	return false;
     bool path = search_count_helper(EXPECTED_PATH, DB_SEARCH_TREE, "", 1, &path_dp, gedp->dbip, NULL, NULL, NULL);
 
     return path;
 }
 
 bool TypeSearches(struct ged* gedp) {
+    if (!gedp || !gedp->dbip)
+	return false;
+
     const int EXPECTED_SHAPE = 4;
     const int EXPECTED_REGION = 4;
     const int EXPECTED_COMB = 6;
@@ -130,6 +144,9 @@ bool TypeSearches(struct ged* gedp) {
 }
 
 bool AttrSearches(struct ged* gedp) {
+    if (!gedp || !gedp->dbip)
+	return false;
+
     const int EXPECTED_ID = 2;
 
     bool id = search_count_helper(EXPECTED_ID, DB_SEARCH_TREE, "-attr region_id=1001", 0, NULL, gedp->dbip, NULL, NULL, NULL);
@@ -138,6 +155,9 @@ bool AttrSearches(struct ged* gedp) {
 }
 
 bool OrSearches(struct ged* gedp) {
+    if (!gedp || !gedp->dbip)
+	return false;
+
     const int EXPECTED_REG_ARB = 6;
     
     const char* sFilter = "-type region -or -type arb8";
@@ -148,6 +168,9 @@ bool OrSearches(struct ged* gedp) {
 }
 
 bool AndSearches(struct ged* gedp) {
+    if (!gedp || !gedp->dbip)
+	return false;
+
     const int EXPECTED_REG_COMB = 4;
 
     const char* sFilter = "-type region -and -type comb";
@@ -158,8 +181,8 @@ bool AndSearches(struct ged* gedp) {
 }
 
 void CheckUsage(int ac, char* av[]) {
-    if (ac != 2) {
-        bu_exit(BRLCAD_ERROR, "Usage: %s file.g", av[0]);
+    if (ac != 2 || !av || !av[0] || !av[1]) {
+        bu_exit(BRLCAD_ERROR, "Usage: %s file.g", (av && av[0]) ? av[0] : "ged_test_search");
     }
 
     if (!bu_file_exists(av[1], NULL)) {
@@ -168,12 +191,18 @@ void CheckUsage(int ac, char* av[]) {
 }
 
 int main(int ac, char *av[]) {
+    if (ac < 1 || !av || !av[0])
+	return 1;
+
     bu_setprogname(av[0]);
 
     CheckUsage(ac, av);
 
     // good usage, open db
     struct ged* gedp = ged_open("db", av[1], 1);
+    if (!gedp) {
+	bu_exit(BRLCAD_ERROR, "ERROR: ged_open failed on [%s]", av[1]);
+    }
 
     // add in all tests to suite
     UnitTests uTests;

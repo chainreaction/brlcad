@@ -72,6 +72,9 @@ static int failed_tests = 0;
 static int
 read_ell(struct ged *gedp, const char *name, struct rt_ell_internal *out)
 {
+    if (!gedp || !gedp->dbip || !name || !out)
+        return BRLCAD_ERROR;
+
     struct directory *dp = db_lookup(gedp->dbip, name, LOOKUP_QUIET);
     if (dp == RT_DIR_NULL)
         return BRLCAD_ERROR;
@@ -95,6 +98,9 @@ read_ell(struct ged *gedp, const char *name, struct rt_ell_internal *out)
 static int
 read_hrt(struct ged *gedp, const char *name, struct rt_hrt_internal *out)
 {
+    if (!gedp || !gedp->dbip || !name || !out)
+        return BRLCAD_ERROR;
+
     struct directory *dp = db_lookup(gedp->dbip, name, LOOKUP_QUIET);
     if (dp == RT_DIR_NULL)
         return BRLCAD_ERROR;
@@ -123,9 +129,14 @@ read_hrt(struct ged *gedp, const char *name, struct rt_hrt_internal *out)
 static struct ged *
 open_fixture(const char *path)
 {
-    struct ged *gedp = ged_open("db", path, 1);
-    if (!gedp)
+    if (!path)
         return NULL;
+    struct ged *gedp = ged_open("db", path, 1);
+    if (!gedp || !gedp->dbip) {
+        if (gedp)
+            ged_close(gedp);
+        return NULL;
+    }
     gedp->dbi_state = new DbiState(gedp);
     return gedp;
 }
@@ -137,9 +148,14 @@ open_fixture(const char *path)
 static struct ged *
 open_fixture_no_dbistate(const char *path)
 {
-    struct ged *gedp = ged_open("db", path, 1);
-    if (!gedp)
+    if (!path)
         return NULL;
+    struct ged *gedp = ged_open("db", path, 1);
+    if (!gedp || !gedp->dbip) {
+        if (gedp)
+            ged_close(gedp);
+        return NULL;
+    }
     /* Deliberately leave gedp->dbi_state = NULL */
     return gedp;
 }
@@ -152,6 +168,8 @@ open_fixture_no_dbistate(const char *path)
 static int
 make_temp_path(struct bu_vls *v)
 {
+    if (!v)
+        return BRLCAD_ERROR;
     char tmpname[MAXPATHLEN] = {0};
     FILE *fp = bu_temp_file(tmpname, MAXPATHLEN);
     if (!fp)
@@ -184,12 +202,12 @@ create_p0_fixture(const char *dbpath)
     vect_t  tor_H  = {0, 0, 1};
     if (mk_tor(wdbp, "tor.s", tor_V, tor_H, 10.0, 3.0) != 0) {
         bu_log("mk_tor failed\n");
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
     if (mk_tor(wdbp, "tor", tor_V, tor_H, 8.0, 2.0) != 0) {
         bu_log("mk_tor (tor) failed\n");
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
 
@@ -202,7 +220,7 @@ create_p0_fixture(const char *dbpath)
     vect_t  tgc_D  = {0, 4, 0};
     if (mk_tgc(wdbp, "tgc.s", tgc_V, tgc_H, tgc_A, tgc_B, tgc_C, tgc_D) != 0) {
         bu_log("mk_tgc failed\n");
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
 
@@ -213,7 +231,7 @@ create_p0_fixture(const char *dbpath)
     vect_t  ell_C  = {0, 0, 3};
     if (mk_ell(wdbp, "ell.s", ell_V, ell_A, ell_B, ell_C) != 0) {
         bu_log("mk_ell failed\n");
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
 
@@ -221,7 +239,7 @@ create_p0_fixture(const char *dbpath)
     point_t sph_V  = {60, 0, 0};
     if (mk_sph(wdbp, "sph.s", sph_V, 6.0) != 0) {
         bu_log("mk_sph failed\n");
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
 
@@ -235,7 +253,7 @@ create_p0_fixture(const char *dbpath)
     }
     if (mk_arb8(wdbp, "arb8.s", arb8_pts) != 0) {
         bu_log("mk_arb8 failed\n");
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
 
@@ -245,7 +263,7 @@ create_p0_fixture(const char *dbpath)
     vect_t  rpc_B  = {5, 0, 0};
     if (mk_rpc(wdbp, "rpc.s", rpc_V, rpc_H, rpc_B, 4.0) != 0) {
         bu_log("mk_rpc failed\n");
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
 
@@ -255,7 +273,7 @@ create_p0_fixture(const char *dbpath)
     vect_t  rhc_B  = {5, 0, 0};
     if (mk_rhc(wdbp, "rhc.s", rhc_V, rhc_H, rhc_B, 4.0, 2.0) != 0) {
         bu_log("mk_rhc failed\n");
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
 
@@ -265,7 +283,7 @@ create_p0_fixture(const char *dbpath)
     vect_t  epa_A  = {1, 0, 0};   /* must be a unit vector (breadth dir) */
     if (mk_epa(wdbp, "epa.s", epa_V, epa_H, epa_A, 5.0, 4.0) != 0) {
         bu_log("mk_epa failed\n");
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
 
@@ -275,7 +293,7 @@ create_p0_fixture(const char *dbpath)
     vect_t  ehy_A  = {1, 0, 0};   /* must be a unit vector (breadth dir) */
     if (mk_ehy(wdbp, "ehy.s", ehy_V, ehy_H, ehy_A, 4.0, 2.0, 1.0) != 0) {
         bu_log("mk_ehy failed\n");
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
 
@@ -285,7 +303,7 @@ create_p0_fixture(const char *dbpath)
     vect_t  eto_C  = {8, 0, 2};
     if (mk_eto(wdbp, "eto.s", eto_V, eto_N, eto_C, 12.0, 3.0) != 0) {
         bu_log("mk_eto failed\n");
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
 
@@ -295,7 +313,7 @@ create_p0_fixture(const char *dbpath)
     vect_t  hyp_A  = {5, 0, 0};
     if (mk_hyp(wdbp, "hyp.s", hyp_Vi, hyp_H, hyp_A, 4.0, 0.4) != 0) {
         bu_log("mk_hyp failed\n");
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
 
@@ -304,7 +322,7 @@ create_p0_fixture(const char *dbpath)
     vect_t  part_H  = {0, 0, 8};
     if (mk_particle(wdbp, "part.s", part_V, part_H, 5.0, 3.0) != 0) {
         bu_log("mk_particle failed\n");
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
 
@@ -333,7 +351,7 @@ create_p0_fixture(const char *dbpath)
         if (wdb_put_internal(wdbp, "superell.s", &intern, 1.0) < 0) {
             bu_log("wdb_put_internal(superell) failed\n");
             rt_db_free_internal(&intern);
-            db_close(wdbp->dbip);
+            wdb_close(wdbp);
             return BRLCAD_ERROR;
         }
         rt_db_free_internal(&intern);
@@ -344,7 +362,7 @@ create_p0_fixture(const char *dbpath)
     vect_t  cl_H   = {0, 0, 15};
     if (mk_cline(wdbp, "cline.s", cl_V, cl_H, 2.0, 0.2) != 0) {
         bu_log("mk_cline failed\n");
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
 
@@ -355,11 +373,11 @@ create_p0_fixture(const char *dbpath)
     vect_t hrt_Z = {0, 0, 6};
     if (mk_hrt(wdbp, "hrt.s", hrt_V, hrt_X, hrt_Y, hrt_Z, 2.0) != 0) {
         bu_log("mk_hrt failed\n");
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
 
-    db_close(wdbp->dbip);
+    wdb_close(wdbp);
     return BRLCAD_OK;
 }
 
@@ -587,9 +605,11 @@ create_p1_fixture(const char *path)
     BU_LIST_INIT(&wm.l);
     mk_addmember("tor.s", &wm.l, NULL, WMOP_UNION);
     if (mk_lcomb(wdbp, "group.c", &wm, 0, NULL, NULL, NULL, 0) != 0) {
+        mk_freemembers(&wm.l);
         wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
+    mk_freemembers(&wm.l);
 
     wdb_close(wdbp);
     return BRLCAD_OK;
@@ -2604,7 +2624,7 @@ create_p5_fixture(const char *dbpath)
     if (mk_pipe(wdbp, "pipe.s", &pipe_head) != 0) {
         bu_log("mk_pipe failed\n");
         mk_pipe_free(&pipe_head);
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
     mk_pipe_free(&pipe_head);
@@ -2616,11 +2636,11 @@ create_p5_fixture(const char *dbpath)
     };
     if (mk_arb8(wdbp, "arb8.s", arb_pts) != 0) {
         bu_log("mk_arb8 failed\n");
-        db_close(wdbp->dbip);
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
 
-    db_close(wdbp->dbip);
+    wdb_close(wdbp);
     return BRLCAD_OK;
 }
 
@@ -2904,19 +2924,21 @@ create_p6_fixture(const char *dbpath)
     /* Build a BREP sphere at origin, radius 10. */
     ON_3dPoint centre(0.0, 0.0, 0.0);
     ON_Sphere sph(centre, 10.0);
-
-    struct rt_brep_internal *bi;
-    BU_ALLOC(bi, struct rt_brep_internal);
-    bi->magic = RT_BREP_INTERNAL_MAGIC;
-    bi->brep  = ON_BrepSphere(sph);
-
-    if (wdb_export(wdbp, "brep_sph.s", (void *)bi, ID_BREP, 1.0) < 0) {
-        bu_log("wdb_export brep_sph.s failed\n");
-        db_close(wdbp->dbip);
+    ON_Brep *b = ON_BrepSphere(sph);
+    if (!b) {
+        wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
 
-    db_close(wdbp->dbip);
+    if (mk_brep(wdbp, "brep_sph.s", b) < 0) {
+        bu_log("mk_brep brep_sph.s failed\n");
+        delete b;
+        wdb_close(wdbp);
+        return BRLCAD_ERROR;
+    }
+
+    delete b;
+    wdb_close(wdbp);
     return BRLCAD_OK;
 }
 
@@ -3071,6 +3093,9 @@ test_p6_all_prim_ops_has_brep(struct ged *gedp)
 int
 main(int ac, char *av[])
 {
+    if (ac < 1 || !av || !av[0])
+        return 1;
+
     int need_help = 0;
 
     bu_setprogname(av[0]);
@@ -3094,11 +3119,16 @@ main(int ac, char *av[])
     }
     if (create_p0_fixture(bu_vls_cstr(&p0_path)) != BRLCAD_OK) {
         bu_log("ERROR: section 0 fixture creation failed\n");
+        bu_file_delete(bu_vls_cstr(&p0_path));
         bu_vls_free(&p0_path); return 1;
     }
     {
         struct ged *gedp = open_fixture(bu_vls_cstr(&p0_path));
-        if (!gedp) { bu_log("ERROR: ged_open failed (section 0)\n"); bu_vls_free(&p0_path); return 1; }
+        if (!gedp) {
+            bu_log("ERROR: ged_open failed (section 0)\n");
+            bu_file_delete(bu_vls_cstr(&p0_path));
+            bu_vls_free(&p0_path); return 1;
+        }
         bu_log("\n--- Section 0: infrastructure ---\n");
         test_p0_cmd_exists();
         test_p0_fixture_objects_exist(gedp);
@@ -3112,6 +3142,7 @@ main(int ac, char *av[])
         test_p0_no_desc_returns_error();
         ged_close(gedp);
     }
+    bu_file_delete(bu_vls_cstr(&p0_path));
     bu_vls_free(&p0_path);
 
     /* ---------------------------------------------------------------- *
@@ -3123,11 +3154,16 @@ main(int ac, char *av[])
     }
     if (create_p1_fixture(bu_vls_cstr(&p1_path)) != BRLCAD_OK) {
         bu_log("ERROR: section 1 fixture creation failed\n");
+        bu_file_delete(bu_vls_cstr(&p1_path));
         bu_vls_free(&p1_path); return 1;
     }
     {
         struct ged *gedp = open_fixture(bu_vls_cstr(&p1_path));
-        if (!gedp) { bu_log("ERROR: ged_open failed (section 1)\n"); bu_vls_free(&p1_path); return 1; }
+        if (!gedp) {
+            bu_log("ERROR: ged_open failed (section 1)\n");
+            bu_file_delete(bu_vls_cstr(&p1_path));
+            bu_vls_free(&p1_path); return 1;
+        }
         bu_log("\n--- Section 1: parser / selection / edit buffer ---\n");
         test_p1_noargs(gedp);
         test_p1_bad_geom(gedp);
@@ -3148,6 +3184,7 @@ main(int ac, char *av[])
         test_p1_perturb_regression(gedp);
         ged_close(gedp);
     }
+    bu_file_delete(bu_vls_cstr(&p1_path));
     bu_vls_free(&p1_path);
 
     /* ---------------------------------------------------------------- *
@@ -3159,11 +3196,16 @@ main(int ac, char *av[])
     }
     if (create_p2_fixture(bu_vls_cstr(&p2_path)) != BRLCAD_OK) {
         bu_log("ERROR: section 2 fixture creation failed\n");
+        bu_file_delete(bu_vls_cstr(&p2_path));
         bu_vls_free(&p2_path); return 1;
     }
     {
         struct ged *gedp = open_fixture(bu_vls_cstr(&p2_path));
-        if (!gedp) { bu_log("ERROR: ged_open failed (section 2)\n"); bu_vls_free(&p2_path); return 1; }
+        if (!gedp) {
+            bu_log("ERROR: ged_open failed (section 2)\n");
+            bu_file_delete(bu_vls_cstr(&p2_path));
+            bu_vls_free(&p2_path); return 1;
+        }
         bu_log("\n--- Section 2: translate ---\n");
         test_p2_translate_abs(gedp);
         test_p2_translate_rel(gedp);
@@ -3194,6 +3236,7 @@ main(int ac, char *av[])
         test_p2_mat_missing_values(gedp);
         ged_close(gedp);
     }
+    bu_file_delete(bu_vls_cstr(&p2_path));
     bu_vls_free(&p2_path);
 
     /* ---------------------------------------------------------------- *
@@ -3205,11 +3248,16 @@ main(int ac, char *av[])
     }
     if (create_pa_fixture(bu_vls_cstr(&pa_path)) != BRLCAD_OK) {
         bu_log("ERROR: section A fixture creation failed\n");
+        bu_file_delete(bu_vls_cstr(&pa_path));
         bu_vls_free(&pa_path); return 1;
     }
     {
         struct ged *gedp = open_fixture_no_dbistate(bu_vls_cstr(&pa_path));
-        if (!gedp) { bu_log("ERROR: ged_open failed (section A)\n"); bu_vls_free(&pa_path); return 1; }
+        if (!gedp) {
+            bu_log("ERROR: ged_open failed (section A)\n");
+            bu_file_delete(bu_vls_cstr(&pa_path));
+            bu_vls_free(&pa_path); return 1;
+        }
         CHECK(gedp->dbi_state == NULL, "fixture opened without DbiState (dbi_state == NULL)");
         bu_log("\n--- Section A: DbiState null-safety ---\n");
         test_pa_translate_abs(gedp);
@@ -3220,6 +3268,7 @@ main(int ac, char *av[])
         test_pa_unknown_obj(gedp);
         ged_close(gedp);
     }
+    bu_file_delete(bu_vls_cstr(&pa_path));
     bu_vls_free(&pa_path);
 
     /* ---------------------------------------------------------------- *
@@ -3231,11 +3280,16 @@ main(int ac, char *av[])
     }
     if (create_pc_fixture(bu_vls_cstr(&pc_path)) != BRLCAD_OK) {
         bu_log("ERROR: section C fixture creation failed\n");
+        bu_file_delete(bu_vls_cstr(&pc_path));
         bu_vls_free(&pc_path); return 1;
     }
     {
         struct ged *gedp = open_fixture(bu_vls_cstr(&pc_path));
-        if (!gedp) { bu_log("ERROR: ged_open failed (section C)\n"); bu_vls_free(&pc_path); return 1; }
+        if (!gedp) {
+            bu_log("ERROR: ged_open failed (section C)\n");
+            bu_file_delete(bu_vls_cstr(&pc_path));
+            bu_vls_free(&pc_path); return 1;
+        }
         bu_log("\n--- Section C: rotate axis-mode ---\n");
         test_pc_rotate_axis_z90(gedp);
         test_pc_rotate_axis_z90_rel(gedp);
@@ -3250,6 +3304,7 @@ main(int ac, char *av[])
         test_pc_scale_anisotropic_zero_error(gedp);
         ged_close(gedp);
     }
+    bu_file_delete(bu_vls_cstr(&pc_path));
     bu_vls_free(&pc_path);
 
     /* ---------------------------------------------------------------- *
@@ -3261,11 +3316,16 @@ main(int ac, char *av[])
     }
     if (create_pd_fixture(bu_vls_cstr(&pd_path)) != BRLCAD_OK) {
         bu_log("ERROR: section D fixture creation failed\n");
+        bu_file_delete(bu_vls_cstr(&pd_path));
         bu_vls_free(&pd_path); return 1;
     }
     {
         struct ged *gedp = open_fixture(bu_vls_cstr(&pd_path));
-        if (!gedp) { bu_log("ERROR: ged_open failed (section D)\n"); bu_vls_free(&pd_path); return 1; }
+        if (!gedp) {
+            bu_log("ERROR: ged_open failed (section D)\n");
+            bu_file_delete(bu_vls_cstr(&pd_path));
+            bu_vls_free(&pd_path); return 1;
+        }
         bu_log("\n--- Section D: translate design completions ---\n");
         test_pd_translate_k_coords(gedp);
         reset_pd_sph(gedp);
@@ -3285,6 +3345,7 @@ main(int ac, char *av[])
         test_pd_scale_c_self_aniso(gedp);
         ged_close(gedp);
     }
+    bu_file_delete(bu_vls_cstr(&pd_path));
     bu_vls_free(&pd_path);
 
     /* ---------------------------------------------------------------- *
@@ -3297,11 +3358,16 @@ main(int ac, char *av[])
     }
     if (create_p0_fixture(bu_vls_cstr(&p3_path)) != BRLCAD_OK) {
         bu_log("ERROR: section 3 fixture creation failed\n");
+        bu_file_delete(bu_vls_cstr(&p3_path));
         bu_vls_free(&p3_path); return 1;
     }
     {
         struct ged *gedp = open_fixture(bu_vls_cstr(&p3_path));
-        if (!gedp) { bu_log("ERROR: ged_open failed (section 3)\n"); bu_vls_free(&p3_path); return 1; }
+        if (!gedp) {
+            bu_log("ERROR: ged_open failed (section 3)\n");
+            bu_file_delete(bu_vls_cstr(&p3_path));
+            bu_vls_free(&p3_path); return 1;
+        }
         bu_log("\n--- Section 3: descriptor-driven primitive editing ---\n");
         test_p3_tor_set_radius_1(gedp);
         test_p3_tor_set_radius_2(gedp);
@@ -3323,6 +3389,7 @@ main(int ac, char *av[])
         test_p3_missing_param(gedp);
         ged_close(gedp);
     }
+    bu_file_delete(bu_vls_cstr(&p3_path));
     bu_vls_free(&p3_path);
 
     /* ---------------------------------------------------------------- *
@@ -3335,11 +3402,16 @@ main(int ac, char *av[])
     }
     if (create_p0_fixture(bu_vls_cstr(&p4_path)) != BRLCAD_OK) {
         bu_log("ERROR: section 4 fixture creation failed\n");
+        bu_file_delete(bu_vls_cstr(&p4_path));
         bu_vls_free(&p4_path); return 1;
     }
     {
         struct ged *gedp = open_fixture(bu_vls_cstr(&p4_path));
-        if (!gedp) { bu_log("ERROR: ged_open failed (section 4)\n"); bu_vls_free(&p4_path); return 1; }
+        if (!gedp) {
+            bu_log("ERROR: ged_open failed (section 4)\n");
+            bu_file_delete(bu_vls_cstr(&p4_path));
+            bu_vls_free(&p4_path); return 1;
+        }
         bu_log("\n--- Section 4: Phase 4 descriptor completeness ---\n");
         bu_log("--- tgc: new POINT and VECTOR ops ---\n");
         test_p4_tgc_move_end_h_rt(gedp);
@@ -3364,6 +3436,7 @@ main(int ac, char *av[])
         test_p4_eto_list_ops_complete(gedp);
         ged_close(gedp);
     }
+    bu_file_delete(bu_vls_cstr(&p4_path));
     bu_vls_free(&p4_path);
 
     /* ---------------------------------------------------------------- *
@@ -3375,11 +3448,16 @@ main(int ac, char *av[])
     }
     if (create_p5_fixture(bu_vls_cstr(&p5_path)) != BRLCAD_OK) {
         bu_log("ERROR: section 5 fixture creation failed\n");
+        bu_file_delete(bu_vls_cstr(&p5_path));
         bu_vls_free(&p5_path); return 1;
     }
     {
         struct ged *gedp = open_fixture(bu_vls_cstr(&p5_path));
-        if (!gedp) { bu_log("ERROR: ged_open failed (section 5)\n"); bu_vls_free(&p5_path); return 1; }
+        if (!gedp) {
+            bu_log("ERROR: ged_open failed (section 5)\n");
+            bu_file_delete(bu_vls_cstr(&p5_path));
+            bu_vls_free(&p5_path); return 1;
+        }
         bu_log("\n--- Section 5: pipe descriptor completions ---\n");
         test_p5_pipe_list_ops(gedp);
         test_p5_pipe_select_next_prev(gedp);
@@ -3395,6 +3473,7 @@ main(int ac, char *av[])
         test_p5_arb8_type_option(gedp);
         ged_close(gedp);
     }
+    bu_file_delete(bu_vls_cstr(&p5_path));
     bu_vls_free(&p5_path);
 
     /* ---------------------------------------------------------------- *
@@ -3406,11 +3485,16 @@ main(int ac, char *av[])
     }
     if (create_p6_fixture(bu_vls_cstr(&p6_path)) != BRLCAD_OK) {
         bu_log("ERROR: section 6 fixture creation failed\n");
+        bu_file_delete(bu_vls_cstr(&p6_path));
         bu_vls_free(&p6_path); return 1;
     }
     {
         struct ged *gedp = open_fixture(bu_vls_cstr(&p6_path));
-        if (!gedp) { bu_log("ERROR: ged_open failed (section 6)\n"); bu_vls_free(&p6_path); return 1; }
+        if (!gedp) {
+            bu_log("ERROR: ged_open failed (section 6)\n");
+            bu_file_delete(bu_vls_cstr(&p6_path));
+            bu_vls_free(&p6_path); return 1;
+        }
         bu_log("\n--- Section 6: brep descriptor and CV editing ---\n");
         test_p6_brep_list_ops(gedp);
         test_p6_brep_list_ops_json(gedp);
@@ -3421,6 +3505,7 @@ main(int ac, char *av[])
         test_p6_brep_move_no_selection(gedp);
         ged_close(gedp);
     }
+    bu_file_delete(bu_vls_cstr(&p6_path));
     bu_vls_free(&p6_path);
 
     bu_log("\n========================================\n");

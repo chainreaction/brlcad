@@ -50,6 +50,11 @@ static int g_failures = 0;
 static void
 check_present(struct ged *gedp, const char *name, const char *file, int line)
 {
+    if (!gedp || !gedp->dbip || !name) {
+	std::fprintf(stderr, "FAIL [%s:%d]: invalid parameters for check_present\n", file, line);
+	g_failures++;
+	return;
+    }
     if (db_lookup(gedp->dbip, name, LOOKUP_QUIET) == RT_DIR_NULL) {
 	std::fprintf(stderr, "FAIL [%s:%d]: expected '%s' to exist\n", file, line, name);
 	g_failures++;
@@ -59,6 +64,11 @@ check_present(struct ged *gedp, const char *name, const char *file, int line)
 static void
 check_absent(struct ged *gedp, const char *name, const char *file, int line)
 {
+    if (!gedp || !gedp->dbip || !name) {
+	std::fprintf(stderr, "FAIL [%s:%d]: invalid parameters for check_absent\n", file, line);
+	g_failures++;
+	return;
+    }
     if (db_lookup(gedp->dbip, name, LOOKUP_QUIET) != RT_DIR_NULL) {
 	std::fprintf(stderr, "FAIL [%s:%d]: expected '%s' to be absent\n", file, line, name);
 	g_failures++;
@@ -71,6 +81,9 @@ check_absent(struct ged *gedp, const char *name, const char *file, int line)
 static bool
 comb_has_leaf(struct ged *gedp, const char *comb_name, const char *leaf_name)
 {
+    if (!gedp || !gedp->dbip || !comb_name || !leaf_name)
+	return false;
+
     struct directory *dp = db_lookup(gedp->dbip, comb_name, LOOKUP_QUIET);
     if (dp == RT_DIR_NULL)
 	return false;
@@ -105,6 +118,12 @@ check_comb_has_leaf(struct ged *gedp, const char *comb_name, const char *leaf_na
 static void
 check_eto_preppable(struct ged *gedp, const char *name, const char *file, int line)
 {
+    if (!gedp || !gedp->dbip || !name) {
+	std::fprintf(stderr, "FAIL [%s:%d]: invalid parameters for check_eto_preppable\n", file, line);
+	g_failures++;
+	return;
+    }
+
     struct directory *dp = db_lookup(gedp->dbip, name, LOOKUP_QUIET);
     if (dp == RT_DIR_NULL) {
 	std::fprintf(stderr, "FAIL [%s:%d]: expected ETO '%s' to exist\n", file, line, name);
@@ -177,6 +196,9 @@ check_tire_surface_etos(struct ged *gedp, const char *top_name)
 static bool
 object_has_attr(struct ged *gedp, const char *name, const char *attr_name, const char *expected_value)
 {
+    if (!gedp || !gedp->dbip || !name || !attr_name)
+	return false;
+
     struct directory *dp = db_lookup(gedp->dbip, name, LOOKUP_QUIET);
     if (dp == RT_DIR_NULL)
 	return false;
@@ -195,6 +217,9 @@ object_has_attr(struct ged *gedp, const char *name, const char *attr_name, const
 static std::optional<std::string>
 object_attr_value(struct ged *gedp, const char *name, const char *attr_name)
 {
+    if (!gedp || !gedp->dbip || !name || !attr_name)
+	return std::nullopt;
+
     struct directory *dp = db_lookup(gedp->dbip, name, LOOKUP_QUIET);
     if (dp == RT_DIR_NULL)
 	return std::nullopt;
@@ -226,6 +251,22 @@ check_attr(struct ged *gedp, const char *name, const char *attr_name, const char
 #define CHECK_ATTR_PRESENT(gedp, name, attr) check_attr((gedp), (name), (attr), nullptr, __FILE__, __LINE__)
 #define CHECK_ATTR_EQ(gedp, name, attr, value) check_attr((gedp), (name), (attr), (value), __FILE__, __LINE__)
 
+static void
+close_test_db(struct ged *gedp)
+{
+    if (!gedp)
+	return;
+
+    if (gedp->dbip && gedp->dbip->dbi_filename) {
+	char path[MAXPATHLEN];
+	bu_strlcpy(path, gedp->dbip->dbi_filename, sizeof(path));
+	ged_close(gedp);
+	bu_file_delete(path);
+    } else {
+	ged_close(gedp);
+    }
+}
+
 static struct ged *
 open_test_db()
 {
@@ -236,11 +277,18 @@ open_test_db()
     std::fclose(fp);
 
     struct rt_wdb *wdbp = wdb_fopen(tmppath);
-    if (!wdbp)
+    if (!wdbp) {
+	bu_file_delete(tmppath);
 	return nullptr;
+    }
 
-    db_close(wdbp->dbip);
-    return ged_open("db", tmppath, 1);
+    wdb_close(wdbp);
+    struct ged *gedp = ged_open("db", tmppath, 1);
+    if (!gedp) {
+	bu_file_delete(tmppath);
+	return nullptr;
+    }
+    return gedp;
 }
 
 static void
@@ -307,7 +355,7 @@ run_success_case(const char *label, int argc, const char *argv[], const char *to
 	CHECK(!pattern_json.has_value(), "slick tire should not have tread pattern JSON attribute");
     }
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 static std::string
@@ -345,7 +393,7 @@ run_stored_pattern_roundtrip_case()
     std::optional<std::string> pattern_json = object_attr_value(gedp, "roundtrip_source", "tire::tread_pattern_json");
     CHECK(pattern_json.has_value(), "source tire stores tread pattern JSON");
     if (!pattern_json) {
-	ged_close(gedp);
+	close_test_db(gedp);
 	return;
     }
 
@@ -360,7 +408,10 @@ run_stored_pattern_roundtrip_case()
     CHECK_ATTR_EQ(gedp, "roundtrip_reused", "tire::tread_pattern_source", "file");
     CHECK_ATTR_EQ(gedp, "roundtrip_reused", "tire::tread_pattern_id", "mud-terrain");
 
-    ged_close(gedp);
+    if (!pattern_file.empty())
+	bu_file_delete(pattern_file.c_str());
+
+    close_test_db(gedp);
 }
 
 static void
@@ -401,7 +452,8 @@ run_demo_file_case()
     CHECK_ATTR_EQ(gedp, "mining_haul_truck", "tire::iso", "1500/80R63");
     CHECK_ATTR_EQ(gedp, "mining_haul_truck", "tire::tread_pattern_id", "mud-terrain");
 
-    ged_close(gedp);
+    close_test_db(gedp);
+    bu_file_delete("tire_demo.g");
 }
 
 static void
@@ -420,7 +472,7 @@ run_success_contains_case(const char *label, int argc, const char *argv[], const
     CHECK(ret == BRLCAD_OK, label);
     CHECK(std::strstr(bu_vls_cstr(gedp->ged_result_str), needle) != nullptr, label);
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 static void
@@ -437,7 +489,7 @@ run_failure_case(const char *label, int argc, const char *argv[], const char *to
     CHECK(ret != BRLCAD_OK, label);
     CHECK_ABSENT(gedp, top_name);
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 static void
@@ -454,6 +506,10 @@ run_partial_cleanup_case()
     }
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	close_test_db(gedp);
+	return;
+    }
     point_t base;
     vect_t height;
     VSET(base, 0, 0, 0);
@@ -471,7 +527,7 @@ run_partial_cleanup_case()
     CHECK_ABSENT(gedp, "cleanup_tire.tire.outer.core.s");
     CHECK_ABSENT(gedp, "cleanup_tire.tire.outer.c");
 
-    ged_close(gedp);
+    close_test_db(gedp);
 }
 
 static std::string
@@ -544,6 +600,9 @@ write_unknown_field_pattern_file()
 int
 main(int ac, char *av[])
 {
+    if (ac < 1 || !av || !av[0])
+	return 1;
+
     bu_setprogname(av[0]);
 
     if (ac != 1) {
@@ -564,7 +623,7 @@ main(int ac, char *av[])
 	const char *legacy_pattern1_av[] = {"tire", "-t", "1", "-p", "1", "-n", "legacy_pattern1", nullptr};
 	CHECK(ged_exec_tire(gedp, 7, legacy_pattern1_av) == BRLCAD_OK, "legacy pattern 1 generation for sketch count");
 	CHECK_ATTR_EQ(gedp, "legacy_pattern1", "tire::tread_sketch_count", "9");
-	ged_close(gedp);
+	close_test_db(gedp);
     }
 
     const char *profile2_av[] = {"tire", "-t", "2", "-p", "2", "-c", "12", "-n", "profile2_tire", nullptr};
@@ -574,7 +633,7 @@ main(int ac, char *av[])
 	const char *legacy_pattern2_av[] = {"tire", "-t", "2", "-p", "2", "-n", "legacy_pattern2", nullptr};
 	CHECK(ged_exec_tire(gedp, 7, legacy_pattern2_av) == BRLCAD_OK, "legacy pattern 2 generation for sketch count");
 	CHECK_ATTR_EQ(gedp, "legacy_pattern2", "tire::tread_sketch_count", "4");
-	ged_close(gedp);
+	close_test_db(gedp);
     }
 
     const char *named_pattern_av[] = {"tire", "--tread-pattern", "mud-terrain", "-n", "mud_tire", nullptr};
@@ -634,6 +693,13 @@ main(int ac, char *av[])
     run_partial_cleanup_case();
     run_stored_pattern_roundtrip_case();
     run_demo_file_case();
+
+    if (!custom_pattern_file.empty())
+	bu_file_delete(custom_pattern_file.c_str());
+    if (!unknown_field_pattern_file.empty())
+	bu_file_delete(unknown_field_pattern_file.c_str());
+    if (!bad_schema_pattern_file.empty())
+	bu_file_delete(bad_schema_pattern_file.c_str());
 
     return g_failures ? 1 : 0;
 }
