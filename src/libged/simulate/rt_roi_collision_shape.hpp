@@ -116,6 +116,9 @@ public:
 
 
 private:
+    RtRoiCollisionShape(const RtRoiCollisionShape &source);
+    RtRoiCollisionShape &operator=(const RtRoiCollisionShape &source);
+
     const btVector3 m_global_aabb_min;
     const btVector3 m_global_aabb_max;
     const std::string m_name;

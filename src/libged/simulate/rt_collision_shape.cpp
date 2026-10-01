@@ -106,8 +106,10 @@ void
 RtCollisionShape::calculateLocalInertia(const btScalar mass,
 					btVector3 &dest_inertia) const
 {
-    if (mass < 0.0)
-	bu_bomb("invalid argument");
+    if (mass <= 0.0) {
+	dest_inertia.setValue(0.0, 0.0, 0.0);
+	return;
+    }
 
     m_box_shape.calculateLocalInertia(mass, dest_inertia);
 }
@@ -130,21 +132,20 @@ RtCollisionShape::getMargin() const
 void
 RtCollisionShape::setLocalScaling(const btVector3 &local_scaling)
 {
-    for (std::size_t i = 0; i < 3; ++i)
-	if (local_scaling[i] < 0.0)
-	    bu_bomb("invalid argument");
+    btVector3 clamped_scaling = local_scaling;
+    for (std::size_t i = 0; i < 3; ++i) {
+	if (clamped_scaling[i] < 0.0)
+	    clamped_scaling[i] = 0.0;
+    }
 
-    m_box_shape.setLocalScaling(local_scaling);
+    m_box_shape.setLocalScaling(clamped_scaling);
 }
 
 
 void
 RtCollisionShape::setMargin(const btScalar collision_margin)
 {
-    if (collision_margin < 0.0)
-	bu_bomb("invalid argument");
-
-    m_box_shape.setMargin(collision_margin);
+    m_box_shape.setMargin(collision_margin < 0.0 ? 0.0 : collision_margin);
 }
 
 

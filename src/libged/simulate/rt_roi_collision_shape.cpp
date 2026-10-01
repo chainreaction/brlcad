@@ -123,7 +123,12 @@ RtRoiCollisionShape::getAabb(const btTransform &transform,
 {
     // The transform origin is at the ROI center
     // The box shape represents the ROI extents
-    m_box_shape->getAabb(transform, dest_aabb_min, dest_aabb_max);
+    if (m_box_shape)
+	m_box_shape->getAabb(transform, dest_aabb_min, dest_aabb_max);
+    else {
+	dest_aabb_min = m_roi_min;
+	dest_aabb_max = m_roi_max;
+    }
 }
 
 
@@ -131,47 +136,51 @@ void
 RtRoiCollisionShape::calculateLocalInertia(const btScalar mass,
 					   btVector3 &dest_inertia) const
 {
-    if (mass < 0.0)
-	bu_bomb("mass must be non-negative");
+    if (mass <= 0.0) {
+	dest_inertia.setValue(0.0, 0.0, 0.0);
+	return;
+    }
 
-    // Static bodies (mass=0) don't need inertia calculation,
-    // but we delegate to the box shape for consistency
-    m_box_shape->calculateLocalInertia(mass, dest_inertia);
+    if (m_box_shape)
+	m_box_shape->calculateLocalInertia(mass, dest_inertia);
+    else
+	dest_inertia.setValue(0.0, 0.0, 0.0);
 }
 
 
 const btVector3 &
 RtRoiCollisionShape::getLocalScaling() const
 {
-    return m_box_shape->getLocalScaling();
+    static const btVector3 default_scaling(1.0, 1.0, 1.0);
+    return m_box_shape ? m_box_shape->getLocalScaling() : default_scaling;
 }
 
 
 btScalar
 RtRoiCollisionShape::getMargin() const
 {
-    return m_box_shape->getMargin();
+    return m_box_shape ? m_box_shape->getMargin() : 0.0;
 }
 
 
 void
 RtRoiCollisionShape::setLocalScaling(const btVector3 &local_scaling)
 {
+    btVector3 clamped_scaling = local_scaling;
     for (std::size_t i = 0; i < 3; ++i)
-	if (local_scaling[i] < 0.0)
-	    bu_bomb("local_scaling components must be non-negative");
+	if (clamped_scaling[i] < 0.0)
+	    clamped_scaling[i] = 0.0;
 
-    m_box_shape->setLocalScaling(local_scaling);
+    if (m_box_shape)
+	m_box_shape->setLocalScaling(clamped_scaling);
 }
 
 
 void
 RtRoiCollisionShape::setMargin(const btScalar collision_margin)
 {
-    if (collision_margin < 0.0)
-	bu_bomb("collision_margin must be non-negative");
-
-    m_box_shape->setMargin(collision_margin);
+    if (m_box_shape)
+	m_box_shape->setMargin(collision_margin < 0.0 ? 0.0 : collision_margin);
 }
 
 

@@ -78,17 +78,20 @@ apply_color(db_i &db, const std::string &name, const btVector3 &color)
     stream.exceptions(std::ostream::failbit | std::ostream::badbit);
 
     for (std::size_t i = 0; i < 3; ++i) {
-	if (!(0.0 <= color[i] && color[i] <= 1.0))
-	    bu_bomb("invalid color");
+	btScalar c = color[i];
+	if (c < 0.0)
+	    c = 0.0;
+	else if (c > 1.0)
+	    c = 1.0;
 
-	stream << static_cast<unsigned>(color[i] * 255.0 + 0.5);
+	stream << static_cast<unsigned>(c * 255.0 + 0.5);
 
 	if (i != 2)
 	    stream.put(' ');
     }
 
     if (db5_update_attribute(name.c_str(), "color", stream.str().c_str(), &db))
-	bu_bomb("db5_update_attribute() failed");
+	bu_log("WARNING: db5_update_attribute() failed for %s\n", name.c_str());
 }
 
 
@@ -116,7 +119,7 @@ void
 RtDebugDraw::reportErrorWarning(const char * const message)
 {
     if (!message)
-	bu_bomb("missing argument");
+	return;
 
     bu_log("WARNING: Bullet: %s\n", message);
 }
@@ -130,9 +133,15 @@ RtDebugDraw::drawLine(const btVector3 &from, const btVector3 &to,
     const point_t from_pt = {V3ARGS(from * world_to_application)};
     const vect_t height = {V3ARGS((to - from) * world_to_application)};
     struct rt_wdb *wdbp = wdb_dbopen(&m_db, RT_WDB_TYPE_DB_INMEM);
+    if (!wdbp)
+	return;
 
-    if (mk_rcc(wdbp, name.c_str(), from_pt, height, 1.0e-8))
-	bu_bomb("mk_rcc() failed");
+    if (mk_rcc(wdbp, name.c_str(), from_pt, height, 1.0e-8)) {
+	wdb_close(wdbp);
+	bu_log("WARNING: mk_rcc() failed for %s\n", name.c_str());
+	return;
+    }
+    wdb_close(wdbp);
 
     apply_color(m_db, name, color);
 }
@@ -156,8 +165,15 @@ void RtDebugDraw::drawAabb(const btVector3 &from, const btVector3 &to,
     VMAX(max_pt, to * world_to_application);
 
     struct rt_wdb *wdbp = wdb_dbopen(&m_db, RT_WDB_TYPE_DB_INMEM);
-    if (mk_rpp(wdbp, name.c_str(), min_pt, max_pt))
-	bu_bomb("mk_rpp() failed");
+    if (!wdbp)
+	return;
+
+    if (mk_rpp(wdbp, name.c_str(), min_pt, max_pt)) {
+	wdb_close(wdbp);
+	bu_log("WARNING: mk_rpp() failed for %s\n", name.c_str());
+	return;
+    }
+    wdb_close(wdbp);
 
     apply_color(m_db, name, color);
 }
@@ -172,9 +188,16 @@ RtDebugDraw::drawContactPoint(const btVector3 &point_on_b,
     const point_t point_on_b_pt = {V3ARGS(point_on_b * world_to_application)};
 
     struct rt_wdb *wdbp = wdb_dbopen(&m_db, RT_WDB_TYPE_DB_INMEM);
+    if (!wdbp)
+	return;
+
     if (mk_sph(wdbp, name.c_str(), point_on_b_pt,
-	       (distance / 10.0) * world_to_application))
-	bu_bomb("mk_sph() failed");
+	       (distance / 10.0) * world_to_application)) {
+	wdb_close(wdbp);
+	bu_log("WARNING: mk_sph() failed for %s\n", name.c_str());
+	return;
+    }
+    wdb_close(wdbp);
 
     apply_color(m_db, name, color);
     drawLine(point_on_b, point_on_b + normal_world_on_b * distance, color);

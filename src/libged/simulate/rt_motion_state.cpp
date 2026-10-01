@@ -45,7 +45,7 @@ static void
 bt_transform_to_matrix(const btTransform &transform, fastf_t * const matrix)
 {
     if (!matrix)
-	bu_bomb("missing argument");
+	return;
 
     MAT_IDN(matrix);
     MAT_DELTAS_VEC(matrix, transform.getOrigin() * simulate::world_to_application);
@@ -62,7 +62,7 @@ path_to_matrix(db_i &db, const db_full_path &path, fastf_t * const result)
     RT_CK_FULL_PATH(&path);
 
     if (!result)
-	bu_bomb("missing argument");
+	return;
 
     MAT_IDN(result);
 
@@ -104,7 +104,7 @@ apply_tree_matrix(db_i &db, const db_full_path &path,
     RT_CK_FULL_PATH(&path);
 
     if (!matrix)
-	bu_bomb("missing argument");
+	return;
 
     check_region_path(path);
 
@@ -115,7 +115,7 @@ apply_tree_matrix(db_i &db, const db_full_path &path,
     RT_DB_INTERNAL_INIT(&parent_internal);
 
     if (0 > rt_db_get_internal(&parent_internal, &parent_dir, &db, bn_mat_identity))
-	bu_bomb("rt_db_get_internal() failed");
+	throw simulate::InvalidSimulationError("rt_db_get_internal() failed");
 
     rt_comb_internal &comb = *static_cast<rt_comb_internal *>
     (parent_internal.idb_ptr);
@@ -125,7 +125,7 @@ apply_tree_matrix(db_i &db, const db_full_path &path,
 					   DB_FULL_PATH_CUR_DIR(&path)->d_namep);
 
     if (!leaf)
-	bu_bomb("db_find_named_leaf() failed");
+	throw simulate::InvalidSimulationError("db_find_named_leaf() failed");
 
     if (!leaf->tr_l.tl_mat) {
 	leaf->tr_l.tl_mat = static_cast<fastf_t *>(bu_malloc(sizeof(mat_t), "tl_mat"));
@@ -135,7 +135,7 @@ apply_tree_matrix(db_i &db, const db_full_path &path,
     bn_mat_mul2(matrix, leaf->tr_l.tl_mat);
 
     if (0 > rt_db_put_internal(&parent_dir, &db, &parent_internal))
-	bu_bomb("rt_db_put_internal() failed");
+	throw simulate::InvalidSimulationError("rt_db_put_internal() failed");
 }
 
 

@@ -53,18 +53,28 @@ multioverlap_handler(application * const app, partition * const partition1,
 		     bu_ptbl * const region_table, partition * const partition_list)
 {
     if (!app || !partition1 || !region_table || !partition_list)
-	bu_bomb("missing argument");
+	return;
 
     RT_CK_APPLICATION(app);
     RT_CK_PARTITION(partition1);
     BU_CK_PTBL(region_table);
     RT_CK_PT_HD(partition_list);
 
+    if (!app->a_uptr)
+	return;
+
     MultiOverlapHandlerArgs &args = *static_cast<MultiOverlapHandlerArgs *>
     (app->a_uptr);
 
-    if (BU_PTBL_LEN(region_table) != 2)
-	bu_bomb("unexpected region table length");
+    if (BU_PTBL_LEN(region_table) != 2) {
+	rt_default_multioverlap(app, partition1, region_table, partition_list);
+	return;
+    }
+
+    if (!partition1->pt_inhit || !partition1->pt_outhit) {
+	rt_default_multioverlap(app, partition1, region_table, partition_list);
+	return;
+    }
 
     btVector3 point_on_a(0.0, 0.0, 0.0), point_on_b(0.0, 0.0, 0.0);
     VJOIN1(point_on_a, app->a_ray.r_pt, partition1->pt_inhit->hit_dist,
@@ -72,17 +82,24 @@ multioverlap_handler(application * const app, partition * const partition1,
     VJOIN1(point_on_b, app->a_ray.r_pt, partition1->pt_outhit->hit_dist,
 	   app->a_ray.r_dir);
 
-    const region &region0 = *reinterpret_cast<const region *>(BU_PTBL_GET(
-								  region_table, 0));
-    const region &region1 = *reinterpret_cast<const region *>(BU_PTBL_GET(
-								  region_table, 1));
+    const region * const reg0_ptr = reinterpret_cast<const region *>(BU_PTBL_GET(region_table, 0));
+    const region * const reg1_ptr = reinterpret_cast<const region *>(BU_PTBL_GET(region_table, 1));
+    if (!reg0_ptr || !reg1_ptr) {
+	rt_default_multioverlap(app, partition1, region_table, partition_list);
+	return;
+    }
+
+    const region &region0 = *reg0_ptr;
+    const region &region1 = *reg1_ptr;
     RT_CK_REGION(&region0);
     RT_CK_REGION(&region1);
 
     if (region0.reg_name == args.path_b && region1.reg_name == args.path_a)
 	std::swap(point_on_a, point_on_b);
-    else if (region0.reg_name != args.path_a || region1.reg_name != args.path_b)
-	bu_bomb("unexpected hit regions");
+    else if (region0.reg_name != args.path_a || region1.reg_name != args.path_b) {
+	rt_default_multioverlap(app, partition1, region_table, partition_list);
+	return;
+    }
 
     args.result.push_back(std::make_pair(point_on_a, point_on_b));
 
@@ -117,15 +134,18 @@ RtInstance::get_overlaps(const db_full_path &path_a, const db_full_path &path_b,
     const AutoPtr<rt_i, rt_i_destroy> rti(rt_i_create(&m_db));
 
     if (!rti.ptr)
-	bu_bomb("rt_i_create() failed");
+	throw InvalidSimulationError("rt_i_create() failed");
 
     const TemporaryRegionHandle region_a(m_db, path_a), region_b(m_db, path_b);
     const AutoPtr<char> path_a_str(db_path_to_string(&path_a));
     const AutoPtr<char> path_b_str(db_path_to_string(&path_b));
+    if (!path_a_str.ptr || !path_b_str.ptr)
+	return std::vector<std::pair<btVector3, btVector3> >();
+
     const char *paths[] = {path_a_str.ptr, path_b_str.ptr};
 
     if (rt_gettrees(rti.ptr, sizeof(paths) / sizeof(paths[0]), paths, 1))
-	bu_bomb("rt_gettrees() failed");
+	throw InvalidSimulationError("rt_gettrees() failed");
 
     rt_prep_parallel(rti.ptr, 1);
 
