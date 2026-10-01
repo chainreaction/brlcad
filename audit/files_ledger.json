@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1208,
-    "pending_files": 2285,
-    "last_updated": "2026-09-30T23:15:00Z",
-    "total_issues": 271,
-    "reviewed_count": 555
+    "reviewed_files": 1218,
+    "pending_files": 2275,
+    "last_updated": "2026-10-01T03:58:00Z",
+    "total_issues": 272,
+    "reviewed_count": 556
   },
   "files": [
     {
@@ -26263,18 +26263,20 @@
       "path": "src/libged/tests/test_bo.c",
       "subsystem": "src/libged",
       "lines": 186,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T03:58:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0272"
+      ]
     },
     {
       "id": 2470,
       "path": "src/libged/tests/test_db.c",
       "subsystem": "src/libged",
       "lines": 149,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T03:58:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26283,68 +26285,80 @@
       "path": "src/libged/tests/test_gqa.c",
       "subsystem": "src/libged",
       "lines": 110,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T03:58:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0272"
+      ]
     },
     {
       "id": 2472,
       "path": "src/libged/tests/test_list.c",
       "subsystem": "src/libged",
       "lines": 84,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T03:58:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0272"
+      ]
     },
     {
       "id": 2473,
       "path": "src/libged/tests/test_material.c",
       "subsystem": "src/libged",
       "lines": 148,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T03:58:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0272"
+      ]
     },
     {
       "id": 2474,
       "path": "src/libged/tests/test_search.c",
       "subsystem": "src/libged",
       "lines": 217,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T03:58:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0272"
+      ]
     },
     {
       "id": 2475,
       "path": "src/libged/tests/test_select.cpp",
       "subsystem": "src/libged",
       "lines": 194,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T03:58:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0272"
+      ]
     },
     {
       "id": 2476,
       "path": "src/libged/tests/test_tops.c",
       "subsystem": "src/libged",
       "lines": 64,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T03:58:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0272"
+      ]
     },
     {
       "id": 2477,
       "path": "src/libged/tests/test_view_dir.c",
       "subsystem": "src/libged",
       "lines": 125,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T03:58:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26353,8 +26367,8 @@
       "path": "src/libged/tire/tire.cpp",
       "subsystem": "src/libged",
       "lines": 772,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T03:58:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
