@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1198,
-    "pending_files": 2295,
-    "last_updated": "2026-09-30T22:45:00Z",
-    "total_issues": 270,
-    "reviewed_count": 545
+    "reviewed_files": 1208,
+    "pending_files": 2285,
+    "last_updated": "2026-09-30T23:15:00Z",
+    "total_issues": 271,
+    "reviewed_count": 555
   },
   "files": [
     {
@@ -26153,100 +26153,110 @@
       "path": "src/libged/tests/draw/lod.cpp",
       "subsystem": "src/libged",
       "lines": 454,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0271"
     },
     {
       "id": 2460,
       "path": "src/libged/tests/draw/quad.cpp",
       "subsystem": "src/libged",
       "lines": 1089,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0271"
     },
     {
       "id": 2461,
       "path": "src/libged/tests/draw/select.cpp",
       "subsystem": "src/libged",
       "lines": 783,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0271"
     },
     {
       "id": 2462,
       "path": "src/libged/tests/draw/util.cpp",
       "subsystem": "src/libged",
       "lines": 311,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0271"
     },
     {
       "id": 2463,
       "path": "src/libged/tests/edit/test_edit.cpp",
       "subsystem": "src/libged",
       "lines": 3444,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0271"
     },
     {
       "id": 2464,
       "path": "src/libged/tests/ged_test_rm.c",
       "subsystem": "src/libged",
       "lines": 967,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0271"
     },
     {
       "id": 2465,
       "path": "src/libged/tests/ged_test_tire.cpp",
       "subsystem": "src/libged",
       "lines": 649,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0271"
     },
     {
       "id": 2466,
       "path": "src/libged/tests/plugins.cpp",
       "subsystem": "src/libged",
       "lines": 465,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0271"
     },
     {
       "id": 2467,
       "path": "src/libged/tests/search_tests.cpp",
       "subsystem": "src/libged",
       "lines": 205,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0271"
     },
     {
       "id": 2468,
       "path": "src/libged/tests/test_bb_tight.c",
       "subsystem": "src/libged",
       "lines": 210,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0271"
     },
     {
       "id": 2469,
@@ -36528,5 +36538,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-09-30T22:35:00Z"
+  "last_updated": "2026-09-30T23:15:00Z"
 }
