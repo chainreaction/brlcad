@@ -12,10 +12,10 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1128,
-    "pending_files": 2365,
-    "last_updated": "2026-09-30T04:26:00Z",
-    "total_issues": 263,
+    "reviewed_files": 1138,
+    "pending_files": 2355,
+    "last_updated": "2026-09-30T04:45:00Z",
+    "total_issues": 264,
     "reviewed_count": 525
   },
   "files": [
@@ -25333,100 +25333,120 @@
       "path": "src/libged/rm/rm.c",
       "subsystem": "src/libged",
       "lines": 1275,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0264"
+      ]
     },
     {
       "id": 2390,
       "path": "src/libged/rmap/rmap.c",
       "subsystem": "src/libged",
       "lines": 165,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0264"
+      ]
     },
     {
       "id": 2391,
       "path": "src/libged/rmat/rmat.c",
       "subsystem": "src/libged",
       "lines": 83,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0264"
+      ]
     },
     {
       "id": 2392,
       "path": "src/libged/rmater/rmater.c",
       "subsystem": "src/libged",
       "lines": 180,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0264"
+      ]
     },
     {
       "id": 2393,
       "path": "src/libged/rot/rot.c",
       "subsystem": "src/libged",
       "lines": 68,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0264"
+      ]
     },
     {
       "id": 2394,
       "path": "src/libged/rot/rotate_about.c",
       "subsystem": "src/libged",
       "lines": 78,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0264"
+      ]
     },
     {
       "id": 2395,
       "path": "src/libged/rot_point/rot_point.c",
       "subsystem": "src/libged",
       "lines": 112,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0264"
+      ]
     },
     {
       "id": 2396,
       "path": "src/libged/rrt/rrt.c",
       "subsystem": "src/libged",
       "lines": 87,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0264"
+      ]
     },
     {
       "id": 2397,
       "path": "src/libged/rt/rt.c",
       "subsystem": "src/libged",
       "lines": 158,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0264"
+      ]
     },
     {
       "id": 2398,
       "path": "src/libged/rtabort/rtabort.c",
       "subsystem": "src/libged",
       "lines": 96,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30T04:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0264"
+      ]
     },
     {
       "id": 2399,
@@ -36408,5 +36428,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-09-30T04:26:00Z"
+  "last_updated": "2026-09-30T04:45:00Z"
 }
