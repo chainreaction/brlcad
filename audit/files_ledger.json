@@ -12,10 +12,10 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1148,
-    "pending_files": 2345,
-    "last_updated": "2026-09-30T22:00:00Z",
-    "total_issues": 265,
+    "reviewed_files": 1168,
+    "pending_files": 2325,
+    "last_updated": "2026-09-30T22:15:00Z",
+    "total_issues": 267,
     "reviewed_count": 525
   },
   "files": [
@@ -25693,100 +25693,120 @@
       "path": "src/libged/simulate/rt_collision_shape.cpp",
       "subsystem": "src/libged",
       "lines": 164,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0267"
+      ]
     },
     {
       "id": 2420,
       "path": "src/libged/simulate/rt_collision_shape.hpp",
       "subsystem": "src/libged",
       "lines": 117,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0267"
+      ]
     },
     {
       "id": 2421,
       "path": "src/libged/simulate/rt_debug_draw.cpp",
       "subsystem": "src/libged",
       "lines": 225,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0267"
+      ]
     },
     {
       "id": 2422,
       "path": "src/libged/simulate/rt_debug_draw.hpp",
       "subsystem": "src/libged",
       "lines": 117,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0267"
+      ]
     },
     {
       "id": 2423,
       "path": "src/libged/simulate/rt_instance.cpp",
       "subsystem": "src/libged",
       "lines": 172,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0267"
+      ]
     },
     {
       "id": 2424,
       "path": "src/libged/simulate/rt_instance.hpp",
       "subsystem": "src/libged",
       "lines": 105,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0267"
+      ]
     },
     {
       "id": 2425,
       "path": "src/libged/simulate/rt_motion_state.cpp",
       "subsystem": "src/libged",
       "lines": 222,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0267"
+      ]
     },
     {
       "id": 2426,
       "path": "src/libged/simulate/rt_motion_state.hpp",
       "subsystem": "src/libged",
       "lines": 106,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0267"
+      ]
     },
     {
       "id": 2427,
       "path": "src/libged/simulate/rt_roi_collision_shape.cpp",
       "subsystem": "src/libged",
       "lines": 248,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0267"
+      ]
     },
     {
       "id": 2428,
       "path": "src/libged/simulate/rt_roi_collision_shape.hpp",
       "subsystem": "src/libged",
       "lines": 143,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-09-30",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0267"
+      ]
     },
     {
       "id": 2429,
@@ -36468,5 +36488,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-09-30T22:00:00Z"
+  "last_updated": "2026-09-30T22:15:00Z"
 }
