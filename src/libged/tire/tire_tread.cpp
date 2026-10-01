@@ -46,6 +46,11 @@ emit_tread_extrusions(CsgTransaction &builder, const std::string &scope, int pat
     vect_t u_vec, v_vec, h;
     size_t i;
 
+    if (verts.empty()) {
+	builder.set_error("empty tread sketch cannot produce extrusion geometry");
+	return BRLCAD_ERROR;
+    }
+
     skt.magic = RT_SKETCH_INTERNAL_MAGIC;
 
     VSET(V, 0, -tirewidth/2, zbase-.1*zbase);

@@ -243,7 +243,7 @@ ged_tol_core(struct ged *gedp, int argc, const char *argv[])
 	int valid_tol = 0;
 
 	/* set the specified tolerance(s) */
-	if (sscanf(argv[1], "%lf", &f) != 1) {
+	if (bu_sscanf(argv[1], "%lf", &f) != 1) {
 	    bu_vls_printf(gedp->ged_result_str, "bad tolerance - %s", argv[1]);
 	    return BRLCAD_ERROR;
 	}

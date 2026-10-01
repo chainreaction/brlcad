@@ -54,7 +54,7 @@ ged_title_core(struct ged *gedp, int argc, const char *argv[])
     /* set title */
     bu_vls_from_argv(&title, argc-1, (const char **)argv+1);
 
-    if (db_update_ident(gedp->dbip, bu_vls_addr(&title), gedp->dbip->dbi_local2base) < 0) {
+    if (db_update_ident(gedp->dbip, bu_vls_cstr(&title), gedp->dbip->dbi_local2base) < 0) {
 	bu_vls_free(&title);
 	bu_vls_printf(gedp->ged_result_str, "Error: unable to change database title");
 	return BRLCAD_ERROR;

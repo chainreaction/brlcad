@@ -80,11 +80,17 @@ make_tire(CsgTransaction &builder, const std::string &suffix, const TireSpec &sp
     }
 
 
-    /* Calculate input parameters for inner cut*/
+    /* Calculate input parameters for inner cut */
     const fastf_t cut_ztire = ztire_with_offset - spec.thickness;
     const fastf_t cut_dyside1 = spec.dyside1 - spec.thickness * 2;
     const fastf_t cut_zside1 = spec.zside1;
     const fastf_t cut_d1 = spec.d1;
+
+    if (ZERO(spec.dyside1) || ZERO(ztire_with_offset)) {
+	builder.set_error("degenerate tire dimensions prevent inner cut computation");
+	return BRLCAD_ERROR;
+    }
+
     const fastf_t cut_dytred = spec.dytred * cut_dyside1 / spec.dyside1;
     const fastf_t cut_dztred = spec.dztred * cut_ztire / ztire_with_offset;
     const fastf_t cut_dyhub = spec.dyhub - spec.thickness * 2;
