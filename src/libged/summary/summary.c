@@ -50,8 +50,9 @@ struct summary_specifics {
 
 static void comb_counter(struct db_i* UNUSED(dbip), struct directory* dp, void* cdata)
 {
-
     struct summary_specifics* ssp = (struct summary_specifics*)cdata;
+    if (!dp || !ssp)
+	return;
 
     if (dp->d_flags & RT_DIR_REGION) {
 	ssp->regs++;
@@ -63,6 +64,8 @@ static void comb_counter(struct db_i* UNUSED(dbip), struct directory* dp, void* 
 static void solid_counter(struct db_i* dbip, struct directory* dp, void* cdata)
 {
     struct summary_specifics* ssp = (struct summary_specifics*)cdata;
+    if (!dp || !ssp || !dbip)
+	return;
 
     struct rt_db_internal intern;
     if (rt_db_get_internal(&intern, dp, dbip, (fastf_t*)NULL) < 0)
@@ -73,12 +76,14 @@ static void solid_counter(struct db_i* dbip, struct directory* dp, void* cdata)
     if (mtype == ID_BOT) {
 	struct rt_bot_internal* botip = (struct rt_bot_internal*)intern.idb_ptr;
 	ssp->bots++;
-	ssp->bot_triangles += botip->num_faces;
+	if (botip)
+	    ssp->bot_triangles += botip->num_faces;
     } else if (mtype == ID_BREP) {
 	ssp->brep++;
     } else {
 	ssp->othr++;
     }
+    rt_db_free_internal(&intern);
 }
 
 static void
@@ -117,7 +122,7 @@ summary_dir(struct ged *gedp, int flag, struct bu_vls* specific)
 	const char* specific_cstr = bu_vls_cstr(specific);
 	specific_dp = db_lookup(gedp->dbip, specific_cstr, 1);
 	if (!specific_dp) {
-	    // print usage?
+	    bu_vls_printf(gedp->ged_result_str, "Specified object '%s' not found\n", specific_cstr);
 	    return;
 	}
 
@@ -171,6 +176,7 @@ ged_summary_core(struct ged *gedp, int argc, const char *argv[])
     struct bu_opt_desc d[4];
     struct bu_vls usage = BU_VLS_INIT_ZERO;
     struct bu_vls obj_name = BU_VLS_INIT_ZERO;
+    struct bu_vls msg = BU_VLS_INIT_ZERO;
     BU_OPT(d[0], "h", "help",      "",         NULL,  &print_help,  "Print help and exit");
     BU_OPT(d[1], "?",     "",      "",         NULL,  &print_help,  "");
     BU_OPT(d[2], "o",  "obj",  "name",  &bu_opt_vls,    &obj_name,  "Specify database object to summarize");
@@ -183,7 +189,15 @@ ged_summary_core(struct ged *gedp, int argc, const char *argv[])
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* parse standard options */
-    int opt_ret = bu_opt_parse(NULL, argc, argv, d);
+    int opt_ret = bu_opt_parse(&msg, argc, argv, d);
+    if (opt_ret < 0) {
+	bu_vls_printf(gedp->ged_result_str, "%s\n", bu_vls_cstr(&msg));
+	bu_vls_free(&msg);
+	bu_vls_free(&usage);
+	bu_vls_free(&obj_name);
+	return BRLCAD_ERROR;
+    }
+    bu_vls_free(&msg);
 
     /* adjust argc to match the leftovers of the options parsing */
     argc = opt_ret;
@@ -207,7 +221,7 @@ ged_summary_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     /* TODO: deprecate me */
-    if (argc == 1 && strlen(argv[0]) == 1) {
+    if (argc == 1 && argv[0] && strlen(argv[0]) == 1) {
 	// NOTE:  special casing of p, r and g is deprecated, but for now
 	// handle these options as we originally would have.
 	const char *cp = (const char *)argv[0];
@@ -237,7 +251,7 @@ ged_summary_core(struct ged *gedp, int argc, const char *argv[])
 
     /* ensure we have one object name */
     if (!bu_vls_strlen(&obj_name)) {
-	if (argc != 1) {
+	if (argc != 1 || !argv[0]) {
 	    bu_vls_printf(gedp->ged_result_str, "expecting a single object name.\n");
 	    bu_vls_free(&obj_name);
 	    return BRLCAD_ERROR;

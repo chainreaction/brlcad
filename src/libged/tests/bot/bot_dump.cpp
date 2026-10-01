@@ -130,10 +130,13 @@ main(int ac, char *av[])
     char input_file[MAXPATHLEN] = {0};
     char output_file[MAXPATHLEN] = {0};
 
+    if (!ac || !av || !av[0])
+	return 1;
+
     bu_setprogname(av[0]);
 
-    if (ac != 2)
-	bu_exit(EXIT_FAILURE, "%s <directory>", av[0]);
+    if (ac != 2 || !av[1])
+	bu_exit(EXIT_FAILURE, "%s <directory>\n", av[0]);
 
     if (!bu_file_directory(av[1])) {
 	printf("ERROR: [%s] is not a directory.  Expecting directory holding input .g files and control outputs\n", av[1]);
@@ -145,7 +148,7 @@ main(int ac, char *av[])
     bu_dir(input_file, MAXPATHLEN, av[1], "arb4.g", NULL);
     gedp = ged_open("db", input_file, 1);
     if (!gedp)
-	bu_exit(EXIT_FAILURE, "Could not open %s", input_file);
+	bu_exit(EXIT_FAILURE, "Could not open %s\n", input_file);
 
     // DXF
     bu_dir(output_file, MAXPATHLEN, BU_DIR_CURR, "arb4_out.dxf", NULL);
@@ -164,7 +167,7 @@ main(int ac, char *av[])
 
     bu_dir(input_file, MAXPATHLEN, av[1], "arb4.dxf", NULL);
     if (!txt_same(input_file, output_file))
-	bu_exit(EXIT_FAILURE, "Difference found between %s and %s", input_file, output_file);
+	bu_exit(EXIT_FAILURE, "Difference found between %s and %s\n", input_file, output_file);
     bu_file_delete(output_file);
 
     // OBJ
@@ -184,11 +187,11 @@ main(int ac, char *av[])
 
     bu_dir(input_file, MAXPATHLEN, av[1], "arb4_color.obj", NULL);
     if (!txt_same(input_file, output_file))
-	bu_exit(EXIT_FAILURE, "Difference found between %s and %s", input_file, output_file);
+	bu_exit(EXIT_FAILURE, "Difference found between %s and %s\n", input_file, output_file);
     bu_dir(input_file, MAXPATHLEN, av[1], "arb4_color.mtl", NULL);
     bu_dir(output_file, MAXPATHLEN, BU_DIR_CURR, "arb4_out.mtl", NULL);
     if (!txt_same(input_file, output_file))
-	bu_exit(EXIT_FAILURE, "Difference found between %s and %s", input_file, output_file);
+	bu_exit(EXIT_FAILURE, "Difference found between %s and %s\n", input_file, output_file);
     bu_file_delete(output_file);
     bu_dir(output_file, MAXPATHLEN, BU_DIR_CURR, "arb4_out.obj", NULL);
     bu_file_delete(output_file);
@@ -212,7 +215,7 @@ main(int ac, char *av[])
 
     bu_dir(input_file, MAXPATHLEN, av[1], "arb4_norm.obj", NULL);
     if (!txt_same(input_file, output_file))
-	bu_exit(EXIT_FAILURE, "Difference found between %s and %s", input_file, output_file);
+	bu_exit(EXIT_FAILURE, "Difference found between %s and %s\n", input_file, output_file);
     bu_file_delete(output_file);
 
 
@@ -233,7 +236,7 @@ main(int ac, char *av[])
 
     bu_dir(input_file, MAXPATHLEN, av[1], "arb4.sat", NULL);
     if (!txt_same(input_file, output_file))
-	bu_exit(EXIT_FAILURE, "Difference found between %s and %s", input_file, output_file);
+	bu_exit(EXIT_FAILURE, "Difference found between %s and %s\n", input_file, output_file);
     bu_file_delete(output_file);
 
     // STL - ASCII
@@ -253,7 +256,7 @@ main(int ac, char *av[])
 
     bu_dir(input_file, MAXPATHLEN, av[1], "arb4.stl", NULL);
     if (!txt_same(input_file, output_file))
-	bu_exit(EXIT_FAILURE, "Difference found between %s and %s", input_file, output_file);
+	bu_exit(EXIT_FAILURE, "Difference found between %s and %s\n", input_file, output_file);
     bu_file_delete(output_file);
 
     // STL - units
@@ -275,7 +278,7 @@ main(int ac, char *av[])
 
     bu_dir(input_file, MAXPATHLEN, av[1], "arb4_units.stl", NULL);
     if (!txt_same(input_file, output_file))
-	bu_exit(EXIT_FAILURE, "Difference found between %s and %s", input_file, output_file);
+	bu_exit(EXIT_FAILURE, "Difference found between %s and %s\n", input_file, output_file);
     bu_file_delete(output_file);
 
 
@@ -297,13 +300,13 @@ main(int ac, char *av[])
 
     bu_dir(input_file, MAXPATHLEN, av[1], "arb4_binary.stl", NULL);
     if (!txt_same(input_file, output_file))
-	bu_exit(EXIT_FAILURE, "Difference found between %s and %s", input_file, output_file);
+	bu_exit(EXIT_FAILURE, "Difference found between %s and %s\n", input_file, output_file);
     bu_file_delete(output_file);
 
     // Add a color attribute and confirm it exports by default to OBJ material data
     const char *attr_av[5] = {"attr", "set", "arb4.bot", "color", "10/20/30"};
     if (ged_exec_attr(gedp, 5, attr_av) != BRLCAD_OK)
-	bu_exit(EXIT_FAILURE, "Unable to assign color attribute to arb4.bot");
+	bu_exit(EXIT_FAILURE, "Unable to assign color attribute to arb4.bot\n");
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     bu_dir(output_file, MAXPATHLEN, BU_DIR_CURR, "arb4_color_out.obj", NULL);
@@ -322,12 +325,12 @@ main(int ac, char *av[])
 
     bu_dir(input_file, MAXPATHLEN, av[1], "arb4_color.obj", NULL);
     if (!txt_same(input_file, output_file))
-	bu_exit(EXIT_FAILURE, "Difference found between %s and %s", input_file, output_file);
+	bu_exit(EXIT_FAILURE, "Difference found between %s and %s\n", input_file, output_file);
 
     bu_dir(input_file, MAXPATHLEN, av[1], "arb4_color.mtl", NULL);
     bu_dir(output_file, MAXPATHLEN, BU_DIR_CURR, "arb4_color_out.mtl", NULL);
     if (!txt_same(input_file, output_file))
-	bu_exit(EXIT_FAILURE, "Difference found between %s and %s", input_file, output_file);
+	bu_exit(EXIT_FAILURE, "Difference found between %s and %s\n", input_file, output_file);
     bu_file_delete(output_file);
     bu_dir(output_file, MAXPATHLEN, BU_DIR_CURR, "arb4_color_out.obj", NULL);
     bu_file_delete(output_file);
@@ -350,11 +353,11 @@ main(int ac, char *av[])
 
     bu_dir(input_file, MAXPATHLEN, av[1], "arb4.obj", NULL);
     if (!txt_same(input_file, output_file))
-	bu_exit(EXIT_FAILURE, "Difference found between %s and %s", input_file, output_file);
+	bu_exit(EXIT_FAILURE, "Difference found between %s and %s\n", input_file, output_file);
     bu_file_delete(output_file);
     bu_dir(output_file, MAXPATHLEN, BU_DIR_CURR, "arb4_nomtl_out.mtl", NULL);
     if (bu_file_exists(output_file, NULL))
-	bu_exit(EXIT_FAILURE, "Unexpected material file created for --no-materials export: %s", output_file);
+	bu_exit(EXIT_FAILURE, "Unexpected material file created for --no-materials export: %s\n", output_file);
 
     /* Next tests look at output in a directory.  The directory must already be
      * present, so create it up front. */
@@ -378,7 +381,7 @@ main(int ac, char *av[])
     bu_dir(input_file, MAXPATHLEN, av[1], "arbs_stl",  "arb4_bot.stl", NULL);
     bu_dir(output_file, MAXPATHLEN, BU_DIR_CURR, odir, "arb4_bot.stl", NULL);
     if (!txt_same(input_file, output_file))
-	bu_exit(EXIT_FAILURE, "Difference found between %s and %s", input_file, output_file);
+	bu_exit(EXIT_FAILURE, "Difference found between %s and %s\n", input_file, output_file);
     bu_file_delete(output_file);
 
     // STL - pushed comb
@@ -398,19 +401,19 @@ main(int ac, char *av[])
     bu_dir(input_file, MAXPATHLEN, av[1], "arbs_stl",  "arb4_bot_01.stl", NULL);
     bu_dir(output_file, MAXPATHLEN, BU_DIR_CURR, odir, "arb4_bot_01.stl", NULL);
     if (!txt_same(input_file, output_file))
-	bu_exit(EXIT_FAILURE, "Difference found between %s and %s", input_file, output_file);
+	bu_exit(EXIT_FAILURE, "Difference found between %s and %s\n", input_file, output_file);
     bu_file_delete(output_file);
 
     bu_dir(input_file, MAXPATHLEN, av[1], "arbs_stl",  "arb4_bot_02.stl", NULL);
     bu_dir(output_file, MAXPATHLEN, BU_DIR_CURR, odir, "arb4_bot_02.stl", NULL);
     if (!txt_same(input_file, output_file))
-	bu_exit(EXIT_FAILURE, "Difference found between %s and %s", input_file, output_file);
+	bu_exit(EXIT_FAILURE, "Difference found between %s and %s\n", input_file, output_file);
     bu_file_delete(output_file);
 
     bu_dir(input_file, MAXPATHLEN, av[1], "arbs_stl",  "arb4_bot_03.stl", NULL);
     bu_dir(output_file, MAXPATHLEN, BU_DIR_CURR, odir, "arb4_bot_03.stl", NULL);
     if (!txt_same(input_file, output_file))
-	bu_exit(EXIT_FAILURE, "Difference found between %s and %s", input_file, output_file);
+	bu_exit(EXIT_FAILURE, "Difference found between %s and %s\n", input_file, output_file);
     bu_file_delete(output_file);
 
     // Remove output directory

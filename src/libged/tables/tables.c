@@ -50,8 +50,8 @@
 #define REG_TABLE	2
 #define ID_TABLE	3
 
-static int idfd = 0;
-static int rd_idfd = 0;
+static int idfd = -1;
+static int rd_idfd = -1;
 
 
 /* TODO - this approach to tables_sol_number assignment is pretty
@@ -117,6 +117,9 @@ tables_sol_number(const matp_t matrix, char *name, size_t *old, size_t *numsol)
     static struct identt identt = {0, {0}, MAT_INIT_ZERO};
     ssize_t readval;
 
+    if (rd_idfd < 0 || idfd < 0 || !name || !old || !numsol)
+	return 0;
+
     memset(&idbuf1, 0, sizeof(struct identt));
     bu_strlcpy(idbuf1.i_name, name, sizeof(idbuf1.i_name));
     MAT_COPY(idbuf1.i_mat, matrix);
@@ -127,6 +130,10 @@ tables_sol_number(const matp_t matrix, char *name, size_t *old, size_t *numsol)
 
 	if (readval < 0) {
 	    perror("READ ERROR");
+	    continue;
+	}
+	if (readval != (ssize_t)sizeof(identt)) {
+	    continue;
 	}
 
 	idbuf1.i_index = i + 1;
@@ -196,13 +203,13 @@ tables_objs_print(struct bu_vls *tabvls, struct bu_ptbl *tabptr, int type)
 	bu_vls_printf(tabvls, " %-4d %4d %4d %4d %4d  ",
 		      o->numreg, o->region_id, o->aircode, o->GIFTmater, o->los);
 
-	bu_vls_printf(tabvls, "%s", bu_vls_addr(o->path));
+	bu_vls_printf(tabvls, "%s", bu_vls_cstr(o->path));
 	if (type != ID_TABLE) {
 	    for (j = 0; j < BU_PTBL_LEN(o->tree_objs); j++) {
 		struct tree_obj *t = (struct tree_obj *)BU_PTBL_GET(o->tree_objs, j);
-		bu_vls_printf(tabvls, "%s", bu_vls_addr(t->tree));
+		bu_vls_printf(tabvls, "%s", bu_vls_cstr(t->tree));
 		if (type == SOL_TABLE) {
-		    bu_vls_printf(tabvls, "%s", bu_vls_addr(t->describe));
+		    bu_vls_printf(tabvls, "%s", bu_vls_cstr(t->describe));
 		}
 	    }
 	}
@@ -292,11 +299,14 @@ tables_new(struct ged *gedp, struct bu_ptbl *tabptr, struct directory *dp, struc
 	for (i = 0; i < actual_count; i++) {
 	    char op;
 	    int nsoltemp=0;
+	    int sol_loaded = 0;
 	    struct rt_db_internal sol_intern;
 	    struct directory *sol_dp;
 	    mat_t temp_mat;
 	    size_t old;
 	    struct tree_obj *tobj;
+	    if (!tree_list[i].tl_tree || !tree_list[i].tl_tree->tr_l.tl_name)
+		continue;
 	    BU_GET(tobj, struct tree_obj);
 	    BU_GET(tobj->tree, struct bu_vls);
 	    BU_GET(tobj->describe, struct bu_vls);
@@ -337,6 +347,8 @@ tables_new(struct ged *gedp, struct bu_ptbl *tabptr, struct directory *dp, struc
 		    }
 		    if (rt_db_get_internal(&sol_intern, sol_dp, gedp->dbip, temp_mat) < 0) {
 			bu_log("Could not import %s\n", tree_list[i].tl_tree->tr_l.tl_name);
+		    } else {
+			sol_loaded = 1;
 		    }
 		    nsoltemp = tables_sol_number((matp_t)temp_mat, tree_list[i].tl_tree->tr_l.tl_name, &old, numsol);
 		    bu_vls_printf(tobj->tree, "   %c [%d] ", op, nsoltemp);
@@ -350,12 +362,14 @@ tables_new(struct ged *gedp, struct bu_ptbl *tabptr, struct directory *dp, struc
 
 	    if (flag == REG_TABLE || old) {
 		bu_vls_printf(tobj->tree, "%s\n", tree_list[i].tl_tree->tr_l.tl_name);
+		if (nsoltemp && (sol_dp->d_flags & RT_DIR_SOLID) && sol_loaded)
+		    rt_db_free_internal(&sol_intern);
 		continue;
 	    } else {
 		bu_vls_printf(tobj->tree, "%s:  ", tree_list[i].tl_tree->tr_l.tl_name);
 	    }
 
-	    if (!old && (sol_dp->d_flags & RT_DIR_SOLID)) {
+	    if (!old && (sol_dp->d_flags & RT_DIR_SOLID) && sol_loaded) {
 		/* if we get here, we must be looking for a solid table */
 		struct bu_vls tmp_vls = BU_VLS_INIT_ZERO;
 
@@ -363,10 +377,10 @@ tables_new(struct ged *gedp, struct bu_ptbl *tabptr, struct directory *dp, struc
 		    OBJ[sol_intern.idb_type].ft_describe(&tmp_vls, &sol_intern, 1, gedp->dbip->dbi_base2local) < 0) {
 		    bu_vls_printf(gedp->ged_result_str, "%s describe error\n", tree_list[i].tl_tree->tr_l.tl_name);
 		}
-		bu_vls_printf(tobj->describe, "%s", bu_vls_addr(&tmp_vls));
+		bu_vls_printf(tobj->describe, "%s", bu_vls_cstr(&tmp_vls));
 		bu_vls_free(&tmp_vls);
 	    }
-	    if (nsoltemp && (sol_dp->d_flags & RT_DIR_SOLID))
+	    if (nsoltemp && (sol_dp->d_flags & RT_DIR_SOLID) && sol_loaded)
 		rt_db_free_internal(&sol_intern);
 	}
     } else if (dp->d_flags & RT_DIR_COMB) {
@@ -378,6 +392,8 @@ tables_new(struct ged *gedp, struct bu_ptbl *tabptr, struct directory *dp, struc
 	for (i = 0; i < actual_count; i++) {
 	    struct directory *nextdp;
 	    mat_t new_mat;
+	    if (!tree_list[i].tl_tree || !tree_list[i].tl_tree->tr_l.tl_name)
+		continue;
 
 	    /* For the 'idents' command skip over non-union
 	     * combinations above the region level, these members of a
@@ -438,7 +454,8 @@ tables_header(struct bu_vls *tabvls, int argc, const char **argv, struct ged *ge
     bu_vls_printf(tabvls, "3 -6         \n");
     bu_vls_printf(tabvls, "4 -5         \n");
 #ifndef _WIN32
-    bu_vls_printf(tabvls, "5 -4         user         : %s\n", getpwuid(getuid())->pw_gecos);
+    struct passwd *pw = getpwuid(getuid());
+    bu_vls_printf(tabvls, "5 -4         user         : %s\n", (pw && pw->pw_gecos) ? pw->pw_gecos : "UNKNOWN");
 #else
     {
 	char uname[256];
@@ -491,12 +508,12 @@ ged_tables_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc < 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
@@ -556,7 +573,10 @@ ged_tables_core(struct ged *gedp, int argc, const char *argv[])
 
     (void)time(&now);
     timep = ctime(&now);
-    timep[24] = '\0';
+    if (timep)
+	timep[24] = '\0';
+    else
+	timep = (char *)"Unknown time";
 
     tables_header(&tabvls, argc, argv, gedp, timep);
 
@@ -611,13 +631,13 @@ end:
      * closing discr_fp last is what permits bu_temp_file()'s file to be
      * removed.  Reset the static descriptors so a later invocation that
      * does not use a temp file (e.g. "idents") won't close stale fds. */
-    if (idfd > 0) {
+    if (idfd >= 0) {
 	(void)close(idfd);
-	idfd = 0;
+	idfd = -1;
     }
-    if (rd_idfd > 0) {
+    if (rd_idfd >= 0) {
 	(void)close(rd_idfd);
-	rd_idfd = 0;
+	rd_idfd = -1;
     }
     if (discr_fp != NULL) {
 	(void)fclose(discr_fp);
@@ -639,6 +659,8 @@ end:
 	    BU_PUT(t->describe, struct bu_vls);
 	    BU_PUT(t, struct tree_obj);
 	}
+	bu_ptbl_free(o->tree_objs);
+	BU_PUT(o->tree_objs, struct bu_ptbl);
 	bu_vls_free(o->path);
 	BU_PUT(o->path, struct bu_vls);
 	BU_PUT(o, struct table_obj);

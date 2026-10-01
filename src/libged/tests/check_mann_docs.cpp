@@ -105,7 +105,7 @@ static std::string
 slurp(const fs::path &p)
 {
     std::ifstream ifs(p);
-    if (!ifs.good())
+    if (!ifs.is_open() || !ifs.good())
 	return std::string();
     return std::string((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
 }
@@ -637,6 +637,8 @@ static void
 write_inventory(const fs::path &out, const std::map<std::string, cmd_audit> &audits)
 {
     std::ofstream ofs(out);
+    if (!ofs.is_open())
+	return;
     ofs << "command\torigins\tsource\tfunction\tpage\tkind\talias_target\toptions\treview_status\tedit_status\tcleanup_status\tstatus\tnotes\n";
     for (const auto &it : audits) {
 	const cmd_audit &a = it.second;
@@ -754,6 +756,8 @@ write_progress( const fs::path &out, const std::map<std::string, cmd_audit> &aud
     }
 
     std::ofstream ofs( out);
+    if (!ofs.is_open())
+	return;
     ofs << "# MGED/Libged Command Manpage Audit Progress\n\n";
     ofs << "Generated from the registered libged command list in `src/libged`, the MGED command table in `src/mged/setup.c`, documented Tcl/Tk commands in `src/tclscripts`, and the current `doc/asciidoc/system/mann` pages.\n\n";
     ofs << "## Summary\n\n";
@@ -814,18 +818,27 @@ write_progress( const fs::path &out, const std::map<std::string, cmd_audit> &aud
 int
 main( int argc, const char *argv[])
 {
+    if ( argc < 1 || !argv) {
+	std::cerr << "Invalid arguments\n";
+	return 1;
+    }
+
     fs::path root = fs::current_path( );
     fs::path inventory_out;
     fs::path progress_out;
 
     for ( int i = 1; i < argc; i++) {
+	if ( !argv[i])
+	    continue;
 	std::string arg( argv[i]);
 	if ( arg == "--write-inventory" && i + 1 < argc) {
-	    inventory_out = argv[++i];
+	    if ( argv[i + 1])
+		inventory_out = argv[++i];
 	    continue;
 	}
 	if ( arg == "--write-progress" && i + 1 < argc) {
-	    progress_out = argv[++i];
+	    if ( argv[i + 1])
+		progress_out = argv[++i];
 	    continue;
 	}
 	root = fs::path( arg);
@@ -847,14 +860,14 @@ main( int argc, const char *argv[])
 
     for ( auto const &entry : fs::recursive_directory_iterator( srcroot)) {
 	if ( !entry.is_regular_file( ))
-	    continue;
+		continue;
 	auto ext = entry.path( ).extension( ).string( );
 	if ( ext != ".c" && ext != ".cpp")
-	    continue;
+		continue;
 
 	std::ifstream ifs( entry.path( ));
-	if ( !ifs.good( ))
-	    continue;
+	if ( !ifs.is_open( ) || !ifs.good( ))
+		continue;
 
 	std::string line;
 	bool in_list = false;
@@ -956,6 +969,8 @@ main( int argc, const char *argv[])
 		continue;
 
 	    std::ifstream ifs( entry.path( ));
+	    if ( !ifs.is_open( ) || !ifs.good( ))
+		continue;
 	    std::string line;
 	    std::string rpath = fs::relative( entry.path( ), root).generic_string( );
 	    while ( std::getline( ifs, line)) {
@@ -994,6 +1009,8 @@ main( int argc, const char *argv[])
 
 	    std::string rpath = fs::relative( entry.path( ), root).generic_string( );
 	    std::ifstream ifs( entry.path( ));
+	    if ( !ifs.is_open( ) || !ifs.good( ))
+		continue;
 	    std::string line;
 	    while ( std::getline( ifs, line)) {
 		std::smatch m;

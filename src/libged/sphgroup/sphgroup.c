@@ -53,8 +53,8 @@ ged_sphgroup_core(struct ged *gedp, int argc, const char *argv[])
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
-    if (argc != 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 3 || !argv[1] || !argv[2] || strlen(argv[1]) == 0 || strlen(argv[2]) == 0) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
@@ -63,9 +63,10 @@ ged_sphgroup_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
     } else {
 	if (rt_db_get_internal(&sph_intern, sphdp, gedp->dbip, (fastf_t *)NULL) < 0)
-	  return BRLCAD_ERROR;
+	    return BRLCAD_ERROR;
 	if ((sph_intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_ELL) && (sph_intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_SPH)) {
 	    bu_vls_printf(gedp->ged_result_str, "Specified bounding object %s not a sphere\n", argv[argc-1]);
+	    rt_db_free_internal(&sph_intern);
 	    return BRLCAD_ERROR;
 	}
 	bsph = (struct rt_ell_internal *)sph_intern.idb_ptr;
@@ -82,25 +83,17 @@ ged_sphgroup_core(struct ged *gedp, int argc, const char *argv[])
 	    VSETALL(rpp_max, -INFINITY);
 	    VMINMAX(rpp_min, rpp_max, (double *)obj_min);
 	    VMINMAX(rpp_min, rpp_max, (double *)obj_max);
-	    /*
-	      VMOVE(testpts[0], rpp_min);
-	      VSET(testpts[1], rpp_min[X], rpp_min[Y], rpp_max[Z]);
-	      VSET(testpts[2], rpp_min[X], rpp_max[Y], rpp_max[Z]);
-	      VSET(testpts[3], rpp_min[X], rpp_max[Y], rpp_min[Z]);
-	      VSET(testpts[4], rpp_max[X], rpp_min[Y], rpp_min[Z]);
-	      VSET(testpts[5], rpp_max[X], rpp_min[Y], rpp_max[Z]);
-	      VMOVE(testpts[6], rpp_max);
-	      VSET(testpts[7], rpp_max[X], rpp_max[Y], rpp_min[Z]);
-	      for (j = 0; j < 8; j++) {
-	      if (DIST_PNT_PNT(testpts[j], bsph->v) <= MAGNITUDE(bsph->a)) inside_flag = 1;
-	      }*/
 	    VSET(centerpt, (rpp_min[0] + rpp_max[0])*0.5, (rpp_min[1] + rpp_max[1])*0.5, (rpp_min[2] + rpp_max[2])*0.5);
 	    if (DIST_PNT_PNT(centerpt, bsph->v) <= MAGNITUDE(bsph->a)) inside_flag = 1;
 	    if (inside_flag == 1) {
-		if (_ged_combadd(gedp, dp, (char *)argv[1], 0, WMOP_UNION, 0, 0) == RT_DIR_NULL) return BRLCAD_ERROR;
+		if (_ged_combadd(gedp, dp, (char *)argv[1], 0, WMOP_UNION, 0, 0) == RT_DIR_NULL) {
+		    rt_db_free_internal(&sph_intern);
+		    return BRLCAD_ERROR;
+		}
 	    }
 	}
     FOR_ALL_DIRECTORY_END;
+    rt_db_free_internal(&sph_intern);
     return BRLCAD_OK;
 }
 

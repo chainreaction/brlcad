@@ -86,6 +86,9 @@ static void
 check_output_group(struct ged *gedp, const char *group_name,
 	const char *first_member, const char *second_member)
 {
+    if (!gedp || !gedp->dbip || !group_name)
+	return;
+
     struct directory *dp = db_lookup(gedp->dbip, group_name, LOOKUP_QUIET);
     CHECK(dp != RT_DIR_NULL, "expected BOT split group does not exist");
     if (dp == RT_DIR_NULL)
@@ -97,8 +100,10 @@ check_output_group(struct ged *gedp, const char *group_name,
     RT_DB_INTERNAL_INIT(&internal);
     CHECK(rt_db_get_internal(&internal, dp, gedp->dbip, NULL) >= 0,
 	"cannot read BOT split group");
-    if (!internal.idb_ptr)
+    if (!internal.idb_ptr) {
+	rt_db_free_internal(&internal);
 	return;
+    }
     struct rt_comb_internal *comb =
 	(struct rt_comb_internal *)internal.idb_ptr;
     CHECK(!comb->region_flag, "BOT split group is unexpectedly a region");
@@ -125,6 +130,9 @@ static void
 check_output_bot(struct ged *gedp, const char *name, unsigned char mode,
 	size_t component)
 {
+    if (!gedp || !gedp->dbip || !name)
+	return;
+
     struct directory *dp = db_lookup(gedp->dbip, name, LOOKUP_QUIET);
     CHECK(dp != RT_DIR_NULL, "expected split BOT does not exist");
     if (dp == RT_DIR_NULL)
@@ -134,8 +142,10 @@ check_output_bot(struct ged *gedp, const char *name, unsigned char mode,
     RT_DB_INTERNAL_INIT(&internal);
     CHECK(rt_db_get_internal(&internal, dp, gedp->dbip, NULL) >= 0,
 	"cannot read split BOT");
-    if (!internal.idb_ptr)
+    if (!internal.idb_ptr) {
+	rt_db_free_internal(&internal);
 	return;
+    }
     struct rt_bot_internal *bot = (struct rt_bot_internal *)internal.idb_ptr;
     CHECK(bot->mode == mode, "serialized BOT mode was not preserved");
     CHECK(bot->orientation == RT_BOT_CCW,
@@ -173,6 +183,9 @@ check_output_bot(struct ged *gedp, const char *name, unsigned char mode,
 static void
 check_decimated_bot(struct ged *gedp, const char *name)
 {
+    if (!gedp || !gedp->dbip || !name)
+	return;
+
     struct directory *dp = db_lookup(gedp->dbip, name, LOOKUP_QUIET);
     CHECK(dp != RT_DIR_NULL, "expected decimated BOT does not exist");
     if (dp == RT_DIR_NULL)
@@ -182,8 +195,10 @@ check_decimated_bot(struct ged *gedp, const char *name)
     RT_DB_INTERNAL_INIT(&internal);
     CHECK(rt_db_get_internal(&internal, dp, gedp->dbip, NULL) >= 0,
 	"cannot read decimated BOT");
-    if (!internal.idb_ptr)
+    if (!internal.idb_ptr) {
+	rt_db_free_internal(&internal);
 	return;
+    }
     struct rt_bot_internal *bot = (struct rt_bot_internal *)internal.idb_ptr;
     CHECK(bot->mode == RT_BOT_PLATE_NOCOS,
 	"decimation did not preserve plate mode");
@@ -220,8 +235,11 @@ check_decimated_bot(struct ged *gedp, const char *name)
 int
 main(int argc, char **argv)
 {
+    if (argc < 1 || !argv || !argv[0])
+	bu_exit(EXIT_FAILURE, "Usage: bot_split output.g\n");
+
     bu_setprogname(argv[0]);
-    if (argc != 2)
+    if (argc != 2 || !argv[1])
 	bu_exit(EXIT_FAILURE, "%s output.g\n", argv[0]);
 
     struct rt_wdb *wdbp = wdb_fopen(argv[1]);

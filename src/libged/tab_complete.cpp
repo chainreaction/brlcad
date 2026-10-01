@@ -38,14 +38,23 @@
 
 static int
 alphanum_cmp(const void *a, const void *b, void *UNUSED(data)) {
+    if (!a || !b)
+	return 0;
     struct directory *ga = *(struct directory **)a;
     struct directory *gb = *(struct directory **)b;
+    if (!ga || !gb)
+	return (ga ? 1 : (gb ? -1 : 0));
+    if (!ga->d_namep || !gb->d_namep)
+	return (ga->d_namep ? 1 : (gb->d_namep ? -1 : 0));
     return alphanum_impl(ga->d_namep, gb->d_namep, NULL);
 }
 
 static int
 path_match(const char ***completions, struct bu_vls *prefix, struct db_i *dbip, const char *iseed)
 {
+    if (!completions || !prefix || !dbip || !iseed)
+	return 0;
+
     // If we've gotten this far, we either have a hierarchy or an error
     std::string lstr(iseed);
     if (lstr.find_first_of("/", 0) == std::string::npos)
@@ -94,12 +103,18 @@ path_match(const char ***completions, struct bu_vls *prefix, struct db_i *dbip, 
 	}
 	// Empty context - we need the tops list
 	db_update_nref(dbip);
-	struct directory **all_paths;
+	struct directory **all_paths = NULL;
 	int tops_cnt = db_ls(dbip, DB_LS_TOPS, NULL, &all_paths);
+	if (tops_cnt <= 0 || !all_paths) {
+	    if (all_paths)
+		bu_free(all_paths, "free db_ls output");
+	    return 0;
+	}
 	bu_sort(all_paths, tops_cnt, sizeof(struct directory *), alphanum_cmp, NULL);
 	*completions = (const char **)bu_calloc(tops_cnt + 1, sizeof(const char *), "av array");
 	for (int i = 0; i < tops_cnt; i++) {
-	    (*completions)[i] = bu_strdup(all_paths[i]->d_namep);
+	    if (all_paths[i] && all_paths[i]->d_namep)
+		(*completions)[i] = bu_strdup(all_paths[i]->d_namep);
 	}
 	bu_free(all_paths, "free db_ls output");
 	return tops_cnt;
@@ -121,12 +136,20 @@ path_match(const char ***completions, struct bu_vls *prefix, struct db_i *dbip, 
     int child_cnt = db_comb_children(dbip, comb, &children, NULL, NULL);
     rt_db_free_internal(&in);
 
+    if (child_cnt <= 0 || !children) {
+	if (children)
+	    bu_free(children, "dp array");
+	return 0;
+    }
+
     // If we don't have a seed or a prev entry, grab all the children
     if (!seed.length()) {
 	bu_vls_trunc(prefix, 0);
 	*completions = (const char **)bu_calloc(child_cnt + 1, sizeof(const char *), "av array");
-	for (int i = 0; i < child_cnt; i++)
-	    (*completions)[i] = bu_strdup(children[i]->d_namep);
+	for (int i = 0; i < child_cnt; i++) {
+	    if (children[i] && children[i]->d_namep)
+		(*completions)[i] = bu_strdup(children[i]->d_namep);
+	}
 	bu_free(children, "dp array");
 	return child_cnt;
     }
@@ -135,6 +158,8 @@ path_match(const char ***completions, struct bu_vls *prefix, struct db_i *dbip, 
     bu_vls_sprintf(prefix, "%s", seed.c_str());
     std::vector<struct directory *> matches;
     for (int i = 0; i < child_cnt; i++) {
+	if (!children[i] || !children[i]->d_namep)
+	    continue;
 	if (strlen(children[i]->d_namep) < seed.length())
 	    continue;
 	if (!bu_strncmp(seed.c_str(), children[i]->d_namep, seed.length()))
@@ -154,6 +179,9 @@ path_match(const char ***completions, struct bu_vls *prefix, struct db_i *dbip, 
 static int
 obj_match(const char ***completions, struct db_i *dbip, const char *seed)
 {
+    if (!completions || !dbip || !seed)
+	return 0;
+
     // Prepare the dp list in the order we want - first tops entries, then
     // all objects.
     std::vector<struct directory *> dps;
@@ -174,6 +202,8 @@ obj_match(const char ***completions, struct db_i *dbip, const char *seed)
     // Have the possibilities organized - find seed matches
     std::vector<struct directory *> matches;
     for (size_t i = 0; i < dps.size(); i++) {
+	if (!dps[i] || !dps[i]->d_namep)
+	    continue;
 	if (strlen(dps[i]->d_namep) < strlen(seed))
 	    continue;
 	if (!bu_strncmp(seed, dps[i]->d_namep, strlen(seed))) {
@@ -202,7 +232,7 @@ ged_cmd_completions(const char ***completions, const char *seed)
 
     std::vector<const char *> matches;
     for (size_t i = 0; i < cmd_cnt; i++) {
-	if (strlen(cl[i]) < strlen(seed))
+	if (!cl[i] || strlen(cl[i]) < strlen(seed))
 	    continue;
 	if (!bu_strncmp(seed, cl[i], strlen(seed)))
 	    matches.push_back(cl[i]);

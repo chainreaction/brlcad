@@ -71,16 +71,21 @@ rpt_hits(struct application *ap, struct partition *PartHeadp, struct seg *UNUSED
     char **list;
     int i;
 
+    if (!ap || !PartHeadp)
+	return 0;
+
     len = rt_partition_len(PartHeadp) + 2;
     list = (char **)bu_calloc(len, sizeof(char *), "hit list[]");
 
     i = 0;
     for (pp = PartHeadp->pt_forw; pp != PartHeadp; pp = pp->pt_forw) {
 	RT_CK_PT(pp);
-	list[i++] = db_path_to_string(&(pp->pt_inseg->seg_stp->st_path));
+	if (pp->pt_inseg && pp->pt_inseg->seg_stp) {
+	    list[i++] = db_path_to_string(&(pp->pt_inseg->seg_stp->st_path));
+	}
     }
     list[i++] = NULL;
-    if (i > len) bu_exit(EXIT_FAILURE, "rpt_hits_mike: array overflow\n");
+    if (i > len) bu_exit(EXIT_FAILURE, "rpt_hits: array overflow\n");
 
     ap->a_uptr = (void *)list;
     return len;
@@ -96,7 +101,8 @@ rpt_hits(struct application *ap, struct partition *PartHeadp, struct seg *UNUSED
 static int
 rpt_miss(struct application *ap)
 {
-    ap->a_uptr = NULL;
+    if (ap)
+	ap->a_uptr = NULL;
 
     return 0;
 }
@@ -124,7 +130,10 @@ skewer_solids(struct ged *gedp, int argc, const char **argv, fastf_t *ray_orig, 
     struct rt_i *rtip;
     struct bu_list sol_list;
 
-    if (argc <= 0) {
+    if (!gedp || !gedp->dbip || !ray_orig || !ray_dir)
+	return (char **) 0;
+
+    if (argc <= 0 || !argv) {
 	bu_vls_printf(gedp->ged_result_str, "skewer_solids argc<=0\n");
 	return (char **) 0;
     }
@@ -202,24 +211,25 @@ ged_solids_on_ray_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc != 1 && argc != 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
     if (argc == 3 &&
-	(sscanf(argv[1], "%d", &h) != 1 ||
-	 sscanf(argv[2], "%d", &v) != 1)) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	(!argv[1] || !argv[2] ||
+	 bu_sscanf(argv[1], "%d", &h) != 1 ||
+	 bu_sscanf(argv[2], "%d", &v) != 1)) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
     if ((int)BV_MIN > h || h > (int)BV_MAX || (int)BV_MIN > v || v > (int)BV_MAX) {
-	bu_vls_printf(gedp->ged_result_str, "Screen coordinates out of range\nMust be between +/-2048");
+	bu_vls_printf(gedp->ged_result_str, "Screen coordinates out of range\nMust be between +/-2048\n");
 	return BRLCAD_ERROR;
     }
 
@@ -274,16 +284,23 @@ ged_solids_on_ray_core(struct ged *gedp, int argc, const char *argv[])
 
     snames = skewer_solids(gedp, solids_on_ray_cmd_vec_len, (const char **)solids_on_ray_cmd_vec, ray_orig, ray_dir, 1);
 
+    for (i = 0; i < solids_on_ray_cmd_vec_len; ++i) {
+	if (solids_on_ray_cmd_vec[i])
+	    bu_free(solids_on_ray_cmd_vec[i], "solids_on_ray_cmd_vec item");
+    }
     bu_free(solids_on_ray_cmd_vec, "free solids_on_ray_cmd_vec");
     solids_on_ray_cmd_vec = NULL;
 
     if (snames == 0) {
-	bu_vls_printf(gedp->ged_result_str, "Error executing skewer_solids: ");
+	bu_vls_printf(gedp->ged_result_str, "Error executing skewer_solids:\n");
 	return BRLCAD_ERROR;
     }
 
-    for (i = 0; snames[i] != 0; ++i)
+    for (i = 0; snames[i] != 0; ++i) {
 	bu_vls_printf(gedp->ged_result_str, " %s", snames[i]);
+	bu_free(snames[i], "hit path string");
+    }
+    bu_vls_printf(gedp->ged_result_str, "\n");
 
     bu_free((void *) snames, "solid names");
 

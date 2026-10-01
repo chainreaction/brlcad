@@ -47,7 +47,9 @@ extern "C" {
 static size_t
 _stat_find_first_unescaped(std::string &s, const char *keys, int offset)
 {
-    int off = offset;
+    if (!keys || offset < 0)
+	return std::string::npos;
+    size_t off = (size_t)offset;
     int done = 0;
     size_t candidate = std::string::npos;
     while (!done) {
@@ -172,110 +174,104 @@ static int
 cmp_dps(const void *a, const void *b, void *arg)
 {
     int cmp = 0;
+    if (!a || !b || !arg)
+	return 0;
     struct directory *dp1 = *(struct directory **)a;
     struct directory *dp2 = *(struct directory **)b;
+    if (!dp1 || !dp2)
+	return (dp1 ? 1 : (dp2 ? -1 : 0));
     struct cmp_dps_arg *sarg = (struct cmp_dps_arg *)arg;
     std::vector<std::string> *keys = sarg->keys;
     struct db_i *dbip = sarg->dbip;
-    // Try each of the specified criteria until we get
-    // a decision
+    if (!keys || !dbip)
+	return 0;
+
+    // Try each of the specified criteria until we get a decision
     for (size_t i = 0; i < keys->size(); i++) {
 	int flip = 1;
-	struct bu_vls key = BU_VLS_INIT_ZERO;
-	bu_vls_sprintf(&key, "%s", (*keys)[i].c_str());
-	if (bu_vls_cstr(&key)[0] == '!') {
-	    bu_vls_nibble(&key, 1);
+	std::string key = (*keys)[i];
+	if (!key.empty() && key[0] == '!') {
+	    key.erase(0, 1);
 	    flip = -1;
 	}
-	if (BU_STR_EQUAL(bu_vls_cstr(&key), "name")) {
+	if (key == "name") {
 	    cmp = alphanum_impl((const char *)dp1->d_namep, (const char *)dp2->d_namep, arg);
 	    if (cmp) {
-		bu_vls_free(&key);
 		return flip * cmp;
 	    }
 	    continue;
 	}
-	if (BU_STR_EQUAL(bu_vls_cstr(&key), "uses")) {
+	if (key == "uses") {
 	    cmp = (dp1->d_uses > dp2->d_uses);
 	    if (cmp) {
-		bu_vls_free(&key);
 		return flip * cmp;
 	    }
 	    cmp = (dp1->d_uses < dp2->d_uses);
 	    if (cmp) {
-		bu_vls_free(&key);
 		return -1 * flip * cmp;
 	    }
 	    continue;
 	}
-	if (BU_STR_EQUAL(bu_vls_cstr(&key), "refs")) {
+	if (key == "refs") {
 	    cmp = (dp1->d_nref > dp2->d_nref);
 	    if (cmp) {
-		bu_vls_free(&key);
 		return flip * cmp;
 	    }
 	    cmp = (dp1->d_nref < dp2->d_nref);
 	    if (cmp) {
-		bu_vls_free(&key);
 		return -1 * flip * cmp;
 	    }
 	    continue;
 	}
-	if (BU_STR_EQUAL(bu_vls_cstr(&key), "flags")) {
+	if (key == "flags") {
 	    cmp = (dp1->d_flags > dp2->d_flags);
 	    if (cmp) {
-		bu_vls_free(&key);
 		return flip * cmp;
 	    }
 	    cmp = (dp1->d_flags < dp2->d_flags);
 	    if (cmp) {
-		bu_vls_free(&key);
 		return -1 * flip * cmp;
 	    }
 	    continue;
 	}
-	if (BU_STR_EQUAL(bu_vls_cstr(&key), "major_type")) {
+	if (key == "major_type") {
 	    cmp = (dp1->d_major_type > dp2->d_major_type);
 	    if (cmp) {
-		bu_vls_free(&key);
 		return flip * cmp;
 	    }
 	    cmp = (dp1->d_major_type < dp2->d_major_type);
 	    if (cmp) {
-		bu_vls_free(&key);
 		return -1 * flip * cmp;
 	    }
 	    continue;
 	}
-	if (BU_STR_EQUAL(bu_vls_cstr(&key), "minor_type")) {
+	if (key == "minor_type") {
 	    cmp = (dp1->d_minor_type > dp2->d_minor_type);
 	    if (cmp) {
-		bu_vls_free(&key);
 		return flip * cmp;
 	    }
 	    cmp = (dp1->d_minor_type < dp2->d_minor_type);
 	    if (cmp) {
-		bu_vls_free(&key);
 		return -1 * flip * cmp;
 	    }
 	    continue;
 	}
-	if (BU_STR_EQUAL(bu_vls_cstr(&key), "type")) {
+	if (key == "type") {
 	    struct bu_vls n1 = BU_VLS_INIT_ZERO;
 	    struct bu_vls n2 = BU_VLS_INIT_ZERO;
 	    type_str(&n1, dp1, dbip);
 	    type_str(&n2, dp2, dbip);
 	    cmp = bu_strcmp(bu_vls_cstr(&n1), bu_vls_cstr(&n2));
+	    bu_vls_free(&n1);
+	    bu_vls_free(&n2);
 	    if (cmp) {
-		bu_vls_free(&key);
 		return flip * cmp;
 	    }
 	    continue;
 	}
-	if (BU_STR_EQUAL(bu_vls_cstr(&key), "size")) {
+	if (key == "size") {
 	    cmp = (dp1->d_len > dp2->d_len);
 	    if (cmp) {
-		bu_vls_free(&key);
 		return flip * cmp;
 	    }
 	    cmp = (dp1->d_len < dp2->d_len);
@@ -296,18 +292,15 @@ cmp_dps(const void *a, const void *b, void *arg)
 	    continue;
 	}
 
-	struct bu_vls str = BU_VLS_INIT_ZERO;
-	bu_vls_sprintf(&str, "%s", bu_vls_cstr(&key));
+	std::string attr_name = key;
 	/* attr: is a special key to allow a stat output to print arbitrary attribute values. */
-	if (!bu_strncmp(bu_vls_cstr(&str), "attr:", 5)) {
-	    bu_vls_nibble(&str, 5);
+	if (attr_name.rfind("attr:", 0) == 0) {
+	    attr_name.erase(0, 5);
 	}
-	cmp = bu_strcmp(bu_avs_get(&avs1, bu_vls_cstr(&str)), bu_avs_get(&avs2, bu_vls_cstr(&str)));
+	cmp = bu_strcmp(bu_avs_get(&avs1, attr_name.c_str()), bu_avs_get(&avs2, attr_name.c_str()));
 	bu_avs_free(&avs1);
 	bu_avs_free(&avs2);
-	bu_vls_free(&str);
 	if (cmp) {
-	    bu_vls_free(&key);
 	    return flip * cmp;
 	}
     }
@@ -318,6 +311,9 @@ cmp_dps(const void *a, const void *b, void *arg)
 void
 dpath_sort(void *paths, int path_cnt, const char *col_order, struct ged *gedp)
 {
+    if (!paths || path_cnt <= 1 || !col_order || !gedp || !gedp->dbip)
+	return;
+
     struct cmp_dps_arg sarg;
     std::vector<std::string> keys;
     sarg.dbip = gedp->dbip;
@@ -333,14 +329,16 @@ dpath_sort(void *paths, int path_cnt, const char *col_order, struct ged *gedp)
 static void
 stat_output(struct bu_tbl *table, struct ged *gedp, struct directory *dp, const char *key, int raw)
 {
-    struct bu_vls str = BU_VLS_INIT_ZERO;
+    if (!table || !gedp || !gedp->dbip || !dp || !key)
+	return;
 
     if (BU_STR_EQUAL(key, "name")) {
-	bu_tbl_write(table, dp->d_namep);
+	bu_tbl_write(table, dp->d_namep ? dp->d_namep : "");
 	return;
     }
 
     if (BU_STR_EQUAL(key, "uses")) {
+	struct bu_vls str = BU_VLS_INIT_ZERO;
 	bu_vls_sprintf(&str, "%ld", dp->d_uses);
 	bu_tbl_write(table, bu_vls_cstr(&str));
 	bu_vls_free(&str);
@@ -348,6 +346,7 @@ stat_output(struct bu_tbl *table, struct ged *gedp, struct directory *dp, const 
     }
 
     if (BU_STR_EQUAL(key, "refs")) {
+	struct bu_vls str = BU_VLS_INIT_ZERO;
 	bu_vls_sprintf(&str, "%ld", dp->d_nref);
 	bu_tbl_write(table, bu_vls_cstr(&str));
 	bu_vls_free(&str);
@@ -356,6 +355,7 @@ stat_output(struct bu_tbl *table, struct ged *gedp, struct directory *dp, const 
 
     if (BU_STR_EQUAL(key, "flags")) {
 	// TODO - some sort of human intuitive printing
+	struct bu_vls str = BU_VLS_INIT_ZERO;
 	bu_vls_sprintf(&str, "%d", dp->d_flags);
 	bu_tbl_write(table, bu_vls_cstr(&str));
 	bu_vls_free(&str);
@@ -364,6 +364,7 @@ stat_output(struct bu_tbl *table, struct ged *gedp, struct directory *dp, const 
 
     if (BU_STR_EQUAL(key, "major_type")) {
 	// TODO - some sort of human intuitive printing
+	struct bu_vls str = BU_VLS_INIT_ZERO;
 	bu_vls_sprintf(&str, "%d", dp->d_major_type);
 	bu_tbl_write(table, bu_vls_cstr(&str));
 	bu_vls_free(&str);
@@ -372,6 +373,7 @@ stat_output(struct bu_tbl *table, struct ged *gedp, struct directory *dp, const 
 
     if (BU_STR_EQUAL(key, "minor_type")) {
 	// TODO - some sort of human intuitive printing
+	struct bu_vls str = BU_VLS_INIT_ZERO;
 	bu_vls_sprintf(&str, "%d", dp->d_minor_type);
 	bu_tbl_write(table, bu_vls_cstr(&str));
 	bu_vls_free(&str);
@@ -388,6 +390,7 @@ stat_output(struct bu_tbl *table, struct ged *gedp, struct directory *dp, const 
     }
 
     if (BU_STR_EQUAL(key, "size")) {
+	struct bu_vls str = BU_VLS_INIT_ZERO;
 	if (raw) {
 	    bu_vls_sprintf(&str, "%zd", dp->d_len);
 	} else {
@@ -406,10 +409,11 @@ stat_output(struct bu_tbl *table, struct ged *gedp, struct directory *dp, const 
     // If we've gotten this far, we're after an attribute
     struct bu_attribute_value_set avs = BU_AVS_INIT_ZERO;
     if (db5_get_attributes(gedp->dbip, &avs, dp)) {
-	bu_log("Error: cannot get attributes for object %s\n", dp->d_namep);
+	bu_log("Error: cannot get attributes for object %s\n", dp->d_namep ? dp->d_namep : "");
 	return;
     }
 
+    struct bu_vls str = BU_VLS_INIT_ZERO;
     bu_vls_sprintf(&str, "%s", key);
     /* attr: is a prefix to allow a stat output to print arbitrary attribute values, even if
      * the attribute name matches one of the "defined" keys. */
@@ -456,7 +460,7 @@ ged_stat_core(struct ged *gedp, int argc, const char *argv[])
     if (!gedp || !argc || !argv)
 	return BRLCAD_ERROR;
 
-    int print_help = 0;;
+    int print_help = 0;
     long verbosity = 1;
     long quiet = 0;
     int raw = 0;
@@ -476,17 +480,17 @@ ged_stat_core(struct ged *gedp, int argc, const char *argv[])
     // Clear result string
     bu_vls_trunc(gedp->ged_result_str, 0);
 
-    struct bu_opt_desc d[9];
+    struct bu_opt_desc d[10];
     BU_OPT(d[0], "h", "help",       "",            NULL,              &print_help,    "Print help and exit");
     BU_OPT(d[1], "?", "",           "",            NULL,              &print_help,    "");
     BU_OPT(d[2], "v", "verbosity",  "",            &bu_opt_incr_long, &verbosity,     "Increase output verbosity (multiple specifications of -v increase verbosity more)");
     BU_OPT(d[3], "q", "quiet",      "",            &bu_opt_incr_long, &quiet,         "Decrease output verbosity (multiple specifications of -q decrease verbosity more)");
-    BU_OPT(d[3], "r", "raw",       "",             NULL ,             &raw,           "Print raw values instead of human friendly values");
-    BU_OPT(d[4], "F", "filter",     "\"string\"",  &bu_opt_vls,       &search_filter, "Filter objects being reported (uses search style filter specifications)");
-    BU_OPT(d[5], "C", "columns",       "\"type1[,type2]...\"",  &bu_opt_vls,       &keys_str,      "Comma separated list of data columns to print");
-    BU_OPT(d[6], "S", "sort-order",       "\"type1[,type2]...\"",  &bu_opt_vls,       &sort_str,      "Comma separated list of cols to sort by (priority is left to right).  To reverse sorting order for an individual column, prefix the specifier with a '!' character.");
-    BU_OPT(d[7], "o", "output-file",    "filename",  &bu_opt_vls,       &ofile,      "Write output to file");
-    BU_OPT_NULL(d[8]);
+    BU_OPT(d[4], "r", "raw",        "",            NULL ,             &raw,           "Print raw values instead of human friendly values");
+    BU_OPT(d[5], "F", "filter",     "\"string\"",  &bu_opt_vls,       &search_filter, "Filter objects being reported (uses search style filter specifications)");
+    BU_OPT(d[6], "C", "columns",    "\"type1[,type2]...\"",  &bu_opt_vls,       &keys_str,      "Comma separated list of data columns to print");
+    BU_OPT(d[7], "S", "sort-order", "\"type1[,type2]...\"",  &bu_opt_vls,       &sort_str,      "Comma separated list of cols to sort by (priority is left to right).  To reverse sorting order for an individual column, prefix the specifier with a '!' character.");
+    BU_OPT(d[8], "o", "output-file","filename",    &bu_opt_vls,       &ofile,         "Write output to file");
+    BU_OPT_NULL(d[9]);
 
     int ret_ac = bu_opt_parse(&msg, argc, argv, d);
     if (ret_ac < 0) {
@@ -525,13 +529,13 @@ ged_stat_core(struct ged *gedp, int argc, const char *argv[])
     if (bu_vls_strlen(&ofile)) {
 	int oret = 0;
 	if (bu_file_exists(bu_vls_cstr(&ofile), NULL)) {
-	    bu_vls_printf(gedp->ged_result_str, "%s already exists, not overwriting", bu_vls_cstr(&ofile));
+	    bu_vls_printf(gedp->ged_result_str, "%s already exists, not overwriting\n", bu_vls_cstr(&ofile));
 	    oret = 1;
 	}
 	if (!oret) {
 	    fp = fopen(bu_vls_cstr(&ofile), "wb");
 	    if (!fp) {
-		bu_vls_printf(gedp->ged_result_str, "failed to open %s", bu_vls_cstr(&ofile));
+		bu_vls_printf(gedp->ged_result_str, "failed to open %s\n", bu_vls_cstr(&ofile));
 		oret = 1;
 	    }
 	}
@@ -602,12 +606,14 @@ ged_stat_core(struct ged *gedp, int argc, const char *argv[])
     std::set<struct directory *> udp;
 
     for (int i = 0; i < argc; i++) {
+	if (!argv[i])
+	    continue;
 
 	struct directory **paths = NULL;
 	int path_cnt = db_ls(gedp->dbip, DB_LS_HIDDEN, argv[i], &paths);
 
 	if (!paths) {
-	    bu_log("WARNING:  path specifier %s does not match any geometry - skipping", argv[i]);
+	    bu_log("WARNING:  path specifier %s does not match any geometry - skipping\n", argv[i]);
 	    continue;
 	}
 
