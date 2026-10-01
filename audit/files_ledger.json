@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1188,
-    "pending_files": 2305,
-    "last_updated": "2026-09-30T22:35:00Z",
-    "total_issues": 269,
-    "reviewed_count": 535
+    "reviewed_files": 1198,
+    "pending_files": 2295,
+    "last_updated": "2026-09-30T22:45:00Z",
+    "total_issues": 270,
+    "reviewed_count": 545
   },
   "files": [
     {
@@ -26043,100 +26043,110 @@
       "path": "src/libged/tests/check_prim_cmds.cpp",
       "subsystem": "src/libged",
       "lines": 81,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0270"
     },
     {
       "id": 2450,
       "path": "src/libged/tests/create/create_parity.c",
       "subsystem": "src/libged",
       "lines": 240,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0270"
     },
     {
       "id": 2451,
       "path": "src/libged/tests/create/create_parity.h",
       "subsystem": "src/libged",
       "lines": 106,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0270"
     },
     {
       "id": 2452,
       "path": "src/libged/tests/create/in_cases.c",
       "subsystem": "src/libged",
       "lines": 126,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0270"
     },
     {
       "id": 2453,
       "path": "src/libged/tests/create/make_cases.c",
       "subsystem": "src/libged",
       "lines": 216,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0270"
     },
     {
       "id": 2454,
       "path": "src/libged/tests/draw/aet.cpp",
       "subsystem": "src/libged",
       "lines": 386,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0270"
     },
     {
       "id": 2455,
       "path": "src/libged/tests/draw/annotate.cpp",
       "subsystem": "src/libged",
       "lines": 724,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0270"
     },
     {
       "id": 2456,
       "path": "src/libged/tests/draw/basic.cpp",
       "subsystem": "src/libged",
       "lines": 792,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0270"
     },
     {
       "id": 2457,
       "path": "src/libged/tests/draw/draw_color.cpp",
       "subsystem": "src/libged",
       "lines": 195,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0270"
     },
     {
       "id": 2458,
       "path": "src/libged/tests/draw/faceplate.cpp",
       "subsystem": "src/libged",
       "lines": 355,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issue": "SEC-0270"
     },
     {
       "id": 2459,
