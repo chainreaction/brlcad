@@ -83,18 +83,18 @@ ged_aet_core(struct ged *gedp, int argc, const char *argv[])
     if (argc == 3 || argc == 4) {
 	double scan[3];
 
-	if (sscanf(argv[1], "%lf", &scan[X]) != 1) {
+	if (bu_sscanf(argv[1], "%lf", &scan[X]) != 1) {
 	    bu_vls_printf(gedp->ged_result_str, "%s: bad azimuth - %s\n", argv[0], argv[1]);
 	    return BRLCAD_ERROR;
 	}
 
-	if (sscanf(argv[2], "%lf", &scan[Y]) != 1) {
+	if (bu_sscanf(argv[2], "%lf", &scan[Y]) != 1) {
 	    bu_vls_printf(gedp->ged_result_str, "%s: bad elevation - %s\n", argv[0], argv[2]);
 	    return BRLCAD_ERROR;
 	}
 
 	if (argc == 4) {
-	    if (sscanf(argv[3], "%lf", &scan[Z]) != 1) {
+	    if (bu_sscanf(argv[3], "%lf", &scan[Z]) != 1) {
 		bu_vls_printf(gedp->ged_result_str, "%s: bad twist - %s\n", argv[0], argv[3]);
 		return BRLCAD_ERROR;
 	    }

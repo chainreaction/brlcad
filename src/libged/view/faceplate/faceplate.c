@@ -120,6 +120,7 @@ _fp_cmd_center_dot(void *ds, int argc, const char **argv)
 	if (bu_opt_color(&msg, argc, argv, &c) == -1) {
 	    bu_vls_printf(gedp->ged_result_str, "invalid color specification\n");
 	}
+	bu_vls_free(&msg);
 	int *cls = (int *)(v->gv_s->gv_center_dot.gos_line_color);
 	bu_color_to_rgb_ints(&c, &cls[0], &cls[1], &cls[2]);
 	return BRLCAD_OK;
@@ -222,6 +223,7 @@ _fp_cmd_scale(void *ds, int argc, const char **argv)
 	if (bu_opt_color(&msg, argc, argv, &c) == -1) {
 	    bu_vls_printf(gedp->ged_result_str, "invalid color specification\n");
 	}
+	bu_vls_free(&msg);
 	int *cls = (int *)(v->gv_s->gv_view_scale.gos_line_color);
 	bu_color_to_rgb_ints(&c, &cls[0], &cls[1], &cls[2]);
 	return BRLCAD_OK;
@@ -315,6 +317,7 @@ _fp_cmd_params(void *ds, int argc, const char **argv)
 	    if (bu_opt_color(&msg, argc, argv, &c) == -1) {
 		bu_vls_printf(gedp->ged_result_str, "invalid color specification\n");
 	    }
+	    bu_vls_free(&msg);
 	    int *cls = (int *)(v->gv_s->gv_view_params.color);
 	    bu_color_to_rgb_ints(&c, &cls[0], &cls[1], &cls[2]);
 	    return BRLCAD_OK;
@@ -374,6 +377,7 @@ _fp_cmd_params(void *ds, int argc, const char **argv)
 	    if (bu_opt_int(&msg, argc, argv, &fsize) == -1) {
 		bu_vls_printf(gedp->ged_result_str, "invalid font size specification\n");
 	    }
+	    bu_vls_free(&msg);
 	    v->gv_s->gv_view_params.font_size = fsize;
 	    return BRLCAD_OK;
 	}
