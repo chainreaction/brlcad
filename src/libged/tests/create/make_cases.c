@@ -109,6 +109,9 @@ const char* skip_labels[] = {
 
 static int make_obj(struct ged *gedp, const char *name, const char *label,
 		    const char *scale, const char *origin) {
+    if (!gedp || !name || !label)
+	return BRLCAD_ERROR;
+
     /* make [-s scale] [-o origin] name label */
     const char *av[8];
     int n = 0;
@@ -131,6 +134,9 @@ static int make_obj(struct ged *gedp, const char *name, const char *label,
 
 
 int build_obj(struct ged *gedp, const char *name, const char *label, const char *args) {
+    if (!gedp || !name || !label)
+	return BRLCAD_ERROR;
+
     /* ignore args until we have a use for them */
     (void)args;
 
@@ -145,6 +151,9 @@ int build_obj(struct ged *gedp, const char *name, const char *label, const char 
  * - extrude creates a new sketch (original make is skt_0, second is skt_1)
  */
 static int trans_exempt(const char *label) {
+    if (!label)
+	return 0;
+
     return BU_STR_EQUAL(label, "arbn") ||
 	   BU_STR_EQUAL(label, "datum") ||
 	   BU_STR_EQUAL(label, "extrude");
@@ -158,6 +167,9 @@ int extra_checks(struct ged *gedp) {
     char buff[64];
     mat_t xlate;
     int failures = 0;
+
+    if (!gedp || !gedp->dbip)
+	return 0;
 
     /* -o origin: must produce the base object (created at the origin in create_parity.c)
      * translated exactly.  We snapshot the base THROUGH a translation matrix and 

@@ -27,6 +27,8 @@
 #include "common.h"
 
 #include <cstdio>
+#include <cstring>
+#include <iostream>
 #include <set>
 
 #include <bu.h>
@@ -34,11 +36,12 @@
 #include <ged.h>
 
 int
-main(int UNUSED(argc), const char **argv)
+main(int argc, const char **argv)
 {
-    std::set<std::string> skip_names;
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
 
+    std::set<std::string> skip_names;
     skip_names.insert(std::string("NULL"));
     skip_names.insert(std::string("UNUSED1"));
     skip_names.insert(std::string("UNUSED2"));
@@ -48,7 +51,7 @@ main(int UNUSED(argc), const char **argv)
 
     const struct rt_functab *ftp;
     for (ftp = OBJ; ftp->magic != 0; ftp++) {
-	if (!ftp || !strlen(ftp->ft_label))
+	if (!ftp || ftp->ft_label[0] == '\0')
 	    continue;
 	if (skip_names.find(std::string(ftp->ft_label)) != skip_names.end())
 	    continue;

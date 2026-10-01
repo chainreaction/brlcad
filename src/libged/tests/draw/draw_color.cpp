@@ -47,6 +47,9 @@ write_group(struct rt_wdb *wdbp, const char *name,
 static bool
 create_fixture(const char *path, ExpectedColors &expected)
 {
+    if (!path)
+	return false;
+
     std::unique_ptr<struct rt_wdb, decltype(&wdb_close)> database(wdb_fopen(path), wdb_close);
     if (!database)
 	return false;
@@ -104,6 +107,9 @@ create_fixture(const char *path, ExpectedColors &expected)
 static bool
 check_drawing(struct ged *gedp, const char *mode, const ExpectedColors &expected, bool override_color)
 {
+    if (!gedp || !gedp->i || !gedp->i->ged_gdp || !gedp->i->ged_gdp->gd_headDisplay || !mode)
+	return false;
+
     const char *zap[] = {"zap", NULL};
     if (ged_exec_zap(gedp, 1, zap) != BRLCAD_OK)
 	return false;
@@ -125,7 +131,10 @@ check_drawing(struct ged *gedp, const char *mode, const ExpectedColors &expected
 	    const auto *data = static_cast<const struct ged_bv_data *>(object->s_u_data);
 	    if (!data || data->s_fullpath.fp_len == 0)
 		return false;
-	    const char *name = DB_FULL_PATH_CUR_DIR(&data->s_fullpath)->d_namep;
+	    const struct directory *dp = DB_FULL_PATH_CUR_DIR(&data->s_fullpath);
+	    if (!dp || !dp->d_namep)
+		return false;
+	    const char *name = dp->d_namep;
 	    const auto found = remaining.find(name);
 	    if (found == remaining.end()) {
 		bu_log("unexpected or duplicate drawn object: %s\n", name);
@@ -150,6 +159,9 @@ check_drawing(struct ged *gedp, const char *mode, const ExpectedColors &expected
 int
 main(int argc, char **argv)
 {
+    if (argc < 1 || !argv || !argv[0])
+	return 1;
+
     bu_setprogname(argv[0]);
     if (argc != 1)
 	return 1;

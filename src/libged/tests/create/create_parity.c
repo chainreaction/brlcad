@@ -57,7 +57,10 @@ static int case_covered(const char *label) {
     const struct cp_case *test_case;
     int i;
 
-    for (test_case = pass_cases; test_case->label; test_case++)
+    if (!label)
+	return 0;
+
+    for (test_case = pass_cases; test_case && test_case->label; test_case++)
 	if (BU_STR_EQUAL(test_case->label, label))
 	    return 1;
 
@@ -83,7 +86,7 @@ static int check_coverage(void) {
     int missing = 0;
 
     for (ftp = OBJ; ftp->magic != 0; ftp++) {
-	if (ftp->ft_label[0] == ' ' || ftp->ft_label[0] == '\0')
+	if (!ftp || ftp->ft_label[0] == ' ' || ftp->ft_label[0] == '\0')
 	    continue;
 	if (BU_STR_EQUAL(ftp->ft_label, "NULL") ||
 	    bu_strncmp(ftp->ft_label, "UNUSED", 6) == 0)
@@ -97,9 +100,10 @@ static int check_coverage(void) {
 }
 
 /* create tempfile .g */
-static struct ged* open_test_db(void) {
-    char tmppath[MAXPATHLEN] = {0};
-    FILE *fp = bu_temp_file(tmppath, MAXPATHLEN);
+static struct ged* open_test_db(char *tmppath, size_t maxlen) {
+    if (!tmppath || maxlen == 0)
+	return NULL;
+    FILE *fp = bu_temp_file(tmppath, maxlen);
     struct rt_wdb *wdbp;
     struct ged *gedp;
 
@@ -108,11 +112,15 @@ static struct ged* open_test_db(void) {
     fclose(fp);
 
     wdbp = wdb_fopen(tmppath);
-    if (!wdbp)
+    if (!wdbp) {
+	bu_file_delete(tmppath);
 	return NULL;
-    db_close(wdbp->dbip);
+    }
+    wdb_close(wdbp);
 
     gedp = ged_open("db", tmppath, 1);
+    if (!gedp)
+	bu_file_delete(tmppath);
     return gedp;
 }
 
@@ -123,6 +131,9 @@ int snapshot(struct ged *gedp, const char *name, const mat_t mat, struct bu_vls 
     struct directory *dp;
     struct rt_db_internal intern;
     int ret;
+
+    if (!gedp || !gedp->dbip || !name || !out)
+	return 1;
 
     dp = db_lookup(gedp->dbip, name, LOOKUP_QUIET);
     if (dp == RT_DIR_NULL)
@@ -146,24 +157,28 @@ int snapshot(struct ged *gedp, const char *name, const mat_t mat, struct bu_vls 
 int main(int argc, char *argv[]) {
     struct ged *gedp;
     const struct cp_case* test_case;
+    char tmppath[MAXPATHLEN] = {0};
     int failures = 0;
     int i;
     int dump_mode = 0;	/* useful for setting 'expected' rows */
 
+    if (argc < 1 || !argv || !argv[0])
+	return 1;
+
     bu_setprogname(argv[0]);
     /* optional "dump" arg for manual testing */
-    if (argc > 1 && BU_STR_EQUAL(argv[1], "dump"))
+    if (argc > 1 && argv[1] && BU_STR_EQUAL(argv[1], "dump"))
 	dump_mode = 1;
 
     /* set up a scratch database */
-    gedp = open_test_db();
+    gedp = open_test_db(tmppath, sizeof(tmppath));
     if (!gedp) {
 	bu_log("ERROR: could not open test database\n");
 	return 1;
     }
 
     /* (first pass)passing cases: output == expected */
-    for (test_case = pass_cases; test_case->label; test_case++) {
+    for (test_case = pass_cases; test_case && test_case->label; test_case++) {
 	struct bu_vls got = BU_VLS_INIT_ZERO;
 
 	build_obj(gedp, test_case->label, test_case->label, test_case->args);
@@ -178,7 +193,7 @@ int main(int argc, char *argv[]) {
 		       test_case->args ? "\"" : "", bu_vls_cstr(&got));
 	    }
 	} else if (snapshot(gedp, test_case->label, NULL, &got)) {
-	    bu_log("FAIL(%s): could not snapshot created object\n", test_case->label);
+		bu_log("FAIL(%s): could not snapshot created object\n", test_case->label);
 	    failures++;
 	} else if (!test_case->expected || !BU_STR_EQUAL(bu_vls_cstr(&got), test_case->expected)) {
 	    bu_log("FAIL(%s):\n  exp {%s}\n  got {%s}\n",
@@ -191,6 +206,7 @@ int main(int argc, char *argv[]) {
     /* just want to dump values, we're done */
     if (dump_mode) {
 	ged_close(gedp);
+	bu_file_delete(tmppath);
 	return 0;
     }
 
@@ -210,6 +226,7 @@ int main(int argc, char *argv[]) {
     failures += extra_checks(gedp);
 
     ged_close(gedp);
+    bu_file_delete(tmppath);
 
     /* (final)coverage: every ft_label librt exposes must have a case above */
     failures += check_coverage();

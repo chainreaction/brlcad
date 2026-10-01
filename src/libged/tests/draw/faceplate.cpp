@@ -48,6 +48,9 @@ main(int ac, char *av[]) {
     int keep_images = 0;
     int ret = BRLCAD_OK;
 
+    if (ac < 1 || !av || !av[0])
+	return 1;
+
     bu_setprogname(av[0]);
 
     struct bu_opt_desc d[5];
@@ -59,10 +62,12 @@ main(int ac, char *av[]) {
 
     /* Done with program name */
     int uac = bu_opt_parse(NULL, ac, (const char **)av, d);
-    if (uac == -1 || need_help)
-
-    if (ac != 2)
-	bu_exit(EXIT_FAILURE, "%s [-h] [-U] <directory>", av[0]);
+    if (uac == -1 || need_help || ac != 2 || !av[1]) {
+	char *help = bu_opt_describe(d, NULL);
+	bu_log("Usage: %s [-h] [-U] [-c] [-k] <directory>\n%s\n", av[0], help ? help : "");
+	bu_free(help, "help");
+	return need_help ? 0 : 1;
+    }
 
     if (!bu_file_directory(av[1])) {
 	printf("ERROR: [%s] is not a directory.  Expecting control image directory\n", av[1]);
@@ -338,8 +343,9 @@ main(int ac, char *av[]) {
 
     bu_log("Done.\n");
 
-
     ged_close(gedp);
+    bu_vls_free(&fname);
+    bu_dirclear(lcache);
 
     return ret;
 }

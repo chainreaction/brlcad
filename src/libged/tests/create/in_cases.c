@@ -77,6 +77,9 @@ const char* skip_labels[] = {
 };
 
 int build_obj(struct ged *gedp, const char *name, const char *label, const char *args) {
+    if (!gedp || !name || !label)
+	return BRLCAD_ERROR;
+
     /* in <label> [list of args] */
     const char *av[64];
     char *tokbuf = NULL;

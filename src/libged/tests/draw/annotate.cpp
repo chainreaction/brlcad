@@ -61,6 +61,9 @@ extern "C" int unpack_apng(const char *, const char *, const char *, const char 
 static void
 verify_legacy_annotation_coloring(struct ged *gedp)
 {
+    if (!gedp || !gedp->dbip)
+	return;
+
     const unsigned char default_annotation_color[3] = {255, 255, 255};
     const char *create_argv[] = {
 	"annotate", "text", "--no-draw", "--at", "0 0 0",
@@ -262,8 +265,13 @@ verify_geometry_update(struct ged *gedp)
     const char *dimension_name = "annotate-update-dim";
     point_t center = VINIT_ZERO;
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
-    if (mk_sph(wdbp, source_name, center, 10.0))
+    if (!wdbp)
+	bu_exit(EXIT_FAILURE, "Unable to open wdb for autodim update source\n");
+    if (mk_sph(wdbp, source_name, center, 10.0)) {
+	wdb_close(wdbp);
 	bu_exit(EXIT_FAILURE, "Unable to create autodim update source\n");
+    }
+    wdb_close(wdbp);
 
     const char *create_argv[] = {
 	"annotate", "autodim", "--no-draw", "--axes", "x,y", "--precision", "1",
@@ -391,10 +399,14 @@ main(int argc, const char **argv)
 	"Continue after an image mismatch");
     BU_OPT_NULL(options[3]);
 
+    if (argc < 1 || !argv || !argv[0])
+	bu_exit(EXIT_FAILURE,
+	    "Usage: ged_test_annotate [-G] [-k] [-c] control-directory m35.g\n");
+
     bu_setprogname(argv[0]);
     argc--; argv++;
     int remaining = bu_opt_parse(NULL, argc, argv, options);
-    if (remaining != 2)
+    if (remaining != 2 || !argv[0] || !argv[1])
 	bu_exit(EXIT_FAILURE,
 	    "Usage: ged_test_annotate [-G] [-k] [-c] control-directory m35.g\n");
     const char *control_dir = argv[0];
