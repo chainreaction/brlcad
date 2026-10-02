@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-10-02 04:51:00 UTC
+**Last Updated:** 2026-10-02 05:10:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 1307 (37.4%)
-- **Files Pending Review:** 2186
-- **Total Issues Identified:** 300
+- **Files Reviewed:** 1316 (37.7%)
+- **Files Pending Review:** 2177
+- **Total Issues Identified:** 301
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 225 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 226 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 52 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 300
+- **Fixed (Committed):** 301
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -103,7 +103,7 @@
 | `src/libtclcad` | 31 | 0 | 0.0% | 0 |
 | `src/libtermio` | 2 | 2 | 100.0% | 1 |
 | `src/libwdb` | 27 | 27 | 100.0% | 2 |
-| `src/mged` | 55 | 0 | 0.0% | 0 |
+| `src/mged` | 55 | 9 | 16.4% | 1 |
 | `src/nirt` | 2 | 2 | 100.0% | 1 |
 | `src/proc-db` | 55 | 0 | 0.0% | 0 |
 | `src/qged` | 34 | 0 | 0.0% | 0 |
@@ -399,3 +399,4 @@
 | `SEC-0279` | **Sev 2** | Double-Free / Memory Corruption, Memory Leaks, Process Abort, Integer Overflow, and Missing Validation | `src/libwdb (Batch 37: mater through wdb, completing src/libwdb)` | `FIXED` | In BRL-CAD libwdb Batch 37 (procedural primitives, mater through wdb, 13 files, completing src/libwdb): in mater.c, added null checks on ofp and ofp->dbip, and returned -1 on unsupported v4 database rather than asserting mk_version == 4; in material.c, added null checks on wdbp and db_name, guarded against null name, parent, and source strings before bu_vls_strcpy, and validated attribute keys and values before bu_avs_merge to prevent bu_bomb aborts; in nmg.c, added null checks on filep, name, and m before NMG_CK_MODEL, and verified botp != NULL after nmg_bot conversion before export; in nurb.c, added null checks on wdbp, name, and surfs, and verified ni->nsrf > 0 (freeing ni on zero surfaces) before export; in pipe.c, added null checks on fp, name, vertex, and height, verified positive radii with ZERO macro, validated headp in mk_pipe, mk_pipe_free, and mk_pipe_init, and validated od > 0, id >= 0, id < od, and bendradius >= 0 in mk_add_pipe_pnt; in pnts.c, added null checks on pnts and pnts->point in pnts_init_head_pnt and pnts_add, checked scale >= 0.0, and validated point != NULL before adding points in mk_pnts; in reg.c, added null checks on comb and member_hd in mk_tree_pure and mk_tree_gift, guarded headp in mk_freemembers, added null checks on wdbp, combname, and headp in mk_comb, and validated membname in mk_comb1 and mk_region1; in script.c, eliminated Cat 1 memory corruption and caller memory free by allocating and duplicating scr into a newly allocated rt_script_internal before passing to wdb_export; in sketch.c, added null checks on fp, name, and skt, and checked rt_copy_sketch return before export; in submodel.c, added null checks on fp, name, and treetop; in units.c, added null check on str and ZERO() macro guards against zero conversion factor in mk_conversion and mk_set_conversion; in vol.c, added null checks on fp, name, file, cellsize, and mat, and verified positive dimensions and cell sizes; in wdb.c, eliminated memory leaks in mk_hyp by validating parameters before internal structure allocation, replaced bu_bomb in mk_metaball with internal structure cleanup and error return, guarded against integer overflow in mk_binunif allocation and validated data pointer before memcpy, and added null pointer and geometric parameter validation with ZERO macro across mk_half, mk_grip, mk_rpp, mk_wedge, mk_arb4-8, mk_sph, mk_ell, mk_tor, mk_rcc, mk_tgc, mk_cone, mk_trc_h, mk_trc_top, mk_rpc, mk_rhc, mk_epa, mk_ehy, mk_hrt, and mk_eto. |
 
 
+| `SEC-0280` | **Sev 2** | Buffer Overflow, Double-Free, Logic / Angle Calculation Bug, Memory Leaks, Array Out-of-Bounds, Division by Zero, and Missing Validation | `src/mged (Batch 38: adc through chgtree)` | `FIXED` | In BRL-CAD mged Batch 38 (adc through chgtree, 9 files): in adc.c, fixed stack buffer overflow by capping user_pt coordinate parsing to the 3-element buffer capacity, replaced atof with bu_sscanf, guarded against division by zero in grid_scale across dst, dh, dv, and hv with ZERO macro, fixed incorrect input point parameter in MAT4X3PNT (passing pos_view instead of pos_model), added null pointer guards in adc_set_dirty_flag, adc_set_scroll, adcursor, and f_adc, and replaced bu_vls_addr with bu_vls_cstr; in arbs.c, eliminated double-free on rt_db_put_internal failure and fixed memory leak of internal struct on db_diradd failure and switch default, freed temporary vls on error return, eliminated unused file-scope dead array p_arb3pt and global mutable promp pointer, replaced atof with bu_sscanf, and replaced bu_vls_addr with bu_vls_cstr; in attach.c, made release() name parameter const char *, added null check on s and wp_name in mged_attach, removed redundant null check, and replaced bu_vls_addr with bu_vls_cstr; in axes.c, guarded against aspect division by zero with ZERO macro in draw_v_axes, and added null pointer guards in draw_e_axes, draw_m_axes, and draw_v_axes; in buttons.c, added bounds-checked get_state_str() helper to prevent out-of-bounds array reads on state_str, added null pointer checks in f_press, bv_vrestore, bv_vsave, and bv_adcursor, and replaced bu_vls_addr with bu_vls_cstr; in cad_boundp.c, resolved angle calculation bug where atan2 radian output was multiplied by DEG2RAD instead of RAD2DEG (corrupting bounding polygon angle computations), moved stray debug newline output inside #ifdef DEBUG, migrated memory management to bu_malloc and bu_free, included bu/malloc.h, replaced sscanf with bu_sscanf, and added negative tolerance validation; in cad_parea.c, replaced sscanf with bu_sscanf, and routed error logging from printf to stderr to prevent corrupting redirected stdout files; in chgmodel.c, guarded divisions in f_sc_obj against zero scale denominator and scale accumulators with ZERO macro, validated scale input with bu_sscanf, verified direction vector magnitude squared in f_qorot and corrected inverted error message, replaced sprintf with snprintf and guarded view_state in f_make, and replaced bu_vls_addr with bu_vls_cstr; in chgtree.c, fixed memory leak of internal database struct on db_diradd failure in f_copy_inv, added null guards in find_solid_with_path and find_solid_below_path, ensured lhs, rhs, and both paths are properly freed on all error exit paths in cmd_oed, and replaced bu_vls_addr with bu_vls_cstr. |
