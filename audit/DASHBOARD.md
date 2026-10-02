@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-10-02 10:20:00 UTC
+**Last Updated:** 2026-10-02 10:30:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 1347 (38.6%)
-- **Files Pending Review:** 2146
-- **Total Issues Identified:** 312
+- **Files Reviewed:** 1351 (38.7%)
+- **Files Pending Review:** 2142
+- **Total Issues Identified:** 313
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 237 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 238 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 52 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 312
+- **Fixed (Committed):** 313
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -103,7 +103,7 @@
 | `src/libtclcad` | 31 | 0 | 0.0% | 0 |
 | `src/libtermio` | 2 | 2 | 100.0% | 1 |
 | `src/libwdb` | 27 | 27 | 100.0% | 2 |
-| `src/mged` | 55 | 40 | 72.7% | 12 |
+| `src/mged` | 55 | 44 | 80.0% | 13 |
 | `src/nirt` | 2 | 2 | 100.0% | 1 |
 | `src/proc-db` | 55 | 0 | 0.0% | 0 |
 | `src/qged` | 34 | 0 | 0.0% | 0 |
@@ -411,6 +411,8 @@
 | `SEC-0289` | **Sev 2** | Division by Zero, Memory Leaks, Dead Variable, Out-of-bounds Access, and Null Pointer Dereferences | `src/mged (Batch 47: mged.c)` | `FIXED` | In BRL-CAD mged Batch 47 (mged.c, 3,532 lines): eliminated floating-point division by zero in event_check when view_state->k.sca == 10.0 (where 1.0 / (1.0 - (view_state->k.sca / 10.0)) evaluated with 0.0 denominator) by validating denominator with ZERO macro; eliminated Tcl_DString memory leak in stdin_input on EOF return under non-cbreak mode; eliminated dead variable place and unused sprintf in mged_finish; guarded s->s_edit before rt_edit_destroy in mged_finish; guarded DMP and dm_bg before array indexing dm_bg[0..2] in main; guarded s->gedp before checking ged_subp table in main; added null pointer checks on s, s->s_edit, MEDIT(s), s->interp, view_state, view_state->vs_gvp, s->mged_curr_dm, DMP, curr_cmd_list, sd, and active display managers across mged_process_char, event_check, stdin_input, std_out_or_err, refresh, mged_finish, apply_cli_overrides, and main; added input_str_index bounds validation in mged_process_char; replaced raw sscanf with bu_sscanf in parse_debug_uint; and replaced all (~45) read-only bu_vls_addr calls with bu_vls_cstr. |
 | `SEC-0290` | **Sev 2** | Uninitialized Memory, Missing Header Guards, Duplicate Code, Division by Zero, Resource Leak, and Null Pointer Dereferences | `src/mged (Batch 48: mged.h, mged_dm.h, mged_impl.cpp, mged_impl.h, mged_wdb.h)` | `FIXED` | In BRL-CAD mged Batch 48 (mged.h, mged_dm.h, mged_impl.cpp, mged_impl.h, mged_wdb.h, 1,610 lines): in mged_impl.cpp, zero-initialized allocated mged_state using memset to eliminate widespread uninitialized struct pointers and flags; refactored mged_state_create to call mged_state_init_internals, eliminating duplicate 18 callback registrations (DRY); in mged_state_destroy, guarded search_snapshot, dpy_string, s_edit, and s_edit->e before destroying and delegated internal destruction to mged_state_destroy_internals; cleared cmd_map in MGED_Internal destructor; guarded internal callback map lookups, registrations, and sync against null pointers and uninitialized state in mged_internal_clbk_map, mged_state_clbk_set, mged_state_clbk_get, and mged_edit_clbk_sync; in mged.h, guarded s, s->interp, and s->dbip in CHECK_DBI_NULL and CHECK_READ_ONLY macros to prevent null pointer crashes; in mged_dm.h, converted GET_MGED_DM macro to do-while(0) and guarded tp and tp->dm_dmp before dm_get_id to prevent null pointer dereference; guarded VIEWFACTOR against division by zero with ZERO macro; in mged_impl.h, added standard header guard #ifndef MGED_MGED_IMPL_H; in mged_wdb.h, wrapped extern declarations with __BEGIN_DECLS / __END_DECLS for standard C linkage when included in C++ translation units. |
 | `SEC-0291` | **Sev 2** | Double-Free, File Descriptor Double-Close / Leaks, Logic Bugs, Memory Leaks, Division by Zero, and Null Pointer Dereferences | `src/mged (Batch 49: mover.c, overlay.c, plot.c, predictor.c, rect.c)` | `FIXED` | In BRL-CAD mged Batch 49 (mover.c, overlay.c, plot.c, predictor.c, rect.c, 1,179 lines): in mover.c, eliminated double-free in moveHobj and moveHinstance where rt_db_free_internal was called after rt_db_put_internal failure (which already frees internal database object on all outcomes), fixed memory leak in moveHinstance when combination tree is empty or object is not a combination by calling rt_db_free_internal, initialized internal database object with RT_DB_INTERNAL_INIT, and added null pointer checks on s, dbip, cdp, dp, xlate, and interp; in overlay.c, added null checks on ctp, s, gedp, mged_curr_dm, and DMP, replaced read-only bu_vls_addr with bu_vls_cstr, and explicitly returned TCL_OK; in plot.c, eliminated file descriptor double-close bug where close(fd1[1]) and close(fd3[0]) were executed after fclose(fp_w) and fclose(fp_r), fixed file descriptor leaks when subsequent pipe() calls fail, handled fork() failures gracefully, added _exit(1) after execlp calls to prevent child processes from continuing parent execution on exec failure, verified fp_w and fp_r after fdopen, guarded view_state and vs_gvp before matrix multiplication, replaced sprintf with snprintf, and replaced bu_vls_addr with bu_vls_cstr; in predictor.c, fixed logic bug in poly_trail where t1->t_nused <= 0 was checked twice instead of validating t2->t_nused, guarded division by zero in predictor_frame when frametime is zero using ZERO macro, and added null pointer checks across init_trail, push_trail, poly_trail, predictor_init, predictor_kill, predictor_frame, and predictor_hook; in rect.c, fixed critical crash in zoom_rect_area where rb_set_dirty_flag was passed NULL data causing MGED_CK_STATE abort, guarded against division by zero in rect_image2view when width <= 0, guarded against division by zero in adjust_rect_for_zoom, draw_rect, and zoom_rect_area when window aspect ratio is zero using ZERO macro, replaced bu_vls_addr with bu_vls_cstr, and added null pointer checks on s, mged_curr_dm, DMP, rubber_band, color_scheme, and interp. |
+| `SEC-0292` | **Sev 2** | Loop Index Typo / Premature DList Deallocation, File Descriptor Leaks on Interrupt, Array Out-of-Bounds, Division by Zero, and Null Pointer Dereferences | `src/mged (Batch 50: rtif.c, scroll.c, sedit.h, set.c)` | `FIXED` | In BRL-CAD mged Batch 50 (rtif.c, scroll.c, sedit.h, set.c, 1,762 lines): in set.c, fixed critical bug in set_dlist where inner loop searching for active display managers sharing display lists used outer index di instead of dj in BU_PTBL_GET and checked uninitialized dlp2, causing the search to always fail and prematurely free active display lists in other display managers; guarded display list scene object list against empty list reads when freeing display lists; guarded against division by zero in set_absolute_model_tran when view scale is zero using ZERO macro; clamped perspective_angle to valid table indices [0..3] in establish_perspective and toggle_perspective preventing out-of-bounds array reads; guarded s, s->s_edit, and MEDIT(s) before syncing mv_context; guarded multi-level pointers in unset_var before dereferencing; guarded active display managers and DMP in set_dirty_flag and set_scroll_private; in rtif.c, fixed file descriptor leak in f_rmats when interrupted via setjmp by ensuring fp is closed before returning; validated and guarded vector list vertices (vp->nused > 0) preventing negative array indexing; added null pointer checks on s, s->gedp, view_state, view_state->vs_gvp, and interp across cmd_rt, cmd_rrt, rt_read, f_rmats, f_nirt, and f_vnirt; replaced atoi with bu_sscanf; in scroll.c, zero-initialized all elements of dm_scroll_array in set_scroll to guarantee NULL termination and bounded scroll_array pointer traversal by array capacity in scroll_display and scroll_select, preventing out-of-bounds array reads; extracted apply_sl_tol helper to eliminate duplicated tolerance thresholding logic (DRY); added null pointer checks on s, s->interp, view_state, DMP, color_scheme, and mged_variables across all event handlers and display routines; in sedit.h, guarded s, s->s_edit, and s->s_edit->e in SEDIT_ROTATE, SEDIT_TRAN, SEDIT_SCALE, and SEDIT_PICK, and guarded s in OEDIT_ROTATE, OEDIT_TRAN, and OEDIT_SCALE macros, preventing null pointer dereference crashes throughout solid and object editing; and replaced all read-only bu_vls_addr calls with bu_vls_cstr. |
+
 
 
 
