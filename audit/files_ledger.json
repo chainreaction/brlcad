@@ -33678,40 +33678,48 @@
       "path": "src/mged/history.c",
       "subsystem": "src/mged",
       "lines": 432,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T06:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0288"
+      ]
     },
     {
       "id": 3189,
       "path": "src/mged/mater.c",
       "subsystem": "src/mged",
       "lines": 66,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T06:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0288"
+      ]
     },
     {
       "id": 3190,
       "path": "src/mged/menu.c",
       "subsystem": "src/mged",
       "lines": 505,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T06:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0288"
+      ]
     },
     {
       "id": 3191,
       "path": "src/mged/menu.h",
       "subsystem": "src/mged",
       "lines": 83,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T06:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0288"
+      ]
     },
     {
       "id": 3192,

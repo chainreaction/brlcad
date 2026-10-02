@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-10-02 09:55:00 UTC
+**Last Updated:** 2026-10-02 10:05:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 1332 (38.1%)
-- **Files Pending Review:** 2161
-- **Total Issues Identified:** 308
+- **Files Reviewed:** 1336 (38.2%)
+- **Files Pending Review:** 2157
+- **Total Issues Identified:** 309
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 233 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 234 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 52 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 308
+- **Fixed (Committed):** 309
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -103,7 +103,7 @@
 | `src/libtclcad` | 31 | 0 | 0.0% | 0 |
 | `src/libtermio` | 2 | 2 | 100.0% | 1 |
 | `src/libwdb` | 27 | 27 | 100.0% | 2 |
-| `src/mged` | 55 | 25 | 45.5% | 8 |
+| `src/mged` | 55 | 29 | 52.7% | 9 |
 | `src/nirt` | 2 | 2 | 100.0% | 1 |
 | `src/proc-db` | 55 | 0 | 0.0% | 0 |
 | `src/qged` | 34 | 0 | 0.0% | 0 |
@@ -407,4 +407,6 @@
 | `SEC-0285` | **Sev 2** | Inverted Logic Bug, Double-Free, Memory Corruption / Type Mismatch, Resource Leaks, Division by Zero, and Null Pointer Dereferences | `src/mged (Batch 43: edsol.c, f_cmd.h)` | `FIXED` | In BRL-CAD mged Batch 43 (edsol.c and f_cmd.h, 2,324 lines): in f_cmd.h, audited extern command function prototypes (clean); in edsol.c, fixed critical inverted logic bug in ecmd_bot_thick_clbk where face_state > -1 mistakenly triggered error branch and face_state < 0 updated face 0, eliminated double-free in sedit_apply where rt_db_put_internal already frees es_int on all outcomes, fixed reset sequencing in f_sedit_reset where rt_db_free_internal was called before ft_prim_edit_reset zeroing primitive type ID, fixed inverted condition in f_get_sedit (illump || !illump->s_u_data) that caused command to always fail, prevented memory corruption in f_put_sedit by returning TCL_ERROR on functab mismatch rather than executing bu_structparse_argv with wrong structure layout, guarded against division by zero in mged_param with ZERO macro on viewscale, clamped input parameter count to RT_EDIT_MAXPARA, eliminated memory leaks of vls commands on early returns in get_sketch_name, ecmd_extrude_skt_name_clbk, and f_get_sedit_menus, replaced raw atof/atoi with bu_sscanf, verified bn_mat_inverse return in oedit_apply and f_oedit_apply, added primitive type bounds validation (ID_NULL < id <= ID_MAX_SOLID), and added extensive NULL guards on s, MEDIT(s), view_state, DMP, and bdata across all solid and object editing routines. |
 | `SEC-0286` | **Sev 2** | Out-of-bounds Array / Buffer Access, Uninitialized Variables, Division by Zero, Resource Leaks, and Null Pointer Dereferences | `src/mged (Batch 44: f_db.c, facedef.c)` | `FIXED` | In BRL-CAD mged Batch 44 (f_db.c and facedef.c, 984 lines): in f_db.c, guarded against NULL pointer dereferences on s, gedp, ctx, argv, interpreter, and dbip across _post_opendb_failed, callbacks, f_opendb, and f_closedb, eliminated uninitialized buffer reads when bu_fgets returns EOF, checked Tcl result string validity before indexing, guarded curr_cmd_list before setting more_default, verified argc >= 2 before stripping trailing y/n database creation flags, and replaced all bu_vls_addr calls with bu_vls_cstr; in facedef.c, initialized plane equation index to -1 and added explicit range validation (plane >= 0 && plane < 6) to prevent out-of-bounds array writes, added upper and lower bounds checks on argc-derived array indexing into p_pleqn, p_3pts, p_rotfb, and p_nupnt arrays to prevent out-of-bounds reads, guarded against division by zero in get_pleqn using ZERO macro on vector magnitude before unitizing, replaced raw atof and atoi with bu_sscanf with return validation, added NULL pointer checks on arbo, s, MEDIT(s), and interp, freed error_msg VLS on all exit paths, and replaced bu_vls_addr calls with bu_vls_cstr. |
 | `SEC-0287` | **Sev 2** | Buffer Over-read, Mismatched Framebuffer Routine, Division by Zero, Infinite Loop / UI Hang, and Null Pointer Dereferences | `src/mged (Batch 45: fbserv.c, grid.c)` | `FIXED` | In BRL-CAD mged Batch 45 (fbserv.c and grid.c, 1,754 lines): in fbserv.c, fixed critical bug in fb_server_fb_bwwriterect where fb_writerect (RGB, 3 bytes/pixel) was called instead of fb_bwwriterect (monochrome, 1 byte/pixel) causing out-of-bounds heap over-reads and image corruption; added packet length and payload dimension validation across all framebuffer network handlers (fb_clear, fb_read, fb_write, fb_readrect, fb_writerect, fb_bwreadrect, fb_bwwriterect, fb_cursor, fb_setcursor, fb_scursor, fb_window, fb_zoom, fb_view, fb_wmap, fb_help) preventing buffer over-reads on truncated or malformed network packets; clamped absurd pixel requests (up to 8192x8192); handled malloc failures with 0-length error packets to prevent client hangs; replaced bu_strlcpy with bounded memcpy for binary auth token packets; added NULL pointer checks on pcp, s, s->mged_curr_dm, DMP, and fbp across all routines; in grid.c, guarded divisions against zero in draw_grid, snap_to_grid, and round_to_grid using ZERO macro on scale and aspect ratio; guarded against integer division by zero and infinite loops when res_major_h or res_major_v <= 0; clamped maximum grid dots (nv_dots, nh_dots <= 2000) to prevent denial-of-service UI hangs; added NULL pointer checks on s, s->mged_curr_dm, s->dbip, grid_state, view_state, view_state->vs_gvp, color_scheme, and s->interp across all callbacks and snap routines; and replaced all read-only bu_vls_addr calls with bu_vls_cstr. |
+| `SEC-0288` | **Sev 2** | Memory Leak, Out-of-bounds Array / Buffer Access, Dead / Unused Code, and Null Pointer Dereferences | `src/mged (Batch 46: history.c, mater.c, menu.c, menu.h)` | `FIXED` | In BRL-CAD mged Batch 46 (history.c, mater.c, menu.c, and menu.h, 1,086 lines): in history.c, eliminated guaranteed memory leak in f_history by freeing dynamic VLS str across all normal and error exit paths; guarded against out-of-bounds buffer reads in f_journal by replacing single-byte string indexing with BU_STR_EQUAL(argv[1], "-d"); safely handled empty command string lengths in cmd_hist; added NULL pointer checks on cmdp, curr_cmd_list, curr_cmd_list->cl_cur_hist, journalfp, hptr, argv, and interp across history_record, history_journalize, f_journal, f_history, history_prev, history_cur, history_next, and cmd_hist; cleared dangling cl_cur_hist pointer in history_cleanup; replaced all read-only bu_vls_addr calls with bu_vls_cstr; in mater.c, added NULL pointer checks on s, s->gedp, ged_dl, dbip, and DMP in mged_color_soltab before dereferencing; in menu.c, eliminated dead/unused Tcl_DString variables in mged_mmenu_set and mmenu_set; added strict index bounds validation (index >= 0 && index < NMENU) in mmenu_set, mmenu_set_all, and cmd_mmenu_get to prevent out-of-bounds memory writes and reads; removed unsafe static storage duration from loop counters menu and item in mmenu_display and mmenu_select to prevent re-entrancy issues; added NULL checks on mptr->menu_string before indexing; added comprehensive NULL pointer guards on s, s->mged_curr_dm, DMP, menu_state, color_scheme, mged_variables, interp, and active_dm_set display managers across btn_item_hit, btn_head_menu, chg_l2menu, cmd_mmenu_get, mmenu_init, mged_menu_refresh, mged_mmenu_set, mmenu_set, mmenu_set_all, mged_highlight_menu_item, mmenu_display, and mmenu_select; and replaced all read-only bu_vls_addr calls with bu_vls_cstr; in menu.h, corrected header guard comment typo. |
+
 
