@@ -54,6 +54,11 @@ dozoom(struct mged_state *s, int which_eye)
     short r = -1;
     short g = -1;
     short b = -1;
+    int linewidth = 1;
+    int dlist = 0;
+
+    if (!s || !s->mged_curr_dm || !DMP || !view_state || !view_state->vs_gvp || !s->gedp)
+	return;
 
     /*
      * The vectorThreshold stuff in libdm may turn the
@@ -63,6 +68,11 @@ dozoom(struct mged_state *s, int which_eye)
 
     s->mged_curr_dm->dm_ndrawn = 0;
     inv_viewsize = view_state->vs_gvp->gv_isize;
+
+    if (mged_variables) {
+	linewidth = mged_variables->mv_linewidth;
+	dlist = mged_variables->mv_dlist;
+    }
 
     /*
      * Draw all solids not involved in an edit.
@@ -79,15 +89,21 @@ dozoom(struct mged_state *s, int which_eye)
 	 * Try strategy #2 for now.
 	 */
 	fastf_t to_eye_scr;	/* screen space dist to eye */
-	fastf_t eye_delta_scr;	/* scr, 1/2 inter-occular dist */
+	fastf_t eye_delta_scr = 0.0;	/* scr, 1/2 inter-occular dist */
+	fastf_t tan_val;
 	point_t l, h, eye;
 
 	/* Determine where eye should be */
-	to_eye_scr = 1 / tan(view_state->vs_gvp->gv_perspective * DEG2RAD * 0.5);
+	tan_val = tan(view_state->vs_gvp->gv_perspective * DEG2RAD * 0.5);
+	if (ZERO(tan_val))
+	    to_eye_scr = 1.0e10;
+	else
+	    to_eye_scr = 1.0 / tan_val;
 
 #define SCR_WIDTH_PHYS 330	/* Assume a 330 mm wide screen */
 
-	eye_delta_scr = mged_variables->mv_eye_sep_dist * 0.5 / SCR_WIDTH_PHYS;
+	if (mged_variables)
+	    eye_delta_scr = mged_variables->mv_eye_sep_dist * 0.5 / SCR_WIDTH_PHYS;
 
 	VSET(l, -1.0, -1.0, -1.0);
 	VSET(h, 1.0, 1.0, 200.0);
@@ -136,8 +152,8 @@ dozoom(struct mged_state *s, int which_eye)
 	/* First, draw opaque stuff */
 
 	ndrawn = dm_draw_head_dl(DMP, (struct bu_list *)ged_dl(s->gedp), 1.0, inv_viewsize,
-				      r, g, b, mged_variables->mv_linewidth, mged_variables->mv_dlist, 0,
-				      geometry_default_color, 1, mged_variables->mv_dlist);
+				      r, g, b, linewidth, dlist, 0,
+				      geometry_default_color, 1, dlist);
 
 	/* The vectorThreshold stuff in libdm may turn the Tcl-crank causing s->mged_curr_dm to change. */
 	if (s->mged_curr_dm != save_dm_list) set_curr_dm(s, save_dm_list);
@@ -150,8 +166,8 @@ dozoom(struct mged_state *s, int which_eye)
 	/* Second, draw transparent stuff */
 
 	ndrawn = dm_draw_head_dl(DMP, (struct bu_list *)ged_dl(s->gedp), 0.0, inv_viewsize,
-				      r, g, b, mged_variables->mv_linewidth, mged_variables->mv_dlist, 0,
-				      geometry_default_color, 0, mged_variables->mv_dlist);
+				      r, g, b, linewidth, dlist, 0,
+				      geometry_default_color, 0, dlist);
 
 	/* re-enable write of depth buffer */
 	dm_set_depth_mask(DMP, 1);
@@ -159,8 +175,8 @@ dozoom(struct mged_state *s, int which_eye)
     } else {
 
 	ndrawn = dm_draw_head_dl(DMP, (struct bu_list *)ged_dl(s->gedp), 1.0, inv_viewsize,
-				      r, g, b, mged_variables->mv_linewidth, mged_variables->mv_dlist, 0,
-				      geometry_default_color, 1, mged_variables->mv_dlist);
+				      r, g, b, linewidth, dlist, 0,
+				      geometry_default_color, 1, dlist);
 
     }
 
@@ -171,7 +187,7 @@ dozoom(struct mged_state *s, int which_eye)
 
 
     /* draw predictor vlist */
-    if (mged_variables->mv_predictor) {
+    if (mged_variables && mged_variables->mv_predictor && color_scheme) {
 	dm_set_fg(DMP,
 		       color_scheme->cs_predictor[0],
 		       color_scheme->cs_predictor[1],
@@ -193,16 +209,23 @@ dozoom(struct mged_state *s, int which_eye)
 	mat = newmat;
     }
     dm_loadmatrix(DMP, mat, which_eye);
-    inv_viewsize /= MEDIT(s)->model_changes[15];
-    dm_set_fg(DMP,
-		   color_scheme->cs_geo_hl[0],
-		   color_scheme->cs_geo_hl[1],
-		   color_scheme->cs_geo_hl[2], 1, 1.0);
+
+    if (!MEDIT(s))
+	return;
+
+    if (!ZERO(MEDIT(s)->model_changes[15]))
+	inv_viewsize /= MEDIT(s)->model_changes[15];
+
+    if (color_scheme)
+	dm_set_fg(DMP,
+		       color_scheme->cs_geo_hl[0],
+		       color_scheme->cs_geo_hl[1],
+		       color_scheme->cs_geo_hl[2], 1, 1.0);
 
 
     ndrawn = dm_draw_head_dl(DMP, (struct bu_list *)ged_dl(s->gedp), 1.0, inv_viewsize,
-	    r, g, b, mged_variables->mv_linewidth, mged_variables->mv_dlist, 1,
-	    geometry_default_color, 0, mged_variables->mv_dlist);
+	    r, g, b, linewidth, dlist, 1,
+	    geometry_default_color, 0, dlist);
 
     s->mged_curr_dm->dm_ndrawn += ndrawn;
 
@@ -217,6 +240,8 @@ void
 createDLists(void *data, struct bu_list *hdlp)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s || !hdlp || !s->mged_curr_dm || !DMP)
+	return;
     MGED_CK_STATE(s);
     struct display_list *gdlp;
     struct display_list *next_gdlp;
@@ -248,18 +273,28 @@ struct create_dlist_solid_data {
 static void
 create_dlist_solid(void *data)
 {
+    if (!data)
+	return;
     struct create_dlist_solid_data *d =
 	(struct create_dlist_solid_data *)data;
     struct mged_state *s = d->s;
     struct bv_scene_obj *sp = d->sp;
+    if (!s || !sp)
+	return;
     MGED_CK_STATE(s);
 
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *dlp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
+	if (!dlp)
+	    continue;
 	struct dm *dmp = dlp->dm_dmp;
+	if (!dmp)
+	    continue;
 	if (dlp->dm_mapped &&
 		dm_get_displaylist(dmp) &&
+		dlp->dm_mged_variables &&
 		dlp->dm_mged_variables->mv_dlist) {
+	    fastf_t transparency = (sp->s_os) ? sp->s_os->transparency : 0.0;
 	    (void)dm_make_current(dmp);
 	    if (sp->s_dlist == 0)
 		sp->s_dlist = dm_gen_dlists(dmp, 1);
@@ -267,12 +302,12 @@ create_dlist_solid(void *data)
 	    dm_set_dirty(dmp, 1);
 	    (void)dm_begin_dlist(dmp, sp->s_dlist);
 	    if (sp->s_iflag == UP)
-		(void)dm_set_fg(dmp, 255, 255, 255, 0, sp->s_os->transparency);
+		(void)dm_set_fg(dmp, 255, 255, 255, 0, transparency);
 	    else
 		(void)dm_set_fg(dmp,
 			(unsigned char)sp->s_color[0],
 			(unsigned char)sp->s_color[1],
-			(unsigned char)sp->s_color[2], 0, sp->s_os->transparency);
+			(unsigned char)sp->s_color[2], 0, transparency);
 	    (void)dm_draw_vlist(dmp, (struct bv_vlist *)&sp->s_vlist);
 	    (void)dm_end_dlist(dmp);
 	}
@@ -285,6 +320,8 @@ create_dlist_solid(void *data)
 void
 createDListSolid(void *vlist_ctx, struct bv_scene_obj *sp)
 {
+    if (!vlist_ctx || !sp)
+	return;
     struct mged_state *s = (struct mged_state *)vlist_ctx;
     struct create_dlist_solid_data data = {s, sp};
     MGED_CK_STATE(s);
@@ -307,8 +344,12 @@ struct create_dlist_all_data {
 static void
 create_dlist_all(void *data)
 {
+    if (!data)
+	return;
     struct create_dlist_all_data *d = (struct create_dlist_all_data *)data;
     struct mged_state *s = d->s;
+    if (!s || !d->gdlp)
+	return;
     MGED_CK_STATE(s);
     struct bv_scene_obj *sp;
     for (BU_LIST_FOR(sp, bv_scene_obj, &d->gdlp->dl_head_scene_obj)) {
@@ -320,6 +361,8 @@ create_dlist_all(void *data)
 void
 createDListAll(void *vlist_ctx, struct display_list *gdlp)
 {
+    if (!vlist_ctx || !gdlp)
+	return;
     struct mged_state *s = (struct mged_state *)vlist_ctx;
     struct create_dlist_all_data data = {s, gdlp};
     MGED_CK_STATE(s);
@@ -340,13 +383,22 @@ struct free_dlists_data {
 static void
 free_dlists(void *data)
 {
+    if (!data)
+	return;
     struct free_dlists_data *d = (struct free_dlists_data *)data;
     struct mged_state *s = d->s;
+    if (!s)
+	return;
     MGED_CK_STATE(s);
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *dlp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
+	if (!dlp)
+	    continue;
 	struct dm *dmp = dlp->dm_dmp;
+	if (!dmp)
+	    continue;
 	if (dm_get_displaylist(dmp) &&
+	    dlp->dm_mged_variables &&
 	    dlp->dm_mged_variables->mv_dlist) {
 	    (void)dm_make_current(dmp);
 	    (void)dm_free_dlists(dmp, d->dlist, d->range);
@@ -360,6 +412,8 @@ free_dlists(void *data)
 void
 freeDListsAll(void *data, unsigned int dlist, int range)
 {
+    if (!data)
+	return;
     struct mged_state *s = (struct mged_state *)data;
     struct free_dlists_data free_data = {s, dlist, range};
     MGED_CK_STATE(s);
