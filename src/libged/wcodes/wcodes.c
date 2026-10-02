@@ -90,8 +90,8 @@ wcodes_printcodes(struct ged *gedp, FILE *fp, struct directory *dp, size_t pathp
 	return BRLCAD_ERROR;
     }
 
-    if (id != ID_COMBINATION) {
-	intern.idb_meth->ft_ifree(&intern);
+    if (id != ID_COMBINATION || !intern.idb_ptr) {
+	rt_db_free_internal(&intern);
 	return BRLCAD_OK;
     }
 
@@ -104,10 +104,12 @@ wcodes_printcodes(struct ged *gedp, FILE *fp, struct directory *dp, size_t pathp
 		comb->aircode,
 		comb->GIFTmater,
 		comb->los);
-	for (i =0 ; i < pathpos; i++)
-	    fprintf(fp, "/%s", path[i]->d_namep);
+	for (i = 0; i < pathpos; i++) {
+	    if (path[i] && path[i]->d_namep)
+		fprintf(fp, "/%s", path[i]->d_namep);
+	}
 	fprintf(fp, "/%s\n", dp->d_namep);
-	intern.idb_meth->ft_ifree(&intern);
+	rt_db_free_internal(&intern);
 	return BRLCAD_OK;
     }
 
@@ -121,7 +123,7 @@ wcodes_printcodes(struct ged *gedp, FILE *fp, struct directory *dp, size_t pathp
 			 (void *)fp, (void *)&pathpos, (void *)gedp, (void *)gedp);
     }
 
-    intern.idb_meth->ft_ifree(&intern);
+    rt_db_free_internal(&intern);
     return BRLCAD_OK;
 }
 
@@ -143,7 +145,7 @@ ged_wcodes_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc < 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	if (argc == 1)
 	    return GED_HELP;
 	return BRLCAD_ERROR;
@@ -151,7 +153,7 @@ ged_wcodes_core(struct ged *gedp, int argc, const char *argv[])
 
     fp = fopen(argv[1], "w");
     if (fp == NULL) {
-	bu_vls_printf(gedp->ged_result_str, "%s: Failed to open file - %s",
+	bu_vls_printf(gedp->ged_result_str, "%s: Failed to open file - %s\n",
 		      argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
@@ -165,6 +167,9 @@ ged_wcodes_core(struct ged *gedp, int argc, const char *argv[])
 
 	    if (status & BRLCAD_ERROR) {
 		(void)fclose(fp);
+		bu_free(path, "dealloc path");
+		path = NULL;
+		path_capacity = 0;
 		return BRLCAD_ERROR;
 	    }
 	}

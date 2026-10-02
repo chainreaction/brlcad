@@ -124,7 +124,7 @@ Make_new_name(struct db_i *dbip,
     char format_v4[50], format_v5[50];
     struct bu_vls name_v5 = BU_VLS_INIT_ZERO;
     char name_v4[NAMESIZE+1];
-    char *name;
+    const char *name;
     struct ged *gedp;
 
     /* only one use and not referenced elsewhere, nothing to do */
@@ -137,7 +137,7 @@ Make_new_name(struct db_i *dbip,
 
     gedp = (struct ged *)ptr;
 
-    digits = log10((double)dp->d_uses) + 2.0;
+    digits = (dp->d_uses > 0) ? (int)(log10((double)dp->d_uses) + 2.0) : 2;
     snprintf(format_v5, 50, "%%s_%%0%dd", digits);
     snprintf(format_v4, 50, "_%%0%dd", digits);
 
@@ -172,7 +172,7 @@ Make_new_name(struct db_i *dbip,
 	    } else {
 		bu_vls_trunc(&name_v5, 0);
 		bu_vls_printf(&name_v5, format_v5, dp->d_namep, j);
-		name = bu_vls_addr(&name_v5);
+		name = bu_vls_cstr(&name_v5);
 	    }
 
 	    /* Insure that new name is unique */
@@ -184,14 +184,16 @@ Make_new_name(struct db_i *dbip,
 		} else {
 		    bu_vls_trunc(&name_v5, 0);
 		    bu_vls_printf(&name_v5, format_v5, dp->d_namep, j);
-		    name = bu_vls_addr(&name_v5);
+		    name = bu_vls_cstr(&name_v5);
 		}
 	    }
 
 	    /* Add new name to directory */
 	    use->dp = db_diradd(dbip, name, RT_DIR_PHONY_ADDR, 0, dp->d_flags, (void *)&dp->d_minor_type);
 	    if (use->dp == RT_DIR_NULL) {
-		bu_vls_printf(gedp->ged_result_str, "\nAn error has occurred while adding a new object to the database.\n"); \
+		bu_vls_printf(gedp->ged_result_str, "\nAn error has occurred while adding a new object to the database.\n");
+		bu_free((void *)use, "Make_new_name: use");
+		bu_vls_free(&name_v5);
 		return;
 	    }
 	}
@@ -255,7 +257,7 @@ Copy_solid(struct ged *gedp,
 	   struct directory *dp,
 	   mat_t xform)
 {
-    struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    struct bn_tol tol = BN_TOL_INIT_TOL;
     struct directory *found;
     struct rt_db_internal sol_int;
     struct object_use *use;
@@ -286,7 +288,7 @@ Copy_solid(struct ged *gedp,
 
     /* Look for a copy that already has this transform matrix */
     for (BU_LIST_FOR (use, object_use, &dp->d_use_hd)) {
-	if (bn_mat_is_equal(xform, use->xform, &wdbp->wdb_tol)) {
+	if (bn_mat_is_equal(xform, use->xform, &tol)) {
 	    /* found a match, no need to make another copy */
 	    use->used = 1;
 	    return use->dp;
@@ -335,7 +337,7 @@ Copy_comb(struct ged *gedp,
 	  struct directory *dp,
 	  mat_t xform)
 {
-    struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    struct bn_tol tol = BN_TOL_INIT_TOL;
     struct object_use *use;
     struct directory *found;
     struct rt_db_internal intern;
@@ -345,7 +347,7 @@ Copy_comb(struct ged *gedp,
 
     /* Look for a copy that already has this transform matrix */
     for (BU_LIST_FOR (use, object_use, &dp->d_use_hd)) {
-	if (bn_mat_is_equal(xform, use->xform, &wdbp->wdb_tol)) {
+	if (bn_mat_is_equal(xform, use->xform, &tol)) {
 	    /* found a match, no need to make another copy */
 	    use->used = 1;
 	    return use->dp;
@@ -381,12 +383,12 @@ Copy_comb(struct ged *gedp,
 
     if (found == RT_DIR_NULL) {
 	bu_vls_printf(gedp->ged_result_str, "Ran out of uses for combination %s\n", dp->d_namep);
+	rt_db_free_internal(&intern);
 	return RT_DIR_NULL;
     }
 
     if (rt_db_put_internal(found, gedp->dbip, &intern) < 0) {
 	bu_vls_printf(gedp->ged_result_str, "rt_db_put_internal failed for %s\n", dp->d_namep);
-	rt_db_free_internal(&intern);
 	return RT_DIR_NULL;
     }
 
@@ -436,21 +438,21 @@ ged_xpush_core(struct ged *gedp, int argc, const char *argv[])
     size_t i;
     static const char *usage = "object";
 
+    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_READ_ONLY(gedp, BRLCAD_ERROR);
-    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc != 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
@@ -545,7 +547,7 @@ ged_xpush_core(struct ged *gedp, int argc, const char *argv[])
 
     /* Make new objects */
     if (rt_db_get_internal(&intern, old_dp, gedp->dbip, (fastf_t *)NULL) < 0) {
-	bu_vls_printf(gedp->ged_result_str, "ERROR: cannot load %s feom the database!!!\n", old_dp->d_namep);
+	bu_vls_printf(gedp->ged_result_str, "ERROR: cannot load %s from the database!!!\n", old_dp->d_namep);
 	bu_vls_printf(gedp->ged_result_str, "\tNothing has been changed!!\n");
 	Free_uses(gedp->dbip);
 	return BRLCAD_ERROR;
@@ -553,6 +555,7 @@ ged_xpush_core(struct ged *gedp, int argc, const char *argv[])
 
     comb = (struct rt_comb_internal *)intern.idb_ptr;
     if (!comb->tree) {
+	rt_db_free_internal(&intern);
 	Free_uses(gedp->dbip);
 	return BRLCAD_OK;
     }
@@ -562,7 +565,6 @@ ged_xpush_core(struct ged *gedp, int argc, const char *argv[])
 
     if (rt_db_put_internal(old_dp, gedp->dbip, &intern) < 0) {
 	bu_vls_printf(gedp->ged_result_str, "rt_db_put_internal failed for %s\n", old_dp->d_namep);
-	rt_db_free_internal(&intern);
 	Free_uses(gedp->dbip);
 	return BRLCAD_ERROR;
     }

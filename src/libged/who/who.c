@@ -42,7 +42,11 @@ ged_who_core(struct ged *gedp, int argc, const char *argv[])
     static const char *usage =
 	"Usage:\n"
 	"  who [real|phony|both]\n"
-	"  who solids [level]";
+	"  who solids [level]\n";
+
+    GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
+    GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
+    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
     if (argc > 1 && (BU_STR_EQUAL(argv[1], "solids") || BU_STR_EQUAL(argv[1], "report")))
 	return ged_who_solids_core(gedp, argc, argv);
@@ -52,9 +56,6 @@ ged_who_core(struct ged *gedp, int argc, const char *argv[])
 
     struct display_list *gdlp;
     int skip_real, skip_phony;
-
-    GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
-    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -92,13 +93,15 @@ ged_who_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     for (BU_LIST_FOR(gdlp, display_list, (struct bu_list *)ged_dl(gedp))) {
+	if (!gdlp->dl_dp)
+	    continue;
 	if (((struct directory *)gdlp->dl_dp)->d_addr == RT_DIR_PHONY_ADDR) {
 	    if (skip_phony) continue;
 	} else {
 	    if (skip_real) continue;
 	}
 
-	bu_vls_printf(gedp->ged_result_str, "%s ", bu_vls_addr(&gdlp->dl_path));
+	bu_vls_printf(gedp->ged_result_str, "%s ", bu_vls_cstr(&gdlp->dl_path));
     }
 
     return BRLCAD_OK;

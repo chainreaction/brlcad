@@ -40,6 +40,9 @@ extern int ged_zap2_core(struct ged *gedp, int argc, const char *argv[]);
 static void
 dl_zap(struct ged *gedp)
 {
+    if (!gedp || !gedp->i || !gedp->i->ged_gdp)
+	return;
+
     struct bu_list *hdlp = gedp->i->ged_gdp->gd_headDisplay;
     struct db_i *dbip = gedp->dbip;
     struct bv_scene_obj *sp = NULL;
@@ -61,11 +64,15 @@ dl_zap(struct ged *gedp)
 	    if (sp->s_u_data) {
 		struct ged_bv_data *bdata =
 		    (struct ged_bv_data *)sp->s_u_data;
-		dp = FIRST_SOLID(bdata);
-		RT_CK_DIR(dp);
-		if (dp->d_addr == RT_DIR_PHONY_ADDR) {
-		    if (db_dirdelete(dbip, dp) < 0)
-			bu_log("ged_zap: db_dirdelete failed\n");
+		if (DB_FULL_PATH_LEN(&bdata->s_fullpath) > 0) {
+		    dp = FIRST_SOLID(bdata);
+		    if (dp) {
+			RT_CK_DIR(dp);
+			if (dp->d_addr == RT_DIR_PHONY_ADDR) {
+			    if (db_dirdelete(dbip, dp) < 0)
+				bu_log("ged_zap: db_dirdelete failed\n");
+			}
+		    }
 		}
 	    }
 
@@ -100,18 +107,18 @@ dl_zap(struct ged *gedp)
 int
 ged_zap_core(struct ged *gedp, int argc, const char *argv[])
 {
+    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
     if (gedp->new_cmd_forms)
 	return ged_zap2_core(gedp, argc, argv);
 
     GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
-    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     if (argc != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s", argv[0]);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s\n", argv[0]);
 	return BRLCAD_ERROR;
     }
 

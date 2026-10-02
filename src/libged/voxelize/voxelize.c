@@ -52,47 +52,29 @@ create_boxes(void *callBackData, int x, int y, int z, const char *a, fastf_t fil
 {
     if (a != NULL) {
 	fastf_t min[3], max[3];
-
-	struct bu_vls *vp;
-	char bufx[50], bufy[50], bufz[50];
-	char *nameDestination;
-
+	struct bu_vls vp = BU_VLS_INIT_ZERO;
 	struct voxelizeData *dataValues = (struct voxelizeData *)callBackData;
 
-	sprintf(bufx, "%d", x);
-	sprintf(bufy, "%d", y);
-	sprintf(bufz, "%d", z);
-
 	if (dataValues->threshold <= fill) {
-	    vp = bu_vls_vlsinit();
-	    bu_vls_strcat(vp, dataValues->newname);
-	    bu_vls_strcat(vp, ".x");
-	    bu_vls_strcat(vp, bufx);
-	    bu_vls_strcat(vp, "y");
-	    bu_vls_strcat(vp, bufy);
-	    bu_vls_strcat(vp, "z");
-	    bu_vls_strcat(vp, bufz);
-	    bu_vls_strcat(vp, ".s");
+	    bu_vls_sprintf(&vp, "%s.x%dy%dz%d.s", dataValues->newname, x, y, z);
 
 	    min[0] = (dataValues->bbMin)[0] + (x * (dataValues->sizeVoxel)[0]);
 	    min[1] = (dataValues->bbMin)[1] + (y * (dataValues->sizeVoxel)[1]);
 	    min[2] = (dataValues->bbMin)[2] + (z * (dataValues->sizeVoxel)[2]);
-	    max[0] = (dataValues->bbMin)[0] + ( (x + 1.0) * (dataValues->sizeVoxel)[0]);
-	    max[1] = (dataValues->bbMin)[1] + ( (y + 1.0) * (dataValues->sizeVoxel)[1]);
-	    max[2] = (dataValues->bbMin)[2] + ( (z + 1.0) * (dataValues->sizeVoxel)[2]);
-
-	    nameDestination = bu_vls_strgrab(vp);
+	    max[0] = (dataValues->bbMin)[0] + ((x + 1.0) * (dataValues->sizeVoxel)[0]);
+	    max[1] = (dataValues->bbMin)[1] + ((y + 1.0) * (dataValues->sizeVoxel)[1]);
+	    max[2] = (dataValues->bbMin)[2] + ((z + 1.0) * (dataValues->sizeVoxel)[2]);
 
 	    /* guard against duplicate rpp's
 	     *	voxelize() calls this once per region - NOT once per voxel. So overlapping
 	     *	regions can/will create duplicate solids in the tree
 	     */
-	    if (db_lookup(dataValues->wdbp->dbip, nameDestination, LOOKUP_QUIET) == RT_DIR_NULL) {
-		mk_rpp(dataValues->wdbp, nameDestination, min, max);
-		mk_addmember(nameDestination, &dataValues->content.l, 0, WMOP_UNION);
+	    if (db_lookup(dataValues->wdbp->dbip, bu_vls_cstr(&vp), LOOKUP_QUIET) == RT_DIR_NULL) {
+		mk_rpp(dataValues->wdbp, bu_vls_cstr(&vp), min, max);
+		mk_addmember(bu_vls_cstr(&vp), &dataValues->content.l, 0, WMOP_UNION);
 	    }
 
-	    bu_free(nameDestination, "free nameDestination strgrab");
+	    bu_vls_free(&vp);
 	}
     }
     /* else this voxel is air */
@@ -120,7 +102,7 @@ ged_voxelize_core(struct ged *gedp, int argc, const char *argv[])
 
     /* incorrect arguments */
     if (argc < 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
@@ -136,11 +118,11 @@ ged_voxelize_core(struct ged *gedp, int argc, const char *argv[])
 
 	switch (c) {
 	    case 's':
-		if (sscanf(bu_optarg, "%lf %lf %lf",
-			   &scan[0],
-			   &scan[1],
-			   &scan[2]) != 3) {
-		    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+		if (bu_sscanf(bu_optarg, "%lf %lf %lf",
+			      &scan[0],
+			      &scan[1],
+			      &scan[2]) != 3) {
+		    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 		    return BRLCAD_ERROR;
 		} else {
 		    /* convert from double to fastf_t */
@@ -153,23 +135,28 @@ ged_voxelize_core(struct ged *gedp, int argc, const char *argv[])
 		break;
 
 	    case 'd':
-		if (sscanf(bu_optarg, "%d", &levelOfDetail) != 1) {
-		    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+		if (bu_sscanf(bu_optarg, "%d", &levelOfDetail) != 1) {
+		    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 		    return BRLCAD_ERROR;
 		}
 		break;
 
 	    case 't':
-		if (sscanf(bu_optarg, "%lf", &threshold) != 1) {
-		    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+		if (bu_sscanf(bu_optarg, "%lf", &threshold) != 1) {
+		    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 		    return BRLCAD_ERROR;
 		}
 		break;
 
 	    default:
-		bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+		bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 		return BRLCAD_ERROR;
 	}
+    }
+
+    if (sizeVoxel[0] <= 0.0 || sizeVoxel[1] <= 0.0 || sizeVoxel[2] <= 0.0 || levelOfDetail <= 0) {
+	bu_vls_printf(gedp->ged_result_str, "error: invalid voxel size or level of detail\n");
+	return BRLCAD_ERROR;
     }
 
     argc -= bu_optind;
@@ -196,8 +183,9 @@ ged_voxelize_core(struct ged *gedp, int argc, const char *argv[])
      * that the user wants included in the ray trace.
      */
     while (argc > 0) {
-	if (rt_gettree(rtip,argv[0]) < 0) {
-	    bu_vls_printf(gedp->ged_result_str, "error: object '%s' does not exists, aborting\n", argv[1]);
+	if (rt_gettree(rtip, argv[0]) < 0) {
+	    bu_vls_printf(gedp->ged_result_str, "error: object '%s' does not exist, aborting\n", argv[0]);
+	    rt_i_destroy(rtip);
 	    return BRLCAD_ERROR;
 	}
 
@@ -206,6 +194,11 @@ ged_voxelize_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "error: failed to open wdb\n");
+	rt_i_destroy(rtip);
+	return BRLCAD_ERROR;
+    }
 
     voxDat.sizeVoxel[0] = sizeVoxel[0];
     voxDat.sizeVoxel[1] = sizeVoxel[1];
@@ -217,12 +210,13 @@ ged_voxelize_core(struct ged *gedp, int argc, const char *argv[])
 
     callBackData = (void*)(&voxDat);
 
-   /* voxelize function is called here with rtip(ray trace instance), userParameter and create_boxes function */
+    /* voxelize function is called here with rtip(ray trace instance), userParameter and create_boxes function */
     voxelize(rtip, sizeVoxel, levelOfDetail, create_boxes, callBackData);
 
     mk_comb(wdbp, voxDat.newname, &voxDat.content.l, 1, "plastic", "sh=4 sp=0.5 di=0.5 re=0.1", 0, 1000, 0, 0, 100, 0, 0, 0);
 
     mk_freemembers(&voxDat.content.l);
+    wdb_close(wdbp);
     rt_i_destroy(rtip);
 
     return BRLCAD_OK;

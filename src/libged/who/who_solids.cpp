@@ -244,7 +244,7 @@ who_solids_print_view(struct bview *v, struct db_i *dbip, int mode, int lvl, str
 	    struct bv_scene_obj *sp = (struct bv_scene_obj *)BU_PTBL_GET(tbl, i);
 	    if (!sp || uniq.find(sp) != uniq.end())
 		continue;
-	    if (mode >= 0 && sp->s_os->s_dmode != mode)
+	    if (mode >= 0 && (!sp->s_os || sp->s_os->s_dmode != mode))
 		continue;
 	    uniq.insert(sp);
 	    objs.push_back(sp);
@@ -349,6 +349,10 @@ who_solids_print_display(struct bu_list *hdlp, struct db_i *dbip, int lvl, struc
 static int
 who_solids_impl(struct ged *gedp, int argc, const char *argv[], int subcmd_usage)
 {
+    GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
+    GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
+    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+
     int print_help = 0;
     int lvl = 0;
     int mode = -1;
@@ -360,10 +364,6 @@ who_solids_impl(struct ged *gedp, int argc, const char *argv[], int subcmd_usage
     BU_OPT(d[2], "V", "view", "name", &bu_opt_vls, &cvls,       "Specify view to report");
     BU_OPT(d[3], "m", "mode", "#",    &bu_opt_int, &mode,       "Only report objects drawn in the specified drawing mode");
     BU_OPT_NULL(d[4]);
-
-    GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
-    GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
-    GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
 
     bu_vls_trunc(gedp->ged_result_str, 0);
 
@@ -410,6 +410,10 @@ who_solids_impl(struct ged *gedp, int argc, const char *argv[], int subcmd_usage
 	    bu_vls_free(&cvls);
 	    return BRLCAD_ERROR;
 	}
+	if (!gedp->i || !gedp->i->ged_gdp || !gedp->i->ged_gdp->gd_headDisplay) {
+	    bu_vls_free(&cvls);
+	    return BRLCAD_OK;
+	}
 	who_solids_print_display(gedp->i->ged_gdp->gd_headDisplay, gedp->dbip, lvl, gedp->ged_result_str);
 	bu_vls_free(&cvls);
 	return BRLCAD_OK;
@@ -427,7 +431,7 @@ who_solids_impl(struct ged *gedp, int argc, const char *argv[], int subcmd_usage
     bu_vls_free(&cvls);
 
     if (!v) {
-	bu_vls_printf(gedp->ged_result_str, "No view specified and no current view defined in GED");
+	bu_vls_printf(gedp->ged_result_str, "No view specified and no current view defined in GED\n");
 	return BRLCAD_ERROR;
     }
 

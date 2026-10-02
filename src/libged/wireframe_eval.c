@@ -274,6 +274,7 @@ build_etree(union tree *tp, struct bigE_data *dgcdp)
 	    /* add a NULL solid */
 	    BU_ALLOC(eptr, union E_tree);
 	    eptr->magic = E_TREE_MAGIC;
+	    eptr->l.op = tp->tr_op;
 	    eptr->l.m = (struct model *)NULL;
 	    break;
 	default:
@@ -1486,6 +1487,9 @@ static void
 free_etree(union E_tree *eptr,
 	   struct bigE_data *dgcdp)
 {
+    if (!eptr)
+	return;
+
     CK_ETREE(eptr);
 
     switch (eptr->l.op) {
@@ -1495,6 +1499,9 @@ free_etree(union E_tree *eptr,
 	    free_etree(eptr->n.left, dgcdp);
 	    free_etree(eptr->n.right, dgcdp);
 	    bu_free((char *)eptr, "node pointer");
+	    break;
+	case OP_NOP:
+	    bu_free((char *)eptr, "nop pointer");
 	    break;
 	case OP_DB_LEAF:
 	case OP_SOLID:
@@ -1536,6 +1543,8 @@ fix_halfs(struct bigE_data *dgcdp)
 	union E_tree *tp;
 
 	tp = (union E_tree *)BU_PTBL_GET(&dgcdp->leaf_list, i);
+	if (!tp || !tp->l.stp)
+	    continue;
 
 	if (tp->l.stp->st_id == ID_HALF)
 	    continue;
@@ -1563,11 +1572,15 @@ fix_halfs(struct bigE_data *dgcdp)
 	struct bu_list *vlfree = dgcdp->vlfree;
 
 	tp = (union E_tree *)BU_PTBL_GET(&dgcdp->leaf_list, i);
+	if (!tp || !tp->l.stp)
+	    continue;
 
 	if (tp->l.stp->st_id != ID_HALF)
 	    continue;
 
 	hp = (struct half_specific *)tp->l.stp->st_specific;
+	if (!hp)
+	    continue;
 
 	HMOVE(haf_pl, hp->half_eqn);
 
@@ -1794,10 +1807,14 @@ fix_halfs(struct bigE_data *dgcdp)
 C_DECL int
 draw_m3(struct bv_scene_obj *s)
 {
+    if (!s || !s->s_i_data)
+	return BRLCAD_ERROR;
 
     struct bigE_data dgcdp;
 
     struct draw_update_data_t *d = (struct draw_update_data_t *)s->s_i_data;
+    if (!d->dbip || !d->tol || !d->ttol)
+	return BRLCAD_ERROR;
 
     dgcdp.dbip = d->dbip;
     dgcdp.do_polysolids = 0;
@@ -1832,8 +1849,9 @@ draw_m3(struct bv_scene_obj *s)
 
     if (!path || rt_gettrees(dgcdp.rtip, 1, (const char **)&path, 1)) {
 	bu_ptbl_free(&dgcdp.leaf_list);
-
 	rt_i_destroy(dgcdp.rtip);
+	bu_vls_free(&ppath);
+	bu_free(dgcdp.ap, "dgcdp.ap");
 	return BRLCAD_ERROR;
     }
 
@@ -1856,6 +1874,8 @@ draw_m3(struct bv_scene_obj *s)
 
     /* free leaf_list */
     bu_ptbl_free(&dgcdp.leaf_list);
+    bu_vls_free(&ppath);
+    bu_free(dgcdp.ap, "dgcdp.ap");
 
     return BRLCAD_OK;
 }

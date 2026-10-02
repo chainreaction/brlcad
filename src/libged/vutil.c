@@ -38,13 +38,17 @@ _ged_do_rot(struct ged *gedp,
 {
     mat_t temp1, temp2;
 
+    if (!gedp || !gedp->ged_gvp)
+	return BRLCAD_ERROR;
+
     if (func != (int (*)(struct ged *, char, char, mat_t))0)
 	return (*func)(gedp, coord, gedp->ged_gvp->gv_rotate_about, rmat);
 
     switch (coord) {
 	case 'm':
 	    /* transform model rotations into view rotations */
-	    bn_mat_inv(temp1, gedp->ged_gvp->gv_rotation);
+	    if (!bn_mat_inverse(temp1, gedp->ged_gvp->gv_rotation))
+		return BRLCAD_ERROR;
 	    bn_mat_mul(temp2, gedp->ged_gvp->gv_rotation, rmat);
 	    bn_mat_mul(rmat, temp2, temp1);
 	    break;
@@ -78,7 +82,8 @@ _ged_do_rot(struct ged *gedp,
 	}
 
 	bn_mat_xform_about_pnt(viewchg, rmat, rot_pt);
-	bn_mat_inv(viewchginv, viewchg);
+	if (!bn_mat_inverse(viewchginv, viewchg))
+	    return BRLCAD_ERROR;
 
 	/* Convert origin in new (viewchg) coords back to old view coords */
 	VSET(new_origin, 0.0, 0.0, 0.0);
@@ -100,6 +105,9 @@ _ged_do_slew(struct ged *gedp, vect_t svec)
 {
     point_t model_center;
 
+    if (!gedp || !gedp->ged_gvp)
+	return BRLCAD_ERROR;
+
     MAT4X3PNT(model_center, gedp->ged_gvp->gv_view2model, svec);
     MAT_DELTAS_VEC_NEG(gedp->ged_gvp->gv_center, model_center);
     bv_update(gedp->ged_gvp);
@@ -117,6 +125,9 @@ _ged_do_tra(struct ged *gedp,
     point_t delta;
     point_t work;
     point_t vc, nvc;
+
+    if (!gedp || !gedp->ged_gvp || !gedp->dbip)
+	return BRLCAD_ERROR;
 
     if (func != (int (*)(struct ged *, char, vect_t))0)
 	return (*func)(gedp, coord, tvec);
@@ -171,7 +182,8 @@ ged_dl_hash(struct display_list *dl)
 		// contents, but names are unique in the database and should
 		// suffice for this purpose - we care if the path has changed.
 		struct directory *dp = DB_FULL_PATH_GET(&bdata->s_fullpath, i);
-		bu_data_hash_update(state, &dp->d_namep, strlen(dp->d_namep));
+		if (dp && dp->d_namep)
+		    bu_data_hash_update(state, dp->d_namep, strlen(dp->d_namep));
 	    }
 	}
 	gdlp = next_gdlp;

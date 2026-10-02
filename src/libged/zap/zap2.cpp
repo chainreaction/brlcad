@@ -47,8 +47,8 @@ ged_zap2_core(struct ged *gedp, int argc, const char *argv[])
     int clear_solid_objs = 0;
     int clear_all_views = 0;
     int shared_only = 0;
-    GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+    GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
     const char *usage = "zap [options]\n";
     struct bview *v = NULL;
 
@@ -72,11 +72,13 @@ ged_zap2_core(struct ged *gedp, int argc, const char *argv[])
 
     if (print_help) {
 	_ged_cmd_help(gedp, usage, d);
+	bu_vls_free(&cvls);
 	return GED_HELP;
     }
 
     if (argc) {
 	_ged_cmd_help(gedp, usage, d);
+	bu_vls_free(&cvls);
 	return BRLCAD_ERROR;
     }
 
@@ -106,15 +108,18 @@ ged_zap2_core(struct ged *gedp, int argc, const char *argv[])
 	    if (gedp->dbi_state) {
 		DbiState *dbis = (DbiState *)gedp->dbi_state;
 		BViewState *bvs = dbis->get_view_state(v);
-		bvs->clear();
+		if (bvs)
+		    bvs->clear();
 	    }
 	}
 
 	if (clear_view_objs)
 	    flags |= BV_VIEW_OBJS;
 
-	if (!bv_clear(v, flags))
-	    v->gv_s->gv_cleared = 1;
+	if (!bv_clear(v, flags)) {
+	    if (v->gv_s)
+		v->gv_s->gv_cleared = 1;
+	}
 
 	bu_vls_free(&cvls);
 	return BRLCAD_OK;
@@ -123,8 +128,14 @@ ged_zap2_core(struct ged *gedp, int argc, const char *argv[])
     // Clear everything
     int ret = BRLCAD_OK;
     struct bu_ptbl *views = bv_set_views(&gedp->ged_views);
+    if (!views) {
+	bu_vls_free(&cvls);
+	return ret;
+    }
     for (size_t i = 0; i < BU_PTBL_LEN(views); i++) {
 	v = (struct bview *)BU_PTBL_GET(views, i);
+	if (!v)
+	    continue;
 	if (v->independent && !clear_all_views)
 	    continue;
 	int flags = 0;
@@ -133,7 +144,8 @@ ged_zap2_core(struct ged *gedp, int argc, const char *argv[])
 	    if (gedp->dbi_state) {
 		DbiState *dbis = (DbiState *)gedp->dbi_state;
 		BViewState *bvs = dbis->get_view_state(v);
-		bvs->clear();
+		if (bvs)
+		    bvs->clear();
 	    }
 	}
 	if (clear_view_objs)
@@ -144,10 +156,8 @@ ged_zap2_core(struct ged *gedp, int argc, const char *argv[])
 	    flags |= BV_LOCAL_OBJS;
 	    lret = bv_clear(v, flags);
 	}
-	if (!nret || !lret)
+	if ((!nret || !lret) && v->gv_s)
 	    v->gv_s->gv_cleared = 1;
-
-	ret = BRLCAD_OK;
     }
 
     bu_vls_free(&cvls);

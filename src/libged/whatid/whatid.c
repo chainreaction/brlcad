@@ -48,12 +48,12 @@ ged_whatid_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
     if (argc != 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
@@ -62,12 +62,17 @@ ged_whatid_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_ERROR;
 
     if (!(dp->d_flags & RT_DIR_REGION)) {
-	bu_vls_printf(gedp->ged_result_str, "%s is not a region", argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "%s is not a region\n", argv[1]);
 	return BRLCAD_ERROR;
     }
 
     if (rt_db_get_internal(&intern, dp, gedp->dbip, (fastf_t *)NULL) < 0)
 	return BRLCAD_ERROR;
+
+    if (intern.idb_type != ID_COMBINATION || !intern.idb_ptr) {
+	rt_db_free_internal(&intern);
+	return BRLCAD_ERROR;
+    }
     comb = (struct rt_comb_internal *)intern.idb_ptr;
 
     bu_vls_printf(gedp->ged_result_str, "%ld", comb->region_id);

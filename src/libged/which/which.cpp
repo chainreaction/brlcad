@@ -120,30 +120,30 @@ ged_which_core(struct ged *gedp, int argc, const char *argv[])
     for (int j = 0; j < argc; j++) {
 	int n;
 	int start, end;
-	int range;
 	int k;
 
-	n = sscanf(argv[j], "%d%*[:-]%d", &start, &end);
+	n = bu_sscanf(argv[j], "%d%*[:-]%d", &start, &end);
 	switch (n) {
 	    case 1:
 		ids.insert(start);
 		break;
 	    case 2:
-		if (start < end)
-		    range = end - start + 1;
-		else if (end < start) {
-		    range = start - end + 1;
+		if (start > end) {
+		    int tmp = start;
 		    start = end;
-		} else {
-		    ids.insert(start);
-		    break;
+		    end = tmp;
 		}
-		for (k = 0; k < range; ++k) {
-		    ids.insert(start + k);
+		if ((long long)end - (long long)start > 100000) {
+		    bu_vls_printf(gedp->ged_result_str, "Error: range too large in specification \"%s\"\n", argv[j]);
+		    bu_vls_free(&root);
+		    return BRLCAD_ERROR;
+		}
+		for (k = start; k <= end; ++k) {
+		    ids.insert(k);
 		}
 		break;
 	    default:
-		bu_vls_printf(gedp->ged_result_str, "Error: invalid range specification \"%s\"", argv[j]);
+		bu_vls_printf(gedp->ged_result_str, "Error: invalid range specification \"%s\"\n", argv[j]);
 		bu_vls_free(&root);
 		return BRLCAD_ERROR;
 	}
@@ -155,19 +155,24 @@ ged_which_core(struct ged *gedp, int argc, const char *argv[])
 	const char *sstring = "-type region";
 	struct directory *sdp = db_lookup(gedp->dbip, bu_vls_cstr(&root), LOOKUP_QUIET);
 	if (sdp == RT_DIR_NULL) {
-	    bu_vls_printf(gedp->ged_result_str, "Error: no object named %s in database.", bu_vls_cstr(&root));
+	    bu_vls_printf(gedp->ged_result_str, "Error: no object named %s in database.\n", bu_vls_cstr(&root));
 	    bu_vls_free(&root);
 	    return BRLCAD_ERROR;
 	}
 	struct bu_ptbl comb_objs = BU_PTBL_INIT_ZERO;
 	(void)db_search(&comb_objs, DB_SEARCH_TREE|DB_SEARCH_RETURN_UNIQ_DP, sstring, 1, &sdp, gedp->dbip, NULL, NULL, NULL);
-	for(size_t i = 0; i < BU_PTBL_LEN(&comb_objs); i++) {
+	for (size_t i = 0; i < BU_PTBL_LEN(&comb_objs); i++) {
 	    dp = (struct directory *)BU_PTBL_GET(&comb_objs, i);
 
 	    if (rt_db_get_internal(&intern, dp, gedp->dbip, (fastf_t *)NULL) < 0) {
-		bu_vls_printf(gedp->ged_result_str, "Database read error, aborting");
+		bu_vls_printf(gedp->ged_result_str, "Database read error, aborting\n");
 		bu_vls_free(&root);
+		db_search_free(&comb_objs);
 		return BRLCAD_ERROR;
+	    }
+	    if (intern.idb_type != ID_COMBINATION || !intern.idb_ptr) {
+		rt_db_free_internal(&intern);
+		continue;
 	    }
 	    comb = (struct rt_comb_internal *)intern.idb_ptr;
 	    /* check to see if the region id or air code matches one in our list */
@@ -185,9 +190,13 @@ ged_which_core(struct ged *gedp, int argc, const char *argv[])
 		continue;
 
 	    if (rt_db_get_internal(&intern, dp, gedp->dbip, (fastf_t *)NULL) < 0) {
-		bu_vls_printf(gedp->ged_result_str, "Database read error, aborting");
+		bu_vls_printf(gedp->ged_result_str, "Database read error, aborting\n");
 		bu_vls_free(&root);
 		return BRLCAD_ERROR;
+	    }
+	    if (intern.idb_type != ID_COMBINATION || !intern.idb_ptr) {
+		rt_db_free_internal(&intern);
+		continue;
 	    }
 	    comb = (struct rt_comb_internal *)intern.idb_ptr;
 	    /* check to see if the region id or air code matches one in our list */

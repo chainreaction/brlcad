@@ -199,25 +199,28 @@ do_grid(char *line)
     int grid_no;
     fastf_t x, y, z;
 
-    bu_strlcpy(field,  &line[8], sizeof(field));
+    if (!line || strlen(line) < 48)
+	return;
+
+    bu_strlcpy(field, &line[8], sizeof(field));
     grid_no = atoi(field);
 
-    if (grid_no < 1) {
-	bu_log("ERROR: grid id number = %d\n", grid_no);
-	bu_bomb("BAD GRID ID NUMBER\n");
+    if (grid_no < 1 || grid_no > 10000000) {
+	bu_log("ERROR: invalid grid id number = %d\n", grid_no);
+	return;
     }
 
-    bu_strlcpy(field,  &line[24], sizeof(field));
+    bu_strlcpy(field, &line[24], sizeof(field));
     x = atof(field);
 
-    bu_strlcpy(field,  &line[32], sizeof(field));
+    bu_strlcpy(field, &line[32], sizeof(field));
     y = atof(field);
 
-    bu_strlcpy(field,  &line[40], sizeof(field));
+    bu_strlcpy(field, &line[40], sizeof(field));
     z = atof(field);
 
-    while (grid_no > grid_size - 1) {
-	grid_size += GRID_BLOCK;
+    if (grid_no >= grid_size) {
+	grid_size = ((grid_no / GRID_BLOCK) + 1) * GRID_BLOCK;
 	grid_pts = (point_t *)bu_realloc((char *)grid_pts, grid_size * sizeof(point_t), "fast4-g: grid_pts");
     }
 
@@ -278,6 +281,9 @@ do_tri(char *line)
     fastf_t thick;
     int pos;
 
+    if (!line || strlen(line) < 48)
+	return;
+
     if (debug)
 	bu_log("do_tri: %s\n", line);
 
@@ -307,7 +313,7 @@ do_tri(char *line)
     thick = 0.0;
     pos = 0;
 
-    if (mode == PLATE_MODE) {
+    if (mode == PLATE_MODE && strlen(line) >= 72) {
 	bu_strlcpy(field,  &line[56], sizeof(field));
 	thick = atof(field) * 25.4;
 
@@ -332,6 +338,9 @@ do_quad(const char *line)
     int pt1, pt2, pt3, pt4;
     fastf_t thick = 0.0;
     int pos = 0;
+
+    if (!line || strlen(line) < 56)
+	return;
 
     bu_strlcpy(field,  &line[8], sizeof(field));
     element_id = atoi(field);
@@ -362,7 +371,7 @@ do_quad(const char *line)
     bu_strlcpy(field,  &line[48], sizeof(field));
     pt4 = atoi(field);
 
-    if (mode == PLATE_MODE) {
+    if (mode == PLATE_MODE && strlen(line) >= 72) {
 	bu_strlcpy(field,  &line[56], sizeof(field));
 	thick = atof(field) * 25.4;
 
@@ -396,6 +405,9 @@ make_bot_object(const char *name,
     int count;
     struct rt_bot_internal bot_ip;
 
+    if (face_count <= 0 || !FACES || !grid_pts)
+	return;
+
     bot_ip.magic = RT_BOT_INTERNAL_MAGIC;
     for (i = 0; i < face_count; i++) {
 	V_MIN(min_pt, FACES[i*3]);
@@ -405,6 +417,9 @@ make_bot_object(const char *name,
 	V_MIN(min_pt, FACES[i*3+2]);
 	V_MAX(max_pt, FACES[i*3+2]);
     }
+
+    if (min_pt < 0 || max_pt > max_grid_no || min_pt > max_pt)
+	return;
 
     num_vertices = max_pt - min_pt + 1;
     bot_ip.num_vertices = num_vertices;
@@ -482,19 +497,43 @@ wdb_importFg4Section_cmd(void *data,
     char *lines;
     int eosFlag = 0;
 
-    if (argc != 3) {
+    if (argc != 3 || !argv[1] || !argv[2]) {
 	bu_log("ERROR: expecting three arguments\n");
 	return BRLCAD_ERROR;
     }
 
+    /* Reset state from any previous invocation */
+    grid_size = 0;
+    max_grid_no = 0;
+    mode = 0;
+    group_id = -1;
+    comp_id = -1;
+    region_id = 0;
+    bot_id = 0;
+    face_size = 0;
+    face_count = 0;
+    grid_pts = NULL;
+    FACES = NULL;
+    THICKNESS = NULL;
+    facemode = NULL;
+
     grid_size = GRID_BLOCK;
-    grid_pts = (point_t *)bu_malloc(grid_size * sizeof(point_t) ,
+    grid_pts = (point_t *)bu_calloc(grid_size, sizeof(point_t),
 				    "importFg4Section: grid_pts");
 
     lines = bu_strdup(argv[2]);
     cp = line = lines;
 
     FIND_NEWLINE(cp, eosFlag);
+
+    if (strlen(line) < 25) {
+	bu_log("ERROR: header line too short\n");
+	bu_free(lines, "importFg4Section: lines");
+	bu_free((void *)grid_pts, "importFg4Section: grid_pts");
+	grid_pts = NULL;
+	grid_size = 0;
+	return BRLCAD_ERROR;
+    }
 
     bu_strlcpy(field, line+8, sizeof(field));
     group_id = atoi(field);
@@ -531,8 +570,10 @@ wdb_importFg4Section_cmd(void *data,
     }
 
     make_bot_object(argv[1], wdbp);
-    free((void *)lines);
+    bu_free((void *)lines, "importFg4Section: lines");
     bu_free((void *)grid_pts, "importFg4Section: grid_pts");
+    grid_pts = NULL;
+    grid_size = 0;
 
     /* free memory associated with globals */
     bu_free((void *)FACES, "importFg4Section: faces");

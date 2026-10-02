@@ -50,14 +50,17 @@ ged_view2model_vec_core(struct ged *gedp, int argc, const char *argv[])
     if (argc != 4)
 	goto bad;
 
-    if (sscanf(argv[1], "%lf", &scan[X]) != 1 ||
-	sscanf(argv[2], "%lf", &scan[Y]) != 1 ||
-	sscanf(argv[3], "%lf", &scan[Z]) != 1)
+    if (bu_sscanf(argv[1], "%lf", &scan[X]) != 1 ||
+	bu_sscanf(argv[2], "%lf", &scan[Y]) != 1 ||
+	bu_sscanf(argv[3], "%lf", &scan[Z]) != 1)
 	goto bad;
     /* convert from double to fastf_t */
     VMOVE(view_vec, scan);
 
-    bn_mat_inv(inv_Viewrot, gedp->ged_gvp->gv_rotation);
+    if (!bn_mat_inverse(inv_Viewrot, gedp->ged_gvp->gv_rotation)) {
+	bu_vls_printf(gedp->ged_result_str, "ERROR: singular view rotation matrix\n");
+	return BRLCAD_ERROR;
+    }
     MAT4X3PNT(model_vec, inv_Viewrot, view_vec);
 
     bn_encode_vect(gedp->ged_result_str, model_vec, 1);
@@ -65,7 +68,7 @@ ged_view2model_vec_core(struct ged *gedp, int argc, const char *argv[])
     return BRLCAD_OK;
 
 bad:
-    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
     return BRLCAD_ERROR;
 }
 

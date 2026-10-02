@@ -51,7 +51,7 @@ ged_which_shader_core(struct ged *gedp, int argc, const char *argv[])
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
@@ -66,7 +66,7 @@ ged_which_shader_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     if (myArgc < 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
@@ -84,16 +84,19 @@ ged_which_shader_core(struct ged *gedp, int argc, const char *argv[])
 		bu_vls_printf(gedp->ged_result_str, "Database read error, aborting.\n");
 		return BRLCAD_ERROR;
 	    }
+	    if (intern.idb_type != ID_COMBINATION || !intern.idb_ptr) {
+		rt_db_free_internal(&intern);
+		continue;
+	    }
 	    comb = (struct rt_comb_internal *)intern.idb_ptr;
 
-	    if (!strstr(bu_vls_addr(&comb->shader), myArgv[j]))
-		continue;
-
-	    if (sflag)
-		bu_vls_printf(gedp->ged_result_str, " %s", dp->d_namep);
-	    else
-		bu_vls_printf(gedp->ged_result_str, "   %s\n", dp->d_namep);
-	    intern.idb_meth->ft_ifree(&intern);
+	    if (strstr(bu_vls_cstr(&comb->shader), myArgv[j])) {
+		if (sflag)
+		    bu_vls_printf(gedp->ged_result_str, " %s", dp->d_namep);
+		else
+		    bu_vls_printf(gedp->ged_result_str, "   %s\n", dp->d_namep);
+	    }
+	    rt_db_free_internal(&intern);
 	} FOR_ALL_DIRECTORY_END;
     }
 

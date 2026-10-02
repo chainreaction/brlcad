@@ -49,11 +49,12 @@ extern "C" int ged_who_solids_core(struct ged *gedp, int argc, const char *argv[
 extern "C" int
 ged_who2_core(struct ged *gedp, int argc, const char *argv[])
 {
-    if (argc > 1 && (BU_STR_EQUAL(argv[1], "solids") || BU_STR_EQUAL(argv[1], "report")))
-	return ged_who_solids_core(gedp, argc, argv);
-
+    GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_DRAWABLE(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+
+    if (argc > 1 && (BU_STR_EQUAL(argv[1], "solids") || BU_STR_EQUAL(argv[1], "report")))
+	return ged_who_solids_core(gedp, argc, argv);
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -99,12 +100,20 @@ ged_who2_core(struct ged *gedp, int argc, const char *argv[])
 
     /* Check that we have a view */
     if (!v) {
-	bu_vls_printf(gedp->ged_result_str, "No view specified and no current view defined in GED, nothing to generate a list of paths from");
+	bu_vls_printf(gedp->ged_result_str, "No view specified and no current view defined in GED, nothing to generate a list of paths from\n");
 	return BRLCAD_ERROR;
     }
 
     DbiState *dbis = (DbiState *)gedp->dbi_state;
+    if (!dbis) {
+	bu_vls_printf(gedp->ged_result_str, "No database state available\n");
+	return BRLCAD_ERROR;
+    }
     BViewState *bvs = dbis->get_view_state(v);
+    if (!bvs) {
+	bu_vls_printf(gedp->ged_result_str, "No view state available\n");
+	return BRLCAD_ERROR;
+    }
     std::vector<std::string> paths = bvs->list_drawn_paths(mode, (bool)!expand);
     for (size_t i = 0; i < paths.size(); i++) {
 	bu_vls_printf(gedp->ged_result_str, "%s\n", paths[i].c_str());

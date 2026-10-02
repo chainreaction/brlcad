@@ -43,11 +43,13 @@ ged_view2grid_lu_core(struct ged *gedp, int argc, const char *argv[])
     point_t mo_view_pt;           /* model origin in view space */
     point_t diff;
     static const char *usage = "x y z";
-    double b2lval = (gedp->dbip) ? gedp->dbip->dbi_base2local : 1.0;
+    double b2lval;
 
     GED_CHECK_DATABASE_OPEN(gedp, BRLCAD_ERROR);
     GED_CHECK_VIEW(gedp, BRLCAD_ERROR);
     GED_CHECK_ARGC_GT_0(gedp, argc, BRLCAD_ERROR);
+
+    b2lval = (gedp->dbip) ? gedp->dbip->dbi_base2local : 1.0;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -55,9 +57,9 @@ ged_view2grid_lu_core(struct ged *gedp, int argc, const char *argv[])
     if (argc != 4)
 	goto bad;
 
-    if (sscanf(argv[1], "%lf", &view_pt[X]) != 1 ||
-	sscanf(argv[2], "%lf", &view_pt[Y]) != 1 ||
-	sscanf(argv[3], "%lf", &view_pt[Z]) != 1)
+    if (bu_sscanf(argv[1], "%lf", &view_pt[X]) != 1 ||
+	bu_sscanf(argv[2], "%lf", &view_pt[Y]) != 1 ||
+	bu_sscanf(argv[3], "%lf", &view_pt[Z]) != 1)
 	goto bad;
 
     MAT4X3PNT(mo_view_pt, gedp->ged_gvp->gv_model2view, model_pt);
@@ -70,7 +72,7 @@ ged_view2grid_lu_core(struct ged *gedp, int argc, const char *argv[])
     return BRLCAD_OK;
 
 bad:
-    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
     return BRLCAD_ERROR;
 }
 
