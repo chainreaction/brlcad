@@ -79,21 +79,25 @@ f_facedef(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
+    if (!ctp || !interp || !argv)
+	return TCL_ERROR;
     struct mged_state *s = ctp->s;
+    if (!s)
+	return TCL_ERROR;
     short int i;
-    int face, prod, plane;
+    int face = 0, prod = 1, plane = -1;
     struct rt_db_internal intern;
     struct rt_arb_internal *arb;
     struct rt_arb_internal *arbo;
     plane_t planes[6];
     int status;
-    struct bu_vls error_msg;
+    struct bu_vls error_msg = BU_VLS_INIT_ZERO;
 
     if (argc < 2) {
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help facedef");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -104,7 +108,6 @@ f_facedef(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	return TCL_OK;
 
     status = TCL_OK;
-    BU_VLS_INIT(&error_msg);
     RT_DB_INTERNAL_INIT(&intern);
 
     if (s->global_editing_state != ST_S_EDIT) {
@@ -112,7 +115,7 @@ f_facedef(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	status = TCL_ERROR;
 	goto end;
     }
-    if (MEDIT(s)->es_int.idb_type != ID_ARB8) {
+    if (!MEDIT(s) || MEDIT(s)->es_int.idb_type != ID_ARB8 || !MEDIT(s)->es_int.idb_ptr) {
 	Tcl_AppendResult(interp, "Facedef: solid type must be ARB\n", (char *)NULL);
 	status = TCL_ERROR;
 	goto end;
@@ -127,7 +130,7 @@ f_facedef(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     /* find new planes to account for any editing */
     int arb_type = rt_arb_std_type(&MEDIT(s)->es_int, MEDIT(s)->tol);
     if (rt_arb_calc_planes(&error_msg, arb, arb_type, planes, &s->tol.tol)) {
-	Tcl_AppendResult(interp, bu_vls_addr(&error_msg),
+	Tcl_AppendResult(interp, bu_vls_cstr(&error_msg),
 			 "Unable to determine plane equations\n", (char *)NULL);
 	status = TCL_ERROR;
 	bu_vls_free(&error_msg);
@@ -136,66 +139,76 @@ f_facedef(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     bu_vls_free(&error_msg);
 
     /* get face, initialize args and argcnt */
-    face = atoi(argv[1]);
+    if (!argv[1] || bu_sscanf(argv[1], "%d", &face) != 1 || face <= 0) {
+	Tcl_AppendResult(interp, "Facedef: invalid face number '", argv[1] ? argv[1] : "(null)", "'\n", (char *)NULL);
+	status = TCL_ERROR;
+	goto end;
+    }
 
     /* use product of vertices to distinguish faces */
-    for (i=0, prod=1;i<4;i++) {
+    for (i = 0, prod = 1; i < 4; i++) {
 	if (face > 0) {
-	    prod *= face%10;
+	    prod *= face % 10;
 	    face /= 10;
 	}
     }
 
     switch (prod) {
 	case 6:			/* face 123 of arb4 */
-	case 24:plane=0;	/* face 1234 of arb8 */
+	case 24:plane = 0;	/* face 1234 of arb8 */
 	    /* face 1234 of arb7 */
 	    /* face 1234 of arb6 */
 	    /* face 1234 of arb5 */
-	    if (arb_type==4 && prod==24)
-		plane=2; 	/* face 234 of arb4 */
+	    if (arb_type == 4 && prod == 24)
+		plane = 2; 	/* face 234 of arb4 */
 	    break;
 	case 8:			/* face 124 of arb4 */
 	case 180: 		/* face 2365 of arb6 */
 	case 210:		/* face 567 of arb7 */
-	case 1680:plane=1;      /* face 5678 of arb8 */
+	case 1680:plane = 1;      /* face 5678 of arb8 */
 	    break;
 	case 30:		/* face 235 of arb5 */
 	case 120:		/* face 1564 of arb6 */
 	case 20:      		/* face 145 of arb7 */
-	case 160:plane=2;	/* face 1584 of arb8 */
-	    if (arb_type==5)
-		plane=4; 	/* face 145 of arb5 */
+	case 160:plane = 2;	/* face 1584 of arb8 */
+	    if (arb_type == 5)
+		plane = 4; 	/* face 145 of arb5 */
 	    break;
 	case 12:		/* face 134 of arb4 */
 	case 10:		/* face 125 of arb6 */
-	case 252:plane=3;	/* face 2376 of arb8 */
+	case 252:plane = 3;	/* face 2376 of arb8 */
 	    /* face 2376 of arb7 */
-	    if (arb_type==5)
-		plane=1; 	/* face 125 of arb5 */
+	    if (arb_type == 5)
+		plane = 1; 	/* face 125 of arb5 */
 	    break;
 	case 72:               	/* face 346 of arb6 */
-	case 60:plane=4;	/* face 1265 of arb8 */
+	case 60:plane = 4;	/* face 1265 of arb8 */
 	    /* face 1265 of arb7 */
-	    if (arb_type==5)
-		plane=3; 	/* face 345 of arb5 */
+	    if (arb_type == 5)
+		plane = 3; 	/* face 345 of arb5 */
 	    break;
 	case 420:		/* face 4375 of arb7 */
-	case 672:plane=5;	/* face 4378 of arb8 */
+	case 672:plane = 5;	/* face 4378 of arb8 */
 	    break;
 	default:
 	    {
 		struct bu_vls tmp_vls = BU_VLS_INIT_ZERO;
 
 		bu_vls_printf(&tmp_vls, "bad face (product=%d)\n", prod);
-		Tcl_AppendResult(interp, bu_vls_addr(&tmp_vls), (char *)NULL);
+		Tcl_AppendResult(interp, bu_vls_cstr(&tmp_vls), (char *)NULL);
 		bu_vls_free(&tmp_vls);
 		status = TCL_ERROR;
 		goto end;
 	    }
     }
 
-    if (argc < 3) {
+    if (plane < 0 || plane >= 6) {
+	Tcl_AppendResult(interp, "Facedef: plane determination failed\n", (char *)NULL);
+	status = TCL_ERROR;
+	goto end;
+    }
+
+    if (argc < 3 || !argv[2]) {
 	/* menu of choices for plane equation definition */
 	Tcl_AppendResult(interp,
 			 "\ta   planar equation\n",
@@ -212,14 +225,15 @@ f_facedef(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	case 'a':
 	    /* special case for arb7, because of 2 4-pt planes meeting */
 	    if (arb_type == 7)
-		if (plane!=0 && plane!=3) {
+		if (plane != 0 && plane != 3) {
 		    Tcl_AppendResult(interp, "Facedef: can't redefine that arb7 plane\n", (char *)NULL);
 		    status = TCL_ERROR;
 		    goto end;
 		}
 	    if (argc < 7) {
 		/* total # of args under this option */
-		Tcl_AppendResult(interp, MORE_ARGS_STR, p_pleqn[argc-3], (char *)NULL);
+		int pidx = (argc >= 3 && argc - 3 < 4) ? argc - 3 : 0;
+		Tcl_AppendResult(interp, MORE_ARGS_STR, p_pleqn[pidx], (char *)NULL);
 		status = TCL_ERROR;
 		goto end;
 	    }
@@ -228,7 +242,7 @@ f_facedef(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	case 'b':
 	    /* special case for arb7, because of 2 4-pt planes meeting */
 	    if (arb_type == 7)
-		if (plane!=0 && plane!=3) {
+		if (plane != 0 && plane != 3) {
 		    Tcl_AppendResult(interp, "Facedef: can't redefine that arb7 plane\n", (char *)NULL);
 		    status = TCL_ERROR;
 		    goto end;
@@ -236,9 +250,10 @@ f_facedef(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	    if (argc < 12) {
 		/* total # of args under this option */
 		struct bu_vls tmp_vls = BU_VLS_INIT_ZERO;
+		int pidx = (argc >= 3) ? (argc - 3) % 3 : 0;
 
-		bu_vls_printf(&tmp_vls, "%s%s %d: ", MORE_ARGS_STR, p_3pts[(argc-3)%3], argc/3);
-		Tcl_AppendResult(interp, bu_vls_addr(&tmp_vls), (char *)NULL);
+		bu_vls_printf(&tmp_vls, "%s%s %d: ", MORE_ARGS_STR, p_3pts[pidx], argc / 3);
+		Tcl_AppendResult(interp, bu_vls_cstr(&tmp_vls), (char *)NULL);
 		bu_vls_free(&tmp_vls);
 		status = TCL_ERROR;
 		goto end;
@@ -255,8 +270,9 @@ f_facedef(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	    /* special case for arb7, because of 2 4-pt planes meeting */
 	    if (arb_type == 7 && (plane != 0 && plane != 3)) {
 		if (argc < 5) {
-		    /* total # of args under this option */
-		    Tcl_AppendResult(interp, MORE_ARGS_STR, p_rotfb[argc-3], (char *)NULL);
+			/* total # of args under this option */
+		    int pidx = (argc >= 3 && argc - 3 < 5) ? argc - 3 : 0;
+		    Tcl_AppendResult(interp, MORE_ARGS_STR, p_rotfb[pidx], (char *)NULL);
 		    status = TCL_ERROR;
 		    goto end;
 		}
@@ -268,8 +284,9 @@ f_facedef(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 		Tcl_AppendResult(interp, "Fixed point is vertex five.\n", (char *)NULL);
 	    }
 	    /* total # of args under this option */
-	    else if (argc < 6 || (argv[5][0] != 'v' && argc < 8)) {
-		Tcl_AppendResult(interp, MORE_ARGS_STR, p_rotfb[argc-3], (char *)NULL);
+	    else if (argc < 6 || (argv[5] && argv[5][0] != 'v' && argc < 8)) {
+		int pidx = (argc >= 3 && argc - 3 < 5) ? argc - 3 : 0;
+		Tcl_AppendResult(interp, MORE_ARGS_STR, p_rotfb[pidx], (char *)NULL);
 		status = TCL_ERROR;
 		goto end;
 	    }
@@ -282,14 +299,15 @@ f_facedef(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	case 'd':
 	    /* special case for arb7, because of 2 4-pt planes meeting */
 	    if (arb_type == 7)
-		if (plane!=0 && plane!=3) {
+		if (plane != 0 && plane != 3) {
 		    Tcl_AppendResult(interp, "Facedef: can't redefine that arb7 plane\n", (char *)NULL);
 		    status = TCL_ERROR;
 		    goto end;
 		}
 	    if (argc < 6) {
 		/* total # of args under this option */
-		Tcl_AppendResult(interp, MORE_ARGS_STR, p_nupnt[argc-3], (char *)NULL);
+		int pidx = (argc >= 3 && argc - 3 < 3) ? argc - 3 : 0;
+		Tcl_AppendResult(interp, MORE_ARGS_STR, p_nupnt[pidx], (char *)NULL);
 		status = TCL_ERROR;
 		goto end;
 	    }
@@ -315,9 +333,14 @@ f_facedef(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     /* Transform points back before MEDIT(s)->e_mat changes */
     /* This is the "new way" */
     arbo = (struct rt_arb_internal *)MEDIT(s)->es_int.idb_ptr;
+    if (!arbo) {
+	Tcl_AppendResult(interp, "facedef: internal solid is NULL\n", (char *)NULL);
+	status = TCL_ERROR;
+	goto end;
+    }
     RT_ARB_CK_MAGIC(arbo);
 
-    for (i=0; i<8; i++) {
+    for (i = 0; i < 8; i++) {
 	MAT4X3PNT(arbo->pt[i], MEDIT(s)->e_invmat, arb->pt[i]);
     }
 
@@ -326,6 +349,7 @@ f_facedef(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 
  end:
     rt_db_free_internal(&intern);
+    bu_vls_free(&error_msg);
     (void)signal(SIGINT, SIG_IGN);
     return status;
 }
@@ -340,14 +364,23 @@ get_pleqn(struct mged_state *s, fastf_t *plane, const char *argv[])
 {
     int i;
 
-    if (s->dbip == DBI_NULL)
+    if (!s || s->dbip == DBI_NULL || !plane || !argv)
 	return;
 
-    for (i=0; i<4; i++)
-	plane[i]= atof(argv[i]);
-    VUNITIZE(&plane[0]);
+    for (i = 0; i < 4; i++) {
+	double val = 0.0;
+	if (argv[i])
+	    (void)bu_sscanf(argv[i], "%lf", &val);
+	plane[i] = val;
+    }
+    fastf_t mag_sq = plane[0]*plane[0] + plane[1]*plane[1] + plane[2]*plane[2];
+    if (!ZERO(mag_sq)) {
+	fastf_t inv_mag = 1.0 / sqrt(mag_sq);
+	plane[0] *= inv_mag;
+	plane[1] *= inv_mag;
+	plane[2] *= inv_mag;
+    }
     plane[W] *= s->dbip->dbi_local2base;
-    return;
 }
 
 
@@ -366,17 +399,31 @@ get_3pts(struct mged_state *s, fastf_t *plane, const char *argv[], const struct 
     int i;
     point_t a, b, c;
 
-    CHECK_DBI_NULL;
+    if (!s || s->dbip == DBI_NULL || !plane || !argv || !tol)
+	return -1;
 
-    for (i=0; i<3; i++)
-	a[i] = atof(argv[0+i]) * s->dbip->dbi_local2base;
-    for (i=0; i<3; i++)
-	b[i] = atof(argv[3+i]) * s->dbip->dbi_local2base;
-    for (i=0; i<3; i++)
-	c[i] = atof(argv[6+i]) * s->dbip->dbi_local2base;
+    for (i = 0; i < 3; i++) {
+	double val = 0.0;
+	if (argv[0+i])
+	    (void)bu_sscanf(argv[0+i], "%lf", &val);
+	a[i] = val * s->dbip->dbi_local2base;
+    }
+    for (i = 0; i < 3; i++) {
+	double val = 0.0;
+	if (argv[3+i])
+	    (void)bu_sscanf(argv[3+i], "%lf", &val);
+	b[i] = val * s->dbip->dbi_local2base;
+    }
+    for (i = 0; i < 3; i++) {
+	double val = 0.0;
+	if (argv[6+i])
+	    (void)bu_sscanf(argv[6+i], "%lf", &val);
+	c[i] = val * s->dbip->dbi_local2base;
+    }
 
     if (bg_make_plane_3pnts(plane, a, b, c, tol) < 0) {
-	Tcl_AppendResult(s->interp, "Facedef: not a plane\n", (char *)NULL);
+	if (s->interp)
+	    Tcl_AppendResult(s->interp, "Facedef: not a plane\n", (char *)NULL);
 	return -1;		/* failure */
     }
     return 0;			/* success */
@@ -391,16 +438,22 @@ get_3pts(struct mged_state *s, fastf_t *plane, const char *argv[], const struct 
 static int
 get_rotfb(struct mged_state *s, fastf_t *plane, const char *argv[], const struct rt_arb_internal *arb)
 {
-    fastf_t rota, fb_a;
+    fastf_t rota = 0.0, fb_a = 0.0;
     char *endptr;
     int i;
     point_t pt;
 
-    if (s->dbip == DBI_NULL)
+    if (!s || s->dbip == DBI_NULL || !plane || !argv || !arb)
 	return -1;
 
-    rota= atof(argv[0]) * DEG2RAD;
-    fb_a  = atof(argv[1]) * DEG2RAD;
+    if (!argv[0] || !argv[1] || !argv[2])
+	return -1;
+
+    double dval = 0.0;
+    if (bu_sscanf(argv[0], "%lf", &dval) == 1)
+	rota = dval * DEG2RAD;
+    if (bu_sscanf(argv[1], "%lf", &dval) == 1)
+	fb_a = dval * DEG2RAD;
 
     /* calculate normal vector (length=1) from rot, struct fb */
     plane[0] = cos(fb_a) * cos(rota);
@@ -411,15 +464,20 @@ get_rotfb(struct mged_state *s, fastf_t *plane, const char *argv[], const struct
 	long vertex = strtol(argv[2] + 1, &endptr, 10);
 
 	if (endptr == argv[2] + 1 || *endptr != '\0' || vertex < 1 || vertex > 8) {
-	    Tcl_AppendResult(s->interp, "Facedef: bad vertex - ", argv[2], "\n", (char *)NULL);
+	    if (s->interp)
+		Tcl_AppendResult(s->interp, "Facedef: bad vertex - ", argv[2], "\n", (char *)NULL);
 	    return -1;
 	}
-	plane[W]= VDOT(&plane[0], arb->pt[vertex - 1]);
+	plane[W] = VDOT(&plane[0], arb->pt[vertex - 1]);
     } else {
 	/* definite point given */
-	for (i=0; i<3; i++)
-	    pt[i]=atof(argv[2+i]) * s->dbip->dbi_local2base;
-	plane[W]=VDOT(&plane[0], pt);
+	for (i = 0; i < 3; i++) {
+	    double pval = 0.0;
+	    if (argv[2+i])
+		(void)bu_sscanf(argv[2+i], "%lf", &pval);
+	    pt[i] = pval * s->dbip->dbi_local2base;
+	}
+	plane[W] = VDOT(&plane[0], pt);
     }
 
     return 0;
@@ -437,11 +495,15 @@ get_nupnt(struct mged_state *s, fastf_t *plane, const char *argv[])
     int i;
     point_t pt;
 
-    if (s->dbip == DBI_NULL)
+    if (!s || s->dbip == DBI_NULL || !plane || !argv)
 	return;
 
-    for (i=0; i<3; i++)
-	pt[i] = atof(argv[i]) * s->dbip->dbi_local2base;
+    for (i = 0; i < 3; i++) {
+	double val = 0.0;
+	if (argv[i])
+	    (void)bu_sscanf(argv[i], "%lf", &val);
+	pt[i] = val * s->dbip->dbi_local2base;
+    }
     plane[W] = VDOT(&plane[0], pt);
 }
 
