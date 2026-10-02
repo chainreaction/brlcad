@@ -24,6 +24,8 @@
 
 #include "common.h"
 
+#include <cstring>
+
 #include "mged_impl.h"
 #include "mged.h"
 #include "rt/rt_ecmds.h"
@@ -37,8 +39,10 @@ MGED_Internal::~MGED_Internal()
     std::map<int, rt_edit_map *>::iterator c_it;
     for (c_it = cmd_map.begin(); c_it != cmd_map.end(); c_it++) {
 	rt_edit_map *m = c_it->second;
-	rt_edit_map_destroy(m);
+	if (m)
+	    rt_edit_map_destroy(m);
     }
+    cmd_map.clear();
 }
 
 struct mged_state *
@@ -46,15 +50,13 @@ mged_state_create(void)
 {
     struct mged_state *s;
     BU_GET(s, struct mged_state);
+    memset(s, 0, sizeof(struct mged_state));
 
     s->magic = MGED_STATE_MAGIC;
 
     /* s->s_edit is intentionally left NULL here.  Callers that actually
      * run an interactive session must allocate and initialize s_edit
      * separately (as mged.c's main() does). */
-
-    BU_GET(s->i, struct mged_state_impl);
-    s->i->i = new MGED_Internal;
 
     s->classic_mged = 1;
     s->interactive = 0; /* >0 means interactive, intentionally starts
@@ -65,30 +67,8 @@ mged_state_create(void)
     bu_vls_init(&s->input_str_prefix);
     bu_vls_init(&s->scratchline);
     bu_vls_init(&s->mged_prompt);
-    s->dpy_string = NULL;
-    s->gui_thread_id = NULL;
 
-    // Register default callbacks
-    mged_state_clbk_set(s, 0, ECMD_PRINT_STR, BU_CLBK_DURING, mged_print_str, s);
-    mged_state_clbk_set(s, 0, ECMD_PRINT_RESULTS, BU_CLBK_DURING, mged_print_result, s);
-    mged_state_clbk_set(s, 0, ECMD_EAXES_POS , BU_CLBK_DURING, set_e_axes_pos_clbk, s);
-    mged_state_clbk_set(s, 0, ECMD_REPLOT_EDITING_SOLID, BU_CLBK_DURING, replot_editing_solid, s);
-    mged_state_clbk_set(s, 0, ECMD_VIEW_UPDATE, BU_CLBK_DURING, mged_view_update, s);
-    mged_state_clbk_set(s, 0, ECMD_VIEW_SET_FLAG, BU_CLBK_DURING, mged_view_set_flag, s);
-    mged_state_clbk_set(s, 0, ECMD_MENU_SET, BU_CLBK_DURING, mged_mmenu_set, s);
-    mged_state_clbk_set(s, 0, ECMD_MENU_REFRESH, BU_CLBK_DURING, mged_menu_refresh, s);
-    mged_state_clbk_set(s, 0, ECMD_GET_FILENAME, BU_CLBK_DURING, mged_get_filename, s);
-
-    // Register primitive/ecmd specific callbacks
-    mged_state_clbk_set(s, ID_ARB8, ECMD_ARB_SETUP_ROTFACE, BU_CLBK_DURING, arb_setup_rotface_clbk, s);
-    mged_state_clbk_set(s, ID_BOT, ECMD_BOT_MODE, BU_CLBK_DURING, ecmd_bot_mode_clbk, s);
-    mged_state_clbk_set(s, ID_BOT, ECMD_BOT_ORIENT, BU_CLBK_DURING, ecmd_bot_orient_clbk, s);
-    mged_state_clbk_set(s, ID_BOT, ECMD_BOT_THICK, BU_CLBK_DURING, ecmd_bot_thick_clbk, s);
-    mged_state_clbk_set(s, ID_BOT, ECMD_BOT_FLAGS, BU_CLBK_DURING, ecmd_bot_flags_clbk, s);
-    mged_state_clbk_set(s, ID_BOT, ECMD_BOT_FMODE, BU_CLBK_DURING, ecmd_bot_fmode_clbk, s);
-    mged_state_clbk_set(s, ID_BOT, ECMD_BOT_PICKT, BU_CLBK_DURING, ecmd_bot_pickt_multihit_clbk, s);
-    mged_state_clbk_set(s, ID_NMG, ECMD_NMG_EDEBUG, BU_CLBK_DURING, ecmd_nmg_edebug_clbk, s);
-    mged_state_clbk_set(s, ID_EXTRUDE, ECMD_EXTR_SKT_NAME, BU_CLBK_DURING, ecmd_extrude_skt_name_clbk, s);
+    mged_state_init_internals(s);
 
     return s;
 }
@@ -104,12 +84,24 @@ mged_state_destroy(struct mged_state *s)
     bu_vls_free(&s->input_str_prefix);
     bu_vls_free(&s->scratchline);
     bu_vls_free(&s->mged_prompt);
-    rt_edit_destroy(MEDIT(s));
-    MEDIT(s) = NULL;
+    if (s->search_snapshot) {
+	bu_free(s->search_snapshot, "search_snapshot");
+	s->search_snapshot = NULL;
+    }
+    if (s->dpy_string) {
+	bu_free(s->dpy_string, "dpy_string");
+	s->dpy_string = NULL;
+    }
+    if (s->s_edit) {
+	if (s->s_edit->e) {
+	    rt_edit_destroy(s->s_edit->e);
+	    s->s_edit->e = NULL;
+	}
+	BU_PUT(s->s_edit, struct mged_edit_state);
+	s->s_edit = NULL;
+    }
 
-    delete s->i->i;
-    BU_PUT(s->s_edit, struct mged_edit_state);
-    BU_PUT(s->i, struct mged_state_impl);
+    mged_state_destroy_internals(s);
     BU_PUT(s, struct mged_state);
 }
 
@@ -154,6 +146,7 @@ mged_state_destroy_internals(struct mged_state *s)
     if (!s || !s->i)
 	return;
     delete s->i->i;
+    s->i->i = NULL;
     BU_PUT(s->i, struct mged_state_impl);
     s->i = NULL;
 }
@@ -161,6 +154,9 @@ mged_state_destroy_internals(struct mged_state *s)
 struct rt_edit_map *
 mged_internal_clbk_map(MGED_Internal *i, int obj_type)
 {
+    if (!i)
+	return NULL;
+
     struct rt_edit_map *omap = NULL;
     std::map<int, rt_edit_map *>::iterator m_it = i->cmd_map.find(obj_type);
     if (m_it != i->cmd_map.end()) {
@@ -174,9 +170,8 @@ mged_internal_clbk_map(MGED_Internal *i, int obj_type)
 
 int mged_state_clbk_set(struct mged_state *s, int obj_type, int ed_cmd, int mode, bu_clbk_t f, void *d)
 {
-    // Check for no-op case
-    if (!s)
-	return BRLCAD_OK;
+    if (!s || !s->i || !s->i->i)
+	return BRLCAD_ERROR;
 
     MGED_Internal *i = s->i->i;
     struct rt_edit_map *mp = mged_internal_clbk_map(i, obj_type);
@@ -188,9 +183,13 @@ int mged_state_clbk_set(struct mged_state *s, int obj_type, int ed_cmd, int mode
 
 int mged_state_clbk_get(bu_clbk_t *f, void **d, struct mged_state *s, int obj_type, int ed_cmd, int mode)
 {
-    // Check for no-op case
-    if (!f || !d || !s)
-	return BRLCAD_OK;
+    if (f)
+	*f = NULL;
+    if (d)
+	*d = NULL;
+
+    if (!f || !d || !s || !s->i || !s->i->i)
+	return BRLCAD_ERROR;
 
     MGED_Internal *i = s->i->i;
     struct rt_edit_map *mp = mged_internal_clbk_map(i, obj_type);
@@ -203,20 +202,29 @@ int mged_state_clbk_get(bu_clbk_t *f, void **d, struct mged_state *s, int obj_ty
 
 int mged_edit_clbk_sync(struct rt_edit *se, struct mged_state *s)
 {
-    if (!se)
+    if (!se || !se->m || !s || !s->i || !s->i->i)
 	return BRLCAD_ERROR;
-
 
     MGED_Internal *i = s->i->i;
 
     rt_edit_map_clear(se->m);
 
     struct rt_edit_map *gmp = mged_internal_clbk_map(i, 0);
-    rt_edit_map_copy(se->m, gmp);
+    if (gmp)
+	rt_edit_map_copy(se->m, gmp);
 
-    struct rt_edit_map *mp = mged_internal_clbk_map(i, MEDIT(s)->es_int.idb_type);
+    int obj_type = 0;
+    if (s->s_edit && s->s_edit->e) {
+	obj_type = s->s_edit->e->es_int.idb_type;
+    }
 
-    return rt_edit_map_copy(se->m, mp);
+    if (obj_type != 0) {
+	struct rt_edit_map *mp = mged_internal_clbk_map(i, obj_type);
+	if (mp)
+	    return rt_edit_map_copy(se->m, mp);
+    }
+
+    return BRLCAD_OK;
 }
 
 

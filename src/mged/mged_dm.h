@@ -462,7 +462,7 @@ __END_DECLS
 #define scroll_array s->mged_curr_dm->dm_scroll_array
 
 #define VIEWSIZE	(view_state->vs_gvp->gv_size)	/* Width of viewing cube */
-#define VIEWFACTOR	(1/view_state->vs_gvp->gv_scale)
+#define VIEWFACTOR	(ZERO(view_state->vs_gvp->gv_scale) ? 0.0 : (1.0 / view_state->vs_gvp->gv_scale))
 
 #define RATE_ROT_FACTOR 6.0
 #define ABS_ROT_FACTOR 180.0
@@ -517,18 +517,16 @@ __END_DECLS
 
 #define BV_MAXFUNC	64	/* largest code used */
 
-#define GET_MGED_DM(p, id) { \
-    \
+#define GET_MGED_DM(p, id) do { \
     (p) = MGED_DM_NULL; \
     for (size_t dm_ind = 0; dm_ind < BU_PTBL_LEN(&active_dm_set); dm_ind++) { \
 	struct mged_dm *tp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, dm_ind); \
-	if ((id) == dm_get_id(tp->dm_dmp)) { \
+	if (tp && tp->dm_dmp && (id) == dm_get_id(tp->dm_dmp)) { \
 	    (p) = tp; \
 	    break; \
 	} \
     } \
-    \
-}
+} while (0)
 
 /* Ew.  Globals. */
 extern double frametime;		/* defined in mged.c */

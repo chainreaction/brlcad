@@ -22,6 +22,9 @@
  * Internal state implementations
  */
 
+#ifndef MGED_MGED_IMPL_H
+#define MGED_MGED_IMPL_H
+
 #include "common.h"
 #include "bu.h"
 #include "rt/edit.h"
@@ -53,6 +56,8 @@ class MGED_Internal {
 struct mged_state_impl {
     MGED_Internal *i;
 };
+
+#endif /* MGED_MGED_IMPL_H */
 
 
 // Local Variables:

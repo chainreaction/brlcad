@@ -416,15 +416,21 @@ you should exit MGED now, and resolve the I/O problem, before continuing.\n"
 
 /* Check if database pointer is NULL */
 #define CHECK_DBI_NULL \
-    if (s->dbip == DBI_NULL) { \
-	Tcl_AppendResult(s->interp, "A database is not open!\n", (char *)NULL); \
+    if (!s || s->dbip == DBI_NULL) { \
+	if (s && s->interp) \
+	    Tcl_AppendResult(s->interp, "A database is not open!\n", (char *)NULL); \
 	return TCL_ERROR; \
     }
 
 /* Check if the database is read only, and if so return TCL_ERROR */
 #define CHECK_READ_ONLY	\
-    if (s->dbip->dbi_read_only) { \
-	Tcl_AppendResult(s->interp, "Sorry, this database is READ-ONLY\n", (char *)NULL); \
+    if (!s || s->dbip == DBI_NULL) { \
+	if (s && s->interp) \
+	    Tcl_AppendResult(s->interp, "A database is not open!\n", (char *)NULL); \
+	return TCL_ERROR; \
+    } else if (s->dbip->dbi_read_only) { \
+	if (s->interp) \
+	    Tcl_AppendResult(s->interp, "Sorry, this database is READ-ONLY\n", (char *)NULL); \
 	return TCL_ERROR; \
     }
 
