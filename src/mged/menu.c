@@ -99,10 +99,14 @@ void
 btn_item_hit(struct rt_edit *UNUSED(es), int arg, int menu, int UNUSED(item), void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s)
+	return;
     button(s, arg);
     if (menu == MENU_GEN &&
-	(arg != BE_O_ILLUMINATE && arg != BE_S_ILLUMINATE))
-	menu_state->ms_flag = 0;
+	(arg != BE_O_ILLUMINATE && arg != BE_S_ILLUMINATE)) {
+	if (s->mged_curr_dm && menu_state)
+	    menu_state->ms_flag = 0;
+    }
 }
 
 /*
@@ -113,6 +117,8 @@ void
 btn_head_menu(struct rt_edit *UNUSED(es), int i, int UNUSED(menu), int UNUSED(item), void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s)
+	return;
     switch (i) {
 	case 0:
 	    mmenu_set(s, MENU_GEN, first_menu);
@@ -128,7 +134,8 @@ btn_head_menu(struct rt_edit *UNUSED(es), int i, int UNUSED(menu), int UNUSED(it
 		struct bu_vls tmp_vls = BU_VLS_INIT_ZERO;
 
 		bu_vls_printf(&tmp_vls, "btn_head_menu(%d): bad arg\n", i);
-		Tcl_AppendResult(s->interp, bu_vls_addr(&tmp_vls), (char *)NULL);
+		if (s->interp)
+		    Tcl_AppendResult(s->interp, bu_vls_cstr(&tmp_vls), (char *)NULL);
 		bu_vls_free(&tmp_vls);
 	    }
 
@@ -138,6 +145,8 @@ btn_head_menu(struct rt_edit *UNUSED(es), int i, int UNUSED(menu), int UNUSED(it
 
 void
 chg_l2menu(struct mged_state *s, int i) {
+    if (!s)
+	return;
     switch (i) {
 	case ST_S_EDIT:
 	    mmenu_set_all(s, MENU_L2, sed_menu);
@@ -153,7 +162,8 @@ chg_l2menu(struct mged_state *s, int i) {
 		struct bu_vls tmp_vls = BU_VLS_INIT_ZERO;
 
 		bu_vls_printf(&tmp_vls, "chg_l2menu(%d): bad arg\n", i);
-		Tcl_AppendResult(s->interp, bu_vls_addr(&tmp_vls), (char *)NULL);
+		if (s->interp)
+		    Tcl_AppendResult(s->interp, bu_vls_cstr(&tmp_vls), (char *)NULL);
 		bu_vls_free(&tmp_vls);
 	    }
 
@@ -173,8 +183,15 @@ cmd_mmenu_get(ClientData clientData, Tcl_Interp *interp, int argc, const char *a
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "helpdevel mmenu_get");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	if (interp)
+	    Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
+	return TCL_ERROR;
+    }
+
+    if (!s || !s->mged_curr_dm || !menu_state) {
+	if (interp)
+	    Tcl_AppendResult(interp, "display manager not ready", (char *)NULL);
 	return TCL_ERROR;
     }
 
@@ -185,7 +202,8 @@ cmd_mmenu_get(ClientData clientData, Tcl_Interp *interp, int argc, const char *a
 	    return TCL_ERROR;
 
 	if (index < 0 || NMENU <= index) {
-	    Tcl_AppendResult(interp, "index out of range", (char *)NULL);
+	    if (interp)
+		Tcl_AppendResult(interp, "index out of range", (char *)NULL);
 	    return TCL_ERROR;
 	}
 
@@ -193,8 +211,10 @@ cmd_mmenu_get(ClientData clientData, Tcl_Interp *interp, int argc, const char *a
 	if (*m == NULL)
 	    return TCL_OK;
 
-	for (mptr = *m; mptr->menu_string[0] != '\0'; mptr++)
-	    Tcl_AppendElement(interp, mptr->menu_string);
+	for (mptr = *m; mptr && mptr->menu_string && mptr->menu_string[0] != '\0'; mptr++) {
+	    if (interp)
+		Tcl_AppendElement(interp, mptr->menu_string);
+	}
     } else {
 	struct rt_edit_menu_item **m;
 	struct bu_vls result = BU_VLS_INIT_ZERO;
@@ -202,9 +222,9 @@ cmd_mmenu_get(ClientData clientData, Tcl_Interp *interp, int argc, const char *a
 
 	bu_vls_strcat(&result, "list");
 	for (m = menu_state->ms_menus; m - menu_state->ms_menus < NMENU; m++)
-	    bu_vls_printf(&result, " [%s %ld]", argv[0], (long int)(m-menu_state->ms_menus));
+	    bu_vls_printf(&result, " [%s %ld]", (argv && argv[0]) ? argv[0] : "mmenu_get", (long int)(m-menu_state->ms_menus));
 
-	status = Tcl_Eval(interp, bu_vls_addr(&result));
+	status = interp ? Tcl_Eval(interp, bu_vls_cstr(&result)) : TCL_ERROR;
 	bu_vls_free(&result);
 
 	return status;
@@ -220,6 +240,8 @@ cmd_mmenu_get(ClientData clientData, Tcl_Interp *interp, int argc, const char *a
 void
 mmenu_init(struct mged_state *s)
 {
+    if (!s || !s->mged_curr_dm || !menu_state)
+	return;
     menu_state->ms_flag = 0;
     menu_state->ms_menus[MENU_L1] = NULL;
     menu_state->ms_menus[MENU_L2] = NULL;
@@ -231,6 +253,8 @@ int
 mged_menu_refresh(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUSED(ms))
 {
     struct mged_state *s = (struct mged_state *)d;
+    if (!s)
+	return BRLCAD_ERROR;
     sedit_menu(s);
     return BRLCAD_OK;
 }
@@ -242,31 +266,33 @@ mged_mmenu_set(int UNUSED(ac), const char **UNUSED(av), void *d, void *ms)
     struct mged_state *s = (struct mged_state *)d;
     struct rt_edit_menu_item *value = (struct rt_edit_menu_item *)ms;
     int index = MENU_L1;
+    struct bu_vls menu_string = BU_VLS_INIT_ZERO;
+
+    if (!s || !s->mged_curr_dm || !menu_state)
+	return TCL_ERROR;
 
     // All uses of mmenu_set in primitives did this, so just do it here instead.
     menu_state->ms_flag = 0;
 
-    Tcl_DString ds_menu;
-    struct bu_vls menu_string = BU_VLS_INIT_ZERO;
-
     menu_state->ms_menus[index] = value;  /* Change the menu internally */
 
-    Tcl_DStringInit(&ds_menu);
+    bu_vls_printf(&menu_string, "mmenu_set %s %d ",
+		  curr_cmd_list ? bu_vls_cstr(&curr_cmd_list->cl_name) : "", index);
 
-    bu_vls_printf(&menu_string, "mmenu_set %s %d ", bu_vls_addr(&curr_cmd_list->cl_name), index);
+    if (s->interp)
+	(void)Tcl_Eval(s->interp, bu_vls_cstr(&menu_string));
 
-    (void)Tcl_Eval(s->interp, bu_vls_addr(&menu_string));
-
-    Tcl_DStringFree(&ds_menu);
     bu_vls_free(&menu_string);
 
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *dlp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
-	if (menu_state == dlp->dm_menu_state &&
+	if (dlp && menu_state == dlp->dm_menu_state &&
+	    dlp->dm_mged_variables &&
 	    dlp->dm_mged_variables->mv_faceplate &&
 	    dlp->dm_mged_variables->mv_orig_gui) {
 	    dlp->dm_dirty = 1;
-	    dm_set_dirty(dlp->dm_dmp, 1);
+	    if (dlp->dm_dmp)
+		dm_set_dirty(dlp->dm_dmp, 1);
 	}
     }
 
@@ -277,27 +303,33 @@ mged_mmenu_set(int UNUSED(ac), const char **UNUSED(av), void *d, void *ms)
 void
 mmenu_set(struct mged_state *s, int index, struct rt_edit_menu_item *value)
 {
-    Tcl_DString ds_menu;
     struct bu_vls menu_string = BU_VLS_INIT_ZERO;
+
+    if (!s || !s->mged_curr_dm || !menu_state)
+	return;
+
+    if (index < 0 || index >= NMENU)
+	return;
 
     menu_state->ms_menus[index] = value;  /* Change the menu internally */
 
-    Tcl_DStringInit(&ds_menu);
+    bu_vls_printf(&menu_string, "mmenu_set %s %d ",
+		  curr_cmd_list ? bu_vls_cstr(&curr_cmd_list->cl_name) : "", index);
 
-    bu_vls_printf(&menu_string, "mmenu_set %s %d ", bu_vls_addr(&curr_cmd_list->cl_name), index);
+    if (s->interp)
+	(void)Tcl_Eval(s->interp, bu_vls_cstr(&menu_string));
 
-    (void)Tcl_Eval(s->interp, bu_vls_addr(&menu_string));
-
-    Tcl_DStringFree(&ds_menu);
     bu_vls_free(&menu_string);
 
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *dlp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
-	if (menu_state == dlp->dm_menu_state &&
+	if (dlp && menu_state == dlp->dm_menu_state &&
+	    dlp->dm_mged_variables &&
 	    dlp->dm_mged_variables->mv_faceplate &&
 	    dlp->dm_mged_variables->mv_orig_gui) {
 	    dlp->dm_dirty = 1;
-	    dm_set_dirty(dlp->dm_dmp, 1);
+	    if (dlp->dm_dmp)
+		dm_set_dirty(dlp->dm_dmp, 1);
 	}
     }
 }
@@ -309,10 +341,18 @@ mmenu_set_all(struct mged_state *s, int index, struct rt_edit_menu_item *value)
     struct cmd_list *save_cmd_list;
     struct mged_dm *save_dm_list;
 
+    if (!s)
+	return;
+
+    if (index < 0 || index >= NMENU)
+	return;
+
     save_cmd_list = curr_cmd_list;
     save_dm_list = s->mged_curr_dm;
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *p = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
+	if (!p)
+	    continue;
 	if (p->dm_tie)
 	    curr_cmd_list = p->dm_tie;
 
@@ -328,6 +368,9 @@ mmenu_set_all(struct mged_state *s, int index, struct rt_edit_menu_item *value)
 void
 mged_highlight_menu_item(struct mged_state *s, struct rt_edit_menu_item *mptr, int y)
 {
+    if (!s || !s->mged_curr_dm || !DMP || !mptr || !mged_variables || !color_scheme)
+	return;
+
     switch (mptr->menu_arg) {
 	case BV_RATE_TOGGLE:
 	    if (mged_variables->mv_rateknobs) {
@@ -372,10 +415,13 @@ mged_highlight_menu_item(struct mged_state *s, struct rt_edit_menu_item *mptr, i
 void
 mmenu_display(struct mged_state *s, int y_top)
 {
-    static int menu, item;
+    int menu, item;
     struct rt_edit_menu_item **m;
     struct rt_edit_menu_item *mptr;
     int y = y_top;
+
+    if (!s || !s->mged_curr_dm || !DMP || !menu_state || !color_scheme || !mged_variables)
+	return;
 
     menu_state->ms_top = y - MENU_DY / 2;
     dm_set_fg(DMP,
@@ -389,9 +435,9 @@ mmenu_display(struct mged_state *s, int y_top)
 		    GED2PM1(MENUXLIM), GED2PM1(menu_state->ms_top),
 		    GED2PM1((int)BV_MIN), GED2PM1(menu_state->ms_top));
 
-    for (menu=0, m = menu_state->ms_menus; m - menu_state->ms_menus < NMENU; m++, menu++) {
+    for (menu = 0, m = menu_state->ms_menus; m - menu_state->ms_menus < NMENU; m++, menu++) {
 	if (*m == NULL) continue;
-	for (item=0, mptr = *m; mptr->menu_string[0] != '\0' && y > TITLE_YBASE; mptr++, y += MENU_DY, item++) {
+	for (item = 0, mptr = *m; mptr && mptr->menu_string && mptr->menu_string[0] != '\0' && y > TITLE_YBASE; mptr++, y += MENU_DY, item++) {
 	    if ((*m == (struct rt_edit_menu_item *)second_menu
 		 && (mptr->menu_arg == BV_RATE_TOGGLE
 		     || mptr->menu_arg == BV_EDIT_TOGGLE
@@ -457,10 +503,13 @@ mmenu_display(struct mged_state *s, int y_top)
 int
 mmenu_select(struct mged_state *s, int pen_y, int do_func)
 {
-    static int menu, item;
+    int menu, item;
     struct rt_edit_menu_item **m;
     struct rt_edit_menu_item *mptr;
     int yy;
+
+    if (!s || !s->mged_curr_dm || !menu_state)
+	return 0;
 
     if (pen_y > menu_state->ms_top)
 	return -1;	/* pen above menu area */
@@ -471,10 +520,10 @@ mmenu_select(struct mged_state *s, int pen_y, int do_func)
      */
     yy = menu_state->ms_top;
 
-    for (menu=0, m=menu_state->ms_menus; m - menu_state->ms_menus < NMENU; m++, menu++) {
+    for (menu = 0, m = menu_state->ms_menus; m - menu_state->ms_menus < NMENU; m++, menu++) {
 	if (*m == NULL) continue;
-	for (item=0, mptr = *m;
-	     mptr->menu_string[0] != '\0';
+	for (item = 0, mptr = *m;
+	     mptr && mptr->menu_string && mptr->menu_string[0] != '\0';
 	     mptr++, item++) {
 	    yy += MENU_DY;
 	    if (pen_y <= yy)
@@ -485,7 +534,7 @@ mmenu_select(struct mged_state *s, int pen_y, int do_func)
 	    /* It's up to the menu_func to set menu_state->ms_flag=0
 	     * if no arrow is desired */
 	    if (do_func && mptr->menu_func != NULL)
-		(*(mptr->menu_func))(MEDIT(s), mptr->menu_arg, menu, item, s);
+		(*(mptr->menu_func))(s->s_edit ? MEDIT(s) : NULL, mptr->menu_arg, menu, item, s);
 
 	    return 1;		/* menu claims pen value */
 	}

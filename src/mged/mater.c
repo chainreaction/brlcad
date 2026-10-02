@@ -49,9 +49,13 @@
 void
 mged_color_soltab(struct mged_state *s)
 {
-    dl_color_soltab((struct bu_list *)ged_dl(s->gedp), s->gedp->dbip);
+    if (!s || !s->gedp)
+	return;
+    if (ged_dl(s->gedp) && s->gedp->dbip)
+	dl_color_soltab((struct bu_list *)ged_dl(s->gedp), s->gedp->dbip);
     s->update_views = 1;		/* re-write control list with new colors */
-    dm_set_dirty(DMP, 1);
+    if (DMP)
+	dm_set_dirty(DMP, 1);
 }
 
 

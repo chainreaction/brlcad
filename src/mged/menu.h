@@ -70,7 +70,7 @@ extern int mmenu_select(struct mged_state *s, int pen_y, int do_func);
 
 __END_DECLS
 
-#endif  /* MGED_MGED_H */
+#endif  /* MGED_MENU_H */
 
 /*
  * Local Variables:
