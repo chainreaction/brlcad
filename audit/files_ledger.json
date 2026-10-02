@@ -33654,20 +33654,24 @@
       "path": "src/mged/fbserv.c",
       "subsystem": "src/mged",
       "lines": 1266,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T05:50:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0287"
+      ]
     },
     {
       "id": 3187,
       "path": "src/mged/grid.c",
       "subsystem": "src/mged",
       "lines": 488,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T05:50:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0287"
+      ]
     },
     {
       "id": 3188,
