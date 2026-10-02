@@ -518,7 +518,9 @@ mged_ged_exec_async(struct mged_state *s, int argc, const char *argv[])
 
 #define GED_OUTPUT do { \
     mged_pr_output(interpreter);\
-    Tcl_AppendResult(interpreter, bu_vls_addr(s->gedp->ged_result_str), NULL); \
+    if (s && s->gedp && s->gedp->ged_result_str) { \
+	Tcl_AppendResult(interpreter, bu_vls_cstr(s->gedp->ged_result_str), NULL); \
+    } \
 } while (0)
 
 
@@ -913,10 +915,12 @@ cmd_ged_edit_wrapper(ClientData clientData, Tcl_Interp *interpreter, int argc, c
     if (ret)
 	return TCL_ERROR;
 
-    av[0] = "draw";
-    av[1] = argv[argc-1];
-    av[2] = NULL;
-    cmd_draw(clientData, interpreter, 2, av);
+    if (argc > 0) {
+	av[0] = "draw";
+	av[1] = argv[argc-1];
+	av[2] = NULL;
+	cmd_draw(clientData, interpreter, 2, av);
+    }
 
     return TCL_OK;
 }
@@ -1016,11 +1020,12 @@ cmd_ged_simulate_wrapper(ClientData clientData, Tcl_Interp *interpreter, int arg
     if (ret)
 	return TCL_ERROR;
 
-    av[0] = "draw";
-    av[1] = argv[1];
-    av[2] = NULL;
-    cmd_draw(clientData, interpreter, 2, av);
-
+    if (argc > 1) {
+	av[0] = "draw";
+	av[1] = argv[1];
+	av[2] = NULL;
+	cmd_draw(clientData, interpreter, 2, av);
+    }
 
     return TCL_OK;
 }
@@ -1049,10 +1054,13 @@ cmd_ged_info_wrapper(ClientData clientData, Tcl_Interp *interpreter, int argc, c
 	    if (illump && illump->s_u_data) {
 		bdata = (struct ged_bv_data *)illump->s_u_data;
 		if (bdata->s_fullpath.fp_len > 0) {
-		    av[1] = (const char *)LAST_SOLID(bdata)->d_namep;
-		    av[argc] = (const char *)NULL;
-		    (void)run_ged_async(s, [&]() -> int { return (*ctp->ged_func)(s->gedp, argc, (const char **)av); });
-		    GED_OUTPUT;
+		    struct directory *dp = LAST_SOLID(bdata);
+		    if (dp && dp->d_namep) {
+			av[1] = (const char *)dp->d_namep;
+			av[argc] = (const char *)NULL;
+			(void)run_ged_async(s, [&]() -> int { return (*ctp->ged_func)(s->gedp, argc, (const char **)av); });
+			GED_OUTPUT;
+		    }
 		}
 	    }
 	    bu_free((void *)av, "cmd_ged_info_wrapper: av");
@@ -1085,7 +1093,8 @@ cmd_ged_erase_wrapper(ClientData clientData, Tcl_Interp *interpreter, int argc, 
 
     solid_list_callback(s);
     s->update_views = 1;
-    dm_set_dirty(DMP, 1);
+    if (DMP)
+	dm_set_dirty(DMP, 1);
 
     return TCL_OK;
 }
@@ -1175,7 +1184,8 @@ cmd_ged_gqa(ClientData clientData, Tcl_Interp *interpreter, int argc, const char
 	return TCL_ERROR;
 
     s->update_views = 1;
-    dm_set_dirty(DMP, 1);
+    if (DMP)
+	dm_set_dirty(DMP, 1);
 
     return TCL_OK;
 }
@@ -1212,7 +1222,7 @@ cmd_ged_in(ClientData clientData, Tcl_Interp *interpreter, int argc, const char 
 		    struct bu_vls tmp_vls = BU_VLS_INIT_ZERO;
 
 		    bu_vls_printf(&tmp_vls, "in: option '%c' unknown\n", bu_optopt);
-		    Tcl_AppendResult(interpreter, bu_vls_addr(&tmp_vls), (char *)NULL);
+		    Tcl_AppendResult(interpreter, bu_vls_cstr(&tmp_vls), (char *)NULL);
 		    bu_vls_free(&tmp_vls);
 		}
 
@@ -1238,7 +1248,7 @@ cmd_ged_in(ClientData clientData, Tcl_Interp *interpreter, int argc, const char 
     ret = run_ged_async(s, [&]() -> int { return (*ctp->ged_func)(s->gedp, argc, (const char **)argv); });
     if (ret & GED_MORE) {
 	Tcl_AppendResult(interpreter, MORE_ARGS_STR, NULL);
-	Tcl_AppendResult(interpreter, bu_vls_addr(s->gedp->ged_result_str), NULL);
+	Tcl_AppendResult(interpreter, bu_vls_cstr(s->gedp->ged_result_str), NULL);
     } else {
 	GED_OUTPUT;
     }
@@ -1257,19 +1267,21 @@ cmd_ged_in(ClientData clientData, Tcl_Interp *interpreter, int argc, const char 
 	return TCL_ERROR;
 
     /* draw the newly "made" solid */
-    new_cmd[0] = "draw";
-    new_cmd[1] = argv[1];
-    new_cmd[2] = (char *)NULL;
-    (void)cmd_draw(clientData, interpreter, 2, new_cmd);
+    if (argc >= 2 && argv[1]) {
+	new_cmd[0] = "draw";
+	new_cmd[1] = argv[1];
+	new_cmd[2] = (char *)NULL;
+	(void)cmd_draw(clientData, interpreter, 2, new_cmd);
 
-    if (do_solid_edit) {
-	struct bu_vls sed_cmd = BU_VLS_INIT_ZERO;
-	bu_vls_sprintf(&sed_cmd, "sed %s", argv[1]);
+	if (do_solid_edit) {
+	    struct bu_vls sed_cmd = BU_VLS_INIT_ZERO;
+	    bu_vls_sprintf(&sed_cmd, "sed %s", argv[1]);
 
-	/* Also kick off solid edit mode */
-	Tcl_Eval(interpreter, bu_vls_cstr(&sed_cmd));
+	    /* Also kick off solid edit mode */
+	    Tcl_Eval(interpreter, bu_vls_cstr(&sed_cmd));
 
-	bu_vls_free(&sed_cmd);
+	    bu_vls_free(&sed_cmd);
+	}
     }
     return TCL_OK;
 }
@@ -1300,7 +1312,9 @@ cmd_ged_inside(ClientData clientData, Tcl_Interp *interpreter, int argc, const c
 	/* solid edit mode */
 	/* apply MEDIT(s)->e_mat editing to parameters */
 	struct directory *outdp = RT_DIR_NULL;
-	transform_editing_solid(s, &intern, MEDIT(s)->e_mat, &MEDIT(s)->es_int, 0);
+	if (MEDIT(s)) {
+	    transform_editing_solid(s, &intern, MEDIT(s)->e_mat, &MEDIT(s)->es_int, 0);
+	}
 	if (illump && illump->s_u_data) {
 	    bdata = (struct ged_bv_data *)illump->s_u_data;
 	    outdp = LAST_SOLID(bdata);
@@ -1308,7 +1322,8 @@ cmd_ged_inside(ClientData clientData, Tcl_Interp *interpreter, int argc, const c
 
 	if (argc < 2) {
 	    Tcl_AppendResult(interpreter, "You are in Primitive Edit mode, using edited primitive as outside primitive: ", (char *)NULL);
-	    add_solid_path_to_result(interpreter, illump);
+	    if (illump)
+		add_solid_path_to_result(interpreter, illump);
 	    Tcl_AppendResult(interpreter, "\n", (char *)NULL);
 	}
 
@@ -1323,16 +1338,19 @@ cmd_ged_inside(ClientData clientData, Tcl_Interp *interpreter, int argc, const c
 	struct directory *outdp = RT_DIR_NULL;
 
 	/* object edit mode */
-	if (illump->s_old.s_Eflag) {
+	if (illump && illump->s_old.s_Eflag) {
 	    Tcl_AppendResult(interpreter, "Cannot find inside of a processed (E'd) region\n",
 			     (char *)NULL);
 	    (void)signal(SIGINT, SIG_IGN);
+	    rt_db_free_internal(&intern);
 	    return TCL_ERROR;
 	}
 	/* use the solid at bottom of path (key solid) */
 	/* apply MEDIT(s)->e_mat and MEDIT(s)->model_changes editing to parameters */
-	bn_mat_mul(newmat, MEDIT(s)->model_changes, MEDIT(s)->e_mat);
-	transform_editing_solid(s, &intern, newmat, &MEDIT(s)->es_int, 0);
+	if (MEDIT(s)) {
+	    bn_mat_mul(newmat, MEDIT(s)->model_changes, MEDIT(s)->e_mat);
+	    transform_editing_solid(s, &intern, newmat, &MEDIT(s)->es_int, 0);
+	}
 	if (illump && illump->s_u_data) {
 	    bdata = (struct ged_bv_data *)illump->s_u_data;
 	    outdp = LAST_SOLID(bdata);
@@ -1357,10 +1375,12 @@ cmd_ged_inside(ClientData clientData, Tcl_Interp *interpreter, int argc, const c
 
     if (ret & GED_MORE) {
 	Tcl_AppendResult(interpreter, MORE_ARGS_STR, NULL);
-	Tcl_AppendResult(interpreter, bu_vls_addr(s->gedp->ged_result_str), NULL);
+	Tcl_AppendResult(interpreter, bu_vls_cstr(s->gedp->ged_result_str), NULL);
     } else {
 	GED_OUTPUT;
     }
+
+    rt_db_free_internal(&intern);
 
     if (ret & GED_HELP) {
 	(void)signal(SIGINT, SIG_IGN);
@@ -1373,10 +1393,12 @@ cmd_ged_inside(ClientData clientData, Tcl_Interp *interpreter, int argc, const c
     }
 
     /* draw the "inside" solid */
-    new_cmd[0] = "draw";
-    new_cmd[1] = argv[arg];
-    new_cmd[2] = (char *)NULL;
-    (void)cmd_draw(clientData, interpreter, 2, new_cmd);
+    if (arg < argc && argv[arg]) {
+	new_cmd[0] = "draw";
+	new_cmd[1] = argv[arg];
+	new_cmd[2] = (char *)NULL;
+	(void)cmd_draw(clientData, interpreter, 2, new_cmd);
+    }
 
     (void)signal(SIGINT, SIG_IGN);
 
@@ -1404,7 +1426,7 @@ cmd_ged_more_wrapper(ClientData clientData, Tcl_Interp *interpreter, int argc, c
     ret = (*ctp->ged_func)(s->gedp, argc, (const char **)argv);
     if (ret & GED_MORE) {
 	Tcl_AppendResult(interpreter, MORE_ARGS_STR, NULL);
-	Tcl_AppendResult(interpreter, bu_vls_addr(s->gedp->ged_result_str), NULL);
+	Tcl_AppendResult(interpreter, bu_vls_cstr(s->gedp->ged_result_str), NULL);
     } else {
 	GED_OUTPUT;
     }
@@ -1420,9 +1442,9 @@ cmd_ged_more_wrapper(ClientData clientData, Tcl_Interp *interpreter, int argc, c
      * commands.
      */
     new_cmd[0] = "draw";
-    if (BU_STR_EQUAL(argv[0], "3ptarb"))
+    if (BU_STR_EQUAL(argv[0], "3ptarb") && argc > 1)
 	new_cmd[1] = argv[1];
-    else if (BU_STR_EQUAL(argv[0], "inside"))
+    else if (BU_STR_EQUAL(argv[0], "inside") && argc > 2)
 	new_cmd[1] = argv[2];
     else {
 	(void)signal(SIGINT, SIG_IGN);
@@ -1469,7 +1491,7 @@ cmd_ged_plain_wrapper(ClientData clientData, Tcl_Interp *interpreter, int argc, 
 
     if (ret & GED_MORE) {
 	Tcl_AppendResult(interpreter, MORE_ARGS_STR, NULL);
-	Tcl_AppendResult(interpreter, bu_vls_addr(s->gedp->ged_result_str), NULL);
+	Tcl_AppendResult(interpreter, bu_vls_cstr(s->gedp->ged_result_str), NULL);
     } else {
 	GED_OUTPUT;
     }
@@ -1481,7 +1503,7 @@ cmd_ged_plain_wrapper(ClientData clientData, Tcl_Interp *interpreter, int argc, 
 	const char *who_cmd[1] = {"who"};
 
 	/* Stash previous result string state so who cmd doesn't replace it */
-	bu_vls_sprintf(&rcache, "%s", bu_vls_addr(s->gedp->ged_result_str));
+	bu_vls_sprintf(&rcache, "%s", bu_vls_cstr(s->gedp->ged_result_str));
 
 	who_ret = ged_exec_who(s->gedp, 1, who_cmd);
 	if (who_ret == BRLCAD_OK) {
@@ -1490,7 +1512,7 @@ cmd_ged_plain_wrapper(ClientData clientData, Tcl_Interp *interpreter, int argc, 
 	     */
 
 	    int i, j;
-	    char *str = bu_strdup(bu_vls_addr(s->gedp->ged_result_str));
+	    char *str = bu_strdup(bu_vls_cstr(s->gedp->ged_result_str));
 	    size_t who_argc = (bu_vls_strlen(s->gedp->ged_result_str) / 2) + 1;
 	    char **who_argv = (char **)bu_calloc(who_argc+1, sizeof(char *), "who_argv");
 
@@ -1515,7 +1537,7 @@ cmd_ged_plain_wrapper(ClientData clientData, Tcl_Interp *interpreter, int argc, 
 	}
 
 	/* Restore ged result str */
-	bu_vls_sprintf(s->gedp->ged_result_str, "%s", bu_vls_addr(&rcache));
+	bu_vls_sprintf(s->gedp->ged_result_str, "%s", bu_vls_cstr(&rcache));
 	bu_vls_free(&rcache);
     }
 
@@ -1537,7 +1559,7 @@ cmd_ged_view_wrapper(ClientData clientData, Tcl_Interp *interpreter, int argc, c
     if (s->gedp == GED_NULL)
 	return TCL_OK;
 
-    if (!s->gedp->ged_gvp)
+    if (!s->gedp->ged_gvp && view_state)
 	s->gedp->ged_gvp = view_state->vs_gvp;
 
     ret = run_ged_async(s, [&]() -> int { return (*ctp->ged_func)(s->gedp, argc, (const char **)argv); });
@@ -1550,7 +1572,8 @@ cmd_ged_view_wrapper(ClientData clientData, Tcl_Interp *interpreter, int argc, c
 	return TCL_ERROR;
 
     (void)mged_svbase(s);
-    view_state->vs_flag = 1;
+    if (view_state)
+	view_state->vs_flag = 1;
 
     return TCL_OK;
 }
@@ -1572,9 +1595,10 @@ cmd_ged_dm_wrapper(ClientData clientData, Tcl_Interp *interpreter, int argc, con
     else
 	return TCL_OK;
 
-    if (!s->gedp->ged_gvp)
+    if (!s->gedp->ged_gvp && view_state)
 	s->gedp->ged_gvp = view_state->vs_gvp;
-    s->gedp->ged_gvp->dmp = (void *)s->mged_curr_dm->dm_dmp;
+    if (s->gedp->ged_gvp && s->mged_curr_dm)
+	s->gedp->ged_gvp->dmp = (void *)s->mged_curr_dm->dm_dmp;
 
     ret = (*ctp->ged_func)(s->gedp, argc, (const char **)argv);
     GED_OUTPUT;
@@ -1612,13 +1636,16 @@ cmd_screengrab(ClientData clientData, Tcl_Interp *interpreter, int argc, const c
 	return TCL_OK;
 
     /* Force the scene to be rendered before reading pixels. */
-    DMP_dirty = 1;
-    dm_set_dirty(DMP, 1);
+    if (DMP) {
+	DMP_dirty = 1;
+	dm_set_dirty(DMP, 1);
+    }
     refresh(s);
 
-    if (!s->gedp->ged_gvp)
+    if (!s->gedp->ged_gvp && view_state)
 	s->gedp->ged_gvp = view_state->vs_gvp;
-    s->gedp->ged_gvp->dmp = (void *)s->mged_curr_dm->dm_dmp;
+    if (s->gedp->ged_gvp && s->mged_curr_dm)
+	s->gedp->ged_gvp->dmp = (void *)s->mged_curr_dm->dm_dmp;
 
     ret = (*ctp->ged_func)(s->gedp, argc, (const char **)argv);
     GED_OUTPUT;
@@ -1650,7 +1677,7 @@ cmd_tk(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *arg
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help loadtk");
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -1682,7 +1709,7 @@ cmd_output_hook(ClientData clientData, Tcl_Interp *interpreter, int argc, const 
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "helpdevel output_hook");
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -1701,7 +1728,7 @@ cmd_output_hook(ClientData clientData, Tcl_Interp *interpreter, int argc, const 
      */
     bu_vls_strcat(&infocommand, "info commands ");
     bu_vls_strcat(&infocommand, argv[1]);
-    status = Tcl_Eval(interpreter, bu_vls_addr(&infocommand));
+    status = Tcl_Eval(interpreter, bu_vls_cstr(&infocommand));
     bu_vls_free(&infocommand);
 
     if (status != TCL_OK || Tcl_GetStringResult(interpreter)[0] == '\0') {
@@ -1752,7 +1779,7 @@ cmd_cmd_win(ClientData clientData, Tcl_Interp *interpreter, int argc, const char
 
     if (argc < 2) {
 	bu_vls_printf(&vls, "helpdevel cmd_win");
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -1763,14 +1790,14 @@ cmd_cmd_win(ClientData clientData, Tcl_Interp *interpreter, int argc, const char
 
 	if (argc != 3) {
 	    bu_vls_printf(&vls, "helpdevel cmd_win");
-	    Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	    Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	    bu_vls_free(&vls);
 	    return TCL_ERROR;
 	}
 
 	/* Search to see if there exists a command window with this name */
 	for (BU_LIST_FOR (clp, cmd_list, &head_cmd_list.l))
-	    if (BU_STR_EQUAL(argv[2], bu_vls_addr(&clp->cl_name))) {
+	    if (BU_STR_EQUAL(argv[2], bu_vls_cstr(&clp->cl_name))) {
 		name_not_used = 0;
 		break;
 	    }
@@ -1794,7 +1821,7 @@ cmd_cmd_win(ClientData clientData, Tcl_Interp *interpreter, int argc, const char
 
 	if (argc != 3) {
 	    bu_vls_printf(&vls, "helpdevel cmd_win");
-	    Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	    Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	    bu_vls_free(&vls);
 	    return TCL_ERROR;
 	}
@@ -1803,7 +1830,7 @@ cmd_cmd_win(ClientData clientData, Tcl_Interp *interpreter, int argc, const char
 	 * the name in argv[2].
 	 */
 	for (BU_LIST_FOR (clp, cmd_list, &head_cmd_list.l))
-	    if (BU_STR_EQUAL(argv[2], bu_vls_addr(&clp->cl_name)))
+	    if (BU_STR_EQUAL(argv[2], bu_vls_cstr(&clp->cl_name)))
 		break;
 
 	if (clp == &head_cmd_list) {
@@ -1833,13 +1860,14 @@ cmd_cmd_win(ClientData clientData, Tcl_Interp *interpreter, int argc, const char
     if (BU_STR_EQUAL(argv[1], "get")) {
 	if (argc != 2) {
 	    bu_vls_printf(&vls, "helpdevel cmd_win");
-	    Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	    Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	    bu_vls_free(&vls);
 
 	    return TCL_ERROR;
 	}
 
-	Tcl_AppendElement(interpreter, bu_vls_addr(&curr_cmd_list->cl_name));
+	if (curr_cmd_list)
+	    Tcl_AppendElement(interpreter, bu_vls_cstr(&curr_cmd_list->cl_name));
 
 	bu_vls_free(&vls);
 	return TCL_OK;
@@ -1848,32 +1876,39 @@ cmd_cmd_win(ClientData clientData, Tcl_Interp *interpreter, int argc, const char
     if (BU_STR_EQUAL(argv[1], "set")) {
 	if (argc != 3) {
 	    bu_vls_printf(&vls, "helpdevel cmd_win");
-	    Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	    Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	    bu_vls_free(&vls);
 	    return TCL_ERROR;
 	}
 
 	for (BU_LIST_FOR (curr_cmd_list, cmd_list, &head_cmd_list.l)) {
-	    if (!BU_STR_EQUAL(bu_vls_addr(&curr_cmd_list->cl_name), argv[2]))
+	    if (!BU_STR_EQUAL(bu_vls_cstr(&curr_cmd_list->cl_name), argv[2]))
 		continue;
 
 	    break;
 	}
 
-	if (curr_cmd_list->cl_tie) {
+	if (BU_LIST_IS_HEAD(curr_cmd_list, &head_cmd_list.l) && !BU_STR_EQUAL(bu_vls_cstr(&curr_cmd_list->cl_name), argv[2])) {
+	    Tcl_AppendResult(interpreter, "cmd_set: did not find \"", argv[2], "\"", (char *)NULL);
+	    bu_vls_free(&vls);
+	    return TCL_ERROR;
+	}
+
+	if (curr_cmd_list && curr_cmd_list->cl_tie) {
 	    set_curr_dm(s, curr_cmd_list->cl_tie);
 
-	    if (s->gedp != GED_NULL)
+	    if (s->gedp != GED_NULL && view_state)
 		s->gedp->ged_gvp = view_state->vs_gvp;
 	}
 
-	bu_vls_trunc(&curr_cmd_list->cl_more_default, 0);
+	if (curr_cmd_list)
+	    bu_vls_trunc(&curr_cmd_list->cl_more_default, 0);
 	bu_vls_free(&vls);
 	return TCL_OK;
     }
 
     bu_vls_printf(&vls, "helpdevel cmd_win");
-    Tcl_Eval(interpreter, bu_vls_addr(&vls));
+    Tcl_Eval(interpreter, bu_vls_cstr(&vls));
     bu_vls_free(&vls);
 
     return TCL_ERROR;
@@ -1886,15 +1921,16 @@ cmd_get_more_default(ClientData UNUSED(clientData), Tcl_Interp *interpreter, int
     if (argc != 1) {
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-	bu_log("Unrecognized option [%s]\n", argv[1]);
+	bu_log("Unrecognized option [%s]\n", (argc > 1 && argv[1]) ? argv[1] : "");
 
 	bu_vls_printf(&vls, "helpdevel get_more_default");
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
 
-    Tcl_AppendResult(interpreter, bu_vls_addr(&curr_cmd_list->cl_more_default), (char *)NULL);
+    if (curr_cmd_list)
+	Tcl_AppendResult(interpreter, bu_vls_cstr(&curr_cmd_list->cl_more_default), (char *)NULL);
     return TCL_OK;
 }
 
@@ -1906,12 +1942,13 @@ cmd_set_more_default(ClientData UNUSED(clientData), Tcl_Interp *interpreter, int
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "helpdevel set_more_default");
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
 
-    bu_vls_strcpy(&curr_cmd_list->cl_more_default, argv[1]);
+    if (curr_cmd_list && argv[1])
+	bu_vls_strcpy(&curr_cmd_list->cl_more_default, argv[1]);
     return TCL_OK;
 }
 
@@ -1959,20 +1996,20 @@ cmdline(struct mged_state *s, struct bu_vls *vp, int record)
 	    return CMD_BAD;
 
 	/* Cache the state bits we might change in s->gedp */
-	bu_vls_sprintf(&tmpstr, "%s", bu_vls_addr(s->gedp->ged_result_str));
+	bu_vls_sprintf(&tmpstr, "%s", bu_vls_cstr(s->gedp->ged_result_str));
 
 	/* Run ged_glob */
 	const char *av[2] = {"glob", NULL};
 	av[1] = bu_vls_cstr(vp);
 	(void)ged_exec_glob(s->gedp, 2, av);
 	if (bu_vls_strlen(s->gedp->ged_result_str) > 0) {
-	    bu_vls_sprintf(&globbed, "%s", bu_vls_addr(s->gedp->ged_result_str));
+	    bu_vls_sprintf(&globbed, "%s", bu_vls_cstr(s->gedp->ged_result_str));
 	} else {
 	    bu_vls_vlscat(&globbed, vp);
 	}
 
 	/* put s->gedp back where it was */
-	bu_vls_sprintf(s->gedp->ged_result_str, "%s", bu_vls_addr(&tmpstr));
+	bu_vls_sprintf(s->gedp->ged_result_str, "%s", bu_vls_cstr(&tmpstr));
 
 	/* cleanup */
 	bu_vls_free(&tmpstr);
@@ -1981,7 +2018,7 @@ cmdline(struct mged_state *s, struct bu_vls *vp, int record)
     }
 
     int64_t start = bu_gettime();
-    int status = Tcl_Eval(s->interp, bu_vls_addr(&globbed));
+    int status = Tcl_Eval(s->interp, bu_vls_cstr(&globbed));
     int64_t finish = bu_gettime();
     const char *result = Tcl_GetStringResult(s->interp);
 
@@ -2008,8 +2045,8 @@ cmdline(struct mged_state *s, struct bu_vls *vp, int record)
 		 */
 		if (record && tkwin != NULL) {
 		    bu_vls_printf(&tmp_vls, "distribute_text {} {%s} {%s}",
-				  bu_vls_addr(&save_vp), result);
-		    Tcl_Eval(s->interp, bu_vls_addr(&tmp_vls));
+				  bu_vls_cstr(&save_vp), result);
+		    Tcl_Eval(s->interp, bu_vls_cstr(&tmp_vls));
 		    Tcl_ResetResult(s->interp);
 		}
 
@@ -2042,7 +2079,7 @@ cmdline(struct mged_state *s, struct bu_vls *vp, int record)
 
 		    len = cp - result;
 		    bu_vls_strncpy(&buf, result, len);
-		    bu_log("%s%s", bu_vls_addr(&buf), result[len-1] == '\n' ? "" : "\n");
+		    bu_log("%s%s", bu_vls_cstr(&buf), result[len-1] == '\n' ? "" : "\n");
 		    bu_vls_free(&buf);
 
 		    bu_vls_printf(&s->mged_prompt, "\r%s",
@@ -2113,8 +2150,10 @@ mged_view_update(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUSED(
 {
     struct mged_state *s = (struct mged_state *)d;
 
-    dm_set_dirty(s->mged_curr_dm->dm_dmp, 1);
-    (void)Tcl_Eval(s->interp, "active_edit_callback");
+    if (s && s->mged_curr_dm && s->mged_curr_dm->dm_dmp)
+	dm_set_dirty(s->mged_curr_dm->dm_dmp, 1);
+    if (s && s->interp)
+	(void)Tcl_Eval(s->interp, "active_edit_callback");
 
     return TCL_OK;
 }
@@ -2125,7 +2164,8 @@ mged_view_set_flag(int UNUSED(ac), const char **UNUSED(av), void *d, void *flagp
     struct mged_state *s = (struct mged_state *)d;
     int *flag = (int *)flagp;
 
-    view_state->vs_flag = *flag;
+    if (s && s->mged_curr_dm && view_state && flag)
+	view_state->vs_flag = *flag;
 
     return TCL_OK;
 }
@@ -2156,19 +2196,19 @@ mged_get_filename(int ac, const char **av, void *d, void *sret)
 	while (ptr1 != fptr)
 	    *ptr2++ = *ptr1++;
 	*ptr2 = '\0';
-	Tcl_SetVar(s->interp, bu_vls_addr(&varname_vls), dir, TCL_GLOBAL_ONLY);
+	Tcl_SetVar(s->interp, bu_vls_cstr(&varname_vls), dir, TCL_GLOBAL_ONLY);
 	bu_free((void *)dir, "get_file_name: directory string");
     }
 
-    if (dm_get_pathname(DMP)) {
+    if (DMP && dm_get_pathname(DMP)) {
 	bu_vls_printf(&cmd,
 		"getFile %s %s {{{All Files} {*}}} {Get File}",
-		bu_vls_addr(dm_get_pathname(DMP)),
-		bu_vls_addr(&varname_vls));
+		bu_vls_cstr(dm_get_pathname(DMP)),
+		bu_vls_cstr(&varname_vls));
     }
     bu_vls_free(&varname_vls);
 
-    if (Tcl_Eval(s->interp, bu_vls_addr(&cmd))) {
+    if (Tcl_Eval(s->interp, bu_vls_cstr(&cmd))) {
 	(*ret) = NULL;
 	goto str_ret;
     }
@@ -2196,7 +2236,7 @@ f_comm(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *arg
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help %s", argv[0]);
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -2205,7 +2245,6 @@ f_comm(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *arg
     {
 	int pid, rpid;
 	int retcode;
-
 	(void)signal(SIGINT, SIG_IGN);
 	if ((pid = fork()) == 0) {
 	    (void)signal(SIGINT, SIG_DFL);
@@ -2239,7 +2278,7 @@ f_quit(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *arg
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help %s", argv[0]);
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -2281,7 +2320,7 @@ f_tie(ClientData UNUSED(clientData), Tcl_Interp *interpreter, int argc, const ch
 
     if (argc < 1 || 3 < argc) {
 	bu_vls_printf(&vls, "helpdevel tie");
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -2289,7 +2328,7 @@ f_tie(ClientData UNUSED(clientData), Tcl_Interp *interpreter, int argc, const ch
     if (argc == 1) {
 	for (BU_LIST_FOR (clp, cmd_list, &head_cmd_list.l)) {
 	    bu_vls_trunc(&vls, 0);
-	    if (clp->cl_tie) {
+	    if (clp->cl_tie && clp->cl_tie->dm_dmp) {
 		struct bu_vls *pn = dm_get_pathname(clp->cl_tie->dm_dmp);
 		if (pn && bu_vls_strlen(pn)) {
 		    bu_vls_printf(&vls, "%s %s", bu_vls_cstr(&clp->cl_name), bu_vls_cstr(pn));
@@ -2299,18 +2338,6 @@ f_tie(ClientData UNUSED(clientData), Tcl_Interp *interpreter, int argc, const ch
 		bu_vls_printf(&vls, "%s {}", bu_vls_cstr(&clp->cl_name));
 		Tcl_AppendElement(interpreter, bu_vls_cstr(&vls));
 	    }
-	}
-
-	bu_vls_trunc(&vls, 0);
-	if (clp->cl_tie) {
-	    struct bu_vls *pn = dm_get_pathname(clp->cl_tie->dm_dmp);
-	    if (pn && bu_vls_strlen(pn)) {
-		bu_vls_printf(&vls, "%s %s", bu_vls_cstr(&clp->cl_name), bu_vls_cstr(pn));
-		Tcl_AppendElement(interpreter, bu_vls_cstr(&vls));
-	    }
-	} else {
-	    bu_vls_printf(&vls, "%s {}", bu_vls_cstr(&clp->cl_name));
-	    Tcl_AppendElement(interpreter, bu_vls_cstr(&vls));
 	}
 
 	bu_vls_free(&vls);
@@ -2325,17 +2352,17 @@ f_tie(ClientData UNUSED(clientData), Tcl_Interp *interpreter, int argc, const ch
 
     if (argc < 2) {
 	bu_vls_printf(&vls, "help tie");
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
 
     for (BU_LIST_FOR (clp, cmd_list, &head_cmd_list.l))
-	if (BU_STR_EQUAL(bu_vls_addr(&clp->cl_name), argv[1]))
+	if (BU_STR_EQUAL(bu_vls_cstr(&clp->cl_name), argv[1]))
 	    break;
 
     if (clp == &head_cmd_list &&
-	(!BU_STR_EQUAL(bu_vls_addr(&head_cmd_list.cl_name), argv[1]))) {
+	(!BU_STR_EQUAL(bu_vls_cstr(&head_cmd_list.cl_name), argv[1]))) {
 	Tcl_AppendResult(interpreter, "f_tie: unrecognized command_window - ", argv[1],
 			 "\n", (char *)NULL);
 	bu_vls_free(&vls);
@@ -2354,7 +2381,7 @@ f_tie(ClientData UNUSED(clientData), Tcl_Interp *interpreter, int argc, const ch
 
     /* print out the display manager that we're tied to */
     if (argc == 2) {
-	if (clp->cl_tie) {
+	if (clp->cl_tie && clp->cl_tie->dm_dmp) {
 	    struct bu_vls *pn = dm_get_pathname(clp->cl_tie->dm_dmp);
 	    if (pn && bu_vls_strlen(pn)) {
 		Tcl_AppendElement(interpreter, bu_vls_cstr(pn));
@@ -2373,6 +2400,8 @@ f_tie(ClientData UNUSED(clientData), Tcl_Interp *interpreter, int argc, const ch
 
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *m_dmp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
+	if (!m_dmp || !m_dmp->dm_dmp)
+	    continue;
 	struct bu_vls *pn = dm_get_pathname(m_dmp->dm_dmp);
 	if (pn && !bu_vls_strcmp(&vls, pn)) {
 	    dlp = m_dmp;
@@ -2382,7 +2411,7 @@ f_tie(ClientData UNUSED(clientData), Tcl_Interp *interpreter, int argc, const ch
 
     if (dlp == MGED_DM_NULL) {
 	Tcl_AppendResult(interpreter, "f_tie: unrecognized path name - ",
-			 bu_vls_addr(&vls), "\n", (char *)NULL);
+			 bu_vls_cstr(&vls), "\n", (char *)NULL);
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -2417,7 +2446,7 @@ f_postscript(ClientData clientData, Tcl_Interp *interpreter, int argc, const cha
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help postscript");
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -2426,6 +2455,8 @@ f_postscript(ClientData clientData, Tcl_Interp *interpreter, int argc, const cha
 	return TCL_OK;
 
     dml = s->mged_curr_dm;
+    if (!dml || !view_state)
+	return TCL_ERROR;
     s->gedp->ged_gvp = view_state->vs_gvp;
     status = mged_attach(s, "ps", argc, argv);
     if (status == TCL_ERROR)
@@ -2441,14 +2472,17 @@ f_postscript(ClientData clientData, Tcl_Interp *interpreter, int argc, const cha
     scroll_y = dml->dm_scroll_y;
     memmove((void *)scroll_array, (void *)dml->dm_scroll_array, sizeof(struct scroll_item *) * 6);
 
-    DMP_dirty = 1;
-    dm_set_dirty(DMP, 1);
+    if (DMP) {
+	DMP_dirty = 1;
+	dm_set_dirty(DMP, 1);
+    }
     refresh(s);
 
     view_state = vsp;  /* restore state info pointer */
     status = Tcl_Eval(interpreter, "release");
     set_curr_dm(s, dml);
-    s->gedp->ged_gvp = view_state->vs_gvp;
+    if (view_state)
+	s->gedp->ged_gvp = view_state->vs_gvp;
 
     return status;
 }
@@ -2465,16 +2499,18 @@ f_winset(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *a
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "helpdevel winset");
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
 
     /* print pathname of drawing window with primary focus */
     if (argc == 1) {
-	struct bu_vls *pn = dm_get_pathname(DMP);
-	if (pn && bu_vls_strlen(pn)) {
-	    Tcl_AppendResult(interpreter, bu_vls_cstr(pn), (char *)NULL);
+	if (DMP) {
+	    struct bu_vls *pn = dm_get_pathname(DMP);
+	    if (pn && bu_vls_strlen(pn)) {
+		Tcl_AppendResult(interpreter, bu_vls_cstr(pn), (char *)NULL);
+	    }
 	}
 	return TCL_OK;
     }
@@ -2482,16 +2518,18 @@ f_winset(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *a
     /* change primary focus to window argv[1] */
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *p = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
+	if (!p || !p->dm_dmp)
+	    continue;
 	struct bu_vls *pn = dm_get_pathname(p->dm_dmp);
 	if (pn && BU_STR_EQUAL(argv[1], bu_vls_cstr(pn))) {
 	    set_curr_dm(s, p);
 
-	    if (s->mged_curr_dm->dm_tie)
+	    if (s->mged_curr_dm && s->mged_curr_dm->dm_tie)
 		curr_cmd_list = s->mged_curr_dm->dm_tie;
 	    else
 		curr_cmd_list = &head_cmd_list;
 
-	    if (s->gedp != GED_NULL)
+	    if (s->gedp != GED_NULL && view_state)
 		s->gedp->ged_gvp = view_state->vs_gvp;
 
 	    return TCL_OK;
@@ -2549,7 +2587,7 @@ f_bomb(ClientData UNUSED(clientData), Tcl_Interp *UNUSED(interpreter), int argc,
 	argc--; argv++;
 
 	bu_vls_from_argv(&vls, argc, argv);
-	snprintf(buffer, 1024, "%s", bu_vls_addr(&vls));
+	snprintf(buffer, sizeof(buffer), "%s", bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
     }
 
@@ -2603,7 +2641,7 @@ cmd_rt_gettrees(ClientData clientData, Tcl_Interp *UNUSED(interpreter), int argc
 
         bu_vls_init(&vls);
         bu_vls_printf(&vls, "helplib_alias wdb_rt_gettrees %s", argv[0]);
-        Tcl_Eval((Tcl_Interp *)s->wdbp->wdb_interp, bu_vls_addr(&vls));
+        Tcl_Eval((Tcl_Interp *)s->wdbp->wdb_interp, bu_vls_cstr(&vls));
         bu_vls_free(&vls);
         return TCL_ERROR;
     }
@@ -2633,6 +2671,7 @@ cmd_rt_gettrees(ClientData clientData, Tcl_Interp *UNUSED(interpreter), int argc
     if (argc-2 < 1) {
         Tcl_AppendResult((Tcl_Interp *)s->wdbp->wdb_interp,
                          "rt_gettrees(): no geometry has been specified ", (char *)NULL);
+        rt_i_destroy(rtip);
         return TCL_ERROR;
     }
 
@@ -2700,11 +2739,14 @@ cmd_nmg_collapse(ClientData clientData, Tcl_Interp *interpreter, int argc, const
     if (ret)
 	return TCL_ERROR;
 
-    av[0] = "e";
-    av[1] = argv[2];
-    av[2] = NULL;
+    if (argc >= 3 && argv[2]) {
+	av[0] = "e";
+	av[1] = argv[2];
+	av[2] = NULL;
+	return cmd_draw(clientData, interpreter, 2, av);
+    }
 
-    return cmd_draw(clientData, interpreter, 2, av);
+    return TCL_OK;
 }
 
 
@@ -2739,10 +2781,13 @@ cmd_units(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *
 	return TCL_ERROR;
 
     set_localunit_TclVar(s);
-    sf = s->dbip->dbi_base2local / sf;
-    update_grids(s,sf);
+    if (!ZERO(sf)) {
+	sf = s->dbip->dbi_base2local / sf;
+	update_grids(s, sf);
+    }
     s->update_views = 1;
-    dm_set_dirty(DMP, 1);
+    if (DMP)
+	dm_set_dirty(DMP, 1);
 
     return TCL_OK;
 }
@@ -2804,13 +2849,15 @@ cmd_tol(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *ar
     if (ret)
 	return TCL_ERROR;
 
-    s->tol.tol = s->wdbp->wdb_tol;
-    s->tol.ttol = s->wdbp->wdb_ttol;
+    if (s->wdbp) {
+	s->tol.tol = s->wdbp->wdb_tol;
+	s->tol.ttol = s->wdbp->wdb_ttol;
 
-    /* hack to keep mged tolerance settings current */
-    s->tol.abs_tol = s->tol.ttol.abs;
-    s->tol.rel_tol = s->tol.ttol.rel;
-    s->tol.nrm_tol = s->tol.ttol.norm;
+	/* hack to keep mged tolerance settings current */
+	s->tol.abs_tol = s->tol.ttol.abs;
+	s->tol.rel_tol = s->tol.ttol.rel;
+	s->tol.nrm_tol = s->tol.ttol.norm;
+    }
 
     return TCL_OK;
 }
@@ -2846,17 +2893,20 @@ cmd_blast(ClientData clientData, Tcl_Interp *UNUSED(interpreter), int argc, cons
     struct display_list *next_gdlp;
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *m_dmp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
+	if (!m_dmp)
+	    continue;
 	int non_empty = 0; /* start out empty */
 
 	set_curr_dm(s, m_dmp);
 
-	if (s->mged_curr_dm->dm_tie) {
+	if (s->mged_curr_dm && s->mged_curr_dm->dm_tie) {
 	    curr_cmd_list = s->mged_curr_dm->dm_tie;
 	} else {
 	    curr_cmd_list = &head_cmd_list;
 	}
 
-	s->gedp->ged_gvp = view_state->vs_gvp;
+	if (view_state)
+	    s->gedp->ged_gvp = view_state->vs_gvp;
 
 	gdlp = BU_LIST_NEXT(display_list, (struct bu_list *)ged_dl(s->gedp));
 
@@ -2871,22 +2921,25 @@ cmd_blast(ClientData clientData, Tcl_Interp *UNUSED(interpreter), int argc, cons
 	    gdlp = next_gdlp;
 	}
 
-	if (mged_variables->mv_autosize && non_empty) {
+	if (mged_variables && mged_variables->mv_autosize && non_empty) {
 	    struct view_ring *vrp;
 	    const char *av[1] = {"autoview"};
 	    ged_exec_autoview(s->gedp, 1, (const char **)av);
 
 	    (void)mged_svbase(s);
 
-	    for (BU_LIST_FOR(vrp, view_ring, &view_state->vs_headView.l)) {
-		vrp->vr_scale = view_state->vs_gvp->gv_scale;
+	    if (view_state && view_state->vs_gvp) {
+		for (BU_LIST_FOR(vrp, view_ring, &view_state->vs_headView.l)) {
+		    vrp->vr_scale = view_state->vs_gvp->gv_scale;
+		}
 	    }
 	}
     }
 
     set_curr_dm(s, save_m_dmp);
     curr_cmd_list = save_cmd_list;
-    s->gedp->ged_gvp = view_state->vs_gvp;
+    if (view_state)
+	s->gedp->ged_gvp = view_state->vs_gvp;
 
     return TCL_OK;
 }
@@ -2970,7 +3023,7 @@ cmd_shaded_mode(ClientData clientData,
 
 	/* set zbuffer, zclip and lighting for all */
 	bu_vls_printf(&vls, "mged_shaded_mode_helper %s", argv[2]);
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 
 	/* Remove -a while retaining the command name at argv[0]. */
@@ -3017,7 +3070,7 @@ cmd_ps(ClientData clientData,
     /* For the next couple releases, print a rename notice */
     mged_pr_output(interpreter);
     Tcl_AppendResult(interpreter, "(Note: former 'ps' command has been renamed to 'postscript')\n", NULL);
-    Tcl_AppendResult(interpreter, bu_vls_addr(s->gedp->ged_result_str), NULL);
+    Tcl_AppendResult(interpreter, bu_vls_cstr(s->gedp->ged_result_str), NULL);
     return (ret) ? TCL_ERROR : TCL_OK;
 }
 
@@ -3039,7 +3092,7 @@ cmd_stuff_str(ClientData clientData, Tcl_Interp *interpreter, int argc, const ch
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "helpdevel stuff_str");
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -3047,10 +3100,10 @@ cmd_stuff_str(ClientData clientData, Tcl_Interp *interpreter, int argc, const ch
     if (s->classic_mged) {
 	bu_log("\r%s\n", argv[1]);
 	pr_prompt(s);
-	bu_log("%s", bu_vls_addr(&s->input_str));
+	bu_log("%s", bu_vls_cstr(&s->input_str));
 	pr_prompt(s);
 	for (i = 0; i < s->input_str_index; ++i)
-	    bu_log("%c", bu_vls_addr(&s->input_str)[i]);
+	    bu_log("%c", bu_vls_cstr(&s->input_str)[i]);
     }
 
     return TCL_OK;
@@ -3251,6 +3304,8 @@ _view_copy_from_staging(struct bview *dst, struct bview *src, int include_knobs)
 static void
 _view_update_rate_flags_viewonly(struct mged_state *s)
 {
+    if (!view_state) return;
+
     /* Mirror legacy flag semantics (view path) */
     /* NOTE: Assumes view_state->k already contains the up-to-date knob
      * values copied from vs_gvp->k (done in cmd_view after a knob
@@ -3363,7 +3418,7 @@ cmd_view(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *a
     }
 
     if (argc < 2) {
-	if (!s->gedp->ged_gvp)
+	if (!s->gedp->ged_gvp && view_state)
 	    s->gedp->ged_gvp = view_state->vs_gvp;
 	int ret = run_ged_async(s, [&]() -> int { return ged_exec_view(s->gedp, argc, (const char **)argv); });
 	GED_OUTPUT;
@@ -3373,7 +3428,7 @@ cmd_view(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *a
     const int is_knob = _view_is_knob(argc, argv);
     const int baseline_reset = _view_is_baseline_reset(argc, argv);
 
-    struct bview *mged_view = view_state->vs_gvp;
+    struct bview *mged_view = (view_state) ? view_state->vs_gvp : NULL;
 
     /* Determine staging context */
     int shared_view = 0;
@@ -3459,8 +3514,10 @@ cmd_view(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *a
 	/* Roll back knob state on error */
 	if (is_knob && have_pre_knob) {
 	    if (shared_view) {
-		mged_view->k = pre_knob;
-		view_state->k = mged_view->k;
+		if (mged_view)
+		    mged_view->k = pre_knob;
+		if (view_state)
+		    view_state->k = pre_knob;
 		_view_update_rate_flags_viewonly(s);
 	    } else {
 		staging->k = pre_knob;
@@ -3481,12 +3538,13 @@ cmd_view(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *a
     /* Success: propagate staging->MGED if distinct */
     if (!shared_view) {
 	_view_copy_from_staging(mged_view, staging, is_knob);
-	view_state->vs_flag = 1;
+	if (view_state)
+	    view_state->vs_flag = 1;
     }
 
     /* Copy updated vs_gvp->k into view_state->k immediately after a confirmed
      * successful knob mutation, before any later operations that might exit. */
-    if (is_knob) {
+    if (is_knob && view_state && view_state->vs_gvp) {
 	view_state->k = view_state->vs_gvp->k;
 	_view_update_rate_flags_viewonly(s);
     }
