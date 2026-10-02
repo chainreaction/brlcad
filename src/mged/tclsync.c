@@ -42,6 +42,9 @@
 static int
 EvalWords(Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 {
+    if (!interp || objc <= 0 || !objv)
+	return TCL_ERROR;
+
     Tcl_Obj *cmd = Tcl_NewListObj(objc, objv);
     Tcl_IncrRefCount(cmd);
     int ret = Tcl_EvalObjEx(interp, cmd, TCL_EVAL_GLOBAL);
@@ -53,7 +56,12 @@ EvalWords(Tcl_Interp *interp, int objc, Tcl_Obj *const objv[])
 static Tcl_Obj *
 ResultCopy(Tcl_Interp *interp)
 {
-    Tcl_Obj *result = Tcl_DuplicateObj(Tcl_GetObjResult(interp));
+    if (!interp)
+	return NULL;
+    Tcl_Obj *res = Tcl_GetObjResult(interp);
+    if (!res)
+	return NULL;
+    Tcl_Obj *result = Tcl_DuplicateObj(res);
     Tcl_IncrRefCount(result);
     return result;
 }
@@ -100,7 +108,7 @@ DirectNamespaceMember(const char *name, const char *ns)
 static Tcl_Obj *
 QualifiedPattern(const char *ns)
 {
-    if (BU_STR_EQUAL(ns, "::"))
+    if (!ns || BU_STR_EQUAL(ns, "::"))
 	return Tcl_NewStringObj("::*", -1);
 
     Tcl_Obj *pattern = Tcl_NewStringObj(ns, -1);
@@ -112,6 +120,8 @@ QualifiedPattern(const char *ns)
 static int
 AppendRecord(Tcl_Interp *interp, Tcl_Obj *snapshot, Tcl_Obj *record)
 {
+    if (!interp || !snapshot || !record)
+	return TCL_ERROR;
     return Tcl_ListObjAppendElement(interp, snapshot, record);
 }
 
@@ -119,6 +129,9 @@ AppendRecord(Tcl_Interp *interp, Tcl_Obj *snapshot, Tcl_Obj *record)
 static int
 AppendNamespaceRecord(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *ns)
 {
+    if (!interp || !snapshot || !ns)
+	return TCL_ERROR;
+
     Tcl_Obj *record = Tcl_NewListObj(0, NULL);
     Tcl_ListObjAppendElement(interp, record, Tcl_NewStringObj("namespace", -1));
     Tcl_ListObjAppendElement(interp, record, Tcl_NewStringObj(ns, -1));
@@ -129,6 +142,9 @@ AppendNamespaceRecord(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *ns)
 static int
 AppendProc(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *name)
 {
+    if (!interp || !snapshot || !name)
+	return TCL_ERROR;
+
     Tcl_Obj *words[3];
     words[0] = Tcl_NewStringObj("info", -1);
     words[1] = Tcl_NewStringObj("args", -1);
@@ -137,6 +153,8 @@ AppendProc(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *name)
 	return TCL_OK;
 
     Tcl_Obj *args = ResultCopy(interp);
+    if (!args)
+	return TCL_OK;
     int argc = 0;
     Tcl_Obj **argv = NULL;
     if (Tcl_ListObjGetElements(interp, args, &argc, &argv) != TCL_OK) {
@@ -185,6 +203,10 @@ AppendProc(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *name)
 	return TCL_OK;
     }
     Tcl_Obj *body = ResultCopy(interp);
+    if (!body) {
+	Tcl_DecrRefCount(arg_spec);
+	return TCL_OK;
+    }
 
     Tcl_Obj *record = Tcl_NewListObj(0, NULL);
     Tcl_ListObjAppendElement(interp, record, Tcl_NewStringObj("proc", -1));
@@ -202,6 +224,9 @@ AppendProc(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *name)
 static int
 AppendProcs(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *ns)
 {
+    if (!interp || !snapshot || !ns)
+	return TCL_ERROR;
+
     Tcl_Obj *words[3];
     words[0] = Tcl_NewStringObj("info", -1);
     words[1] = Tcl_NewStringObj("procs", -1);
@@ -210,6 +235,8 @@ AppendProcs(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *ns)
 	return TCL_ERROR;
 
     Tcl_Obj *procs = ResultCopy(interp);
+    if (!procs)
+	return TCL_ERROR;
     int proc_count = 0;
     Tcl_Obj **procv = NULL;
     if (Tcl_ListObjGetElements(interp, procs, &proc_count, &procv) != TCL_OK) {
@@ -233,6 +260,9 @@ AppendProcs(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *ns)
 static int
 AppendVariable(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *name)
 {
+    if (!interp || !snapshot || !name)
+	return TCL_OK;
+
     Tcl_Obj *words[3];
     words[0] = Tcl_NewStringObj("array", -1);
     words[1] = Tcl_NewStringObj("exists", -1);
@@ -252,6 +282,8 @@ AppendVariable(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *name)
 	if (EvalWords(interp, 3, words) != TCL_OK)
 	    return TCL_OK;
 	Tcl_Obj *value = ResultCopy(interp);
+	if (!value)
+	    return TCL_OK;
 
 	Tcl_ListObjAppendElement(interp, record, Tcl_NewStringObj("array", -1));
 	Tcl_ListObjAppendElement(interp, record, Tcl_NewStringObj(name, -1));
@@ -275,6 +307,9 @@ AppendVariable(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *name)
 static int
 AppendVariables(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *ns)
 {
+    if (!interp || !snapshot || !ns)
+	return TCL_ERROR;
+
     Tcl_Obj *words[3];
     words[0] = Tcl_NewStringObj("info", -1);
     words[1] = Tcl_NewStringObj(BU_STR_EQUAL(ns, "::") ? "globals" : "vars", -1);
@@ -288,6 +323,8 @@ AppendVariables(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *ns)
 	return TCL_ERROR;
 
     Tcl_Obj *vars = ResultCopy(interp);
+    if (!vars)
+	return TCL_ERROR;
     int var_count = 0;
     Tcl_Obj **varv = NULL;
     if (Tcl_ListObjGetElements(interp, vars, &var_count, &varv) != TCL_OK) {
@@ -314,6 +351,9 @@ AppendVariables(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *ns)
 static int
 AppendNamespace(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *ns)
 {
+    if (!interp || !snapshot || !ns)
+	return TCL_ERROR;
+
     if (!BU_STR_EQUAL(ns, "::") && AppendNamespaceRecord(interp, snapshot, ns) != TCL_OK)
 	return TCL_ERROR;
 
@@ -330,6 +370,8 @@ AppendNamespace(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *ns)
 	return TCL_ERROR;
 
     Tcl_Obj *children = ResultCopy(interp);
+    if (!children)
+	return TCL_ERROR;
     int child_count = 0;
     Tcl_Obj **childv = NULL;
     if (Tcl_ListObjGetElements(interp, children, &child_count, &childv) != TCL_OK) {
@@ -353,6 +395,9 @@ AppendNamespace(Tcl_Interp *interp, Tcl_Obj *snapshot, const char *ns)
 static int
 AppendAliases(Tcl_Interp *interp, Tcl_Obj *snapshot)
 {
+    if (!interp || !snapshot)
+	return TCL_ERROR;
+
     Tcl_Obj *words[3];
     words[0] = Tcl_NewStringObj("interp", -1);
     words[1] = Tcl_NewStringObj("aliases", -1);
@@ -361,6 +406,8 @@ AppendAliases(Tcl_Interp *interp, Tcl_Obj *snapshot)
 	return TCL_ERROR;
 
     Tcl_Obj *aliases = ResultCopy(interp);
+    if (!aliases)
+	return TCL_ERROR;
     int alias_count = 0;
     Tcl_Obj **aliasv = NULL;
     if (Tcl_ListObjGetElements(interp, aliases, &alias_count, &aliasv) != TCL_OK) {
@@ -404,6 +451,9 @@ AppendAliases(Tcl_Interp *interp, Tcl_Obj *snapshot)
 Tcl_Obj *
 BuildInterpSnapshot(Tcl_Interp *interp)
 {
+    if (!interp)
+	return NULL;
+
     Tcl_Obj *saved_result = ResultCopy(interp);
     Tcl_Obj *snapshot = Tcl_NewListObj(0, NULL);
     Tcl_IncrRefCount(snapshot);
@@ -412,8 +462,10 @@ BuildInterpSnapshot(Tcl_Interp *interp)
     if (ret == TCL_OK)
 	ret = AppendAliases(interp, snapshot);
 
-    Tcl_SetObjResult(interp, saved_result);
-    Tcl_DecrRefCount(saved_result);
+    if (saved_result) {
+	Tcl_SetObjResult(interp, saved_result);
+	Tcl_DecrRefCount(saved_result);
+    }
 
     if (ret != TCL_OK) {
 	Tcl_DecrRefCount(snapshot);
@@ -427,6 +479,9 @@ BuildInterpSnapshot(Tcl_Interp *interp)
 static int
 ReplayRecord(Tcl_Interp *interp, Tcl_Obj *record)
 {
+    if (!interp || !record)
+	return TCL_ERROR;
+
     int field_count = 0;
     Tcl_Obj **fields = NULL;
     if (Tcl_ListObjGetElements(interp, record, &field_count, &fields) != TCL_OK ||
@@ -497,6 +552,9 @@ ReplayRecord(Tcl_Interp *interp, Tcl_Obj *record)
 int
 ReplayInterpSnapshot(Tcl_Interp *interp, Tcl_Obj *snapshot)
 {
+    if (!interp || !snapshot)
+	return TCL_ERROR;
+
     int record_count = 0;
     Tcl_Obj **records = NULL;
     if (Tcl_ListObjGetElements(interp, snapshot, &record_count, &records) != TCL_OK)

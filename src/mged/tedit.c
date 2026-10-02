@@ -45,23 +45,27 @@
 
 static char tmpfil[MAXPATHLEN] = {0};
 
-int writesolid(struct mged_state *), readsolid(struct mged_state *);
+static int writesolid(struct mged_state *s, FILE *fp);
+static int readsolid(struct mged_state *s);
+static int editit(struct mged_state *s, const char *tempfile);
 
 /*
- *
  * No-frills edit - opens an editor on the supplied
  * file name.
- *
  */
-int
-editit(struct mged_state *s, const char *tempfile) {
+static int
+editit(struct mged_state *s, const char *tempfile)
+{
     int argc = 3;
     const char *av[6] = {NULL, NULL, NULL, NULL, NULL, NULL};
+
+    if (!s || !s->gedp || !tempfile)
+	return TCL_ERROR;
 
     CHECK_DBI_NULL;
 
     if (!ged_set_editor(s->gedp, s->classic_mged))
-       return TCL_ERROR;
+	return TCL_ERROR;
 
     av[0] = "editit";
     av[1] = "-f";
@@ -78,8 +82,12 @@ int
 f_tedit(ClientData clientData, Tcl_Interp *interp, int argc, const char **UNUSED(argv))
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
+    if (!ctp)
+	return TCL_ERROR;
     MGED_CK_CMD(ctp);
     struct mged_state *s = ctp->s;
+    if (!s || !interp)
+	return TCL_ERROR;
 
     FILE *fp;
 
@@ -90,7 +98,7 @@ f_tedit(ClientData clientData, Tcl_Interp *interp, int argc, const char **UNUSED
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help ted");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -99,13 +107,13 @@ f_tedit(ClientData clientData, Tcl_Interp *interp, int argc, const char **UNUSED
     if (not_state(s, ST_S_EDIT, "Primitive Text Edit"))
 	return TCL_ERROR;
 
-    fp = bu_temp_file(tmpfil, MAXPATHLEN);
+    fp = bu_temp_file(tmpfil, sizeof(tmpfil));
     if (fp == NULL)
 	return TCL_ERROR;
 
-    if (writesolid(s)) {
+    if (writesolid(s, fp)) {
+	(void)fclose(fp);
 	bu_file_delete(tmpfil);
-	fclose(fp);
 	return TCL_ERROR;
     }
 
@@ -119,7 +127,8 @@ f_tedit(ClientData clientData, Tcl_Interp *interp, int argc, const char **UNUSED
 
 	/* Update the display */
 	replot_editing_solid(0, NULL, s, NULL);
-	view_state->vs_flag = 1;
+	if (view_state)
+	    view_state->vs_flag = 1;
 	Tcl_AppendResult(interp, "done\n", (char *)NULL);
     }
 
@@ -130,57 +139,62 @@ f_tedit(ClientData clientData, Tcl_Interp *interp, int argc, const char **UNUSED
 
 
 /* Write numerical parameters of a solid into a file */
-int
-writesolid(struct mged_state *s)
+static int
+writesolid(struct mged_state *s, FILE *fp)
 {
-    FILE *fp;
-
     CHECK_DBI_NULL;
 
+    if (!s || !s->s_edit || !MEDIT(s) || !fp)
+	return 1;
+
     struct rt_db_internal *ip = &MEDIT(s)->es_int;
-    if (!EDOBJ[ip->idb_type].ft_write_params) {
+    if (ip->idb_type <= ID_NULL || ip->idb_type > ID_MAX_SOLID || !EDOBJ[ip->idb_type].ft_write_params) {
 	Tcl_AppendResult(s->interp, "Cannot text edit this solid type\n", (char *)NULL);
 	return 1;
     }
 
     struct bu_vls params = BU_VLS_INIT_ZERO;
     (*EDOBJ[ip->idb_type].ft_write_params)(&params, ip, &s->tol.tol, s->dbip->dbi_base2local);
-    fp = fopen(tmpfil, "w");
-    fprintf(fp, "%s", bu_vls_cstr(&params));
-    (void)fclose(fp);
-    return 0;
+    size_t len = bu_vls_strlen(&params);
+    size_t written = fwrite(bu_vls_cstr(&params), 1, len, fp);
+    bu_vls_free(&params);
+
+    return (written == len) ? 0 : 1;
 }
 
 /* Read numerical parameters of solid from file */
-int
+static int
 readsolid(struct mged_state *s)
 {
     CHECK_DBI_NULL;
 
+    if (!s || !s->s_edit || !MEDIT(s))
+	return 1;
+
     struct rt_db_internal *ip = &MEDIT(s)->es_int;
 
-    if (!EDOBJ[ip->idb_type].ft_read_params) {
+    if (ip->idb_type <= ID_NULL || ip->idb_type > ID_MAX_SOLID || !EDOBJ[ip->idb_type].ft_read_params) {
 	Tcl_AppendResult(s->interp, "Cannot text edit this solid type\n", (char *)NULL);
 	return 1;
     }
 
-    struct bu_vls solid_in = BU_VLS_INIT_ZERO;
     struct bu_mapped_file *mf = bu_open_mapped_file(tmpfil, (char *)NULL);
     if (!mf) {
 	bu_log("cannot read temporary file \"%s\"\n", tmpfil);
 	return 1;	/* FAIL */
     }
+
+    struct bu_vls solid_in = BU_VLS_INIT_ZERO;
     bu_vls_strncpy(&solid_in, (char *)mf->buf, mf->buflen);
     bu_close_mapped_file(mf);
 
-
+    int ret = 0;
     if ((*EDOBJ[ip->idb_type].ft_read_params)(ip, bu_vls_cstr(&solid_in), &s->tol.tol, s->dbip->dbi_local2base) == BRLCAD_ERROR) {
-	bu_vls_free(&solid_in);
-	return 1;   /* FAIL */
+	ret = 1;   /* FAIL */
     }
 
     bu_vls_free(&solid_in);
-    return 0;
+    return ret;
 }
 
 /*

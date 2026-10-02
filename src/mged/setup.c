@@ -502,8 +502,16 @@ mged_cmd_dispatch(ClientData clientData, Tcl_Interp *interp, int argc,
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     struct mged_state *s;
 
+    if (!ctp)
+	return TCL_ERROR;
+
     MGED_CK_CMD(ctp);
     s = ctp->s;
+    if (!s)
+	return TCL_ERROR;
+
+    if (!ctp->tcl_func)
+	return TCL_ERROR;
 
     if (s->cmd_running) {
 	if (ctp->tcl_func == cmd_interrupt)
@@ -511,7 +519,7 @@ mged_cmd_dispatch(ClientData clientData, Tcl_Interp *interp, int argc,
 
 	if (ctp->tcl_func == f_quit) {
 	    if (argc != 1) {
-		Tcl_AppendResult(interp, "Usage: ", argv[0], NULL);
+		Tcl_AppendResult(interp, "Usage: ", (argv && argv[0]) ? argv[0] : "quit", NULL);
 		return TCL_ERROR;
 	    }
 	    (void)mged_request_command_interrupt(s);
@@ -537,6 +545,9 @@ cmd_setup(struct mged_state *s)
 {
     struct cmdtab *ctp;
     struct bu_vls temp = BU_VLS_INIT_ZERO;
+
+    if (!s || !s->interp)
+	return;
 
     // TODO - should be using libged cmd list to populate everything in this
     // table that is a plain wrapper - that way all ged commands are always
@@ -565,7 +576,7 @@ cmd_setup(struct mged_state *s)
 
 	(void)Tcl_CreateCommand(s->interp, ctp->name, mged_cmd_dispatch,
 				(ClientData)ctp, (Tcl_CmdDeleteProc *)NULL);
-	(void)Tcl_CreateCommand(s->interp, bu_vls_addr(&temp), mged_cmd_dispatch,
+	(void)Tcl_CreateCommand(s->interp, bu_vls_cstr(&temp), mged_cmd_dispatch,
 				(ClientData)ctp, (Tcl_CmdDeleteProc *)NULL);
     }
 
@@ -589,9 +600,12 @@ static void
 mged_refresh_handler_impl(void *clientdata)
 {
     struct mged_state *s = (struct mged_state *)clientdata;
+    if (!s)
+	return;
     MGED_CK_STATE(s);
 
-    view_state->vs_flag = 1;
+    if (view_state)
+	view_state->vs_flag = 1;
     refresh(s);
 }
 
@@ -599,6 +613,8 @@ static void
 mged_refresh_handler(void *clientdata)
 {
     struct mged_state *s = (struct mged_state *)clientdata;
+    if (!s)
+	return;
     MGED_CK_STATE(s);
     mged_run_on_gui_thread(s, mged_refresh_handler_impl, clientdata);
 }
@@ -609,6 +625,9 @@ mged_refresh_handler(void *clientdata)
 void
 mged_setup(struct mged_state *s)
 {
+    if (!s)
+	return;
+
     struct bu_vls str = BU_VLS_INIT_ZERO;
     struct bu_vls tlog = BU_VLS_INIT_ZERO;
     const char *name = bu_dir(NULL, 0, BU_DIR_BIN, bu_getprogname(), BU_DIR_EXT, NULL);
@@ -639,7 +658,7 @@ mged_setup(struct mged_state *s)
     /* Do basic Tcl initialization - note that Tk
      * is not initialized at this point. */
     if (tclcad_init(s->interp, 0, &tlog) == TCL_ERROR) {
-	bu_log("tclcad_init error:\n%s\n", bu_vls_addr(&tlog));
+	bu_log("tclcad_init error:\n%s\n", bu_vls_cstr(&tlog));
     }
     bu_vls_free(&tlog);
 
@@ -697,20 +716,22 @@ mged_setup(struct mged_state *s)
     mged_global_db_ctx.old_dbip = NULL;
     mged_global_db_ctx.post_open_cnt = 0;
 
-    BU_ALLOC(view_state->vs_gvp, struct bview);
-    bv_init(view_state->vs_gvp, NULL);
-    BU_GET(view_state->vs_gvp->callbacks, struct bu_ptbl);
-    bu_ptbl_init(view_state->vs_gvp->callbacks, 8, "bv callbacks");
+    if (view_state) {
+	BU_ALLOC(view_state->vs_gvp, struct bview);
+	bv_init(view_state->vs_gvp, NULL);
+	BU_GET(view_state->vs_gvp->callbacks, struct bu_ptbl);
+	bu_ptbl_init(view_state->vs_gvp->callbacks, 8, "bv callbacks");
 
-    view_state->vs_gvp->gv_callback = mged_view_callback;
-    view_state->vs_gvp->gv_clientData = (void *)view_state;
-    MAT_DELTAS_GET_NEG(view_state->vs_orig_pos, view_state->vs_gvp->gv_center);
+	view_state->vs_gvp->gv_callback = mged_view_callback;
+	view_state->vs_gvp->gv_clientData = (void *)view_state;
+	MAT_DELTAS_GET_NEG(view_state->vs_orig_pos, view_state->vs_gvp->gv_center);
 
-    view_state->vs_gvp->vset = &s->gedp->ged_views;
+	view_state->vs_gvp->vset = &s->gedp->ged_views;
 
-    bv_set_add_view(&s->gedp->ged_views, view_state->vs_gvp);
-    bu_ptbl_ins(&s->gedp->ged_free_views, (long *)view_state->vs_gvp);
-    s->gedp->ged_gvp = view_state->vs_gvp;
+	bv_set_add_view(&s->gedp->ged_views, view_state->vs_gvp);
+	bu_ptbl_ins(&s->gedp->ged_free_views, (long *)view_state->vs_gvp);
+	s->gedp->ged_gvp = view_state->vs_gvp;
+    }
 
     /* register commands */
     cmd_setup(s);
@@ -728,7 +749,7 @@ mged_setup(struct mged_state *s)
 
     /* Tcl needs to write nulls onto subscripted variable names */
     bu_vls_printf(&str, "%s(state)", MGED_DISPLAY_VAR);
-    Tcl_SetVar(s->interp, bu_vls_addr(&str), state_str[s->global_editing_state], TCL_GLOBAL_ONLY);
+    Tcl_SetVar(s->interp, bu_vls_cstr(&str), state_str[s->global_editing_state], TCL_GLOBAL_ONLY);
 
     /* Set defaults for view status variables */
     bu_vls_trunc(&str, 0);
@@ -737,7 +758,7 @@ mged_setup(struct mged_state *s)
     bu_vls_printf(&str, "set %s(.topid_0.ur,size) sz=1000.000;", MGED_DISPLAY_VAR);
     bu_vls_printf(&str, "set %s(.topid_0.ur,center) {cent=(0.000 0.000 0.000)};", MGED_DISPLAY_VAR);
     bu_vls_printf(&str, "set %s(units) mm", MGED_DISPLAY_VAR);
-    Tcl_Eval(s->interp, bu_vls_addr(&str));
+    Tcl_Eval(s->interp, bu_vls_cstr(&str));
 
     Tcl_ResetResult(s->interp);
 
