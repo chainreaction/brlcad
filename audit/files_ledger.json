@@ -33798,50 +33798,60 @@
       "path": "src/mged/mover.c",
       "subsystem": "src/mged",
       "lines": 123,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T06:18:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0291"
+      ]
     },
     {
       "id": 3199,
       "path": "src/mged/overlay.c",
       "subsystem": "src/mged",
       "lines": 77,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T06:18:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0291"
+      ]
     },
     {
       "id": 3200,
       "path": "src/mged/plot.c",
       "subsystem": "src/mged",
       "lines": 277,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T06:18:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0291"
+      ]
     },
     {
       "id": 3201,
       "path": "src/mged/predictor.c",
       "subsystem": "src/mged",
       "lines": 334,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T06:18:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0291"
+      ]
     },
     {
       "id": 3202,
       "path": "src/mged/rect.c",
       "subsystem": "src/mged",
       "lines": 368,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T06:18:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0291"
+      ]
     },
     {
       "id": 3203,
