@@ -46,6 +46,8 @@
 static void
 init_trail(struct trail *tp)
 {
+    if (!tp)
+	return;
     tp->t_cur_index = 0;
     tp->t_nused = 0;
 }
@@ -57,6 +59,8 @@ init_trail(struct trail *tp)
 static void
 push_trail(struct trail *tp, fastf_t *pt)
 {
+    if (!tp || !pt)
+	return;
     VMOVE(tp->t_pt[tp->t_cur_index], pt);
     if (tp->t_cur_index >= tp->t_nused) tp->t_nused++;
     tp->t_cur_index++;
@@ -73,15 +77,19 @@ static void
 poly_trail(struct mged_state *s, struct bu_list *vhead, struct trail *t1, struct trail *t2)
 {
     int i1, i2;
-    int todo = t1->t_nused;
+    int todo;
     fastf_t *s1, *s2;
     vect_t right, up;
     vect_t norm;
 
+    if (!s || !vhead || !t1 || !t2)
+	return;
+
+    todo = t1->t_nused;
     if (t2->t_nused < todo) todo = t2->t_nused;
 
     BU_LIST_INIT(vhead);
-    if (t1->t_nused <= 0 || t1->t_nused <= 0) return;
+    if (t1->t_nused <= 0 || t2->t_nused <= 0) return;
 
     if ((i1 = t1->t_cur_index-1) < 0) i1 = t1->t_nused-1;
     if ((i2 = t2->t_cur_index-1) < 0) i2 = t2->t_nused-1;
@@ -120,6 +128,9 @@ predictor_init(struct mged_state *s)
 {
     int i;
 
+    if (!s || !s->mged_curr_dm)
+	return;
+
     for (i = 0; i < NUM_TRAILS; ++i)
 	init_trail(&s->mged_curr_dm->dm_trails[i]);
 }
@@ -128,6 +139,9 @@ predictor_init(struct mged_state *s)
 void
 predictor_kill(struct mged_state *s)
 {
+    if (!s || !s->mged_curr_dm)
+	return;
+
     BV_FREE_VLIST(s->vlfree, &s->mged_curr_dm->dm_p_vlist);
     predictor_init(s);
 }
@@ -174,6 +188,9 @@ predictor_frame(struct mged_state *s)
     vect_t right, up;
     vect_t norm;
 
+    if (!s || !s->mged_curr_dm || !view_state || !view_state->vs_gvp || !mged_variables)
+	return;
+
     if (view_state->k.rot_v_flag == 0 &&
 	view_state->k.tra_v_flag == 0 &&
 	view_state->k.sca_flag == 0) {
@@ -184,7 +201,7 @@ predictor_frame(struct mged_state *s)
     BV_FREE_VLIST(s->vlfree, &s->mged_curr_dm->dm_p_vlist);
 
     /* Advance into the future */
-    nframes = (int)(mged_variables->mv_predictor_advance / frametime);
+    nframes = (ZERO(frametime) || frametime < 0.0) ? 1 : (int)(mged_variables->mv_predictor_advance / frametime);
     if (nframes < 1) nframes = 1;
 
     /* Build view2model matrix for the future time */
@@ -311,7 +328,11 @@ void
 predictor_hook(const struct bu_structparse *UNUSED(sp), const char *UNUSED(c1), void *UNUSED(v1), const char *UNUSED(c2), void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s)
+	return;
     MGED_CK_STATE(s);
+    if (!s->mged_curr_dm || !mged_variables)
+	return;
 
     if (mged_variables->mv_predictor > 0)
 	predictor_init(s);
@@ -319,7 +340,8 @@ predictor_hook(const struct bu_structparse *UNUSED(sp), const char *UNUSED(c1), 
 	predictor_kill(s);
 
     DMP_dirty = 1;
-    dm_set_dirty(DMP, 1);
+    if (DMP)
+	dm_set_dirty(DMP, 1);
 }
 
 

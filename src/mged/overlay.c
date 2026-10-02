@@ -37,22 +37,30 @@ int
 cmd_overlay(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
+    if (!ctp)
+	return TCL_ERROR;
     MGED_CK_CMD(ctp);
     struct mged_state *s = ctp->s;
+    if (!s)
+	return TCL_ERROR;
 
     int ret;
     Tcl_DString ds;
 
-    if (s->gedp == GED_NULL)
+    if (!s->gedp)
 	return TCL_OK;
 
     Tcl_DStringInit(&ds);
 
     if (s->gedp->ged_gvp)
-	s->gedp->ged_gvp->dmp = (void *)s->mged_curr_dm->dm_dmp;
+	s->gedp->ged_gvp->dmp = (void *)(s->mged_curr_dm ? s->mged_curr_dm->dm_dmp : NULL);
     ret = ged_exec(s->gedp, argc, argv);
-    Tcl_DStringAppend(&ds, bu_vls_addr(s->gedp->ged_result_str), -1);
-    Tcl_DStringResult(interp, &ds);
+    if (s->gedp->ged_result_str)
+	Tcl_DStringAppend(&ds, bu_vls_cstr(s->gedp->ged_result_str), -1);
+    if (interp)
+	Tcl_DStringResult(interp, &ds);
+    else
+	Tcl_DStringFree(&ds);
 
     if (ret & GED_HELP)
 	return TCL_OK;
@@ -61,9 +69,10 @@ cmd_overlay(ClientData clientData, Tcl_Interp *interp, int argc, const char *arg
 	return TCL_ERROR;
 
     s->update_views = 1;
-    dm_set_dirty(DMP, 1);
+    if (s->mged_curr_dm && DMP)
+	dm_set_dirty(DMP, 1);
 
-    return ret;
+    return TCL_OK;
 }
 
 /*

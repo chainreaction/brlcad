@@ -49,8 +49,12 @@ int
 f_area(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
+    if (!ctp)
+	return TCL_ERROR;
     MGED_CK_CMD(ctp);
     struct mged_state *s = ctp->s;
+    if (!s)
+	return TCL_ERROR;
 
     static vect_t last;
     static vect_t fin;
@@ -78,11 +82,16 @@ f_area(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 
     CHECK_DBI_NULL;
 
+    if (!s->gedp || !ged_dl(s->gedp) || !view_state || !view_state->vs_gvp) {
+	Tcl_AppendResult(interp, "Display state unavailable\n", (char *)NULL);
+	return TCL_ERROR;
+    }
+
     if (argc < 1 || 2 < argc) {
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help area");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -116,7 +125,7 @@ f_area(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 		struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 		bu_vls_printf(&vls, "help area");
-		Tcl_Eval(interp, bu_vls_addr(&vls));
+		Tcl_Eval(interp, bu_vls_cstr(&vls));
 		bu_vls_free(&vls);
 		return TCL_ERROR;
 	    }
@@ -132,10 +141,10 @@ f_area(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	struct bu_vls tmp_vls = BU_VLS_INIT_ZERO;
 	double tol = 0.0005;
 
-	sprintf(tol_str, "%e", tol);
+	snprintf(tol_str, sizeof(tol_str), "%e", tol);
 	tol_ptr = tol_str;
 	bu_vls_printf(&tmp_vls, "Auto-tolerance is %s\n", tol_str);
-	Tcl_AppendResult(interp, bu_vls_addr(&tmp_vls), (char *)NULL);
+	Tcl_AppendResult(interp, bu_vls_cstr(&tmp_vls), (char *)NULL);
 	bu_vls_free(&tmp_vls);
     }
 
@@ -146,15 +155,32 @@ f_area(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 
     if (pipe(fd2) != 0) {
 	perror("f_area");
+	close(fd1[0]);
+	close(fd1[1]);
 	return TCL_ERROR;
     }
 
     if (pipe(fd3) != 0) {
 	perror("f_area");
+	close(fd1[0]);
+	close(fd1[1]);
+	close(fd2[0]);
+	close(fd2[1]);
 	return TCL_ERROR;
     }
 
-    if ((pid1 = fork()) == 0) {
+    pid1 = fork();
+    if (pid1 < 0) {
+	perror("f_area: fork pid1");
+	close(fd1[0]);
+	close(fd1[1]);
+	close(fd2[0]);
+	close(fd2[1]);
+	close(fd3[0]);
+	close(fd3[1]);
+	return TCL_ERROR;
+    }
+    if (pid1 == 0) {
 	const char *cad_boundp = bu_dir(NULL, 0, BU_DIR_BIN, "cad_boundp", BU_DIR_EXT, NULL);
 
 	dup2(fd1[0], fileno(stdin));
@@ -168,9 +194,23 @@ f_area(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	close(fd3[1]);
 
 	execlp(cad_boundp, cad_boundp, "-t", tol_ptr, (char *)NULL);
+	perror("execlp cad_boundp");
+	_exit(1);
     }
 
-    if ((pid2 = fork()) == 0) {
+    pid2 = fork();
+    if (pid2 < 0) {
+	perror("f_area: fork pid2");
+	close(fd1[0]);
+	close(fd1[1]);
+	close(fd2[0]);
+	close(fd2[1]);
+	close(fd3[0]);
+	close(fd3[1]);
+	while ((rpid = wait(&retcode)) != pid1 && rpid != -1);
+	return TCL_ERROR;
+    }
+    if (pid2 == 0) {
 	const char *cad_parea = bu_dir(NULL, 0, BU_DIR_BIN, "cad_parea", BU_DIR_EXT, NULL);
 
 	dup2(fd2[0], fileno(stdin));
@@ -184,6 +224,8 @@ f_area(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	close(fd3[1]);
 
 	execlp(cad_parea, cad_parea, (char *)NULL);
+	perror("execlp cad_parea");
+	_exit(1);
     }
 
     close(fd1[0]);
@@ -193,6 +235,19 @@ f_area(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 
     fp_w = fdopen(fd1[1], "w");
     fp_r = fdopen(fd3[0], "r");
+    if (!fp_w || !fp_r) {
+	if (fp_w)
+	    fclose(fp_w);
+	else
+	    close(fd1[1]);
+	if (fp_r)
+	    fclose(fp_r);
+	else
+	    close(fd3[0]);
+	while ((rpid = wait(&retcode)) != pid1 && rpid != -1);
+	while ((rpid = wait(&retcode)) != pid2 && rpid != -1);
+	return TCL_ERROR;
+    }
 
     /*
      * Write out rotated but unclipped, untranslated,
@@ -258,8 +313,6 @@ f_area(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
     while ((rpid = wait(&retcode)) != pid2 && rpid != -1);
 
     fclose(fp_r);
-    close(fd1[1]);
-    close(fd3[0]);
 #endif
 
     return TCL_OK;

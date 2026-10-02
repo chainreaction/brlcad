@@ -71,12 +71,17 @@ rb_set_dirty_flag(const struct bu_structparse *UNUSED(sdp),
 		  void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s)
+	return;
     MGED_CK_STATE(s);
+    if (!s->mged_curr_dm || !rubber_band)
+	return;
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *m_dmp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
-	if (m_dmp->dm_rubber_band == rubber_band) {
+	if (m_dmp && m_dmp->dm_rubber_band == rubber_band) {
 	    m_dmp->dm_dirty = 1;
-	    dm_set_dirty(m_dmp->dm_dmp, 1);
+	    if (m_dmp->dm_dmp)
+		dm_set_dirty(m_dmp->dm_dmp, 1);
 	}
     }
 }
@@ -90,6 +95,8 @@ void
 rect_view2image(struct mged_state *s)
 {
     int width;
+    if (!s || !s->mged_curr_dm || !DMP || !rubber_band)
+	return;
     width = dm_get_width(DMP);
     rubber_band->rb_pos[X] = dm_Normal2Xx(DMP, rubber_band->rb_x);
     rubber_band->rb_pos[Y] = dm_get_height(DMP) - dm_Normal2Xy(DMP, rubber_band->rb_y, 1);
@@ -105,7 +112,12 @@ rect_view2image(struct mged_state *s)
 void
 rect_image2view(struct mged_state *s)
 {
-    int width = dm_get_width(DMP);
+    int width;
+    if (!s || !s->mged_curr_dm || !DMP || !rubber_band)
+	return;
+    width = dm_get_width(DMP);
+    if (width <= 0)
+	width = 1;
     rubber_band->rb_x = dm_Xx2Normal(DMP, rubber_band->rb_pos[X]);
     rubber_band->rb_y = dm_Xy2Normal(DMP, dm_get_height(DMP) - rubber_band->rb_pos[Y], 1);
     rubber_band->rb_width = rubber_band->rb_dim[X] * 2.0 / (fastf_t)width;
@@ -121,6 +133,8 @@ set_rect(const struct bu_structparse *sdp,
 	 void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s)
+	return;
     MGED_CK_STATE(s);
     rect_image2view(s);
     rb_set_dirty_flag(sdp, name, base, value, data);
@@ -134,6 +148,14 @@ static void
 adjust_rect_for_zoom(struct mged_state *s)
 {
     fastf_t width, height;
+    fastf_t aspect;
+
+    if (!s || !s->mged_curr_dm || !DMP || !rubber_band)
+	return;
+
+    aspect = dm_get_aspect(DMP);
+    if (ZERO(aspect) || aspect < 0.0)
+	aspect = 1.0;
 
     if (rubber_band->rb_width >= 0.0)
 	width = rubber_band->rb_width;
@@ -147,14 +169,14 @@ adjust_rect_for_zoom(struct mged_state *s)
 
     if (width >= height) {
 	if (rubber_band->rb_height >= 0.0)
-	    rubber_band->rb_height = width / dm_get_aspect(DMP);
+	    rubber_band->rb_height = width / aspect;
 	else
-	    rubber_band->rb_height = -width / dm_get_aspect(DMP);
+	    rubber_band->rb_height = -width / aspect;
     } else {
 	if (rubber_band->rb_width >= 0.0)
-	    rubber_band->rb_width = height * dm_get_aspect(DMP);
+	    rubber_band->rb_width = height * aspect;
 	else
-	    rubber_band->rb_width = -height * dm_get_aspect(DMP);
+	    rubber_band->rb_width = -height * aspect;
     }
 }
 
@@ -163,6 +185,10 @@ void
 draw_rect(struct mged_state *s)
 {
     int line_style;
+    fastf_t aspect;
+
+    if (!s || !s->mged_curr_dm || !DMP || !rubber_band || !color_scheme)
+	return;
 
     if (ZERO(rubber_band->rb_width) &&
 	ZERO(rubber_band->rb_height))
@@ -173,8 +199,12 @@ draw_rect(struct mged_state *s)
     else
 	line_style = 0; /* solid lines */
 
-    if (rubber_band->rb_active && mged_variables->mv_mouse_behavior == 'z')
+    if (rubber_band->rb_active && mged_variables && mged_variables->mv_mouse_behavior == 'z')
 	adjust_rect_for_zoom(s);
+
+    aspect = dm_get_aspect(DMP);
+    if (ZERO(aspect) || aspect < 0.0)
+	aspect = 1.0;
 
     /* draw rectangle */
     dm_set_fg(DMP,
@@ -185,31 +215,31 @@ draw_rect(struct mged_state *s)
 
     dm_draw_line_2d(DMP,
 		    rubber_band->rb_x,
-		    rubber_band->rb_y * dm_get_aspect(DMP),
+		    rubber_band->rb_y * aspect,
 		    rubber_band->rb_x,
-		    (rubber_band->rb_y + rubber_band->rb_height) * dm_get_aspect(DMP));
+		    (rubber_band->rb_y + rubber_band->rb_height) * aspect);
     dm_draw_line_2d(DMP,
 		    rubber_band->rb_x,
-		    (rubber_band->rb_y + rubber_band->rb_height) * dm_get_aspect(DMP),
+		    (rubber_band->rb_y + rubber_band->rb_height) * aspect,
 		    rubber_band->rb_x + rubber_band->rb_width,
-		    (rubber_band->rb_y + rubber_band->rb_height) * dm_get_aspect(DMP));
+		    (rubber_band->rb_y + rubber_band->rb_height) * aspect);
     dm_draw_line_2d(DMP,
 		    rubber_band->rb_x + rubber_band->rb_width,
-		    (rubber_band->rb_y + rubber_band->rb_height) * dm_get_aspect(DMP),
+		    (rubber_band->rb_y + rubber_band->rb_height) * aspect,
 		    rubber_band->rb_x + rubber_band->rb_width,
-		    rubber_band->rb_y * dm_get_aspect(DMP));
+		    rubber_band->rb_y * aspect);
     dm_draw_line_2d(DMP,
 		    rubber_band->rb_x + rubber_band->rb_width,
-		    rubber_band->rb_y * dm_get_aspect(DMP),
+		    rubber_band->rb_y * aspect,
 		    rubber_band->rb_x,
-		    rubber_band->rb_y * dm_get_aspect(DMP));
+		    rubber_band->rb_y * aspect);
 }
 
 
 void
 paint_rect_area(struct mged_state *s)
 {
-    if (!fbp)
+    if (!s || !s->mged_curr_dm || !fbp || !rubber_band)
 	return;
 
     (void)fb_refresh(fbp, rubber_band->rb_pos[X], rubber_band->rb_pos[Y],
@@ -225,7 +255,7 @@ rt_rect_area(struct mged_state *s)
     int width, height;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-    if (!fbp)
+    if (!s || !s->mged_curr_dm || !fbp || !rubber_band || !color_scheme || !mged_variables || !DMP || !s->interp)
 	return;
 
     if (ZERO(rubber_band->rb_width) &&
@@ -260,7 +290,7 @@ rt_rect_area(struct mged_state *s)
 		  dm_get_width(DMP), dm_get_height(DMP), dm_get_aspect(DMP),
 		  mged_variables->mv_port, xmin, ymin, xmax, ymax,
 		  color_scheme->cs_bg[0], color_scheme->cs_bg[1], color_scheme->cs_bg[2]);
-    (void)Tcl_Eval(s->interp, bu_vls_addr(&vls));
+    (void)Tcl_Eval(s->interp, bu_vls_cstr(&vls));
     (void)Tcl_ResetResult(s->interp);
     bu_vls_free(&vls);
 }
@@ -268,25 +298,25 @@ rt_rect_area(struct mged_state *s)
 void
 mged_center(struct mged_state *s, point_t center)
 {
-    char *av[5];
+    const char *av[5];
     char xbuf[32];
     char ybuf[32];
     char zbuf[32];
 
-    if (s->gedp == GED_NULL) {
+    if (!s || s->gedp == GED_NULL || !s->mged_curr_dm || !view_state) {
        return;
     }
 
-    snprintf(xbuf, 32, "%f", center[X]);
-    snprintf(ybuf, 32, "%f", center[Y]);
-    snprintf(zbuf, 32, "%f", center[Z]);
+    snprintf(xbuf, sizeof(xbuf), "%f", center[X]);
+    snprintf(ybuf, sizeof(ybuf), "%f", center[Y]);
+    snprintf(zbuf, sizeof(zbuf), "%f", center[Z]);
 
     av[0] = "center";
     av[1] = xbuf;
     av[2] = ybuf;
     av[3] = zbuf;
     av[4] = (char *)0;
-    ged_exec_center(s->gedp, 4, (const char **)av);
+    ged_exec_center(s->gedp, 4, av);
     (void)mged_svbase(s);
     view_state->vs_flag = 1;
 }
@@ -296,10 +326,14 @@ zoom_rect_area(struct mged_state *s)
 {
     fastf_t width, height;
     fastf_t sf;
+    fastf_t aspect;
     point_t old_model_center;
     point_t new_model_center;
     point_t old_view_center;
     point_t new_view_center;
+
+    if (!s || !s->mged_curr_dm || !DMP || !rubber_band || !view_state || !view_state->vs_gvp)
+	return;
 
     if (ZERO(rubber_band->rb_width) &&
 	ZERO(rubber_band->rb_height))
@@ -332,17 +366,21 @@ zoom_rect_area(struct mged_state *s)
     else
 	height = -rubber_band->rb_height;
 
+    aspect = dm_get_aspect(DMP);
+    if (ZERO(aspect) || aspect < 0.0)
+	aspect = 1.0;
+
     if (width >= height)
 	sf = width / 2.0;
     else
-	sf = height / 2.0 * dm_get_aspect(DMP);
+	sf = height / 2.0 * aspect;
 
     mged_vscale(s, sf);
 
     rubber_band->rb_x = -1.0;
-    rubber_band->rb_y = -1.0 / dm_get_aspect(DMP);
+    rubber_band->rb_y = -1.0 / aspect;
     rubber_band->rb_width = 2.0;
-    rubber_band->rb_height = 2.0 / dm_get_aspect(DMP);
+    rubber_band->rb_height = 2.0 / aspect;
 
     rect_view2image(s);
 
@@ -352,7 +390,7 @@ zoom_rect_area(struct mged_state *s)
 	const char name[] = "name";
 	void *base = 0;
 	const char value[] = "value";
-	rb_set_dirty_flag(sdp, name, base, value, NULL);
+	rb_set_dirty_flag(sdp, name, base, value, (void *)s);
     }
 }
 

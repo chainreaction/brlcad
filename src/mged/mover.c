@@ -43,24 +43,27 @@ moveHobj(struct mged_state *s, struct directory *dp, matp_t xlate)
 {
     struct rt_db_internal intern;
 
-    if (s->dbip == DBI_NULL)
+    if (!s || !s->dbip || !dp || !xlate)
 	return;
 
     RT_DB_INTERNAL_INIT(&intern);
     if (rt_db_get_internal(&intern, dp, s->dbip, xlate) < 0) {
-	Tcl_AppendResult(s->interp, "rt_db_get_internal() failed for ", dp->d_namep,
-			 (char *)NULL);
+	if (s->interp)
+	    Tcl_AppendResult(s->interp, "rt_db_get_internal() failed for ", dp->d_namep,
+			     (char *)NULL);
 	rt_db_free_internal(&intern);
 	printf("Database read error, aborting\n");
 	return;
     }
 
     if (rt_db_put_internal(dp, s->dbip, &intern) < 0) {
-	Tcl_AppendResult(s->interp, "moveHobj(", dp->d_namep,
-			 "):  solid export failure\n", (char *)NULL);
-	rt_db_free_internal(&intern);
-	Tcl_AppendResult(s->interp, "Database write error, aborting.\n", (char *)NULL);
-	Tcl_AppendResult(s->interp, ERROR_RECOVERY_SUGGESTION, (char *)NULL);
+	if (s->interp) {
+	    Tcl_AppendResult(s->interp, "moveHobj(", dp->d_namep,
+			     "):  solid export failure\n", (char *)NULL);
+	    Tcl_AppendResult(s->interp, "Database write error, aborting.\n", (char *)NULL);
+	    Tcl_AppendResult(s->interp, ERROR_RECOVERY_SUGGESTION, (char *)NULL);
+	}
+	/* Note: rt_db_put_internal already freed intern on error */
 	return;
     }
 }
@@ -78,11 +81,22 @@ moveHinstance(struct mged_state *s, struct directory *cdp, struct directory *dp,
     struct rt_db_internal intern;
     struct rt_comb_internal *comb;
 
-    if (s->dbip == DBI_NULL)
+    if (!s || !s->dbip || !cdp || !dp || !xlate)
 	return;
 
+    RT_DB_INTERNAL_INIT(&intern);
     if (rt_db_get_internal(&intern, cdp, s->dbip, (fastf_t *)NULL) < 0) {
+	if (s->interp)
+	    Tcl_AppendResult(s->interp, "Database read error, aborting\n", (char *)NULL);
 	printf("Database read error, aborting\n");
+	return;
+    }
+
+    if (intern.idb_type != ID_COMBINATION || !intern.idb_ptr) {
+	if (s->interp)
+	    Tcl_AppendResult(s->interp, "moveHinst: ", cdp->d_namep,
+			     " is not a combination\n", (char *)NULL);
+	rt_db_free_internal(&intern);
 	return;
     }
 
@@ -99,15 +113,22 @@ moveHinstance(struct mged_state *s, struct directory *cdp, struct directory *dp,
 		MAT_COPY(tp->tr_l.tl_mat, xlate);
 	    }
 	    if (rt_db_put_internal(cdp, s->dbip, &intern) < 0) {
-		Tcl_AppendResult(s->interp, "rt_db_put_internal failed for ",
-				 cdp->d_namep, "\n", (char *)NULL);
-		rt_db_free_internal(&intern);
+		if (s->interp)
+		    Tcl_AppendResult(s->interp, "rt_db_put_internal failed for ",
+				     cdp->d_namep, "\n", (char *)NULL);
+		/* Note: rt_db_put_internal already freed intern on error */
 	    }
 	} else {
-	    Tcl_AppendResult(s->interp, "moveHinst:  couldn't find ", cdp->d_namep,
-			     "/", dp->d_namep, "\n", (char *)NULL);
+	    if (s->interp)
+		Tcl_AppendResult(s->interp, "moveHinst: couldn't find ", cdp->d_namep,
+				 "/", dp->d_namep, "\n", (char *)NULL);
 	    rt_db_free_internal(&intern);
 	}
+    } else {
+	if (s->interp)
+	    Tcl_AppendResult(s->interp, "moveHinst: combination ", cdp->d_namep,
+			     " has empty tree\n", (char *)NULL);
+	rt_db_free_internal(&intern);
     }
 }
 
