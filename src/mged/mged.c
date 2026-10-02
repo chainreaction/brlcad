@@ -357,7 +357,7 @@ mged_bomb_hook(void *clientData, void *data)
     bu_vls_printf(&vls, "label [$mbh_dialog childsite].l -text {%s};", str);
     bu_vls_printf(&vls, "pack [$mbh_dialog childsite].l;");
     bu_vls_printf(&vls, "update; $mbh_dialog activate");
-    Tcl_Eval(interpreter, bu_vls_addr(&vls));
+    Tcl_Eval(interpreter, bu_vls_cstr(&vls));
     bu_vls_free(&vls);
 
     return TCL_OK;
@@ -397,8 +397,8 @@ mgedInvalidParameterHandler(const wchar_t* UNUSED(expression),
 void
 pr_prompt(struct mged_state *s)
 {
-    if (s->interactive)
-	bu_log("%s", bu_vls_addr(&s->mged_prompt));
+    if (s && s->interactive)
+	bu_log("%s", bu_vls_cstr(&s->mged_prompt));
 }
 
 
@@ -415,6 +415,8 @@ pr_beep(void)
 static void
 attach_display_manager(Tcl_Interp *interpreter, const char *manager, const char *display)
 {
+    if (!interpreter)
+	return;
     struct bu_vls tcl_cmd = BU_VLS_INIT_ZERO;
     bu_vls_printf(&tcl_cmd, "attach ");
     if (display && strlen(display) > 0)
@@ -438,7 +440,10 @@ mged_notify(int UNUSED(i))
 void
 reset_input_strings(struct mged_state *s)
 {
-    if (BU_LIST_IS_HEAD(curr_cmd_list, &head_cmd_list.l)) {
+    if (!s)
+	return;
+
+    if (curr_cmd_list && BU_LIST_IS_HEAD(curr_cmd_list, &head_cmd_list.l)) {
 	/* Truncate input string */
 	bu_vls_trunc(&s->input_str, 0);
 	bu_vls_trunc(&s->input_str_prefix, 0);
@@ -453,7 +458,8 @@ reset_input_strings(struct mged_state *s)
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_strcpy(&vls, "reset_input_strings");
-	Tcl_Eval(s->interp, bu_vls_addr(&vls));
+	if (s->interp)
+	    Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
     }
 }
@@ -484,10 +490,13 @@ new_edit_mats(struct mged_state *s)
 {
     struct mged_dm *save_dm_list;
 
+    if (!s || !s->s_edit || !MEDIT(s))
+	return;
+
     save_dm_list = s->mged_curr_dm;
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *p = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
-	if (!p->dm_owner)
+	if (!p || !p->dm_owner || !p->dm_view_state || !p->dm_view_state->vs_gvp)
 	    continue;
 
 	set_curr_dm(s, p);
@@ -511,15 +520,18 @@ mged_view_callback(struct bview *gvp,
     struct mged_state *s = MGED_STATE;
     struct _view_state *vsp = (struct _view_state *)clientData;
 
-    if (!gvp)
+    if (!gvp || !s || !vsp)
 	return;
 
     if (s->global_editing_state != ST_VIEW) {
-	bn_mat_mul(vsp->vs_model2objview, gvp->gv_model2view, MEDIT(s)->model_changes);
-	bn_mat_inv(vsp->vs_objview2model, vsp->vs_model2objview);
+	if (s->s_edit && MEDIT(s)) {
+	    bn_mat_mul(vsp->vs_model2objview, gvp->gv_model2view, MEDIT(s)->model_changes);
+	    bn_mat_inv(vsp->vs_objview2model, vsp->vs_model2objview);
+	}
     }
     vsp->vs_flag = 1;
-    dm_set_dirty(s->mged_curr_dm->dm_dmp, 1);
+    if (s->mged_curr_dm && s->mged_curr_dm->dm_dmp)
+	dm_set_dirty(s->mged_curr_dm->dm_dmp, 1);
 }
 
 
@@ -530,7 +542,8 @@ mged_view_callback(struct bview *gvp,
 void
 new_mats(struct mged_state *s)
 {
-    bv_update(view_state->vs_gvp);
+    if (s && s->mged_curr_dm && view_state && view_state->vs_gvp)
+	bv_update(view_state->vs_gvp);
 }
 
 static int
@@ -711,7 +724,7 @@ parse_debug_uint(struct bu_vls *msg, size_t argc, const char **argv, void *set_v
 {
     unsigned int *val = (unsigned int *)set_var;
     BU_OPT_CHECK_ARGV0(msg, argc, argv, "hex value");
-    if (sscanf(argv[0], "%x", val) != 1) {
+    if (bu_sscanf(argv[0], "%x", val) != 1) {
 	if (msg)
 	    bu_vls_printf(msg, "ERROR: expected hex integer, got \"%s\"\n", argv[0]);
 	return -1;
@@ -825,6 +838,9 @@ do_rc(struct mged_state *s, int skip_rc, const char *rcfile_override)
     if (skip_rc)
 	return 0;
 
+    if (!s || !s->interp)
+	return -1;
+
     /* --rcfile FILE: use the specified file directly */
     if (rcfile_override) {
 	if ((fp = fopen(rcfile_override, "r")) == NULL) {
@@ -847,7 +863,7 @@ do_rc(struct mged_state *s, int skip_rc, const char *rcfile_override)
 		bu_vls_strcat(&str, "/");
 		bu_vls_strcat(&str, RCFILE);
 
-		fp = fopen(bu_vls_addr(&str), "r");
+		fp = fopen(bu_vls_cstr(&str), "r");
 	    }
 	}
 
@@ -881,7 +897,7 @@ do_rc(struct mged_state *s, int skip_rc, const char *rcfile_override)
 	       bu_vls_cstr(&str));
 	bu_log("need to change those\ncommands.\n\n");
     }
-    if (Tcl_EvalFile(s->interp, bu_vls_addr(&str)) != TCL_OK) {
+    if (Tcl_EvalFile(s->interp, bu_vls_cstr(&str)) != TCL_OK) {
 	bu_log("Error reading %s:\n%s\n", bu_vls_cstr(&str),
 	       Tcl_GetVar(s->interp, "errorInfo", TCL_GLOBAL_ONLY));
     }
@@ -890,7 +906,8 @@ do_rc(struct mged_state *s, int skip_rc, const char *rcfile_override)
 
     /* No telling what the commands may have done to the result string -
      * make sure we start with a clean slate */
-    bu_vls_trunc(s->gedp->ged_result_str, 0);
+    if (s->gedp && s->gedp->ged_result_str)
+	bu_vls_trunc(s->gedp->ged_result_str, 0);
     return 0;
 }
 
@@ -905,12 +922,12 @@ mged_insert_char(struct mged_state *s, char ch)
     } else {
 	struct bu_vls temp = BU_VLS_INIT_ZERO;
 
-	bu_vls_strcat(&temp, bu_vls_addr(&s->input_str)+s->input_str_index);
+	bu_vls_strcat(&temp, bu_vls_cstr(&s->input_str)+s->input_str_index);
 	bu_vls_trunc(&s->input_str, s->input_str_index);
-	bu_log("%c%s", (int)ch, bu_vls_addr(&temp));
+	bu_log("%c%s", (int)ch, bu_vls_cstr(&temp));
 	pr_prompt(s);
 	bu_vls_putc(&s->input_str, (int)ch);
-	bu_log("%s", bu_vls_addr(&s->input_str));
+	bu_log("%s", bu_vls_cstr(&s->input_str));
 	bu_vls_vlscat(&s->input_str, &temp);
 	++s->input_str_index;
 	bu_vls_free(&temp);
@@ -923,21 +940,27 @@ do_tab_expansion(struct mged_state *s)
 {
     int ret;
     Tcl_Obj *result;
-    Tcl_Obj *newCommand;
-    Tcl_Obj *matches;
+    Tcl_Obj *newCommand = NULL;
+    Tcl_Obj *matches = NULL;
     int numExpansions=0;
     struct bu_vls tab_expansion = BU_VLS_INIT_ZERO;
 
-    bu_vls_printf(&tab_expansion, "tab_expansion {%s}", bu_vls_addr(&s->input_str));
-    ret = Tcl_Eval(s->interp, bu_vls_addr(&tab_expansion));
+    if (!s || !s->interp)
+	return;
+
+    bu_vls_printf(&tab_expansion, "tab_expansion {%s}", bu_vls_cstr(&s->input_str));
+    ret = Tcl_Eval(s->interp, bu_vls_cstr(&tab_expansion));
     bu_vls_free(&tab_expansion);
 
     if (ret == TCL_OK) {
 	result = Tcl_GetObjResult(s->interp);
-	Tcl_ListObjIndex(s->interp, result, 0, &newCommand);
-	Tcl_ListObjIndex(s->interp, result, 1, &matches);
-	Tcl_ListObjLength(s->interp, matches, &numExpansions);
-	if (numExpansions > 1) {
+	if (result) {
+	    Tcl_ListObjIndex(s->interp, result, 0, &newCommand);
+	    Tcl_ListObjIndex(s->interp, result, 1, &matches);
+	    if (matches)
+		Tcl_ListObjLength(s->interp, matches, &numExpansions);
+	}
+	if (numExpansions > 1 && matches) {
 	    /* show the possible matches */
 	    bu_log("\n%s\n", Tcl_GetString(matches));
 	}
@@ -946,14 +969,15 @@ do_tab_expansion(struct mged_state *s)
 	pr_prompt(s);
 	s->input_str_index = 0;
 	bu_vls_trunc(&s->input_str, 0);
-	bu_vls_strcat(&s->input_str, Tcl_GetString(newCommand));
+	if (newCommand)
+	    bu_vls_strcat(&s->input_str, Tcl_GetString(newCommand));
 
 	/* only one match remaining, pad space so we can keep going */
 	if (numExpansions == 1)
 	    bu_vls_strcat(&s->input_str, " ");
 
 	s->input_str_index = bu_vls_strlen(&s->input_str);
-	bu_log("%s", bu_vls_addr(&s->input_str));
+	bu_log("%s", bu_vls_cstr(&s->input_str));
     } else {
 	bu_log("ERROR\n");
 	bu_log("%s\n", Tcl_GetStringResult(s->interp));
@@ -971,6 +995,12 @@ mged_process_char(struct mged_state *s, char ch)
     static int bracketed = 0;
     static int tilded = 0;
     static int freshline = 1;
+
+    if (!s)
+	return;
+
+    if (!curr_cmd_list)
+	curr_cmd_list = &head_cmd_list;
 
 #define CTRL_A      1
 #define CTRL_B      2
@@ -1029,16 +1059,16 @@ mged_process_char(struct mged_state *s, char ch)
 	    if (!bu_vls_strlen(&s->input_str) && bu_vls_strlen(&curr_cmd_list->cl_more_default))
 		bu_vls_printf(&s->input_str_prefix, "%s%s\n",
 			      bu_vls_strlen(&s->input_str_prefix) > 0 ? " " : "",
-			      bu_vls_addr(&curr_cmd_list->cl_more_default));
+			      bu_vls_cstr(&curr_cmd_list->cl_more_default));
 	    else {
 		if (curr_cmd_list->cl_quote_string)
 		    bu_vls_printf(&s->input_str_prefix, "%s\"%s\"\n",
 				  bu_vls_strlen(&s->input_str_prefix) > 0 ? " " : "",
-				  bu_vls_addr(&s->input_str));
+				  bu_vls_cstr(&s->input_str));
 		else
 		    bu_vls_printf(&s->input_str_prefix, "%s%s\n",
 				  bu_vls_strlen(&s->input_str_prefix) > 0 ? " " : "",
-				  bu_vls_addr(&s->input_str));
+				  bu_vls_cstr(&s->input_str));
 	    }
 
 	    curr_cmd_list->cl_quote_string = 0;
@@ -1048,7 +1078,7 @@ mged_process_char(struct mged_state *s, char ch)
 	     * parser is concerned) then execute it.
 	     */
 
-	    if (Tcl_CommandComplete(bu_vls_addr(&s->input_str_prefix))) {
+	    if (Tcl_CommandComplete(bu_vls_cstr(&s->input_str_prefix))) {
 		curr_cmd_list = &head_cmd_list;
 		if (curr_cmd_list->cl_tie)
 		    set_curr_dm(s, curr_cmd_list->cl_tie);
@@ -1092,15 +1122,18 @@ mged_process_char(struct mged_state *s, char ch)
 		break;
 	    }
 
+	    if (s->input_str_index > bu_vls_strlen(&s->input_str))
+		s->input_str_index = bu_vls_strlen(&s->input_str);
+
 	    if (s->input_str_index == bu_vls_strlen(&s->input_str)) {
 		bu_log("\b \b");
 		bu_vls_trunc(&s->input_str, bu_vls_strlen(&s->input_str)-1);
 	    } else {
-		bu_vls_strcat(&temp, bu_vls_addr(&s->input_str)+s->input_str_index);
+		bu_vls_strcat(&temp, bu_vls_cstr(&s->input_str)+s->input_str_index);
 		bu_vls_trunc(&s->input_str, s->input_str_index-1);
-		bu_log("\b%s ", bu_vls_addr(&temp));
+		bu_log("\b%s ", bu_vls_cstr(&temp));
 		pr_prompt(s);
-		bu_log("%s", bu_vls_addr(&s->input_str));
+		bu_log("%s", bu_vls_cstr(&s->input_str));
 		bu_vls_vlscat(&s->input_str, &temp);
 		bu_vls_free(&temp);
 	    }
@@ -1117,13 +1150,13 @@ mged_process_char(struct mged_state *s, char ch)
 	    break;
 	case CTRL_E:                    /* Go to end of line */
 	    if (s->input_str_index < bu_vls_strlen(&s->input_str)) {
-		bu_log("%s", bu_vls_addr(&s->input_str)+s->input_str_index);
+		bu_log("%s", bu_vls_cstr(&s->input_str)+s->input_str_index);
 		s->input_str_index = bu_vls_strlen(&s->input_str);
 	    }
 	    escaped = bracketed = 0;
 	    break;
 	case CTRL_D:                    /* Delete character at cursor */
-	    if (s->input_str_index == bu_vls_strlen(&s->input_str) && s->input_str_index != 0) {
+	    if (s->input_str_index >= bu_vls_strlen(&s->input_str) && s->input_str_index != 0) {
 		pr_beep(); /* Beep if at end of input string */
 		break;
 	    }
@@ -1133,11 +1166,11 @@ mged_process_char(struct mged_state *s, char ch)
 		quit(s);
 	    }
 
-	    bu_vls_strcpy(&temp, bu_vls_addr(&s->input_str)+s->input_str_index+1);
+	    bu_vls_strcpy(&temp, bu_vls_cstr(&s->input_str)+s->input_str_index+1);
 	    bu_vls_trunc(&s->input_str, s->input_str_index);
-	    bu_log("%s ", bu_vls_addr(&temp));
+	    bu_log("%s ", bu_vls_cstr(&temp));
 	    pr_prompt(s);
-	    bu_log("%s", bu_vls_addr(&s->input_str));
+	    bu_log("%s", bu_vls_cstr(&s->input_str));
 	    bu_vls_vlscat(&s->input_str, &temp);
 	    bu_vls_free(&temp);
 	    escaped = bracketed = 0;
@@ -1145,7 +1178,7 @@ mged_process_char(struct mged_state *s, char ch)
 	case CTRL_U:                   /* Delete whole line */
 	    pr_prompt(s);
 	    bu_vls_strncpy(&temp, SPACES, bu_vls_strlen(&s->input_str));
-	    bu_log("%s", bu_vls_addr(&temp));
+	    bu_log("%s", bu_vls_cstr(&temp));
 	    bu_vls_free(&temp);
 	    pr_prompt(s);
 	    bu_vls_trunc(&s->input_str, 0);
@@ -1153,22 +1186,24 @@ mged_process_char(struct mged_state *s, char ch)
 	    escaped = bracketed = 0;
 	    break;
 	case CTRL_K:                    /* Delete to end of line */
+	    if (s->input_str_index > bu_vls_strlen(&s->input_str))
+		s->input_str_index = bu_vls_strlen(&s->input_str);
 	    bu_vls_strncpy(&temp, SPACES, bu_vls_strlen(&s->input_str)-s->input_str_index);
-	    bu_log("%s", bu_vls_addr(&temp));
+	    bu_log("%s", bu_vls_cstr(&temp));
 	    bu_vls_free(&temp);
 	    bu_vls_trunc(&s->input_str, s->input_str_index);
 	    pr_prompt(s);
-	    bu_log("%s", bu_vls_addr(&s->input_str));
+	    bu_log("%s", bu_vls_cstr(&s->input_str));
 	    escaped = bracketed = 0;
 	    break;
 	case CTRL_L:                   /* Redraw line */
 	    bu_log("\n");
 	    pr_prompt(s);
-	    bu_log("%s", bu_vls_addr(&s->input_str));
-	    if (s->input_str_index == bu_vls_strlen(&s->input_str))
+	    bu_log("%s", bu_vls_cstr(&s->input_str));
+	    if (s->input_str_index >= bu_vls_strlen(&s->input_str))
 		break;
 	    pr_prompt(s);
-	    bu_log("%*s", (int)s->input_str_index, bu_vls_addr(&s->input_str));
+	    bu_log("%*s", (int)s->input_str_index, bu_vls_cstr(&s->input_str));
 	    escaped = bracketed = 0;
 	    break;
 	case CTRL_B:                   /* Back one character */
@@ -1181,12 +1216,12 @@ mged_process_char(struct mged_state *s, char ch)
 	    escaped = bracketed = 0;
 	    break;
 	case CTRL_F:                   /* Forward one character */
-	    if (s->input_str_index == bu_vls_strlen(&s->input_str)) {
+	    if (s->input_str_index >= bu_vls_strlen(&s->input_str)) {
 		pr_beep();
 		break;
 	    }
 
-	    bu_log("%c", bu_vls_addr(&s->input_str)[s->input_str_index]);
+	    bu_log("%c", bu_vls_cstr(&s->input_str)[s->input_str_index]);
 	    ++s->input_str_index;
 	    escaped = bracketed = 0;
 	    break;
@@ -1195,17 +1230,19 @@ mged_process_char(struct mged_state *s, char ch)
 		pr_beep();
 		break;
 	    }
-	    if (s->input_str_index == bu_vls_strlen(&s->input_str)) {
+	    if (s->input_str_index >= bu_vls_strlen(&s->input_str)) {
 		bu_log("\b");
 		--s->input_str_index;
 	    }
-	    ch = bu_vls_addr(&s->input_str)[s->input_str_index];
-	    bu_vls_addr(&s->input_str)[s->input_str_index] =
-		bu_vls_addr(&s->input_str)[s->input_str_index - 1];
-	    bu_vls_addr(&s->input_str)[s->input_str_index - 1] = ch;
-	    bu_log("\b");
-	    bu_log("%c%c", bu_vls_addr(&s->input_str)[s->input_str_index-1], bu_vls_addr(&s->input_str)[s->input_str_index]);
-	    ++s->input_str_index;
+	    if (s->input_str_index > 0 && s->input_str_index < bu_vls_strlen(&s->input_str)) {
+		ch = bu_vls_addr(&s->input_str)[s->input_str_index];
+		bu_vls_addr(&s->input_str)[s->input_str_index] =
+		    bu_vls_addr(&s->input_str)[s->input_str_index - 1];
+		bu_vls_addr(&s->input_str)[s->input_str_index - 1] = ch;
+		bu_log("\b");
+		bu_log("%c%c", bu_vls_cstr(&s->input_str)[s->input_str_index-1], bu_vls_cstr(&s->input_str)[s->input_str_index]);
+		++s->input_str_index;
+	    }
 	    escaped = bracketed = 0;
 	    break;
 	case CTRL_N:                  /* Next history command */
@@ -1244,28 +1281,31 @@ mged_process_char(struct mged_state *s, char ch)
 
 	    pr_prompt(s);
 	    bu_vls_strncpy(&temp, SPACES, bu_vls_strlen(&s->input_str));
-	    bu_log("%s", bu_vls_addr(&temp));
+	    bu_log("%s", bu_vls_cstr(&temp));
 	    bu_vls_free(&temp);
 
 	    pr_prompt(s);
 	    bu_vls_trunc(&s->input_str, 0);
 	    bu_vls_vlscat(&s->input_str, vp);
 	    if (bu_vls_strlen(&s->input_str) > 0) {
-		if (bu_vls_addr(&s->input_str)[bu_vls_strlen(&s->input_str)-1] == '\n')
+		if (bu_vls_cstr(&s->input_str)[bu_vls_strlen(&s->input_str)-1] == '\n')
 		    bu_vls_trunc(&s->input_str, bu_vls_strlen(&s->input_str)-1); /* del \n */
-		bu_log("%s", bu_vls_addr(&s->input_str));
+		bu_log("%s", bu_vls_cstr(&s->input_str));
 		s->input_str_index = bu_vls_strlen(&s->input_str);
 	    }
 	    escaped = bracketed = 0;
 	    break;
 	case CTRL_W:                   /* backward-delete-word */
 	    {
-		char *start;
-		char *curr;
-		int len;
+		const char *start;
+		const char *curr;
+		size_t len;
 		struct bu_vls temp2 = BU_VLS_INIT_ZERO;
 
-		start = bu_vls_addr(&s->input_str);
+		if (s->input_str_index > bu_vls_strlen(&s->input_str))
+		    s->input_str_index = bu_vls_strlen(&s->input_str);
+
+		start = bu_vls_cstr(&s->input_str);
 		curr = start + s->input_str_index - 1;
 
 		/* skip spaces */
@@ -1278,22 +1318,22 @@ mged_process_char(struct mged_state *s, char ch)
 
 		bu_vls_strcpy(&temp, start+s->input_str_index);
 
-		if (curr == start)
+		if (curr <= start)
 		    s->input_str_index = 0;
 		else
-		    s->input_str_index = curr - start + 1;
+		    s->input_str_index = (size_t)(curr - start + 1);
 
 		len = bu_vls_strlen(&s->input_str);
 		bu_vls_trunc(&s->input_str, s->input_str_index);
 		pr_prompt(s);
-		bu_log("%s%s", bu_vls_addr(&s->input_str), bu_vls_addr(&temp));
+		bu_log("%s%s", bu_vls_cstr(&s->input_str), bu_vls_cstr(&temp));
 
 		bu_vls_strncpy(&temp2, SPACES, len - s->input_str_index);
-		bu_log("%s", bu_vls_addr(&temp2));
+		bu_log("%s", bu_vls_cstr(&temp2));
 		bu_vls_free(&temp2);
 
 		pr_prompt(s);
-		bu_log("%s", bu_vls_addr(&s->input_str));
+		bu_log("%s", bu_vls_cstr(&s->input_str));
 		bu_vls_vlscat(&s->input_str, &temp);
 		bu_vls_free(&temp);
 	    }
@@ -1303,12 +1343,15 @@ mged_process_char(struct mged_state *s, char ch)
 	case 'd':
 	    if (escaped) {
 		/* delete-word */
-		char *start;
-		char *curr;
-		int i;
+		const char *start;
+		const char *curr;
+		size_t i;
 		struct bu_vls temp2 = BU_VLS_INIT_ZERO;
 
-		start = bu_vls_addr(&s->input_str);
+		if (s->input_str_index > bu_vls_strlen(&s->input_str))
+		    s->input_str_index = bu_vls_strlen(&s->input_str);
+
+		start = bu_vls_cstr(&s->input_str);
 		curr = start + s->input_str_index;
 
 		/* skip spaces */
@@ -1319,18 +1362,18 @@ mged_process_char(struct mged_state *s, char ch)
 		while (*curr != '\0' && *curr != ' ')
 		    ++curr;
 
-		i = curr - start;
+		i = (size_t)(curr - start);
 		bu_vls_strcpy(&temp, curr);
 		bu_vls_trunc(&s->input_str, s->input_str_index);
 		pr_prompt(s);
-		bu_log("%s%s", bu_vls_addr(&s->input_str), bu_vls_addr(&temp));
+		bu_log("%s%s", bu_vls_cstr(&s->input_str), bu_vls_cstr(&temp));
 
 		bu_vls_strncpy(&temp2, SPACES, i - s->input_str_index);
-		bu_log("%s", bu_vls_addr(&temp2));
+		bu_log("%s", bu_vls_cstr(&temp2));
 		bu_vls_free(&temp2);
 
 		pr_prompt(s);
-		bu_log("%s", bu_vls_addr(&s->input_str));
+		bu_log("%s", bu_vls_cstr(&s->input_str));
 		bu_vls_vlscat(&s->input_str, &temp);
 		bu_vls_free(&temp);
 	    } else
@@ -1341,10 +1384,13 @@ mged_process_char(struct mged_state *s, char ch)
 	case 'f':
 	    if (escaped) {
 		/* forward-word */
-		char *start;
-		char *curr;
+		const char *start;
+		const char *curr;
 
-		start = bu_vls_addr(&s->input_str);
+		if (s->input_str_index > bu_vls_strlen(&s->input_str))
+		    s->input_str_index = bu_vls_strlen(&s->input_str);
+
+		start = bu_vls_cstr(&s->input_str);
 		curr = start + s->input_str_index;
 
 		/* skip spaces */
@@ -1355,11 +1401,11 @@ mged_process_char(struct mged_state *s, char ch)
 		while (*curr != '\0' && *curr != ' ')
 		    ++curr;
 
-		s->input_str_index = curr - start;
+		s->input_str_index = (size_t)(curr - start);
 		bu_vls_strcpy(&temp, start+s->input_str_index);
 		bu_vls_trunc(&s->input_str, s->input_str_index);
 		pr_prompt(s);
-		bu_log("%s", bu_vls_addr(&s->input_str));
+		bu_log("%s", bu_vls_cstr(&s->input_str));
 		bu_vls_vlscat(&s->input_str, &temp);
 		bu_vls_free(&temp);
 	    } else
@@ -1370,10 +1416,13 @@ mged_process_char(struct mged_state *s, char ch)
 	case 'b':
 	    if (escaped) {
 		/* backward-word */
-		char *start;
-		char *curr;
+		const char *start;
+		const char *curr;
 
-		start = bu_vls_addr(&s->input_str);
+		if (s->input_str_index > bu_vls_strlen(&s->input_str))
+		    s->input_str_index = bu_vls_strlen(&s->input_str);
+
+		start = bu_vls_cstr(&s->input_str);
 		curr = start + s->input_str_index - 1;
 
 		/* skip spaces */
@@ -1384,15 +1433,15 @@ mged_process_char(struct mged_state *s, char ch)
 		while (curr > start && *curr != ' ')
 		    --curr;
 
-		if (curr == start)
+		if (curr <= start)
 		    s->input_str_index = 0;
 		else
-		    s->input_str_index = curr - start + 1;
+		    s->input_str_index = (size_t)(curr - start + 1);
 
 		bu_vls_strcpy(&temp, start+s->input_str_index);
 		bu_vls_trunc(&s->input_str, s->input_str_index);
 		pr_prompt(s);
-		bu_log("%s", bu_vls_addr(&s->input_str));
+		bu_log("%s", bu_vls_cstr(&s->input_str));
 		bu_vls_vlscat(&s->input_str, &temp);
 		bu_vls_free(&temp);
 	    } else
@@ -1439,7 +1488,7 @@ event_check(struct mged_state *s, int non_blocking)
     struct mged_dm *save_dm_list;
     int save_edflag;
 
-    if (mged_shutting_down(s))
+    if (!s || mged_shutting_down(s))
 	return -1;
 
     /* Let cool Tk event handler do most of the work */
@@ -1476,202 +1525,210 @@ event_check(struct mged_state *s, int non_blocking)
      * Handle rate-based processing *
      *********************************/
     save_dm_list = s->mged_curr_dm;
-    if (MEDIT(s)->k.rot_m_flag) {
-	struct bu_vls vls = BU_VLS_INIT_ZERO;
-	char save_coords;
+    if (s->s_edit && MEDIT(s) && mged_variables) {
+	if (MEDIT(s)->k.rot_m_flag) {
+	    struct bu_vls vls = BU_VLS_INIT_ZERO;
+	    char save_coords;
 
-	set_curr_dm(s, s->s_edit->edit_rate_mr_dm);
-	save_coords = mged_variables->mv_coords;
-	mged_variables->mv_coords = 'm';
+	    set_curr_dm(s, s->s_edit->edit_rate_mr_dm);
+	    save_coords = mged_variables->mv_coords;
+	    mged_variables->mv_coords = 'm';
 
-	if (s->global_editing_state == ST_S_EDIT) {
-	    save_edflag = MEDIT(s)->edit_flag;
-	    if (!SEDIT_ROTATE)
-		MEDIT(s)->edit_flag = RT_PARAMS_EDIT_ROT;
-	} else {
-	    save_edflag = edobj;
-	    edobj = BE_O_ROTATE;
+	    if (s->global_editing_state == ST_S_EDIT) {
+		save_edflag = MEDIT(s)->edit_flag;
+		if (!SEDIT_ROTATE)
+		    MEDIT(s)->edit_flag = RT_PARAMS_EDIT_ROT;
+	    } else {
+		save_edflag = edobj;
+		edobj = BE_O_ROTATE;
+	    }
+
+	    non_blocking++;
+	    bu_vls_printf(&vls, "knob -o %c -i -e ax %f ay %f az %f\n",
+			  MEDIT(s)->k.origin_m,
+			  MEDIT(s)->k.rot_m[X],
+			  MEDIT(s)->k.rot_m[Y],
+			  MEDIT(s)->k.rot_m[Z]);
+
+	    if (s->interp)
+		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
+	    bu_vls_free(&vls);
+
+	    mged_variables->mv_coords = save_coords;
+
+	    if (s->global_editing_state == ST_S_EDIT)
+		MEDIT(s)->edit_flag = save_edflag;
+	    else
+		edobj = save_edflag;
 	}
+	if (MEDIT(s)->k.rot_o_flag) {
+	    struct bu_vls vls = BU_VLS_INIT_ZERO;
+	    char save_coords;
 
-	non_blocking++;
-	bu_vls_printf(&vls, "knob -o %c -i -e ax %f ay %f az %f\n",
-		      MEDIT(s)->k.origin_m,
-		      MEDIT(s)->k.rot_m[X],
-		      MEDIT(s)->k.rot_m[Y],
-		      MEDIT(s)->k.rot_m[Z]);
+	    set_curr_dm(s, s->s_edit->edit_rate_or_dm);
+	    save_coords = mged_variables->mv_coords;
+	    mged_variables->mv_coords = 'o';
 
-	Tcl_Eval(s->interp, bu_vls_addr(&vls));
-	bu_vls_free(&vls);
+	    if (s->global_editing_state == ST_S_EDIT) {
+		save_edflag = MEDIT(s)->edit_flag;
+		if (!SEDIT_ROTATE)
+		    MEDIT(s)->edit_flag = RT_PARAMS_EDIT_ROT;
+	    } else {
+		save_edflag = edobj;
+		edobj = BE_O_ROTATE;
+	    }
 
-	mged_variables->mv_coords = save_coords;
+	    non_blocking++;
+	    bu_vls_printf(&vls, "knob -o %c -i -e ax %f ay %f az %f\n",
+			  MEDIT(s)->k.origin_o,
+			  MEDIT(s)->k.rot_o[X],
+			  MEDIT(s)->k.rot_o[Y],
+			  MEDIT(s)->k.rot_o[Z]);
 
-	if (s->global_editing_state == ST_S_EDIT)
-	    MEDIT(s)->edit_flag = save_edflag;
-	else
-	    edobj = save_edflag;
-    }
-    if (MEDIT(s)->k.rot_o_flag) {
-	struct bu_vls vls = BU_VLS_INIT_ZERO;
-	char save_coords;
+	    if (s->interp)
+		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
+	    bu_vls_free(&vls);
 
-	set_curr_dm(s, s->s_edit->edit_rate_or_dm);
-	save_coords = mged_variables->mv_coords;
-	mged_variables->mv_coords = 'o';
+	    mged_variables->mv_coords = save_coords;
 
-	if (s->global_editing_state == ST_S_EDIT) {
-	    save_edflag = MEDIT(s)->edit_flag;
-	    if (!SEDIT_ROTATE)
-		MEDIT(s)->edit_flag = RT_PARAMS_EDIT_ROT;
-	} else {
-	    save_edflag = edobj;
-	    edobj = BE_O_ROTATE;
+	    if (s->global_editing_state == ST_S_EDIT)
+		MEDIT(s)->edit_flag = save_edflag;
+	    else
+		edobj = save_edflag;
 	}
+	if (MEDIT(s)->k.rot_v_flag) {
+	    struct bu_vls vls = BU_VLS_INIT_ZERO;
+	    char save_coords;
 
-	non_blocking++;
-	bu_vls_printf(&vls, "knob -o %c -i -e ax %f ay %f az %f\n",
-		      MEDIT(s)->k.origin_o,
-		      MEDIT(s)->k.rot_o[X],
-		      MEDIT(s)->k.rot_o[Y],
-		      MEDIT(s)->k.rot_o[Z]);
+	    set_curr_dm(s, s->s_edit->edit_rate_vr_dm);
+	    save_coords = mged_variables->mv_coords;
+	    mged_variables->mv_coords = 'v';
 
-	Tcl_Eval(s->interp, bu_vls_addr(&vls));
-	bu_vls_free(&vls);
+	    if (s->global_editing_state == ST_S_EDIT) {
+		save_edflag = MEDIT(s)->edit_flag;
+		if (!SEDIT_ROTATE)
+		    MEDIT(s)->edit_flag = RT_PARAMS_EDIT_ROT;
+	    } else {
+		save_edflag = edobj;
+		edobj = BE_O_ROTATE;
+	    }
 
-	mged_variables->mv_coords = save_coords;
+	    non_blocking++;
+	    bu_vls_printf(&vls, "knob -o %c -i -e ax %f ay %f az %f\n",
+			  MEDIT(s)->k.origin_v,
+			  MEDIT(s)->k.rot_v[X],
+			  MEDIT(s)->k.rot_v[Y],
+			  MEDIT(s)->k.rot_v[Z]);
 
-	if (s->global_editing_state == ST_S_EDIT)
-	    MEDIT(s)->edit_flag = save_edflag;
-	else
-	    edobj = save_edflag;
-    }
-    if (MEDIT(s)->k.rot_v_flag) {
-	struct bu_vls vls = BU_VLS_INIT_ZERO;
-	char save_coords;
+	    if (s->interp)
+		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
+	    bu_vls_free(&vls);
 
-	set_curr_dm(s, s->s_edit->edit_rate_vr_dm);
-	save_coords = mged_variables->mv_coords;
-	mged_variables->mv_coords = 'v';
+	    mged_variables->mv_coords = save_coords;
 
-	if (s->global_editing_state == ST_S_EDIT) {
-	    save_edflag = MEDIT(s)->edit_flag;
-	    if (!SEDIT_ROTATE)
-		MEDIT(s)->edit_flag = RT_PARAMS_EDIT_ROT;
-	} else {
-	    save_edflag = edobj;
-	    edobj = BE_O_ROTATE;
+	    if (s->global_editing_state == ST_S_EDIT)
+		MEDIT(s)->edit_flag = save_edflag;
+	    else
+		edobj = save_edflag;
 	}
+	if (MEDIT(s)->k.tra_m_flag && view_state && view_state->vs_gvp) {
+	    char save_coords;
+	    struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-	non_blocking++;
-	bu_vls_printf(&vls, "knob -o %c -i -e ax %f ay %f az %f\n",
-		      MEDIT(s)->k.origin_v,
-		      MEDIT(s)->k.rot_v[X],
-		      MEDIT(s)->k.rot_v[Y],
-		      MEDIT(s)->k.rot_v[Z]);
+	    set_curr_dm(s, s->s_edit->edit_rate_mt_dm);
+	    save_coords = mged_variables->mv_coords;
+	    mged_variables->mv_coords = 'm';
 
-	Tcl_Eval(s->interp, bu_vls_addr(&vls));
-	bu_vls_free(&vls);
+	    if (s->global_editing_state == ST_S_EDIT) {
+		save_edflag = MEDIT(s)->edit_flag;
+		if (!SEDIT_TRAN)
+		    MEDIT(s)->edit_flag = RT_PARAMS_EDIT_TRANS;
+	    } else {
+		save_edflag = edobj;
+		edobj = BE_O_XY;
+	    }
 
-	mged_variables->mv_coords = save_coords;
+	    non_blocking++;
+	    bu_vls_printf(&vls, "knob -i -e aX %f aY %f aZ %f\n",
+			  MEDIT(s)->k.tra_m[X] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local,
+			  MEDIT(s)->k.tra_m[Y] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local,
+			  MEDIT(s)->k.tra_m[Z] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local);
 
-	if (s->global_editing_state == ST_S_EDIT)
-	    MEDIT(s)->edit_flag = save_edflag;
-	else
-	    edobj = save_edflag;
-    }
-    if (MEDIT(s)->k.tra_m_flag) {
-	char save_coords;
-	struct bu_vls vls = BU_VLS_INIT_ZERO;
+	    if (s->interp)
+		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
+	    bu_vls_free(&vls);
 
-	set_curr_dm(s, s->s_edit->edit_rate_mt_dm);
-	save_coords = mged_variables->mv_coords;
-	mged_variables->mv_coords = 'm';
+	    mged_variables->mv_coords = save_coords;
 
-	if (s->global_editing_state == ST_S_EDIT) {
-	    save_edflag = MEDIT(s)->edit_flag;
-	    if (!SEDIT_TRAN)
-		MEDIT(s)->edit_flag = RT_PARAMS_EDIT_TRANS;
-	} else {
-	    save_edflag = edobj;
-	    edobj = BE_O_XY;
+	    if (s->global_editing_state == ST_S_EDIT)
+		MEDIT(s)->edit_flag = save_edflag;
+	    else
+		edobj = save_edflag;
 	}
+	if (MEDIT(s)->k.tra_v_flag && view_state && view_state->vs_gvp) {
+	    char save_coords;
+	    struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-	non_blocking++;
-	bu_vls_printf(&vls, "knob -i -e aX %f aY %f aZ %f\n",
-		      MEDIT(s)->k.tra_m[X] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local,
-		      MEDIT(s)->k.tra_m[Y] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local,
-		      MEDIT(s)->k.tra_m[Z] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local);
+	    set_curr_dm(s, s->s_edit->edit_rate_vt_dm);
+	    save_coords = mged_variables->mv_coords;
+	    mged_variables->mv_coords = 'v';
 
-	Tcl_Eval(s->interp, bu_vls_addr(&vls));
-	bu_vls_free(&vls);
+	    if (s->global_editing_state == ST_S_EDIT) {
+		save_edflag = MEDIT(s)->edit_flag;
+		if (!SEDIT_TRAN)
+		    MEDIT(s)->edit_flag = RT_PARAMS_EDIT_TRANS;
+	    } else {
+		save_edflag = edobj;
+		edobj = BE_O_XY;
+	    }
 
-	mged_variables->mv_coords = save_coords;
+	    non_blocking++;
+	    bu_vls_printf(&vls, "knob -i -e aX %f aY %f aZ %f\n",
+			  MEDIT(s)->k.tra_v[X] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local,
+			  MEDIT(s)->k.tra_v[Y] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local,
+			  MEDIT(s)->k.tra_v[Z] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local);
 
-	if (s->global_editing_state == ST_S_EDIT)
-	    MEDIT(s)->edit_flag = save_edflag;
-	else
-	    edobj = save_edflag;
-    }
-    if (MEDIT(s)->k.tra_v_flag) {
-	char save_coords;
-	struct bu_vls vls = BU_VLS_INIT_ZERO;
+	    if (s->interp)
+		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
+	    bu_vls_free(&vls);
 
-	set_curr_dm(s, s->s_edit->edit_rate_vt_dm);
-	save_coords = mged_variables->mv_coords;
-	mged_variables->mv_coords = 'v';
+	    mged_variables->mv_coords = save_coords;
 
-	if (s->global_editing_state == ST_S_EDIT) {
-	    save_edflag = MEDIT(s)->edit_flag;
-	    if (!SEDIT_TRAN)
-		MEDIT(s)->edit_flag = RT_PARAMS_EDIT_TRANS;
-	} else {
-	    save_edflag = edobj;
-	    edobj = BE_O_XY;
+	    if (s->global_editing_state == ST_S_EDIT)
+		MEDIT(s)->edit_flag = save_edflag;
+	    else
+		edobj = save_edflag;
 	}
+	if (MEDIT(s)->k.sca_flag) {
+	    struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-	non_blocking++;
-	bu_vls_printf(&vls, "knob -i -e aX %f aY %f aZ %f\n",
-		      MEDIT(s)->k.tra_v[X] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local,
-		      MEDIT(s)->k.tra_v[Y] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local,
-		      MEDIT(s)->k.tra_v[Z] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local);
+	    if (s->global_editing_state == ST_S_EDIT) {
+		save_edflag = MEDIT(s)->edit_flag;
+		if (!SEDIT_SCALE)
+		    MEDIT(s)->edit_flag = RT_PARAMS_EDIT_SCALE;
+	    } else {
+		save_edflag = edobj;
+		if (!OEDIT_SCALE)
+		    edobj = BE_O_SCALE;
+	    }
 
-	Tcl_Eval(s->interp, bu_vls_addr(&vls));
-	bu_vls_free(&vls);
+	    non_blocking++;
+	    bu_vls_printf(&vls, "knob -i -e aS %f\n", MEDIT(s)->k.sca * 0.01);
 
-	mged_variables->mv_coords = save_coords;
+	    if (s->interp)
+		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
+	    bu_vls_free(&vls);
 
-	if (s->global_editing_state == ST_S_EDIT)
-	    MEDIT(s)->edit_flag = save_edflag;
-	else
-	    edobj = save_edflag;
-    }
-    if (MEDIT(s)->k.sca_flag) {
-	struct bu_vls vls = BU_VLS_INIT_ZERO;
-
-	if (s->global_editing_state == ST_S_EDIT) {
-	    save_edflag = MEDIT(s)->edit_flag;
-	    if (!SEDIT_SCALE)
-		MEDIT(s)->edit_flag = RT_PARAMS_EDIT_SCALE;
-	} else {
-	    save_edflag = edobj;
-	    if (!OEDIT_SCALE)
-		edobj = BE_O_SCALE;
+	    if (s->global_editing_state == ST_S_EDIT)
+		MEDIT(s)->edit_flag = save_edflag;
+	    else
+		edobj = save_edflag;
 	}
-
-	non_blocking++;
-	bu_vls_printf(&vls, "knob -i -e aS %f\n", MEDIT(s)->k.sca * 0.01);
-
-	Tcl_Eval(s->interp, bu_vls_addr(&vls));
-	bu_vls_free(&vls);
-
-	if (s->global_editing_state == ST_S_EDIT)
-	    MEDIT(s)->edit_flag = save_edflag;
-	else
-	    edobj = save_edflag;
     }
 
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *p = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
-	if (!p->dm_owner)
+	if (!p || !p->dm_owner || !p->dm_view_state || !p->dm_view_state->vs_gvp)
 	    continue;
 
 	set_curr_dm(s, p);
@@ -1686,7 +1743,8 @@ event_check(struct mged_state *s, int non_blocking)
 			  view_state->k.rot_m[Y],
 			  view_state->k.rot_m[Z]);
 
-	    Tcl_Eval(s->interp, bu_vls_addr(&vls));
+	    if (s->interp)
+		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 	    bu_vls_free(&vls);
 	}
 	if (view_state->k.tra_m_flag) {
@@ -1698,7 +1756,8 @@ event_check(struct mged_state *s, int non_blocking)
 			  view_state->k.tra_m[Y] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local,
 			  view_state->k.tra_m[Z] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local);
 
-	    Tcl_Eval(s->interp, bu_vls_addr(&vls));
+	    if (s->interp)
+		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 	    bu_vls_free(&vls);
 	}
 	if (view_state->k.rot_v_flag) {
@@ -1711,7 +1770,8 @@ event_check(struct mged_state *s, int non_blocking)
 			  view_state->k.rot_v[Y],
 			  view_state->k.rot_v[Z]);
 
-	    Tcl_Eval(s->interp, bu_vls_addr(&vls));
+	    if (s->interp)
+		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 	    bu_vls_free(&vls);
 	}
 	if (view_state->k.tra_v_flag) {
@@ -1723,17 +1783,21 @@ event_check(struct mged_state *s, int non_blocking)
 			  view_state->k.tra_v[Y] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local,
 			  view_state->k.tra_v[Z] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local);
 
-	    Tcl_Eval(s->interp, bu_vls_addr(&vls));
+	    if (s->interp)
+		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 	    bu_vls_free(&vls);
 	}
 	if (view_state->k.sca_flag) {
-	    struct bu_vls vls = BU_VLS_INIT_ZERO;
+	    double denom = 1.0 - (view_state->k.sca / 10.0);
+	    if (!ZERO(denom)) {
+		struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-	    non_blocking++;
-	    bu_vls_printf(&vls, "zoom %f",
-			  1.0 / (1.0 - (view_state->k.sca / 10.0)));
-	    Tcl_Eval(s->interp, bu_vls_addr(&vls));
-	    bu_vls_free(&vls);
+		non_blocking++;
+		bu_vls_printf(&vls, "zoom %f", 1.0 / denom);
+		if (s->interp)
+		    Tcl_Eval(s->interp, bu_vls_cstr(&vls));
+		bu_vls_free(&vls);
+	    }
 	}
 
 	set_curr_dm(s, save_dm_list);
@@ -1770,6 +1834,10 @@ stdin_input(ClientData clientData, int UNUSED(mask))
     int to_read;
     char buf[BU_PAGE_SIZE];
     struct stdio_data *sd = (struct stdio_data *)clientData;
+
+    if (!sd || !sd->s || !sd->chan)
+	return;
+
     struct mged_state *s = sd->s;
 
     if (mged_shutting_down(s))
@@ -1797,6 +1865,7 @@ stdin_input(ClientData clientData, int UNUSED(mask))
 		Tcl_DStringFree(&ds);
 		return;
 	    }
+	    Tcl_DStringFree(&ds);
 	    mged_request_shutdown(s, 0);
 	    return;
 	}
@@ -1824,7 +1893,7 @@ stdin_input(ClientData clientData, int UNUSED(mask))
 	    pr_prompt(s);
 	    /* Re-echo so the user can see what they had typed */
 	    if (bu_vls_strlen(&s->input_str))
-		bu_log("%s", bu_vls_addr(&s->input_str));
+		bu_log("%s", bu_vls_cstr(&s->input_str));
 	    return;
 	}
 
@@ -1836,21 +1905,24 @@ stdin_input(ClientData clientData, int UNUSED(mask))
 	 * input.
 	 */
 
+	if (!curr_cmd_list)
+	    curr_cmd_list = &head_cmd_list;
+
 	/* If no input and a default is supplied then use it */
 	if (!bu_vls_strlen(&s->input_str) && bu_vls_strlen(&curr_cmd_list->cl_more_default))
 	    bu_vls_printf(&s->input_str_prefix, "%s%s\n",
 			  bu_vls_strlen(&s->input_str_prefix) > 0 ? " " : "",
-			  bu_vls_addr(&curr_cmd_list->cl_more_default));
+			  bu_vls_cstr(&curr_cmd_list->cl_more_default));
 	else
 	    bu_vls_printf(&s->input_str_prefix, "%s%s\n",
 			  bu_vls_strlen(&s->input_str_prefix) > 0 ? " " : "",
-			  bu_vls_addr(&s->input_str));
+			  bu_vls_cstr(&s->input_str));
 
 	bu_vls_trunc(&curr_cmd_list->cl_more_default, 0);
 
 	/* If a complete line was entered, attempt to execute command. */
 
-	if (Tcl_CommandComplete(bu_vls_addr(&s->input_str_prefix))) {
+	if (Tcl_CommandComplete(bu_vls_cstr(&s->input_str_prefix))) {
 	    int cmd_status;
 	    curr_cmd_list = &head_cmd_list;
 	    if (curr_cmd_list->cl_tie)
@@ -1944,7 +2016,7 @@ std_out_or_err(ClientData clientData, int UNUSED(mask))
 {
     struct mged_state *s = MGED_STATE;
 
-    if (mged_shutting_down(s))
+    if (!s || !s->interp || mged_shutting_down(s))
 	return;
 
     /* clientData is the Tcl_Channel wrapping the pipe read end.  We read via
@@ -1953,6 +2025,9 @@ std_out_or_err(ClientData clientData, int UNUSED(mask))
      * HANDLE with its own internal reader thread; data arrives in Tcl's
      * channel buffer and must be consumed with Tcl_Read, not read(). */
     Tcl_Channel chan = (Tcl_Channel)clientData;
+    if (!chan)
+	return;
+
     int count;
     char line[RT_MAXLINE+1] = {0};
     Tcl_DString tclcommand;
@@ -2003,18 +2078,19 @@ refresh(struct mged_state *s)
     int64_t elapsed_time, start_time = bu_gettime();
     int do_time = 0;
 
-    if (mged_shutting_down(s))
+    if (!s || mged_shutting_down(s))
 	return;
 
     /* Flush any accumulated bu_log output to the command prompt.
      * The log-drain timer handles live streaming during long commands;
      * this call catches anything produced between timer ticks. */
-    mged_pr_output(s->interp);
+    if (s->interp)
+	mged_pr_output(s->interp);
 
     /* Display Manager / Views */
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *p = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
-	if (!p->dm_view_state)
+	if (!p || !p->dm_view_state)
 	    continue;
 	if (s->update_views || p->dm_view_state->vs_flag)
 	    p->dm_dirty = 1;
@@ -2026,7 +2102,7 @@ refresh(struct mged_state *s)
      */
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *p = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
-	if (!p->dm_view_state)
+	if (!p || !p->dm_view_state)
 	    continue;
 	p->dm_view_state->vs_flag = 0;
     }
@@ -2036,16 +2112,20 @@ refresh(struct mged_state *s)
     save_dm_list = s->mged_curr_dm;
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *p = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
+	if (!p)
+	    continue;
 	/*
 	 * if something has changed, then go update the display.
 	 * Otherwise, we are happy with the view we have
 	 */
 	set_curr_dm(s, p);
+	if (!DMP)
+	    continue;
 	(void)dm_configure_win(DMP, 0);
 	if (curr_dm_mapped && DMP_dirty) {
 	    int restore_zbuffer = 0;
 
-	    if (mged_variables->mv_fb &&
+	    if (mged_variables && mged_variables->mv_fb &&
 		dm_get_zbuffer(DMP)) {
 		restore_zbuffer = 1;
 		(void)dm_make_current(DMP);
@@ -2054,7 +2134,8 @@ refresh(struct mged_state *s)
 
 	    DMP_dirty = 0;
 	    do_time = 1;
-	    VMOVE(geometry_default_color, color_scheme->cs_geo_def);
+	    if (color_scheme)
+		VMOVE(geometry_default_color, color_scheme->cs_geo_def);
 
 	    if (s->dbip != DBI_NULL) {
 		if (do_overlay) {
@@ -2067,7 +2148,7 @@ refresh(struct mged_state *s)
 		if (viewpoint_hook)  (*viewpoint_hook)();
 	    }
 
-	    if (mged_variables->mv_predictor)
+	    if (mged_variables && mged_variables->mv_predictor)
 		predictor_frame(s);
 
 	    if (dm_get_dirty(DMP)) {
@@ -2076,7 +2157,7 @@ refresh(struct mged_state *s)
 
 		if (s->dbip != DBI_NULL) {
 		    /* do framebuffer underlay */
-		    if (mged_variables->mv_fb && !mged_variables->mv_fb_overlay) {
+		    if (mged_variables && mged_variables->mv_fb && !mged_variables->mv_fb_overlay) {
 			if (mged_variables->mv_fb_all)
 			    fb_refresh(fbp, 0, 0, dm_get_width(DMP), dm_get_height(DMP));
 			else if (mged_variables->mv_mouse_behavior != 'z')
@@ -2084,7 +2165,7 @@ refresh(struct mged_state *s)
 		    }
 
 		    /* do framebuffer overlay for entire window */
-		    if (mged_variables->mv_fb &&
+		    if (mged_variables && mged_variables->mv_fb &&
 			    mged_variables->mv_fb_overlay &&
 			    mged_variables->mv_fb_all) {
 			fb_refresh(fbp, 0, 0, dm_get_width(DMP), dm_get_height(DMP));
@@ -2102,7 +2183,7 @@ refresh(struct mged_state *s)
 			 */
 
 			if (dm_get_stereo(DMP) == 0 ||
-				mged_variables->mv_eye_sep_dist <= 0) {
+				(mged_variables && mged_variables->mv_eye_sep_dist <= 0)) {
 			    /* Normal viewing */
 			    dozoom(s, 0);
 			} else {
@@ -2112,7 +2193,7 @@ refresh(struct mged_state *s)
 			}
 
 			/* do framebuffer overlay in rectangular area */
-			if (mged_variables->mv_fb &&
+			if (mged_variables && mged_variables->mv_fb &&
 				mged_variables->mv_fb_overlay &&
 				mged_variables->mv_mouse_behavior != 'z')
 			    paint_rect_area(s);
@@ -2123,43 +2204,44 @@ refresh(struct mged_state *s)
 		    dm_hud_begin(DMP);
 
 		    /* only if not doing overlay */
-		    if (!mged_variables->mv_fb ||
+		    if (!mged_variables || !mged_variables->mv_fb ||
 			    mged_variables->mv_fb_overlay != 2) {
-			if (rubber_band->rb_active || rubber_band->rb_draw)
+			if (rubber_band && (rubber_band->rb_active || rubber_band->rb_draw))
 			    draw_rect(s);
 
-			if (grid_state->draw)
+			if (grid_state && grid_state->draw)
 			    draw_grid(s);
 
 			/* Compute and display angle/distance cursor */
-			if (adc_state->adc_draw)
+			if (adc_state && adc_state->adc_draw)
 			    adcursor(s);
 
-			if (axes_state->ax_view_draw)
+			if (axes_state && axes_state->ax_view_draw)
 			    draw_v_axes(s);
 
-			if (axes_state->ax_model_draw)
+			if (axes_state && axes_state->ax_model_draw)
 			    draw_m_axes(s);
 
-			if (axes_state->ax_edit_draw &&
+			if (axes_state && axes_state->ax_edit_draw &&
 				(s->global_editing_state == ST_S_EDIT || s->global_editing_state == ST_O_EDIT))
 			    draw_e_axes(s);
 
 			/* Display titles, etc., if desired */
-			bu_vls_strcpy(&tmp_vls, bu_vls_addr(&overlay_vls));
+			bu_vls_strcpy(&tmp_vls, bu_vls_cstr(&overlay_vls));
 			dotitles(s, &tmp_vls);
 			bu_vls_trunc(&tmp_vls, 0);
 		    }
 		}
 
 		/* only if not doing overlay */
-		if (!mged_variables->mv_fb ||
+		if (!mged_variables || !mged_variables->mv_fb ||
 			mged_variables->mv_fb_overlay != 2) {
 		    /* Draw center dot */
-		    dm_set_fg(DMP,
-			    color_scheme->cs_center_dot[0],
-			    color_scheme->cs_center_dot[1],
-			    color_scheme->cs_center_dot[2], 1, 1.0);
+		    if (color_scheme)
+			dm_set_fg(DMP,
+				color_scheme->cs_center_dot[0],
+				color_scheme->cs_center_dot[1],
+				color_scheme->cs_center_dot[2], 1, 1.0);
 		    dm_draw_point_2d(DMP, 0.0, 0.0);
 		}
 
@@ -2195,7 +2277,6 @@ refresh(struct mged_state *s)
 void
 mged_finish(struct mged_state *s, int exitcode)
 {
-    char place[64];
     struct cmd_list *c;
     int finalize_tcl = (getenv("TCL_FINALIZE_ON_EXIT") != NULL);
 
@@ -2217,7 +2298,6 @@ mged_finish(struct mged_state *s, int exitcode)
     mged_variable_teardown(s);
     mged_global_variable_teardown(s);
 
-    (void)sprintf(place, "exit_status=%d", exitcode);
     size_t active_dm_cnt;
 
     /* Release all displays. */
@@ -2326,8 +2406,12 @@ mged_finish(struct mged_state *s, int exitcode)
     bu_vls_free(&s->input_str_prefix);
     bu_vls_free(&s->scratchline);
     bu_vls_free(&s-> mged_prompt);
-    rt_edit_destroy(s->s_edit->e);
-    BU_PUT(s->s_edit, struct mged_edit_state);
+    if (s->s_edit) {
+	if (s->s_edit->e)
+	    rt_edit_destroy(s->s_edit->e);
+	BU_PUT(s->s_edit, struct mged_edit_state);
+	s->s_edit = NULL;
+    }
     mged_state_destroy_internals(s);
     BU_PUT(s, struct mged_state);
     MGED_STATE = NULL;
@@ -2383,6 +2467,9 @@ cli_dbl_is_set(double v)
 static void
 apply_cli_overrides(struct mged_state *s, struct mged_cli_overrides *cl)
 {
+    if (!s || !s->interp || !cl)
+	return;
+
     struct bu_vls cmd = BU_VLS_INIT_ZERO;
 
     /* Helper macro: set a Tcl global variable to an integer value string. */
@@ -3028,7 +3115,7 @@ main(int argc, char *argv[])
     mged_link_vars(s->mged_curr_dm);
 
     bu_vls_printf(&s->input_str, "set version \"%s\"", brlcad_ident("Geometry Editor (MGED)"));
-    (void)Tcl_Eval(s->interp, bu_vls_addr(&s->input_str));
+    (void)Tcl_Eval(s->interp, bu_vls_cstr(&s->input_str));
     bu_vls_trunc(&s->input_str, 0);
 
     if (!s->dpy_string)
@@ -3064,7 +3151,7 @@ main(int argc, char *argv[])
 	    if (s->dpy_string)
 		bu_vls_printf(&vls, " %s", s->dpy_string);
 
-	    status = Tcl_Eval(s->interp, bu_vls_addr(&vls));
+	    status = Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 	    bu_vls_strcpy(&error, Tcl_GetStringResult(s->interp));
 	    bu_vls_free(&vls);
 
@@ -3077,7 +3164,7 @@ main(int argc, char *argv[])
 		if (!run_in_foreground && use_pipe) {
 		    notify_parent_done(parent_pipe[1]);
 		}
-		bu_log("%s\nMGED Aborted.\n", bu_vls_addr(&error));
+		bu_log("%s\nMGED Aborted.\n", bu_vls_cstr(&error));
 		mged_finish(s, 1);
 	    }
 	    bu_vls_free(&error);
@@ -3168,7 +3255,7 @@ main(int argc, char *argv[])
 		} else {
 		    bu_vls_strcpy(&vls, "gui");
 		}
-		status = Tcl_Eval(s->interp, bu_vls_addr(&vls));
+		status = Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 	    } else {
 		Tcl_DString temp;
 		const char *archer_trans;
@@ -3245,10 +3332,12 @@ main(int argc, char *argv[])
     /* XXX total hack that fixes a dm init issue on Mac OS X where the
      * dm first opens filled with garbage.
      */
-    {
-	unsigned char *dm_bg;
+    if (DMP) {
+	unsigned char *dm_bg = NULL;
 	dm_get_bg(&dm_bg, NULL, DMP);
-	dm_set_bg(DMP, dm_bg[0], dm_bg[1], dm_bg[2], dm_bg[0], dm_bg[1], dm_bg[2]);
+	if (dm_bg) {
+	    dm_set_bg(DMP, dm_bg[0], dm_bg[1], dm_bg[2], dm_bg[0], dm_bg[1], dm_bg[2]);
+	}
     }
 
     /* initialize a display manager */
@@ -3299,7 +3388,7 @@ main(int argc, char *argv[])
 	// anything produced by a process that already exited,
 	// and loop while libged still reports running processes.
 	Tcl_DoOneEvent(TCL_ALL_EVENTS|TCL_DONT_WAIT);
-	while (BU_PTBL_LEN(&s->gedp->ged_subp)) {
+	while (s->gedp && BU_PTBL_LEN(&s->gedp->ged_subp)) {
 	    Tcl_DoOneEvent(TCL_ALL_EVENTS|TCL_DONT_WAIT);
 	}
 
@@ -3366,7 +3455,7 @@ main(int argc, char *argv[])
 #endif
 
 	bu_vls_printf(&vls, "output_hook output_callback");
-	Tcl_Eval(s->interp, bu_vls_addr(&vls));
+	Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 
 	/* Redirect stdout/stderr into POSIX pipes so that any C-level output
