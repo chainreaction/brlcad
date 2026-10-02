@@ -47,6 +47,7 @@
 #include "bu/str.h"
 #include "bu/exit.h"
 #include "bu/log.h"
+#include "bu/malloc.h"
 
 
 typedef struct
@@ -178,7 +179,7 @@ GetArgs(int argc, const char *argv[])	/* process command arguments */
 		}
 		tflag = 1;
 
-		if (sscanf(bu_optarg, "%le", &tolerance) != 1) {
+		if (bu_sscanf(bu_optarg, "%le", &tolerance) != 1 || tolerance < 0.0) {
 		    fprintf(stderr, "bad tolerance: %s", bu_optarg);
 		    return 1;
 		}
@@ -290,8 +291,8 @@ Chop(void)					/* chop vectors into segments */
 		    (double)segp->exy.x,
 		    (double)segp->exy.y
 		);
-#endif
 	fprintf(stderr, "\n");
+#endif
 
 	/* Put input segment pieces into segment list. */
 
@@ -446,7 +447,7 @@ Search(void)				/* output bounding polygon */
 	    } else {
 		to = atan2((double)(endp->xy.y - currentp->xy.y),
 			   (double)(endp->xy.x - currentp->xy.x)
-		    ) * DEG2RAD;
+		    ) * RAD2DEG;
 	    }
 #ifdef DEBUG
 	    fprintf(stderr, "to %g", to);
@@ -720,7 +721,7 @@ Alloc(unsigned int size)				/* allocate storage from heap */
 {
     void * ptr;	/* -> allocated storage */
 
-    if ((ptr = malloc(size * sizeof(char))) == NULL)
+    if ((ptr = bu_malloc(size, "cad_boundp: Alloc")) == NULL)
 	fprintf(stderr, "out of memory");
 
     return ptr;			/* (may be NULL) */
@@ -732,7 +733,7 @@ Toss(void * ptr)				/* return storage to heap */
     /* -> allocated storage */
 {
     if (ptr != NULL)
-	free(ptr);
+	bu_free(ptr, "cad_boundp: Toss");
 }
 
 
@@ -749,7 +750,7 @@ Input(segment *inp)				/* input stroke record */
 #ifdef DEBUG
 	fprintf(stderr, "input: %s", inbuf);
 #endif
-	cvt = sscanf(inbuf, " %e %e %e %e",
+	cvt = bu_sscanf(inbuf, " %e %e %e %e",
 		     &inp->sxy.x, &inp->sxy.y,
 		     &inp->exy.x, &inp->exy.y
 	    );

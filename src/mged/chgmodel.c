@@ -74,11 +74,16 @@ f_make(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	char center[512];
 	char scale[128];
 
-	sprintf(center, "%.17f %.17f %.17f",
-		(ZERO(view_state->vs_gvp->gv_center[MDX])) ? 0.0 : -view_state->vs_gvp->gv_center[MDX],
-		(ZERO(view_state->vs_gvp->gv_center[MDY])) ? 0.0 : -view_state->vs_gvp->gv_center[MDY],
-		(ZERO(view_state->vs_gvp->gv_center[MDZ])) ? 0.0 : -view_state->vs_gvp->gv_center[MDZ]);
-	sprintf(scale, "%.17f", view_state->vs_gvp->gv_scale * 2.0);
+    if (view_state && view_state->vs_gvp) {
+        snprintf(center, sizeof(center), "%.17f %.17f %.17f",
+                (ZERO(view_state->vs_gvp->gv_center[MDX])) ? 0.0 : -view_state->vs_gvp->gv_center[MDX],
+                (ZERO(view_state->vs_gvp->gv_center[MDY])) ? 0.0 : -view_state->vs_gvp->gv_center[MDY],
+                (ZERO(view_state->vs_gvp->gv_center[MDZ])) ? 0.0 : -view_state->vs_gvp->gv_center[MDZ]);
+        snprintf(scale, sizeof(scale), "%.17f", view_state->vs_gvp->gv_scale * 2.0);
+    } else {
+        snprintf(center, sizeof(center), "0.0 0.0 0.0");
+        snprintf(scale, sizeof(scale), "1.0");
+    }
 
 	av[0] = argv[0];
 	av[1] = "-o";
@@ -94,7 +99,7 @@ f_make(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	ret = ged_exec(s->gedp, argc, (const char **)argv);
 
     Tcl_DStringInit(&ds);
-    Tcl_DStringAppend(&ds, bu_vls_addr(s->gedp->ged_result_str), -1);
+    Tcl_DStringAppend(&ds, bu_vls_cstr(s->gedp->ged_result_str), -1);
     Tcl_DStringResult(interp, &ds);
 
     if (ret == BRLCAD_OK) {
@@ -201,7 +206,7 @@ f_rot_obj(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help %s", argv[0]);
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -245,7 +250,7 @@ f_sc_obj(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[]
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help oscale");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -253,7 +258,8 @@ f_sc_obj(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[]
     if (not_state(s, ST_O_EDIT, "Object Scaling"))
 	return TCL_ERROR;
 
-    if (atof(argv[1]) <= 0.0) {
+    double sc_factor = 0.0;
+    if (bu_sscanf(argv[1], "%lf", &sc_factor) != 1 || sc_factor <= 0.0) {
 	Tcl_AppendResult(interp, "ERROR: scale factor <=  0\n", (char *)NULL);
 	return TCL_ERROR;
     }
@@ -267,23 +273,38 @@ f_sc_obj(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[]
     switch (edobj) {
 	default:
 	case BE_O_SCALE:
-	    /* global scaling */
-	    incr[15] = 1.0 / (atof(argv[1]) * MEDIT(s)->model_changes[15]);
+	    {
+		fastf_t denom = sc_factor * MEDIT(s)->model_changes[15];
+		if (ZERO(denom)) {
+		    Tcl_AppendResult(interp, "ERROR: scale denominator is zero\n", (char *)NULL);
+		    return TCL_ERROR;
+		}
+		incr[15] = 1.0 / denom;
+	    }
 	    break;
 	case BE_O_XSCALE:
-	    /* local scaling ... X-axis */
-	    incr[0] = atof(argv[1]) / MEDIT(s)->acc_sc[0];
-	    MEDIT(s)->acc_sc[0] = atof(argv[1]);
+	    if (ZERO(MEDIT(s)->acc_sc[0])) {
+		Tcl_AppendResult(interp, "ERROR: scale accumulator is zero\n", (char *)NULL);
+		return TCL_ERROR;
+	    }
+	    incr[0] = sc_factor / MEDIT(s)->acc_sc[0];
+	    MEDIT(s)->acc_sc[0] = sc_factor;
 	    break;
 	case BE_O_YSCALE:
-	    /* local scaling ... Y-axis */
-	    incr[5] = atof(argv[1]) / MEDIT(s)->acc_sc[1];
-	    MEDIT(s)->acc_sc[1] = atof(argv[1]);
+	    if (ZERO(MEDIT(s)->acc_sc[1])) {
+		Tcl_AppendResult(interp, "ERROR: scale accumulator is zero\n", (char *)NULL);
+		return TCL_ERROR;
+	    }
+	    incr[5] = sc_factor / MEDIT(s)->acc_sc[1];
+	    MEDIT(s)->acc_sc[1] = sc_factor;
 	    break;
 	case BE_O_ZSCALE:
-	    /* local scaling ... Z-axis */
-	    incr[10] = atof(argv[1]) / MEDIT(s)->acc_sc[2];
-	    MEDIT(s)->acc_sc[2] = atof(argv[1]);
+	    if (ZERO(MEDIT(s)->acc_sc[2])) {
+		Tcl_AppendResult(interp, "ERROR: scale accumulator is zero\n", (char *)NULL);
+		return TCL_ERROR;
+	    }
+	    incr[10] = sc_factor / MEDIT(s)->acc_sc[2];
+	    MEDIT(s)->acc_sc[2] = sc_factor;
 	    break;
     }
 
@@ -322,7 +343,7 @@ f_tr_obj(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[]
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help translate");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -393,7 +414,7 @@ f_qorot(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help qorot");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -409,10 +430,8 @@ f_qorot(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
     VSCALE(specified_pt, specified_pt, s->dbip->dbi_local2base);
     VSET(direc, atof(argv[4]), atof(argv[5]), atof(argv[6]));
 
-    if (NEAR_ZERO(direc[0], SQRT_SMALL_FASTF) &&
-	NEAR_ZERO(direc[1], SQRT_SMALL_FASTF) &&
-	NEAR_ZERO(direc[2], SQRT_SMALL_FASTF)) {
-	Tcl_AppendResult(interp, "ERROR: magnitude of direction vector >=  0\n", (char *)NULL);
+    if (MAGSQ(direc) <= SQRT_SMALL_FASTF) {
+	Tcl_AppendResult(interp, "ERROR: magnitude of direction vector is zero\n", (char *)NULL);
 	return TCL_ERROR;
     }
     VUNITIZE(direc);
@@ -448,7 +467,7 @@ set_localunit_TclVar(struct mged_state *s)
 	bu_vls_printf(&units_vls, "%gmm", s->dbip->dbi_local2base);
 
     bu_vls_strcpy(&vls, "localunit");
-    Tcl_SetVar(s->interp, bu_vls_addr(&vls), bu_vls_addr(&units_vls), TCL_GLOBAL_ONLY);
+    Tcl_SetVar(s->interp, bu_vls_cstr(&vls), bu_vls_cstr(&units_vls), TCL_GLOBAL_ONLY);
 
     bu_vls_free(&vls);
     bu_vls_free(&units_vls);

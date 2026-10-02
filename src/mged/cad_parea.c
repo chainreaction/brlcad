@@ -109,7 +109,7 @@ GetArgs(int argc, const char *argv[])			/* process command arguments */
 	switch (c) {
 	    case 'i':
 		if (iflag) {
-		    printf("cad_parea: too many -i options\n");
+		    fprintf(stderr, "cad_parea: too many -i options\n");
 		    return 0;
 		}
 		iflag = 1;
@@ -117,14 +117,14 @@ GetArgs(int argc, const char *argv[])			/* process command arguments */
 		if (!BU_STR_EQUAL(bu_optarg, "-")
 		    && freopen(bu_optarg, "r", stdin) == NULL
 		    ) {
-		    printf("cad_parea: can't open \"%s\" for reading\n", bu_optarg);
+		    fprintf(stderr, "cad_parea: can't open \"%s\" for reading\n", bu_optarg);
 		    return 0;
 		}
 		break;
 
 	    case 'o':
 		if (oflag) {
-		    printf("cad_parea: too many -o options\n");
+		    fprintf(stderr, "cad_parea: too many -o options\n");
 		    return 0;
 		}
 		oflag = 1;
@@ -132,7 +132,7 @@ GetArgs(int argc, const char *argv[])			/* process command arguments */
 		if (!BU_STR_EQUAL(bu_optarg, "-")
 		    && freopen(bu_optarg, "w", stdout) == NULL
 		    ) {
-		    printf("cad_parea: can't open \"%s\" for writing\n", bu_optarg);
+		    fprintf(stderr, "cad_parea: can't open \"%s\" for writing\n", bu_optarg);
 		    return 0;
 		}
 		break;
@@ -156,7 +156,7 @@ Input(point *coop)				/* input a coordinate record */
 	/* scan input record */
 	int cvt;	/* # converted fields */
 
-	cvt = sscanf(inbuf, " %le %le", &coop->x, &coop->y);
+	cvt = bu_sscanf(inbuf, " %le %le", &coop->x, &coop->y);
 
 	if (cvt == 0)
 	    continue;	/* skip color, comment, etc. */
@@ -164,7 +164,7 @@ Input(point *coop)				/* input a coordinate record */
 	if (cvt == 2)
 	    return 1;	/* successfully converted */
 
-	printf("cad_parea: bad input:\n%s\n", inbuf);
+	fprintf(stderr, "cad_parea: bad input:\n%s\n", inbuf);
 	bu_exit(2, NULL);		/* return false insufficient */
     }
 

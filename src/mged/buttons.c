@@ -182,12 +182,15 @@ f_press(ClientData clientData,
     MGED_CK_CMD(ctp);
     struct mged_state *s = ctp->s;
 
+    if (!s || !menu_state)
+	return TCL_ERROR;
+
     int i;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
     if (argc < 2) {
 	bu_vls_printf(&vls, "help press");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -201,7 +204,7 @@ f_press(ClientData clientData,
 
 	if (edsol && edobj) {
 	    bu_vls_printf(&vls, "WARNING: State error: edsol=%x, edobj=%x\n", edsol, edobj);
-	    Tcl_AppendResult(interp, bu_vls_addr(&vls), (char *)NULL);
+	    Tcl_AppendResult(interp, bu_vls_cstr(&vls), (char *)NULL);
 	    bu_vls_free(&vls);
 	}
 
@@ -211,7 +214,7 @@ f_press(ClientData clientData,
 		vls_col_item(&vls, bp->bu_name);
 	    vls_col_eol(&vls);
 
-	    Tcl_AppendResult(interp, bu_vls_addr(&vls), (char *)NULL);
+	    Tcl_AppendResult(interp, bu_vls_cstr(&vls), (char *)NULL);
 	    bu_vls_free(&vls);
 	    goto next;
 	}
@@ -274,7 +277,7 @@ label_button(struct mged_state *s, int bnum)
 	struct bu_vls tmp_vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&tmp_vls, "label_button(%d):  Not a defined operation\n", bnum);
-	Tcl_AppendResult(s->interp, bu_vls_addr(&tmp_vls), (char *)NULL);
+	Tcl_AppendResult(s->interp, bu_vls_cstr(&tmp_vls), (char *)NULL);
 	bu_vls_free(&tmp_vls);
     }
 
@@ -405,6 +408,9 @@ bv_vrestore(ClientData clientData, Tcl_Interp *UNUSED(interp), int UNUSED(argc),
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
     struct mged_state *s = ctp->s;
+
+    if (!s || !view_state || !view_state->vs_gvp)
+	return TCL_ERROR;
      /* restore to saved view */
     if (vsaved) {
 	view_state->vs_gvp->gv_scale = sav_vscale;
@@ -425,6 +431,9 @@ bv_vsave(ClientData clientData, Tcl_Interp *UNUSED(interp), int UNUSED(argc), ch
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
     struct mged_state *s = ctp->s;
+
+    if (!s || !view_state || !view_state->vs_gvp)
+	return TCL_ERROR;
      /* save current view */
     sav_vscale = view_state->vs_gvp->gv_scale;
     MAT_COPY(sav_viewrot, view_state->vs_gvp->gv_rotation);
@@ -446,6 +455,9 @@ bv_adcursor(ClientData clientData, Tcl_Interp *UNUSED(interp), int UNUSED(argc),
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
     struct mged_state *s = ctp->s;
+
+    if (!s || !adc_state)
+	return TCL_ERROR;
 
     if (adc_state->adc_draw) {
 	/* Was on, turn off */
@@ -797,7 +809,7 @@ be_accept(ClientData clientData, Tcl_Interp *UNUSED(interp), int UNUSED(argc), c
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_strcpy(&vls, "end_edit_callback");
-	(void)Tcl_Eval(s->interp, bu_vls_addr(&vls));
+	(void)Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
     }
     return TCL_OK;
@@ -866,7 +878,7 @@ be_reject(ClientData clientData, Tcl_Interp *UNUSED(interp), int UNUSED(argc), c
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_strcpy(&vls, "end_edit_callback");
-	(void)Tcl_Eval(s->interp, bu_vls_addr(&vls));
+	(void)Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
     }
     return TCL_OK;
@@ -956,12 +968,21 @@ be_s_scale(ClientData clientData, Tcl_Interp *UNUSED(interp), int UNUSED(argc), 
  * Returns 0 if current state is as desired,
  * Returns !0 and prints error message if state mismatch.
  */
+static const char *
+get_state_str(int state)
+{
+    if (state < 0 || state > 8)
+	return "UNKNOWN";
+    return state_str[state];
+}
+
+
 int
 not_state(struct mged_state *s, int desired, char *str)
 {
     if (s->global_editing_state != desired) {
-	Tcl_AppendResult(s->interp, "Unable to do <", str, "> from ", state_str[s->global_editing_state], " state.\n", (char *)NULL);
-	Tcl_AppendResult(s->interp, "Expecting ", state_str[desired], " state.\n", (char *)NULL);
+	Tcl_AppendResult(s->interp, "Unable to do <", str, "> from ", get_state_str(s->global_editing_state), " state.\n", (char *)NULL);
+	Tcl_AppendResult(s->interp, "Expecting ", get_state_str(desired), " state.\n", (char *)NULL);
 	return -1;
     }
 
@@ -994,7 +1015,7 @@ stateChange(struct mged_state *s, int UNUSED(oldstate), int newstate)
 	    doMotion = 0;
 	    break;
 	default:
-	    bu_log("statechange: unknown state %s\n", state_str[newstate]);
+	    bu_log("statechange: unknown state %s\n", get_state_str(newstate));
 	    break;
     }
 
@@ -1013,7 +1034,7 @@ chg_state(struct mged_state *s, int from, int to, char *str)
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
     if (s->global_editing_state != from) {
-	bu_log("Unable to do <%s> going from %s to %s state.\n", str, state_str[from], state_str[to]);
+	bu_log("Unable to do <%s> going from %s to %s state.\n", str, get_state_str(from), get_state_str(to));
 	return 1;	/* BAD */
     }
 
@@ -1032,7 +1053,7 @@ chg_state(struct mged_state *s, int from, int to, char *str)
     set_curr_dm(s, save_dm_list);
 
     bu_vls_printf(&vls, "%s(state)", MGED_DISPLAY_VAR);
-    Tcl_SetVar(s->interp, bu_vls_addr(&vls), state_str[s->global_editing_state], TCL_GLOBAL_ONLY);
+    Tcl_SetVar(s->interp, bu_vls_cstr(&vls), get_state_str(s->global_editing_state), TCL_GLOBAL_ONLY);
     bu_vls_free(&vls);
 
     return 0;		/* GOOD */
@@ -1042,7 +1063,7 @@ chg_state(struct mged_state *s, int from, int to, char *str)
 void
 state_err(struct mged_state *s, char *str)
 {
-    Tcl_AppendResult(s->interp, "Unable to do <", str, "> from ", state_str[s->global_editing_state],
+    Tcl_AppendResult(s->interp, "Unable to do <", str, "> from ", get_state_str(s->global_editing_state),
 		     " state.\n", (char *)NULL);
 }
 

@@ -70,7 +70,7 @@ f_copy_inv(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help cpi");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -103,6 +103,7 @@ f_copy_inv(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv
     (void)signal(SIGINT, SIG_IGN);
 
     if ((dp = db_diradd(s->dbip, argv[2], -1L, 0, proto->d_flags, &proto->d_minor_type)) == RT_DIR_NULL) {
+	rt_db_free_internal(&internal);
 	Tcl_AppendResult(s->interp, "An error has occurred while adding a new object to the database.\n", (char *)NULL);
 	Tcl_AppendResult(s->interp, ERROR_RECOVERY_SUGGESTION, (char *)NULL);
 	return TCL_ERROR;
@@ -148,6 +149,9 @@ find_solid_with_path(struct mged_state *s, struct db_full_path *pathp)
     int count = 0;
     struct bv_scene_obj *ret = (struct bv_scene_obj *)NULL;
 
+    if (!s || !s->gedp || !pathp)
+	return NULL;
+
     RT_CK_FULL_PATH(pathp);
 
     gdlp = BU_LIST_NEXT(display_list, (struct bu_list *)ged_dl(s->gedp));
@@ -174,7 +178,7 @@ find_solid_with_path(struct mged_state *s, struct db_full_path *pathp)
 	struct bu_vls tmp_vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&tmp_vls, "find_solid_with_path() found %d matches\n", count);
-	Tcl_AppendResult(s->interp, bu_vls_addr(&tmp_vls), (char *)NULL);
+	Tcl_AppendResult(s->interp, bu_vls_cstr(&tmp_vls), (char *)NULL);
 	bu_vls_free(&tmp_vls);
     }
 
@@ -187,6 +191,9 @@ find_solid_below_path(struct mged_state *s, struct db_full_path *pathp)
 {
     struct display_list *gdlp;
     struct bv_scene_obj *sp;
+
+    if (!s || !s->gedp || !pathp)
+	return NULL;
 
     RT_CK_FULL_PATH(pathp);
 
@@ -240,7 +247,7 @@ cmd_oed(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help oed");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -272,11 +279,16 @@ cmd_oed(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
     db_full_path_init(&both);
 
     if (db_string_to_path(&lhs, s->dbip, argv[1]) < 0) {
+	db_free_full_path(&lhs);
+	db_free_full_path(&rhs);
+	db_free_full_path(&both);
 	Tcl_AppendResult(interp, "bad lhs path", (char *)NULL);
 	return TCL_ERROR;
     }
     if (one_path && lhs.fp_len == 0) {
 	db_free_full_path(&lhs);
+	db_free_full_path(&rhs);
+	db_free_full_path(&both);
 	Tcl_AppendResult(interp, "lhs must name an object", (char *)NULL);
 	return TCL_ERROR;
     }
@@ -284,6 +296,8 @@ cmd_oed(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
     if (one_path) {
 	if (rt_obj_bounds(NULL, s->dbip, 1, &argv[1], 0, bbmin, bbmax) != BRLCAD_OK) {
 	    db_free_full_path(&lhs);
+	    db_free_full_path(&rhs);
+	    db_free_full_path(&both);
 	    Tcl_AppendResult(interp, "unable to find lhs bounds", (char *)NULL);
 	    return TCL_ERROR;
 	}
@@ -295,6 +309,8 @@ cmd_oed(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
     } else {
 	if (db_string_to_path(&rhs, s->dbip, argv[2]) < 0) {
 	    db_free_full_path(&lhs);
+	    db_free_full_path(&rhs);
+	    db_free_full_path(&both);
 	    Tcl_AppendResult(interp, "bad rhs path", (char *)NULL);
 	    return TCL_ERROR;
 	}

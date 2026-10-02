@@ -32,21 +32,7 @@
 #include "./mged_dm.h"
 #include "./cmd.h"
 
-char **promp;
-
-char *p_arb3pt[] = {
-    "Enter X, Y, Z for point 1: ",
-    "Enter Y, Z: ",
-    "Enter Z: ",
-    "Enter X, Y, Z for point 2: ",
-    "Enter Y, Z: ",
-    "Enter Z: ",
-    "Enter X, Y, Z for point 3: ",
-    "Enter Y, Z: ",
-    "Enter Z: "
-};
-
-char *p_rfin[] = {
+static const char * const p_rfin[] = {
     "Enter X, Y, Z of the known point: ",
     "Enter Y, Z: ",
     "Enter Z: "
@@ -84,7 +70,7 @@ f_rfarb(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help rfarb");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 
 	return TCL_ERROR;
@@ -102,10 +88,12 @@ f_rfarb(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 
 
     /* read the known point */
-    promp = &p_rfin[0];
-    if (argc < 5) {
-	Tcl_AppendResult(interp, MORE_ARGS_STR, promp[argc-2], (char *)NULL);
-	return TCL_ERROR;
+    {
+	const char * const *promp = p_rfin;
+	if (argc < 5) {
+	    Tcl_AppendResult(interp, MORE_ARGS_STR, promp[argc-2], (char *)NULL);
+	    return TCL_ERROR;
+	}
     }
 
     if (argc < 6) {
@@ -113,14 +101,22 @@ f_rfarb(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	return TCL_ERROR;
     }
 
-    rota = atof(argv[5]) * DEG2RAD;
+    if (bu_sscanf(argv[5], "%lf", &rota) != 1) {
+	Tcl_AppendResult(interp, "Cannot parse rotation angle\n", (char *)NULL);
+	return TCL_ERROR;
+    }
+    rota *= DEG2RAD;
 
     if (argc < 7) {
 	Tcl_AppendResult(interp, MORE_ARGS_STR, "Enter FALL BACK angle (deg): ", (char *)NULL);
 	return TCL_ERROR;
     }
 
-    fba = atof(argv[6]) * DEG2RAD;
+    if (bu_sscanf(argv[6], "%lf", &fba) != 1) {
+	Tcl_AppendResult(interp, "Cannot parse fall back angle\n", (char *)NULL);
+	return TCL_ERROR;
+    }
+    fba *= DEG2RAD;
 
     /* calculate plane defined by these angles */
     norm[0] = cos(fba) * cos(rota);
@@ -132,8 +128,9 @@ f_rfarb(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	    struct bu_vls tmp_vls = BU_VLS_INIT_ZERO;
 
 	    bu_vls_printf(&tmp_vls, "POINT %d...\n", i+2);
-	    Tcl_AppendResult(interp, bu_vls_addr(&tmp_vls), MORE_ARGS_STR,
+	    Tcl_AppendResult(interp, bu_vls_cstr(&tmp_vls), MORE_ARGS_STR,
 			     "Enter coordinate to solve for (x, y, or z): ", (char *)NULL);
+	    bu_vls_free(&tmp_vls);
 
 	    return TCL_ERROR;
 	}
@@ -156,8 +153,13 @@ f_rfarb(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 				     "Enter the Z coordinate value: ", (char *)NULL);
 		    return TCL_ERROR;
 		}
-		pt[i][0] = atof(argv[7+3*i+1]) * s->dbip->dbi_local2base;
-		pt[i][1] = atof(argv[7+3*i+2]) * s->dbip->dbi_local2base;
+		if (bu_sscanf(argv[7+3*i+1], "%lf", &pt[i][0]) != 1 ||
+		    bu_sscanf(argv[7+3*i+2], "%lf", &pt[i][1]) != 1) {
+		    Tcl_AppendResult(interp, "Cannot parse coordinates\n", (char *)NULL);
+		    return TCL_ERROR;
+		}
+		pt[i][0] *= s->dbip->dbi_local2base;
+		pt[i][1] *= s->dbip->dbi_local2base;
 		break;
 
 	    case 'y':
@@ -177,8 +179,13 @@ f_rfarb(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 				     "Enter the Z coordinate value: ", (char *)NULL);
 		    return TCL_ERROR;
 		}
-		pt[i][0] = atof(argv[7+3*i+1]) * s->dbip->dbi_local2base;
-		pt[i][1] = atof(argv[7+3*i+2]) * s->dbip->dbi_local2base;
+		if (bu_sscanf(argv[7+3*i+1], "%lf", &pt[i][0]) != 1 ||
+		    bu_sscanf(argv[7+3*i+2], "%lf", &pt[i][1]) != 1) {
+		    Tcl_AppendResult(interp, "Cannot parse coordinates\n", (char *)NULL);
+		    return TCL_ERROR;
+		}
+		pt[i][0] *= s->dbip->dbi_local2base;
+		pt[i][1] *= s->dbip->dbi_local2base;
 		break;
 
 	    case 'z':
@@ -198,8 +205,13 @@ f_rfarb(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 				     "Enter the Y coordinate value: ", (char *)NULL);
 		    return TCL_ERROR;
 		}
-		pt[i][0] = atof(argv[7+3*i+1]) * s->dbip->dbi_local2base;
-		pt[i][1] = atof(argv[7+3*i+2]) * s->dbip->dbi_local2base;
+		if (bu_sscanf(argv[7+3*i+1], "%lf", &pt[i][0]) != 1 ||
+		    bu_sscanf(argv[7+3*i+2], "%lf", &pt[i][1]) != 1) {
+		    Tcl_AppendResult(interp, "Cannot parse coordinates\n", (char *)NULL);
+		    return TCL_ERROR;
+		}
+		pt[i][0] *= s->dbip->dbi_local2base;
+		pt[i][1] *= s->dbip->dbi_local2base;
 		break;
 
 	    default:
@@ -213,9 +225,8 @@ f_rfarb(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 			 "Enter thickness for this arb: ", (char *)NULL);
 	return TCL_ERROR;
     }
-    thick = atof(argv[7+3*3]);
-    if (ZERO(thick)) {
-	Tcl_AppendResult(interp, "thickness = 0.0\n", (char *)NULL);
+    if (bu_sscanf(argv[7+3*3], "%lf", &thick) != 1 || ZERO(thick)) {
+	Tcl_AppendResult(interp, "thickness = 0.0 or invalid\n", (char *)NULL);
 	return TCL_ERROR;
     }
     thick *= s->dbip->dbi_local2base;
@@ -233,7 +244,17 @@ f_rfarb(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	VSET(aip->pt[i], 0.0, 0.0, 0.0);
     }
 
-    VSET(aip->pt[0], atof(argv[2])*s->dbip->dbi_local2base, atof(argv[3])*s->dbip->dbi_local2base, atof(argv[4])*s->dbip->dbi_local2base);
+    {
+	fastf_t p0_x = 0.0, p0_y = 0.0, p0_z = 0.0;
+	if (bu_sscanf(argv[2], "%lf", &p0_x) != 1 ||
+	    bu_sscanf(argv[3], "%lf", &p0_y) != 1 ||
+	    bu_sscanf(argv[4], "%lf", &p0_z) != 1) {
+	    rt_db_free_internal(&internal);
+	    Tcl_AppendResult(interp, "Cannot parse known point coordinates\n", (char *)NULL);
+	    return TCL_ERROR;
+	}
+	VSET(aip->pt[0], p0_x * s->dbip->dbi_local2base, p0_y * s->dbip->dbi_local2base, p0_z * s->dbip->dbi_local2base);
+    }
 
     ndotv = VDOT(aip->pt[0], norm);
 
@@ -269,6 +290,7 @@ f_rfarb(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 		break;
 
 	    default:
+		rt_db_free_internal(&internal);
 		return TCL_ERROR;
 	}
     }
@@ -282,12 +304,12 @@ f_rfarb(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
     (void)signal(SIGINT, SIG_IGN);
 
     if ((dp = db_diradd(s->dbip, argv[1], -1L, 0, RT_DIR_SOLID, (void *)&internal.idb_type)) == RT_DIR_NULL) {
+	rt_db_free_internal(&internal);
 	Tcl_AppendResult(interp, "Cannot add ", argv[1], " to the directory\n", (char *)NULL);
 	return TCL_ERROR;
     }
 
     if (rt_db_put_internal(dp, s->dbip, &internal) < 0) {
-	rt_db_free_internal(&internal);
     	Tcl_AppendResult(s->interp, "Database write error, aborting.\n", (char *)NULL);
 	Tcl_AppendResult(s->interp, ERROR_RECOVERY_SUGGESTION, (char *)NULL);
 	return TCL_ERROR;

@@ -173,7 +173,7 @@ mged_slider_free_vls(struct mged_dm *p)
 
 
 static int
-release(struct mged_state *s, char *name, int need_close)
+release(struct mged_state *s, const char *name, int need_close)
 {
     struct mged_dm *save_dm_list = MGED_DM_NULL;
     struct bu_vls *pathname = NULL;
@@ -267,7 +267,7 @@ f_release(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *
 
     if (argc < 1 || 2 < argc) {
 	bu_vls_printf(&vls, "help release");
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 
 	return TCL_ERROR;
@@ -281,7 +281,7 @@ f_release(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *
 	else
 	    bu_vls_strcpy(&vls, argv[1]);
 
-	status = release(s, bu_vls_addr(&vls), 1);
+	status = release(s, bu_vls_cstr(&vls), 1);
 
 	bu_vls_free(&vls);
 	return status;
@@ -318,7 +318,7 @@ f_attach(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *a
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help attach");
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	print_valid_dm(interpreter);
 
@@ -427,7 +427,7 @@ mged_attach(struct mged_state *s, const char *wp_name, int argc, const char *arg
     char **opt_argv;
     struct mged_dm *o_dm;
 
-    if (!wp_name) {
+    if (!s || !wp_name) {
 	return TCL_ERROR;
     }
 
@@ -473,10 +473,6 @@ mged_attach(struct mged_state *s, const char *wp_name, int argc, const char *arg
     }
 
     bu_ptbl_ins(&active_dm_set, (long *)s->mged_curr_dm);
-
-    if (!wp_name) {
-	return TCL_ERROR;
-    }
 
     if (mged_dm_init(s, o_dm, wp_name, argc, argv) == TCL_ERROR) {
 	goto Bad;
@@ -571,7 +567,7 @@ get_attached(struct mged_state *s)
 	    return;
 	}
 
-	if (bu_vls_strlen(&wanted_type) == 0 || BU_STR_EQUAL(bu_vls_addr(&wanted_type), "nu")) {
+	if (bu_vls_strlen(&wanted_type) == 0 || BU_STR_EQUAL(bu_vls_cstr(&wanted_type), "nu")) {
 	    /* Nothing more to do. */
 	    bu_vls_free(&wanted_type);
 	    bu_vls_free(&prompt);
@@ -622,7 +618,7 @@ f_dm(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *argv[
 
     if (argc < 2) {
 	bu_vls_printf(&vls, "help dm");
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -630,7 +626,7 @@ f_dm(ClientData clientData, Tcl_Interp *interpreter, int argc, const char *argv[
     if (BU_STR_EQUAL(argv[1], "valid")) {
 	if (argc < 3) {
 	    bu_vls_printf(&vls, "help dm");
-	    Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	    Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	    bu_vls_free(&vls);
 	    return TCL_ERROR;
 	}
@@ -758,7 +754,7 @@ f_get_dm_list(ClientData UNUSED(clientData), Tcl_Interp *interpreter, int argc, 
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "helpdevel get_dm_list");
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 
 	return TCL_ERROR;
