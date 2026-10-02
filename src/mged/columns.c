@@ -44,6 +44,9 @@ vls_col_item(
     struct bu_vls *str,
     const char *cp)
 {
+    if (!str || !cp)
+	return;
+
     /* Output newline if last column printed. */
     if (col_count >= COLUMNS || (col_len+NAMESIZE-1) >= TERMINAL_WIDTH) {
 	/* line now full */
@@ -70,6 +73,9 @@ vls_col_item(
 void
 vls_col_eol(struct bu_vls *str)
 {
+    if (!str)
+	return;
+
     if (col_count != 0)		/* partial line */
 	bu_vls_putc(str, '\n');
     col_count = 0;
@@ -86,8 +92,30 @@ cmpdirname(const void *a, const void *b)
 {
     struct directory **dp1, **dp2;
 
+    if (!a && !b)
+	return 0;
+    if (!a)
+	return -1;
+    if (!b)
+	return 1;
+
     dp1 = (struct directory **)a;
     dp2 = (struct directory **)b;
+
+    if (!*dp1 && !*dp2)
+	return 0;
+    if (!*dp1)
+	return -1;
+    if (!*dp2)
+	return 1;
+
+    if (!(*dp1)->d_namep && !(*dp2)->d_namep)
+	return 0;
+    if (!(*dp1)->d_namep)
+	return -1;
+    if (!(*dp2)->d_namep)
+	return 1;
+
     return bu_strcmp((*dp1)->d_namep, (*dp2)->d_namep);
 }
 

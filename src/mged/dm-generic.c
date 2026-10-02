@@ -54,13 +54,16 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
     int status;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
+    if (!s || !s->interp || argc <= 0 || !argv || !argv[0])
+	return TCL_ERROR;
+
     if (s->dbip == DBI_NULL)
 	return TCL_OK;
 
     if (BU_STR_EQUAL(argv[0], "idle")) {
 
 	/* redraw after scaling */
-	if (s->gedp && s->gedp->ged_gvp &&
+	if (s->gedp && s->gedp->ged_gvp && s->gedp->ged_gvp->gv_s &&
 	    s->gedp->ged_gvp->gv_s->adaptive_plot_csg &&
 	    s->gedp->ged_gvp->gv_s->redraw_on_zoom &&
 	    (am_mode == AMM_SCALE ||
@@ -75,10 +78,10 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 
 	am_mode = AMM_IDLE;
 	scroll_active = 0;
-	if (rubber_band->rb_active) {
+	if (rubber_band && rubber_band->rb_active) {
 	    rubber_band->rb_active = 0;
 
-	    if (mged_variables->mv_mouse_behavior == 'p') {
+	    if (mged_variables && mged_variables->mv_mouse_behavior == 'p') {
 		/* need dummy values for func signature--they are unused in the func */
 		const struct bu_structparse *sdp = 0;
 		const char name[] = "name";
@@ -86,9 +89,9 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 		const char value[] = "value";
 		rb_set_dirty_flag(sdp, name, base, value, NULL);
 	    }
-	    else if (mged_variables->mv_mouse_behavior == 'r')
+	    else if (mged_variables && mged_variables->mv_mouse_behavior == 'r')
 		rt_rect_area(s);
-	    else if (mged_variables->mv_mouse_behavior == 'z')
+	    else if (mged_variables && mged_variables->mv_mouse_behavior == 'z')
 		zoom_rect_area(s);
 	}
 
@@ -102,11 +105,14 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 	int stolen = 0;
 	fastf_t fx, fy;
 
-	if (argc < 3) {
+	if (argc < 3 || !argv[1] || !argv[2]) {
 	    Tcl_AppendResult(s->interp, "dm m: need more parameters\n",
 			     "dm m xpos ypos\n", (char *)NULL);
 	    return TCL_ERROR;
 	}
+
+	if (!mged_variables || !s->mged_curr_dm || !DMP)
+	    return TCL_ERROR;
 
 	old_orig_gui = mged_variables->mv_orig_gui;
 
@@ -139,13 +145,16 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 	    point_t view_pt;
 	    point_t model_pt;
 
-	    if (grid_state->snap)
+	    if (grid_state && grid_state->snap)
 		snap_to_grid(s, &fx, &fy);
 
 	    if (mged_variables->mv_perspective_mode)
 		VSET(view_pt, fx, fy, 0.0);
 	    else
 		VSET(view_pt, fx, fy, 1.0);
+
+	    if (!view_state || !view_state->vs_gvp)
+		return TCL_ERROR;
 
 	    MAT4X3PNT(model_pt, view_state->vs_gvp->gv_view2model, view_pt);
 	    VSCALE(model_pt, model_pt, s->dbip->dbi_base2local);
@@ -159,14 +168,16 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 		    mged_variables->mv_mouse_behavior == 'r' ||
 		    mged_variables->mv_mouse_behavior == 'z') && !stolen) {
 
-	    if (grid_state->snap)
+	    if (grid_state && grid_state->snap)
 		snap_to_grid(s, &fx, &fy);
 
-	    rubber_band->rb_active = 1;
-	    rubber_band->rb_x = fx;
-	    rubber_band->rb_y = fy;
-	    rubber_band->rb_width = 0.0;
-	    rubber_band->rb_height = 0.0;
+	    if (rubber_band) {
+		rubber_band->rb_active = 1;
+		rubber_band->rb_x = fx;
+		rubber_band->rb_y = fy;
+		rubber_band->rb_width = 0.0;
+		rubber_band->rb_height = 0.0;
+	    }
 	    rect_view2image(s);
 	    {
 		/* need dummy values for func signature--they are unused in the func */
@@ -184,21 +195,27 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 	    bu_vls_printf(&vls, "mouse_comb_edit_select %d %d", x, y);
 	} else if (mged_variables->mv_mouse_behavior == 'o' && !stolen) {
 	    bu_vls_printf(&vls, "mouse_rt_obj_select %d %d", x, y);
-	} else if (adc_state->adc_draw && mged_variables->mv_transform == 'a' && !stolen) {
+	} else if (adc_state && adc_state->adc_draw && mged_variables->mv_transform == 'a' && !stolen) {
 	    point_t model_pt;
 	    point_t view_pt;
 
-	    if (grid_state->snap)
+	    if (grid_state && grid_state->snap)
 		snap_to_grid(s, &fx, &fy);
+
+	    if (!view_state || !view_state->vs_gvp)
+		return TCL_ERROR;
 
 	    VSET(view_pt, fx, fy, 1.0);
 	    MAT4X3PNT(model_pt, view_state->vs_gvp->gv_view2model, view_pt);
 	    VSCALE(model_pt, model_pt, s->dbip->dbi_base2local);
 	    bu_vls_printf(&vls, "adc xyz %lf %lf %lf\n", model_pt[X], model_pt[Y], model_pt[Z]);
-	} else if (grid_state->snap && !stolen &&
+	} else if (grid_state && grid_state->snap && !stolen &&
 		   SEDIT_TRAN && mged_variables->mv_transform == 'e') {
 	    point_t view_pt;
 	    point_t model_pt;
+
+	    if (!view_state || !view_state->vs_gvp || !MEDIT(s))
+		return TCL_ERROR;
 
 	    snap_to_grid(s, &fx, &fy);
 	    MAT4X3PNT(view_pt, view_state->vs_gvp->gv_model2view, MEDIT(s)->curr_e_axes_pos);
@@ -207,10 +224,13 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 	    MAT4X3PNT(model_pt, view_state->vs_gvp->gv_view2model, view_pt);
 	    VSCALE(model_pt, model_pt, s->dbip->dbi_base2local);
 	    bu_vls_printf(&vls, "p %lf %lf %lf", model_pt[X], model_pt[Y], model_pt[Z]);
-	} else if (grid_state->snap && !stolen &&
+	} else if (grid_state && grid_state->snap && !stolen &&
 		   OEDIT_TRAN && mged_variables->mv_transform == 'e') {
 	    point_t view_pt;
 	    point_t model_pt;
+
+	    if (!view_state || !view_state->vs_gvp || !MEDIT(s))
+		return TCL_ERROR;
 
 	    snap_to_grid(s, &fx, &fy);
 	    MAT4X3PNT(view_pt, view_state->vs_gvp->gv_model2view, MEDIT(s)->curr_e_axes_pos);
@@ -219,12 +239,15 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 	    MAT4X3PNT(model_pt, view_state->vs_gvp->gv_view2model, view_pt);
 	    VSCALE(model_pt, model_pt, s->dbip->dbi_base2local);
 	    bu_vls_printf(&vls, "translate %lf %lf %lf", model_pt[X], model_pt[Y], model_pt[Z]);
-	} else if (grid_state->snap && !stolen &&
+	} else if (grid_state && grid_state->snap && !stolen &&
 		   s->global_editing_state != ST_S_PICK && s->global_editing_state != ST_O_PICK &&
 		   s->global_editing_state != ST_O_PATH && !SEDIT_PICK && !EDIT_SCALE) {
 	    point_t view_pt;
 	    point_t model_pt;
 	    point_t vcenter;
+
+	    if (!view_state || !view_state->vs_gvp)
+		return TCL_ERROR;
 
 	    snap_to_grid(s, &fx, &fy);
 	    MAT_DELTAS_GET_NEG(vcenter, view_state->vs_gvp->gv_center);
@@ -237,7 +260,7 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 	} else
 	    bu_vls_printf(&vls, "M 1 %d %d\n", x, y);
 
-	status = Tcl_Eval(s->interp, bu_vls_addr(&vls));
+	status = Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 	mged_variables->mv_orig_gui = old_orig_gui;
 	bu_vls_free(&vls);
 
@@ -245,7 +268,7 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
     }
 
     if (BU_STR_EQUAL(argv[0], "motion")) {
-	if (argc < 3) {
+	if (argc < 3 || !argv[1] || !argv[2]) {
 	    Tcl_AppendResult(s->interp, "dm motion: need more parameters\n",
 			     "dm motion xpos ypos\n", (char *)NULL);
 	    return TCL_ERROR;
@@ -255,11 +278,14 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
     }
 
     if (BU_STR_EQUAL(argv[0], "am")) {
-	if (argc < 4) {
+	if (argc < 4 || !argv[1] || !argv[2] || !argv[3]) {
 	    Tcl_AppendResult(s->interp, "dm am: need more parameters\n",
 			     "dm am <r|t|s> xpos ypos\n", (char *)NULL);
 	    return TCL_ERROR;
 	}
+
+	if (!mged_variables)
+	    return TCL_ERROR;
 
 	dm_omx = atoi(argv[2]);
 	dm_omy = atoi(argv[3]);
@@ -271,12 +297,14 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 	    case 't':
 		am_mode = AMM_TRAN;
 
-		if (grid_state->snap) {
+		if (grid_state && grid_state->snap) {
 		    int save_edflag;
 
 		    if ((s->global_editing_state == ST_S_EDIT || s->global_editing_state == ST_O_EDIT) &&
 			mged_variables->mv_transform == 'e') {
 			if (s->global_editing_state == ST_S_EDIT) {
+			    if (!MEDIT(s))
+				return TCL_ERROR;
 			    save_edflag = MEDIT(s)->edit_flag;
 			    if (!SEDIT_TRAN)
 				MEDIT(s)->edit_flag = RT_PARAMS_EDIT_TRANS;
@@ -287,9 +315,10 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 
 			snap_keypoint_to_grid(s);
 
-			if (s->global_editing_state == ST_S_EDIT)
-			    MEDIT(s)->edit_flag = save_edflag;
-			else
+			if (s->global_editing_state == ST_S_EDIT) {
+			    if (MEDIT(s))
+				MEDIT(s)->edit_flag = save_edflag;
+			} else
 			    edobj = save_edflag;
 		    } else
 			snap_view_center_to_grid(s);
@@ -297,13 +326,15 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 
 		break;
 	    case 's':
-		if (s->global_editing_state == ST_S_EDIT && mged_variables->mv_transform == 'e' &&
-		    ZERO(MEDIT(s)->acc_sc_sol))
-		    MEDIT(s)->acc_sc_sol = 1.0;
-		else if (s->global_editing_state == ST_O_EDIT && mged_variables->mv_transform == 'e') {
-		    MEDIT(s)->k.sca_abs = MEDIT(s)->acc_sc_obj - 1.0;
-		    if (MEDIT(s)->k.sca_abs > 0.0)
-			MEDIT(s)->k.sca_abs /= 3.0;
+		if (s->global_editing_state == ST_S_EDIT && mged_variables->mv_transform == 'e') {
+		    if (MEDIT(s) && ZERO(MEDIT(s)->acc_sc_sol))
+			MEDIT(s)->acc_sc_sol = 1.0;
+		} else if (s->global_editing_state == ST_O_EDIT && mged_variables->mv_transform == 'e') {
+		    if (MEDIT(s)) {
+			MEDIT(s)->k.sca_abs = MEDIT(s)->acc_sc_obj - 1.0;
+			if (MEDIT(s)->k.sca_abs > 0.0)
+			    MEDIT(s)->k.sca_abs /= 3.0;
+		    }
 		}
 
 		am_mode = AMM_SCALE;
@@ -321,11 +352,14 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 	fastf_t fx, fy;
 	fastf_t td; /* tick distance */
 
-	if (argc < 4) {
+	if (argc < 4 || !argv[1] || !argv[2] || !argv[3]) {
 	    Tcl_AppendResult(s->interp, "dm adc: need more parameters\n",
 			     "dm adc 1|2|t|d xpos ypos\n", (char *)NULL);
 	    return TCL_ERROR;
 	}
+
+	if (!s->mged_curr_dm || !DMP || !adc_state)
+	    return TCL_ERROR;
 
 	dm_omx = atoi(argv[2]);
 	dm_omy = atoi(argv[3]);
@@ -336,7 +370,7 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 		fy = dm_Xy2Normal(DMP, dm_omy, 1) * BV_MAX - adc_state->adc_dv_y;
 
 		bu_vls_printf(&vls, "adc a1 %lf\n", RAD2DEG*atan2(fy, fx));
-		Tcl_Eval(s->interp, bu_vls_addr(&vls));
+		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 		bu_vls_free(&vls);
 
 		am_mode = AMM_ADC_ANG1;
@@ -346,7 +380,7 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 		fy = dm_Xy2Normal(DMP, dm_omy, 1) * BV_MAX - adc_state->adc_dv_y;
 
 		bu_vls_printf(&vls, "adc a2 %lf\n", RAD2DEG*atan2(fy, fx));
-		Tcl_Eval(s->interp, bu_vls_addr(&vls));
+		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 		bu_vls_free(&vls);
 
 		am_mode = AMM_ADC_ANG2;
@@ -356,16 +390,19 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 		    point_t model_pt;
 		    point_t view_pt;
 
+		    if (!view_state || !view_state->vs_gvp)
+			return TCL_ERROR;
+
 		    VSET(view_pt, dm_Xx2Normal(DMP, dm_omx), dm_Xy2Normal(DMP, dm_omy, 1), 0.0);
 
-		    if (grid_state->snap)
+		    if (grid_state && grid_state->snap)
 			snap_to_grid(s, &view_pt[X], &view_pt[Y]);
 
 		    MAT4X3PNT(model_pt, view_state->vs_gvp->gv_view2model, view_pt);
 		    VSCALE(model_pt, model_pt, s->dbip->dbi_base2local);
 
 		    bu_vls_printf(&vls, "adc xyz %lf %lf %lf\n", model_pt[X], model_pt[Y], model_pt[Z]);
-		    Tcl_Eval(s->interp, bu_vls_addr(&vls));
+		    Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 
 		    bu_vls_free(&vls);
 		    am_mode = AMM_ADC_TRAN;
@@ -373,6 +410,9 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 
 		break;
 	    case 'd':
+		if (!view_state || !view_state->vs_gvp)
+		    return TCL_ERROR;
+
 		fx = (dm_Xx2Normal(DMP, dm_omx) * BV_MAX -
 		      adc_state->adc_dv_x) * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local * INV_BV;
 		fy = (dm_Xy2Normal(DMP, dm_omy, 1) * BV_MAX -
@@ -381,7 +421,7 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 		td = sqrt(fx * fx + fy * fy);
 
 		bu_vls_printf(&vls, "adc dst %lf\n", td);
-		Tcl_Eval(s->interp, bu_vls_addr(&vls));
+		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 		bu_vls_free(&vls);
 
 		am_mode = AMM_ADC_DIST;
@@ -396,12 +436,15 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
     }
 
     if (BU_STR_EQUAL(argv[0], "con")) {
-	if (argc < 5) {
+	if (argc < 5 || !argv[1] || !argv[2] || !argv[3] || !argv[4]) {
 	    Tcl_AppendResult(s->interp, "dm con: need more parameters\n",
 			     "dm con r|t|s x|y|z xpos ypos\n",
 			     "dm con a x|y|1|2|d xpos ypos\n", (char *)NULL);
 	    return TCL_ERROR;
 	}
+
+	if (!mged_variables)
+	    return TCL_ERROR;
 
 	dm_omx = atoi(argv[3]);
 	dm_omy = atoi(argv[4]);
@@ -466,37 +509,43 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 	    case 's':
 		switch (*argv[2]) {
 		    case 'x':
-			if (s->global_editing_state == ST_S_EDIT && mged_variables->mv_transform == 'e' &&
-			    ZERO(MEDIT(s)->acc_sc_sol))
-			    MEDIT(s)->acc_sc_sol = 1.0;
-			else if (s->global_editing_state == ST_O_EDIT && mged_variables->mv_transform == 'e') {
-			    MEDIT(s)->k.sca_abs = MEDIT(s)->acc_sc[0] - 1.0;
-			    if (MEDIT(s)->k.sca_abs > 0.0)
-				MEDIT(s)->k.sca_abs /= 3.0;
+			if (s->global_editing_state == ST_S_EDIT && mged_variables->mv_transform == 'e') {
+			    if (MEDIT(s) && ZERO(MEDIT(s)->acc_sc_sol))
+				MEDIT(s)->acc_sc_sol = 1.0;
+			} else if (s->global_editing_state == ST_O_EDIT && mged_variables->mv_transform == 'e') {
+			    if (MEDIT(s)) {
+				MEDIT(s)->k.sca_abs = MEDIT(s)->acc_sc[0] - 1.0;
+				if (MEDIT(s)->k.sca_abs > 0.0)
+				    MEDIT(s)->k.sca_abs /= 3.0;
+			    }
 			}
 
 			am_mode = AMM_CON_SCALE_X;
 			break;
 		    case 'y':
-			if (s->global_editing_state == ST_S_EDIT && mged_variables->mv_transform == 'e' &&
-			    ZERO(MEDIT(s)->acc_sc_sol))
-			    MEDIT(s)->acc_sc_sol = 1.0;
-			else if (s->global_editing_state == ST_O_EDIT && mged_variables->mv_transform == 'e') {
-			    MEDIT(s)->k.sca_abs = MEDIT(s)->acc_sc[1] - 1.0;
-			    if (MEDIT(s)->k.sca_abs > 0.0)
-				MEDIT(s)->k.sca_abs /= 3.0;
+			if (s->global_editing_state == ST_S_EDIT && mged_variables->mv_transform == 'e') {
+			    if (MEDIT(s) && ZERO(MEDIT(s)->acc_sc_sol))
+				MEDIT(s)->acc_sc_sol = 1.0;
+			} else if (s->global_editing_state == ST_O_EDIT && mged_variables->mv_transform == 'e') {
+			    if (MEDIT(s)) {
+				MEDIT(s)->k.sca_abs = MEDIT(s)->acc_sc[1] - 1.0;
+				if (MEDIT(s)->k.sca_abs > 0.0)
+				    MEDIT(s)->k.sca_abs /= 3.0;
+			    }
 			}
 
 			am_mode = AMM_CON_SCALE_Y;
 			break;
 		    case 'z':
-			if (s->global_editing_state == ST_S_EDIT && mged_variables->mv_transform == 'e' &&
-			    ZERO(MEDIT(s)->acc_sc_sol))
-			    MEDIT(s)->acc_sc_sol = 1.0;
-			else if (s->global_editing_state == ST_O_EDIT && mged_variables->mv_transform == 'e') {
-			    MEDIT(s)->k.sca_abs = MEDIT(s)->acc_sc[2] - 1.0;
-			    if (MEDIT(s)->k.sca_abs > 0.0)
-				MEDIT(s)->k.sca_abs /= 3.0;
+			if (s->global_editing_state == ST_S_EDIT && mged_variables->mv_transform == 'e') {
+			    if (MEDIT(s) && ZERO(MEDIT(s)->acc_sc_sol))
+				MEDIT(s)->acc_sc_sol = 1.0;
+			} else if (s->global_editing_state == ST_O_EDIT && mged_variables->mv_transform == 'e') {
+			    if (MEDIT(s)) {
+				MEDIT(s)->k.sca_abs = MEDIT(s)->acc_sc[2] - 1.0;
+				if (MEDIT(s)->k.sca_abs > 0.0)
+				    MEDIT(s)->k.sca_abs /= 3.0;
+			    }
 			}
 
 			am_mode = AMM_CON_SCALE_Z;
@@ -519,17 +568,20 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
     if (BU_STR_EQUAL(argv[0], "size")) {
 	int width, height;
 
+	if (!s->mged_curr_dm || !DMP)
+	    return TCL_ERROR;
+
 	/* get the window size */
 	if (argc == 1) {
 	    bu_vls_printf(&vls, "%d %d", dm_get_width(DMP), dm_get_height(DMP));
-	    Tcl_AppendResult(s->interp, bu_vls_addr(&vls), (char *)NULL);
+	    Tcl_AppendResult(s->interp, bu_vls_cstr(&vls), (char *)NULL);
 	    bu_vls_free(&vls);
 
 	    return TCL_OK;
 	}
 
 	/* set the window size */
-	if (argc == 3) {
+	if (argc == 3 && argv[1] && argv[2]) {
 	    width = atoi(argv[1]);
 	    height = atoi(argv[2]);
 
@@ -544,13 +596,17 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 
     if (BU_STR_EQUAL(argv[0], "getx")) {
 	struct bu_vls tmp_vls = BU_VLS_INIT_ZERO;
+
+	if (!s->mged_curr_dm || !DMP)
+	    return TCL_ERROR;
+
 	if (argc == 1) {
 	    /* Bare set command, print out current settings */
 	    dm_internal_var(&tmp_vls, DMP, NULL);
-	} else if (argc == 2) {
+	} else if (argc == 2 && argv[1]) {
 	    dm_internal_var(&tmp_vls, DMP, argv[1]);
 	}
-	Tcl_AppendResult(s->interp, bu_vls_addr(&tmp_vls), (char *)NULL);
+	Tcl_AppendResult(s->interp, bu_vls_cstr(&tmp_vls), (char *)NULL);
 	bu_vls_free(&tmp_vls);
 	return TCL_OK;
     }
@@ -558,9 +614,12 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
     if (BU_STR_EQUAL(argv[0], "bg")) {
 	int r, g, b;
 
+	if (!s->mged_curr_dm || !DMP)
+	    return TCL_ERROR;
+
 	if (argc != 1 && argc != 4) {
 	    bu_vls_printf(&vls, "Usage: dm bg [r g b]");
-	    Tcl_AppendResult(s->interp, bu_vls_addr(&vls), (char *)NULL);
+	    Tcl_AppendResult(s->interp, bu_vls_cstr(&vls), (char *)NULL);
 	    bu_vls_free(&vls);
 
 	    return TCL_ERROR;
@@ -568,20 +627,24 @@ common_dm(struct mged_state *s, int argc, const char *argv[])
 
 	/* return background color of current display manager */
 	if (argc == 1) {
-	    unsigned char *dm_bg;
+	    unsigned char *dm_bg = NULL;
 	    dm_get_bg(&dm_bg, NULL, DMP);
-	    bu_vls_printf(&vls, "%d %d %d", dm_bg[0], dm_bg[1], dm_bg[2]);
-	    Tcl_AppendResult(s->interp, bu_vls_addr(&vls), (char *)NULL);
+	    if (dm_bg)
+		bu_vls_printf(&vls, "%d %d %d", dm_bg[0], dm_bg[1], dm_bg[2]);
+	    else
+		bu_vls_printf(&vls, "0 0 0");
+	    Tcl_AppendResult(s->interp, bu_vls_cstr(&vls), (char *)NULL);
 	    bu_vls_free(&vls);
 
 	    return TCL_OK;
 	}
 
-	if (sscanf(argv[1], "%d", &r) != 1 ||
-	    sscanf(argv[2], "%d", &g) != 1 ||
-	    sscanf(argv[3], "%d", &b) != 1) {
+	if (!argv[1] || !argv[2] || !argv[3] ||
+	    bu_sscanf(argv[1], "%d", &r) != 1 ||
+	    bu_sscanf(argv[2], "%d", &g) != 1 ||
+	    bu_sscanf(argv[3], "%d", &b) != 1) {
 	    bu_vls_printf(&vls, "Usage: dm bg r g b");
-	    Tcl_AppendResult(s->interp, bu_vls_addr(&vls), (char *)NULL);
+	    Tcl_AppendResult(s->interp, bu_vls_cstr(&vls), (char *)NULL);
 	    bu_vls_free(&vls);
 
 	    return TCL_ERROR;
@@ -607,7 +670,7 @@ view_state_flag_hook(const struct bu_structparse *UNUSED(sdp),
                 void *data)
 {
     struct mged_view_hook_state *hs = (struct mged_view_hook_state *)data;
-    if (hs->vs)
+    if (hs && hs->vs)
 	hs->vs->vs_flag = 1;
 }
 
@@ -619,7 +682,8 @@ dirty_hook(const struct bu_structparse *UNUSED(sdp),
 	void *data)
 {
     struct mged_view_hook_state *hs = (struct mged_view_hook_state *)data;
-    *(hs->dirty_global) = 1;
+    if (hs && hs->dirty_global)
+	*(hs->dirty_global) = 1;
 }
 
 void
@@ -630,12 +694,15 @@ zclip_hook(const struct bu_structparse *sdp,
 	void *data)
 {
     struct mged_view_hook_state *hs = (struct mged_view_hook_state *)data;
-    hs->vs->vs_gvp->gv_s->gv_zclip = dm_get_zclip(hs->hs_dmp);
+    if (hs && hs->vs && hs->vs->vs_gvp && hs->vs->vs_gvp->gv_s && hs->hs_dmp)
+	hs->vs->vs_gvp->gv_s->gv_zclip = dm_get_zclip(hs->hs_dmp);
     dirty_hook(sdp, name, base, value, data);
 }
 
 void *
 set_hook_data(struct mged_state *s, struct mged_view_hook_state *hs) {
+    if (!s || !hs)
+	return (void *)hs;
     hs->hs_dmp = DMP;
     hs->vs = view_state;
     hs->dirty_global = &(DMP_dirty);
@@ -659,6 +726,9 @@ int
 dm_commands(int argc, const char *argv[], void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s || argc <= 0 || !argv || !argv[0])
+	return TCL_ERROR;
+
     MGED_CK_STATE(s);
     if (BU_STR_EQUAL(argv[0], "set") || BU_STR_EQUAL(argv[0], "bg") ||
         BU_STR_EQUAL(argv[0], "debug") || BU_STR_EQUAL(argv[0], "get") ||
@@ -666,9 +736,12 @@ dm_commands(int argc, const char *argv[], void *data)
         BU_STR_EQUAL(argv[0], "list") || BU_STR_EQUAL(argv[0], "type") ||
         BU_STR_EQUAL(argv[0], "types") ||
         BU_STR_EQUAL(argv[0], "width")) {
-        if (!s->gedp->ged_gvp)
+	if (!s->gedp)
+	    return TCL_ERROR;
+
+        if (!s->gedp->ged_gvp && view_state)
             s->gedp->ged_gvp = view_state->vs_gvp;
-        if (s->gedp->ged_gvp)
+        if (s->gedp->ged_gvp && s->mged_curr_dm)
             s->gedp->ged_gvp->dmp = (void *)s->mged_curr_dm->dm_dmp;
 
         const char **av = (const char **)bu_calloc((size_t)argc + 2, sizeof(char *), "dm forward argv");
@@ -679,7 +752,7 @@ dm_commands(int argc, const char *argv[], void *data)
         bu_free((void *)av, "dm forward argv");
 
         if (bu_vls_strlen(s->gedp->ged_result_str)) {
-            Tcl_AppendResult(s->interp, bu_vls_addr(s->gedp->ged_result_str), (char *)NULL);
+            Tcl_AppendResult(s->interp, bu_vls_cstr(s->gedp->ged_result_str), (char *)NULL);
             bu_vls_trunc(s->gedp->ged_result_str, 0);
         }
         return (ret == BRLCAD_OK || (ret & GED_HELP)) ? TCL_OK : TCL_ERROR;
