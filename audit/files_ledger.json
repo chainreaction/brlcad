@@ -33514,18 +33514,20 @@
       "path": "src/mged/cmd.cpp",
       "subsystem": "src/mged",
       "lines": 3536,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T01:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0282"
+      ]
     },
     {
       "id": 3175,
       "path": "src/mged/cmd.h",
       "subsystem": "src/mged",
       "lines": 111,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T01:34:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
