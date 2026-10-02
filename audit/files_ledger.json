@@ -33726,10 +33726,12 @@
       "path": "src/mged/mged.c",
       "subsystem": "src/mged",
       "lines": 3532,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T06:08:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0289"
+      ]
     },
     {
       "id": 3193,
