@@ -33906,40 +33906,48 @@
       "path": "src/mged/setup.c",
       "subsystem": "src/mged",
       "lines": 756,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-02",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0293"
+      ]
     },
     {
       "id": 3208,
       "path": "src/mged/share.c",
       "subsystem": "src/mged",
       "lines": 488,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-02",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0293"
+      ]
     },
     {
       "id": 3209,
       "path": "src/mged/tclsync.c",
       "subsystem": "src/mged",
       "lines": 540,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-02",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0293"
+      ]
     },
     {
       "id": 3210,
       "path": "src/mged/tedit.c",
       "subsystem": "src/mged",
       "lines": 194,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-02",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0293"
+      ]
     },
     {
       "id": 3211,
