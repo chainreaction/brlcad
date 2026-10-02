@@ -33608,18 +33608,20 @@
       "path": "src/mged/edsol.c",
       "subsystem": "src/mged",
       "lines": 2167,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T05:40:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0285"
+      ]
     },
     {
       "id": 3183,
       "path": "src/mged/f_cmd.h",
       "subsystem": "src/mged",
       "lines": 157,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T05:40:00Z",
       "issues_count": 0,
       "issue_ids": []
     },

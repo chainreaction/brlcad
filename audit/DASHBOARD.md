@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-10-02 09:30:00 UTC
+**Last Updated:** 2026-10-02 09:40:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 1326 (38.0%)
-- **Files Pending Review:** 2167
-- **Total Issues Identified:** 305
+- **Files Reviewed:** 1328 (38.0%)
+- **Files Pending Review:** 2165
+- **Total Issues Identified:** 306
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 230 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 231 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 52 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 305
+- **Fixed (Committed):** 306
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -103,7 +103,7 @@
 | `src/libtclcad` | 31 | 0 | 0.0% | 0 |
 | `src/libtermio` | 2 | 2 | 100.0% | 1 |
 | `src/libwdb` | 27 | 27 | 100.0% | 2 |
-| `src/mged` | 55 | 19 | 34.5% | 5 |
+| `src/mged` | 55 | 21 | 38.2% | 6 |
 | `src/nirt` | 2 | 2 | 100.0% | 1 |
 | `src/proc-db` | 55 | 0 | 0.0% | 0 |
 | `src/qged` | 34 | 0 | 0.0% | 0 |
@@ -404,5 +404,4 @@
 | `SEC-0282` | **Sev 2** | Memory Leaks, Resource Leak, Out-of-bounds Argument Access, Division by Zero, Duplicate Print Bug, and Null Pointer Dereferences | `src/mged (Batch 40: cmd.cpp, cmd.h)` | `FIXED` | In BRL-CAD mged Batch 40 (cmd.cpp and cmd.h, 3,647 lines): in cmd.h, audited header prototypes and linkage guards (clean); in cmd.cpp, eliminated memory leak in cmd_ged_inside where rt_db_internal intern was transformed but never freed with rt_db_free_internal across all exits, fixed NULL pointer dereference in cmd_ged_inside on illump->s_old.s_Eflag when illump is NULL, eliminated resource leak in cmd_rt_gettrees where rtip was created with rt_i_create but not destroyed with rt_i_destroy on missing geometry argument exit paths, eliminated duplicate window listing print bug in f_tie when called with no arguments, guarded division by zero in cmd_units with ZERO macro on sf, checked argc and argv bounds before indexing in cmd_ged_edit_wrapper, cmd_ged_simulate_wrapper, cmd_ged_in, cmd_ged_more_wrapper, cmd_nmg_collapse, and cmd_get_more_default, added missing error report when window name is not found in cmd_win set, added null pointer checks on view_state, view_state->vs_gvp, s->mged_curr_dm, DMP, illump, and MEDIT(s) across GED wrapper dispatchers, view management, and rendering hooks (cmd_ged_view_wrapper, cmd_ged_dm_wrapper, cmd_screengrab, cmd_blast, f_postscript, f_winset, _view_update_rate_flags_viewonly, and cmd_view), replaced fixed-size snprintf format in f_bomb with sizeof(buffer), and replaced ~45 read-only bu_vls_addr calls with bu_vls_cstr. |
 | `SEC-0283` | **Sev 2** | Memory Leak, Null Pointer Dereference, Out-of-bounds Array / Argument Access, and Missing Parameter Validation | `src/mged (Batch 41: color_scheme.c, columns.c, dm-generic.c, dodraw.c)` | `FIXED` | In BRL-CAD mged Batch 41 (color_scheme.c, columns.c, dm-generic.c, and dodraw.c, 1,449 lines): in color_scheme.c, added null pointer checks on m_dmp, m_dmp->dm_dmp, s->interp, and color_scheme before dereferencing, ensured error messages are safely reported, and replaced read-only bu_vls_addr calls with bu_vls_cstr; in columns.c, added null pointer guards in vls_col_item and vls_col_eol to prevent crashes on null strings or null buffer pointers, and added symmetric null pointer checks for a, b, *dp1, *dp2, (*dp1)->d_namep, and (*dp2)->d_namep in cmpdirname comparator to prevent qsort crashes; in dm-generic.c, added null checks on s, s->interp, argc, and argv in common_dm and dm_commands, added null guards on rubber_band, mged_variables, s->mged_curr_dm, DMP, view_state, view_state->vs_gvp, s->gedp->ged_gvp->gv_s, adc_state, grid_state, and MEDIT(s) across idle, m, am, adc, con, size, getx, and bg command handlers, checked argc bounds before indexing argv[1..4], replaced raw sscanf with bu_sscanf for RGB background parsing, added null guards in view_state_flag_hook, dirty_hook, zclip_hook, and set_hook_data, and replaced all read-only bu_vls_addr calls with bu_vls_cstr; in dodraw.c, eliminated memory leak in replot_modified_solid where rt_db_internal intern was transformed via transform_editing_solid but never freed when ft_plot failed (< 0), fixed potential NULL pointer dereference and out-of-bounds access in replot_original_solid by validating bdata->s_fullpath.fp_len > 0 and LAST_SOLID(bdata) before dereferencing dp->d_namep, freed existing bdata->s_fullpath with db_free_full_path before duplicating in drawH_part2, guarded s->gedp and ged_dl(s->gedp) against NULL, added null guards in mged_bound_solid, replot_original_solid, replot_modified_solid, add_solid_path_to_result, and redraw_visible_objects, and replaced read-only bu_vls_addr calls with bu_vls_cstr. |
 | `SEC-0284` | **Sev 2** | Division by Zero, Null Pointer Dereference, and Out-of-bounds Argument Access | `src/mged (Batch 42: doevent.c, dozoom.c)` | `FIXED` | In BRL-CAD mged Batch 42 (doevent.c and dozoom.c, 1,064 lines): in doevent.c, guarded against division by zero in motion_event_handler by clamping window width and height to positive values (width <= 0 ? 1 : width, height <= 0 ? 1 : height) and checking dm_get_aspect with ZERO macro before dividing, added null checks on s, eventPtr, s->mged_curr_dm, and DMP in mged_dm_motion and doEvent, added null guards on rubber_band, grid_state, MEDIT(s), adc_state, view_state, and view_state->vs_gvp across all AMM modes (AMM_IDLE, AMM_ROT, AMM_TRAN, AMM_SCALE, AMM_ADC_*, AMM_CON_*), guarded MEDIT in reset_edflag, and replaced read-only bu_vls_addr calls with bu_vls_cstr; in dozoom.c, eliminated critical division by zero in dozoom perspective calculation where to_eye_scr divided by tan(perspective) without verifying tan != 0 by checking tan value with ZERO macro and using fallback large distance, guarded against division by zero when adjusting inv_viewsize by checking MEDIT(s)->model_changes[15] with ZERO macro, added null checks on s, s->mged_curr_dm, DMP, view_state, view_state->vs_gvp, s->gedp, MEDIT(s), mged_variables, and color_scheme in dozoom, guarded transparency access (sp->s_os->transparency) against null sp->s_os in create_dlist_solid, added null pointer guards in createDLists, create_dlist_solid, createDListSolid, create_dlist_all, createDListAll, free_dlists, and freeDListsAll, and validated active_dm_set display managers and variables. |
-
-
+| `SEC-0285` | **Sev 2** | Inverted Logic Bug, Double-Free, Memory Corruption / Type Mismatch, Resource Leaks, Division by Zero, and Null Pointer Dereferences | `src/mged (Batch 43: edsol.c, f_cmd.h)` | `FIXED` | In BRL-CAD mged Batch 43 (edsol.c and f_cmd.h, 2,324 lines): in f_cmd.h, audited extern command function prototypes (clean); in edsol.c, fixed critical inverted logic bug in ecmd_bot_thick_clbk where face_state > -1 mistakenly triggered error branch and face_state < 0 updated face 0, eliminated double-free in sedit_apply where rt_db_put_internal already frees es_int on all outcomes, fixed reset sequencing in f_sedit_reset where rt_db_free_internal was called before ft_prim_edit_reset zeroing primitive type ID, fixed inverted condition in f_get_sedit (illump || !illump->s_u_data) that caused command to always fail, prevented memory corruption in f_put_sedit by returning TCL_ERROR on functab mismatch rather than executing bu_structparse_argv with wrong structure layout, guarded against division by zero in mged_param with ZERO macro on viewscale, clamped input parameter count to RT_EDIT_MAXPARA, eliminated memory leaks of vls commands on early returns in get_sketch_name, ecmd_extrude_skt_name_clbk, and f_get_sedit_menus, replaced raw atof/atoi with bu_sscanf, verified bn_mat_inverse return in oedit_apply and f_oedit_apply, added primitive type bounds validation (ID_NULL < id <= ID_MAX_SOLID), and added extensive NULL guards on s, MEDIT(s), view_state, DMP, and bdata across all solid and object editing routines. |
