@@ -71,7 +71,7 @@ ged_qvrot_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return GED_HELP;
     }
 
@@ -82,27 +82,27 @@ ged_qvrot_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     if (argc != 4 && argc != 5) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[1], "%lf", &dx) != 1) {
+    if (bu_sscanf(argv[1], "%lf", &dx) != 1) {
 	bu_vls_printf(gedp->ged_result_str, "%s: bad X value - %s\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[2], "%lf", &dy) != 1) {
+    if (bu_sscanf(argv[2], "%lf", &dy) != 1) {
 	bu_vls_printf(gedp->ged_result_str, "%s: bad Y value - %s\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[3], "%lf", &dz) != 1) {
+    if (bu_sscanf(argv[3], "%lf", &dz) != 1) {
 	bu_vls_printf(gedp->ged_result_str, "%s: bad Z value - %s\n", argv[0], argv[1]);
 	return BRLCAD_ERROR;
     }
 
-    if (argc == 5 && sscanf(argv[4], "%lf", &theta) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "%s: bad angle - %s\n", argv[0], argv[1]);
+    if (argc == 5 && bu_sscanf(argv[4], "%lf", &theta) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "%s: bad angle - %s\n", argv[0], argv[4]);
 	return BRLCAD_ERROR;
     } else if (argc == 4) {
 	theta = 0;

@@ -99,6 +99,7 @@ ged_view_snap(struct ged *gedp, int argc, const char *argv[])
     /* must be wanting help */
     if (argc < 1) {
 	_ged_cmd_help(gedp, usage, d);
+	bu_vls_free(&msg);
 	return BRLCAD_OK;
     }
 
@@ -107,6 +108,7 @@ ged_view_snap(struct ged *gedp, int argc, const char *argv[])
 
     if (print_help) {
 	_ged_cmd_help(gedp, usage, d);
+	bu_vls_free(&msg);
 	return BRLCAD_OK;
     }
 
@@ -115,12 +117,14 @@ ged_view_snap(struct ged *gedp, int argc, const char *argv[])
 	if (stol > -DBL_MAX) {
 	    gedp->ged_gvp->gv_s->gv_snap_tol_factor = stol;
 	    if (!opt_ret) {
-		bu_vls_printf(gedp->ged_result_str, "%g", gedp->ged_gvp->gv_s->gv_snap_tol_factor);
+		bu_vls_printf(gedp->ged_result_str, "%g\n", gedp->ged_gvp->gv_s->gv_snap_tol_factor);
+		bu_vls_free(&msg);
 		return BRLCAD_OK;
 	    }
 	} else {
 	    // Report current tolerance
-	    bu_vls_printf(gedp->ged_result_str, "%g", gedp->ged_gvp->gv_s->gv_snap_tol_factor);
+	    bu_vls_printf(gedp->ged_result_str, "%g\n", gedp->ged_gvp->gv_s->gv_snap_tol_factor);
+	    bu_vls_free(&msg);
 	    return BRLCAD_OK;
 	}
     }
@@ -129,6 +133,7 @@ ged_view_snap(struct ged *gedp, int argc, const char *argv[])
     argc = opt_ret;
     if (argc != 2 && argc != 3) {
 	_ged_cmd_help(gedp, usage, d);
+	bu_vls_free(&msg);
 	return BRLCAD_ERROR;
     }
 
@@ -150,7 +155,7 @@ ged_view_snap(struct ged *gedp, int argc, const char *argv[])
 	    return BRLCAD_ERROR;
 	}
 	V2MOVE(view_pt_2d, p2d);
-	VSET(vp, p[0], p[1], 0);
+	VSET(vp, p2d[X], p2d[Y], 0);
 	MAT4X3PNT(p, gedp->ged_gvp->gv_view2model, vp);
 	VMOVE(view_pt, p);
     }
@@ -190,7 +195,8 @@ ged_view_snap(struct ged *gedp, int argc, const char *argv[])
 	    V2SET(view_pt_2d, vp[0], vp[1]);
 	    VMOVE(view_pt, out_pt);
 	} else {
-	    bu_vls_printf(gedp->ged_result_str, "no lines close enough for snapping");
+	    bu_vls_printf(gedp->ged_result_str, "no lines close enough for snapping\n");
+	    bu_vls_free(&msg);
 	    return BRLCAD_OK;
 	}
     }

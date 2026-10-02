@@ -82,12 +82,15 @@ _line_cmd_create(void *bs, int argc, const char **argv)
 	flags |= BV_LOCAL_OBJS;
 
     s = bv_obj_get(gd->cv, flags);
+    if (!s) {
+	bu_vls_printf(gedp->ged_result_str, "Failed to create view object\n");
+	return BRLCAD_ERROR;
+    }
     BU_LIST_INIT(&(s->s_vlist));
 
     BV_ADD_VLIST(s->vlfree, &s->s_vlist, p, BV_VLIST_LINE_MOVE);
 
-    bu_vls_init(&s->s_name);
-    bu_vls_printf(&s->s_name, "%s", gd->vobj);
+    bu_vls_sprintf(&s->s_name, "%s", gd->vobj);
 
     return BRLCAD_OK;
 }

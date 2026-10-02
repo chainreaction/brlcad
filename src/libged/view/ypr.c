@@ -54,28 +54,28 @@ ged_ypr_core(struct ged *gedp, int argc, const char *argv[])
 	anim_v_unpermute(mat);
 
 	if (anim_mat2ypr(mat, pt) == 2) {
-	    bu_vls_printf(gedp->ged_result_str, "view %s - matrix is not a rotation matrix", argv[0]);
+	    bu_vls_printf(gedp->ged_result_str, "view %s - matrix is not a rotation matrix\n", argv[0]);
 	    return BRLCAD_ERROR;
 	}
 
 	VSCALE(pt, pt, RAD2DEG);
-	bu_vls_printf(gedp->ged_result_str, "%.12g %.12g %.12g", V3ARGS(pt));
+	bu_vls_printf(gedp->ged_result_str, "%.12g %.12g %.12g\n", V3ARGS(pt));
 
 	return BRLCAD_OK;
     }
 
     if (argc != 4) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: view %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: view %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
     /* attempt to set Viewrot given yaw, pitch and roll */
-    if (sscanf(argv[1], "%lf", &scan[0]) != 1
-	|| sscanf(argv[2], "%lf", &scan[1]) != 1
-	|| sscanf(argv[3], "%lf", &scan[2]) != 1)
+    if (bu_sscanf(argv[1], "%lf", &scan[0]) != 1
+	|| bu_sscanf(argv[2], "%lf", &scan[1]) != 1
+	|| bu_sscanf(argv[3], "%lf", &scan[2]) != 1)
     {
 
-	bu_vls_printf(gedp->ged_result_str, "view %s: bad value detected - %s %s %s",
+	bu_vls_printf(gedp->ged_result_str, "view %s: bad value detected - %s %s %s\n",
 		      argv[0], argv[1], argv[2], argv[3]);
 	return BRLCAD_ERROR;
     }

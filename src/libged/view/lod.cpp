@@ -176,13 +176,15 @@ _view_cmd_lod(void *bs, int argc, const char **argv)
     }
 
     if (BU_STR_EQUAL(argv[0], "cache")) {
+	if (!gedp || !gedp->dbip)
+	    return BRLCAD_ERROR;
+
 	if (argc == 1) {
 	    int64_t elapsedtime = bu_gettime();
 
-	    if (!gedp || !gedp->dbip)
-		return BRLCAD_ERROR;
-
 	    struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+	    if (!wdbp)
+		return BRLCAD_ERROR;
 
 	    // Clear any old cache in memory
 	    bv_mesh_lod_clear_cache(gedp->ged_lod, 0);
@@ -219,9 +221,7 @@ _view_cmd_lod(void *bs, int argc, const char **argv)
 			    continue;
 			}
 			done++;
-			struct bu_vls pname = BU_VLS_INIT_ZERO;
 			bu_log("Caching BoT %s (%d of %d)\n", dp->d_namep, done, total);
-			bu_vls_free(&pname);
 			struct rt_bot_internal *bot = (struct rt_bot_internal *)ip->idb_ptr;
 			RT_BOT_CK_MAGIC(bot);
 			key = bv_mesh_lod_cache(gedp->ged_lod, (const point_t *)bot->vertices, bot->num_vertices, NULL, bot->faces, bot->num_faces, 0, 0.66);
@@ -251,9 +251,7 @@ _view_cmd_lod(void *bs, int argc, const char **argv)
 			    continue;
 			}
 			done++;
-			struct bu_vls pname = BU_VLS_INIT_ZERO;
 			bu_log("Caching BRep %s (%d of %d)\n", dp->d_namep, done, total);
-			bu_vls_free(&pname);
 			struct rt_brep_internal *bi = (struct rt_brep_internal *)ip->idb_ptr;
 			RT_BREP_CK_MAGIC(bi);
 
@@ -339,8 +337,8 @@ _view_cmd_lod(void *bs, int argc, const char **argv)
 	    return BRLCAD_OK;
 	}
 	fastf_t scale = 1.0;
-	if (bu_opt_fastf_t(NULL, 1, (const char **)&argv[1], (void *)&scale) != 1) {
-	    bu_vls_printf(gedp->ged_result_str, "unknown argument to point_scale: %s\n", argv[1]);
+	if (bu_opt_fastf_t(NULL, 1, (const char **)&argv[1], (void *)&scale) != 1 || scale <= 0.0) {
+	    bu_vls_printf(gedp->ged_result_str, "unknown argument to scale: %s\n", argv[1]);
 	    return BRLCAD_ERROR;
 	}
 	gvp->gv_s->lod_scale = scale;

@@ -167,17 +167,15 @@ _objs_cmd_color(void *bs, int argc, const char **argv)
 
     bu_color_to_rgb_chars(&val, s->s_color);
     if (recurse) {
-	if (recurse) {
-	    std::queue<struct bv_scene_obj *> sobjs;
-	    sobjs.push(s);
-	    while (!sobjs.empty()) {
-		struct bv_scene_obj *sc = sobjs.front();
-		sobjs.pop();
-		bu_color_to_rgb_chars(&val, sc->s_color);
-		for (size_t i = 0; i < BU_PTBL_LEN(&sc->children); i++) {
-		    struct bv_scene_obj *scn = (struct bv_scene_obj *)BU_PTBL_GET(&sc->children, i);
-		    sobjs.push(scn);
-		}
+	std::queue<struct bv_scene_obj *> sobjs;
+	sobjs.push(s);
+	while (!sobjs.empty()) {
+	    struct bv_scene_obj *sc = sobjs.front();
+	    sobjs.pop();
+	    bu_color_to_rgb_chars(&val, sc->s_color);
+	    for (size_t i = 0; i < BU_PTBL_LEN(&sc->children); i++) {
+		struct bv_scene_obj *scn = (struct bv_scene_obj *)BU_PTBL_GET(&sc->children, i);
+		sobjs.push(scn);
 	    }
 	}
     }
@@ -221,26 +219,32 @@ _objs_cmd_arrow(void *bs, int argc, const char **argv)
     if (BU_STR_EQUAL(argv[0], "width"))  {
 	if (argc == 2) {
 	    if (bu_opt_fastf_t(NULL, 1, (const char **)&argv[1], (void *)&s->s_os->s_arrow_tip_width) != 1) {
-		bu_vls_printf(gedp->ged_result_str, "Invalid argument %s\n", argv[0]);
+		bu_vls_printf(gedp->ged_result_str, "Invalid argument %s\n", argv[1]);
 		return BRLCAD_ERROR;
 	    }
 	    return BRLCAD_OK;
-	} else {
+	} else if (argc == 1) {
 	    bu_vls_printf(gedp->ged_result_str, "%f\n", s->s_os->s_arrow_tip_width);
 	    return BRLCAD_OK;
+	} else {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s\n", usage_string);
+	    return BRLCAD_ERROR;
 	}
     }
 
     if (BU_STR_EQUAL(argv[0], "length"))  {
 	if (argc == 2) {
 	    if (bu_opt_fastf_t(NULL, 1, (const char **)&argv[1], (void *)&s->s_os->s_arrow_tip_length) != 1) {
-		bu_vls_printf(gedp->ged_result_str, "Invalid argument %s\n", argv[0]);
+		bu_vls_printf(gedp->ged_result_str, "Invalid argument %s\n", argv[1]);
 		return BRLCAD_ERROR;
 	    }
 	    return BRLCAD_OK;
-	} else {
+	} else if (argc == 1) {
 	    bu_vls_printf(gedp->ged_result_str, "%f\n", s->s_os->s_arrow_tip_length);
 	    return BRLCAD_OK;
+	} else {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s\n", usage_string);
+	    return BRLCAD_ERROR;
 	}
     }
 
@@ -564,6 +568,12 @@ _view_cmd_old_obj(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_OK;
     }
 
+    if (!gedp->i || !gedp->i->ged_gdp || !gedp->i->ged_gdp->gd_headDisplay) {
+	bu_free((void *)dpp, "_view_cmd_old_obj: directory pointers");
+	bu_vls_printf(gedp->ged_result_str, "unknown");
+	return BRLCAD_OK;
+    }
+
     struct bu_list *hdlp = gedp->i->ged_gdp->gd_headDisplay;
     struct display_list *gdlp = BU_LIST_NEXT(display_list, hdlp);
     struct directory **tmp_dpp = NULL;
@@ -610,6 +620,7 @@ _view_cmd_old_obj(struct ged *gedp, int argc, const char *argv[])
 		    break;
 	    };
 
+	    bu_free((void *)dpp, "_view_cmd_old_obj: directory pointers");
 	    return BRLCAD_OK;
 	}
 
@@ -618,6 +629,7 @@ _view_cmd_old_obj(struct ged *gedp, int argc, const char *argv[])
 
     // If we got this far, something wasn't right - either we couldn't find the
     // object, or the mode wasn't recognized.
+    bu_free((void *)dpp, "_view_cmd_old_obj: directory pointers");
     bu_vls_printf(gedp->ged_result_str, "unknown");
     return BRLCAD_OK;
 }

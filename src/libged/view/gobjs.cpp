@@ -54,6 +54,11 @@ gobjs_scene_free(struct bv_scene_obj *s)
 	db_free_full_path(sfp);
 	BU_PUT(sfp, struct db_full_path);
     }
+    if (s->s_i_data) {
+	struct rt_db_internal *ip = (struct rt_db_internal *)s->s_i_data;
+	rt_db_free_internal(ip);
+	BU_PUT(ip, struct rt_db_internal);
+    }
 }
 
 int
@@ -73,6 +78,11 @@ _gobjs_cmd_create(void *bs, int argc, const char **argv)
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
+
+    if (!wdbp || !dbip) {
+	bu_vls_printf(gedp->ged_result_str, "Database not open\n");
+	return BRLCAD_ERROR;
+    }
 
     if (argc != 2) {
 	bu_vls_printf(gedp->ged_result_str, "view gobjs create g_obj_name view_obj_name\n");
@@ -115,6 +125,8 @@ _gobjs_cmd_create(void *bs, int argc, const char **argv)
     RT_DB_INTERNAL_INIT(ip);
     ret = rt_db_get_internal(ip, DB_FULL_PATH_CUR_DIR(fp), dbip, mat);
     if (ret < 0) {
+	rt_db_free_internal(ip);
+	BU_PUT(ip, struct rt_db_internal);
 	db_free_full_path(fp);
 	BU_PUT(fp, struct db_full_path);
 	return BRLCAD_ERROR;
@@ -122,8 +134,13 @@ _gobjs_cmd_create(void *bs, int argc, const char **argv)
 
     /* Set up the toplevel object */
     struct bv_scene_group *g = bv_obj_get(v, BV_DB_OBJS);
-    if (!g)
+    if (!g) {
+	rt_db_free_internal(ip);
+	BU_PUT(ip, struct rt_db_internal);
+	db_free_full_path(fp);
+	BU_PUT(fp, struct db_full_path);
 	return BRLCAD_ERROR;
+    }
     BU_GET(g->s_path, struct db_full_path);
     db_full_path_init((struct db_full_path *)g->s_path);
     db_dup_full_path((struct db_full_path *)g->s_path, fp);
@@ -154,6 +171,9 @@ _gobjs_cmd_create(void *bs, int argc, const char **argv)
 
     // Create a wireframe from the current state of the specified object
     draw_gather_paths(fp, &mat, (void *)&dd);
+
+    db_free_full_path(fp);
+    BU_PUT(fp, struct db_full_path);
 
     // TODO - set the object callbacks
 

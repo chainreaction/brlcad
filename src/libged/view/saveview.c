@@ -94,7 +94,7 @@ ged_saveview_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmdname, usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmdname, usage);
 	return GED_HELP;
     }
 
@@ -124,13 +124,13 @@ ged_saveview_core(struct ged *gedp, int argc, const char *argv[])
     argv += bu_optind-1;
 
     if (argc < 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmdname, usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", cmdname, usage);
 	return BRLCAD_ERROR;
     }
 
     fp = fopen(argv[1], "a");
     if (fp == NULL) {
-	perror(argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "saveview: cannot open %s\n", argv[1]);
 	return BRLCAD_ERROR;
     }
     (void)bu_fchmod(fileno(fp), 0755);	/* executable */
@@ -170,11 +170,13 @@ ged_saveview_core(struct ged *gedp, int argc, const char *argv[])
     }
     fprintf(fp, " '%s'\\\n ", inputg);
 
-    gdlp = BU_LIST_NEXT(display_list, gedp->i->ged_gdp->gd_headDisplay);
-    while (BU_LIST_NOT_HEAD(gdlp, gedp->i->ged_gdp->gd_headDisplay)) {
-	next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
-	fprintf(fp, "'%s' ", bu_vls_addr(&gdlp->dl_path));
-	gdlp = next_gdlp;
+    if (gedp->i && gedp->i->ged_gdp && gedp->i->ged_gdp->gd_headDisplay) {
+	gdlp = BU_LIST_NEXT(display_list, gedp->i->ged_gdp->gd_headDisplay);
+	while (BU_LIST_NOT_HEAD(gdlp, gedp->i->ged_gdp->gd_headDisplay)) {
+	    next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
+	    fprintf(fp, "'%s' ", bu_vls_cstr(&gdlp->dl_path));
+	    gdlp = next_gdlp;
+	}
     }
 
     fprintf(fp, "\\\n 2>> %s\\\n", outlog);

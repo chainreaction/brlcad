@@ -103,8 +103,7 @@ _poly_cmd_create(void *bs, int argc, const char **argv)
 	bu_vls_printf(gedp->ged_result_str, "Failed to create %s\n", gd->vobj);
 	return BRLCAD_ERROR;
     }
-    bu_vls_init(&s->s_name);
-    bu_vls_printf(&s->s_name, "%s", gd->vobj);
+    bu_vls_sprintf(&s->s_name, "%s", gd->vobj);
 
     return BRLCAD_OK;
 }
@@ -495,6 +494,11 @@ _poly_cmd_overlap(void *bs, int argc, const char **argv)
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    if (!wdbp) {
+	bu_vls_printf(gedp->ged_result_str, "Database not open\n");
+	return BRLCAD_ERROR;
+    }
+
     struct bv_scene_obj *s = gd->s;
     if (!s) {
 	bu_vls_printf(gedp->ged_result_str, "View object %s does not exist\n", gd->vobj);
@@ -528,7 +532,7 @@ _poly_cmd_overlap(void *bs, int argc, const char **argv)
 	if (local_view_objs) {
 	    for (size_t i = 0; i < BU_PTBL_LEN(local_view_objs); i++) {
 		struct bv_scene_obj *stest = (struct bv_scene_obj *)BU_PTBL_GET(local_view_objs, i);
-		if (BU_STR_EQUAL(argv[1], bu_vls_cstr(&stest->s_name))) {
+		if (BU_STR_EQUAL(argv[0], bu_vls_cstr(&stest->s_name))) {
 		    s2 = stest;
 		    break;
 		}
@@ -844,11 +848,11 @@ _poly_cmd_csg(void *bs, int argc, const char **argv)
 	}
     }
     if (!s2) {
-	bu_vls_printf(gedp->ged_result_str, "View object %s does not exist\n", argv[0]);
+	bu_vls_printf(gedp->ged_result_str, "View object %s does not exist\n", argv[1]);
 	return BRLCAD_ERROR;
     }
     if (!(s2->s_type_flags & BV_VIEWONLY) || !(s2->s_type_flags & BV_POLYGONS)) {
-	bu_vls_printf(gedp->ged_result_str, "%s is not a view polygon.\n", argv[0]);
+	bu_vls_printf(gedp->ged_result_str, "%s is not a view polygon.\n", argv[1]);
 	return BRLCAD_ERROR;
     }
 

@@ -58,11 +58,11 @@ ged_size_core(struct ged *gedp, int argc, const char *argv[])
 
     /* set view size */
     if (argc == 2) {
-	if (sscanf(argv[1], "%lf", &size) != 1
+	if (bu_sscanf(argv[1], "%lf", &size) != 1
 	    || size <= 0
 	    || ZERO(size))
 	{
-	    bu_vls_printf(gedp->ged_result_str, "bad size - %s", argv[1]);
+	    bu_vls_printf(gedp->ged_result_str, "bad size - %s\n", argv[1]);
 	    return BRLCAD_ERROR;
 	}
 
@@ -76,7 +76,7 @@ ged_size_core(struct ged *gedp, int argc, const char *argv[])
 	return BRLCAD_OK;
     }
 
-    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
     return BRLCAD_ERROR;
 }
 

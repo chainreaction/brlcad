@@ -828,7 +828,7 @@ ged_view_core(struct ged *gedp, int argc, const char *argv[])
 	    }
 	}
 	if (!gd.cv) {
-	    bu_vls_printf(gedp->ged_result_str, ": invalid view name: %s", bu_vls_cstr(&vname));
+	    bu_vls_printf(gedp->ged_result_str, ": invalid view name: %s\n", bu_vls_cstr(&vname));
 	    bu_vls_free(&vname);
 	    return BRLCAD_ERROR;
 	}
@@ -837,7 +837,7 @@ ged_view_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     if (!gd.cv) {
-	bu_vls_printf(gedp->ged_result_str, ": no view specified and no view listed as current in GED");
+	bu_vls_printf(gedp->ged_result_str, ": no view specified and no view listed as current in GED\n");
 	bu_vls_free(&vname);
 	return BRLCAD_ERROR;
     }
@@ -847,7 +847,7 @@ ged_view_core(struct ged *gedp, int argc, const char *argv[])
 	bu_vls_free(&vname);
 	return ret;
     } else {
-	bu_vls_printf(gedp->ged_result_str, "subcommand %s not defined", argv[0]);
+	bu_vls_printf(gedp->ged_result_str, "subcommand %s not defined\n", argv[0]);
     }
 
     bu_vls_free(&vname);
@@ -871,7 +871,7 @@ ged_view_func_core(struct ged *gedp, int argc, const char *argv[])
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
@@ -945,7 +945,7 @@ ged_view_func_core(struct ged *gedp, int argc, const char *argv[])
 	return ged_ypr_core(gedp, argc-1, argv+1);
     }
 
-    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s\n", argv[0], usage);
     return BRLCAD_ERROR;
 }
 

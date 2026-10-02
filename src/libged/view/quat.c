@@ -54,17 +54,17 @@ ged_quat_core(struct ged *gedp, int argc, const char *argv[])
     }
 
     if (argc != 5) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: view %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: view %s %s\n", argv[0], usage);
 	return BRLCAD_ERROR;
     }
 
     /* Set the view orientation given a quaternion */
-    if (sscanf(argv[1], "%lf", &scan[0]) != 1
-	|| sscanf(argv[2], "%lf", &scan[1]) != 1
-	|| sscanf(argv[3], "%lf", &scan[2]) != 1
-	|| sscanf(argv[4], "%lf", &scan[3]) != 1)
+    if (bu_sscanf(argv[1], "%lf", &scan[0]) != 1
+	|| bu_sscanf(argv[2], "%lf", &scan[1]) != 1
+	|| bu_sscanf(argv[3], "%lf", &scan[2]) != 1
+	|| bu_sscanf(argv[4], "%lf", &scan[3]) != 1)
     {
-	bu_vls_printf(gedp->ged_result_str, "view %s: bad value detected - %s %s %s %s",
+	bu_vls_printf(gedp->ged_result_str, "view %s: bad value detected - %s %s %s %s\n",
 		      argv[0], argv[1], argv[2], argv[3], argv[4]);
 	return BRLCAD_ERROR;
     }
