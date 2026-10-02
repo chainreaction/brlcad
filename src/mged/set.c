@@ -136,12 +136,19 @@ set_dirty_flag(const struct bu_structparse *UNUSED(sdp),
 	       void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s)
+	s = MGED_STATE;
+    if (!s)
+	return;
     MGED_CK_STATE(s);
+    if (!mged_variables)
+	return;
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *m_dmp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
-	if (m_dmp->dm_mged_variables == mged_variables) {
+	if (m_dmp && m_dmp->dm_mged_variables == mged_variables) {
 	    m_dmp->dm_dirty = 1;
-	    dm_set_dirty(m_dmp->dm_dmp, 1);
+	    if (m_dmp->dm_dmp)
+		dm_set_dirty(m_dmp->dm_dmp, 1);
 	}
     }
 }
@@ -155,13 +162,21 @@ nmg_eu_dist_set(const struct bu_structparse *UNUSED(sdp),
 		void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s)
+	s = MGED_STATE;
+    if (!s)
+	return;
     MGED_CK_STATE(s);
+    if (!mged_variables)
+	return;
+
     struct bu_vls tmp_vls = BU_VLS_INIT_ZERO;
 
     nmg_eue_dist = mged_variables->mv_nmg_eu_dist;
 
     bu_vls_printf(&tmp_vls, "New nmg_eue_dist = %g\n", nmg_eue_dist);
-    Tcl_AppendResult(s->interp, bu_vls_addr(&tmp_vls), (char *)NULL);
+    if (s->interp)
+	Tcl_AppendResult(s->interp, bu_vls_cstr(&tmp_vls), (char *)NULL);
     bu_vls_free(&tmp_vls);
 }
 
@@ -176,19 +191,19 @@ nmg_eu_dist_set(const struct bu_structparse *UNUSED(sdp),
 static char *
 read_var(ClientData clientData, Tcl_Interp *interp, const char *UNUSED(name1), const char *UNUSED(name2), int flags)
     /* Contains pointer to bu_struct_parse entry */
-
-
 {
     struct mged_state *s = MGED_STATE;
     struct bu_structparse *sp = (struct bu_structparse *)clientData;
     struct bu_vls str = BU_VLS_INIT_ZERO;
 
-    /* Ask the libbu structparser for the value of the variable */
+    if (!s || !s->mged_curr_dm || !interp || !sp || !sp->sp_name || !mged_variables)
+	return NULL;
 
+    /* Ask the libbu structparser for the value of the variable */
     bu_vls_struct_item(&str, sp, (const char *)mged_variables, ' ');
 
     /* Next, set the Tcl variable to this value */
-    (void)Tcl_SetVar(interp, sp->sp_name, bu_vls_addr(&str),
+    (void)Tcl_SetVar(interp, sp->sp_name, bu_vls_cstr(&str),
 		     (flags&TCL_GLOBAL_ONLY)|TCL_LEAVE_ERR_MSG);
 
     bu_vls_free(&str);
@@ -212,8 +227,14 @@ write_var(ClientData clientData, Tcl_Interp *interp, const char *name1, const ch
     struct bu_vls str = BU_VLS_INIT_ZERO;
     const char *newvalue;
 
+    if (!s || !s->mged_curr_dm || !interp || !sp || !sp->sp_name || !name1 || !mged_variables)
+	return NULL;
+
     newvalue = Tcl_GetVar(interp, sp->sp_name,
 			  (flags&TCL_GLOBAL_ONLY)|TCL_LEAVE_ERR_MSG);
+    if (!newvalue)
+	return NULL;
+
     bu_vls_printf(&str, "%s=\"%s\"", name1, newvalue);
     if (bu_struct_parse(&str, mged_vparse, (char *)mged_variables, MGED_STATE) < 0) {
 	Tcl_AppendResult(interp, "ERROR OCCURRED WHEN SETTING ", name1,
@@ -226,7 +247,8 @@ write_var(ClientData clientData, Tcl_Interp *interp, const char *name1, const ch
      * editing context.  We have to first check for s_edit before doing this
      * assignment (and always initialize it after creating an s_edit instance.)
      */
-    MEDIT(s)->mv_context = mged_variables->mv_context;
+    if (s && s->s_edit && MEDIT(s))
+	MEDIT(s)->mv_context = mged_variables->mv_context;
 
     bu_vls_free(&str);
     return read_var(clientData, interp, name1, name2,
@@ -246,6 +268,9 @@ unset_var(ClientData clientData, Tcl_Interp *interp, const char *name1, const ch
 {
     struct bu_structparse *sp = (struct bu_structparse *)clientData;
 
+    if (!interp || !sp || !sp->sp_name)
+	return NULL;
+
     if (flags & TCL_INTERP_DESTROYED)
 	return NULL;
 
@@ -262,7 +287,10 @@ unset_var(ClientData clientData, Tcl_Interp *interp, const char *name1, const ch
     read_var(clientData, interp, name1, name2,
 	     (flags&(~TCL_TRACE_UNSETS))|TCL_TRACE_READS);
 
-    MGED_STATE->s_edit->e->mv_context = MGED_STATE->mged_curr_dm->dm_mged_variables->mv_context;
+    if (MGED_STATE && MGED_STATE->s_edit && MGED_STATE->s_edit->e &&
+	MGED_STATE->mged_curr_dm && MGED_STATE->mged_curr_dm->dm_mged_variables) {
+	MGED_STATE->s_edit->e->mv_context = MGED_STATE->mged_curr_dm->dm_mged_variables->mv_context;
+    }
 
     return NULL;
 }
@@ -279,6 +307,9 @@ unset_var(ClientData clientData, Tcl_Interp *interp, const char *name1, const ch
 void
 mged_variable_setup(struct mged_state *s)
 {
+    if (!s || !s->interp)
+	return;
+
     Tcl_Interp *interp = s->interp;
     struct bu_structparse *sp;
 
@@ -327,9 +358,12 @@ f_set(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-    if (argc < 1 || 2 < argc) {
+    if (!interp)
+	return TCL_ERROR;
+
+    if (argc < 1 || 2 < argc || !argv) {
 	bu_vls_printf(&vls, "help vars");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 
 	return TCL_ERROR;
@@ -337,10 +371,11 @@ f_set(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 
     mged_vls_struct_parse_old(s, &vls, "mged variables", mged_vparse,
 			      (char *)mged_variables, argc, argv);
-    Tcl_AppendResult(interp, bu_vls_addr(&vls), (char *)NULL);
+    Tcl_AppendResult(interp, bu_vls_cstr(&vls), (char *)NULL);
     bu_vls_free(&vls);
 
-    MEDIT(s)->mv_context = mged_variables->mv_context;
+    if (s && s->s_edit && MEDIT(s) && mged_variables)
+	MEDIT(s)->mv_context = mged_variables->mv_context;
 
     return TCL_OK;
 }
@@ -354,6 +389,10 @@ set_scroll_private(const struct bu_structparse *UNUSED(sdp),
 		   void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s)
+	s = MGED_STATE;
+    if (!s || !s->mged_curr_dm)
+	return;
     MGED_CK_STATE(s);
     struct mged_dm *save_m_dmp;
 
@@ -361,16 +400,17 @@ set_scroll_private(const struct bu_structparse *UNUSED(sdp),
 
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *m_dmp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
-	if (m_dmp->dm_mged_variables == save_m_dmp->dm_mged_variables) {
+	if (m_dmp && save_m_dmp && m_dmp->dm_mged_variables == save_m_dmp->dm_mged_variables) {
 	    set_curr_dm(s, m_dmp);
 
-	    if (mged_variables->mv_faceplate && mged_variables->mv_orig_gui) {
+	    if (mged_variables && mged_variables->mv_faceplate && mged_variables->mv_orig_gui) {
 		if (mged_variables->mv_sliders)	/* zero slider variables */
 		    mged_svbase(s);
 
 		set_scroll(s);		/* set scroll_array for drawing the scroll bars */
 		DMP_dirty = 1;
-		dm_set_dirty(DMP, 1);
+		if (DMP)
+		    dm_set_dirty(DMP, 1);
 	    }
 	}
     }
@@ -382,6 +422,9 @@ set_scroll_private(const struct bu_structparse *UNUSED(sdp),
 void
 set_absolute_tran(struct mged_state *s)
 {
+    if (!s)
+	return;
+
     /* calculate absolute_tran */
     set_absolute_view_tran(s);
 
@@ -393,6 +436,9 @@ set_absolute_tran(struct mged_state *s)
 void
 set_absolute_view_tran(struct mged_state *s)
 {
+    if (!s || !view_state || !view_state->vs_gvp)
+	return;
+
     /* calculate absolute_tran */
     MAT4X3PNT(view_state->k.tra_v_abs, view_state->vs_gvp->gv_model2view, view_state->vs_orig_pos);
     /* This is used in f_knob()  ---- needed in case absolute_tran is set from Tcl */
@@ -406,10 +452,16 @@ set_absolute_model_tran(struct mged_state *s)
     point_t new_pos;
     point_t diff;
 
+    if (!s || !view_state || !view_state->vs_gvp)
+	return;
+
+    if (ZERO(view_state->vs_gvp->gv_scale))
+	return;
+
     /* calculate absolute_model_tran */
     MAT_DELTAS_GET_NEG(new_pos, view_state->vs_gvp->gv_center);
     VSUB2(diff, view_state->vs_orig_pos, new_pos);
-    VSCALE(view_state->k.tra_m_abs, diff, 1/view_state->vs_gvp->gv_scale);
+    VSCALE(view_state->k.tra_m_abs, diff, 1.0 / view_state->vs_gvp->gv_scale);
     /* This is used in f_knob()  ---- needed in case absolute_model_tran is set from Tcl */
     VMOVE(view_state->k.tra_m_abs_last, view_state->k.tra_m_abs);
 }
@@ -423,6 +475,10 @@ set_dlist(const struct bu_structparse *UNUSED(sdp),
 	  void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s)
+	s = MGED_STATE;
+    if (!s || !s->mged_curr_dm || !mged_variables)
+	return;
     MGED_CK_STATE(s);
     struct mged_dm *save_dlp;
 
@@ -436,6 +492,8 @@ set_dlist(const struct bu_structparse *UNUSED(sdp),
 	for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 
 	    struct mged_dm *dlp1 = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
+	    if (!dlp1 || !dlp1->dm_dmp || !dlp1->dm_dlist_state)
+		continue;
 
 	    if (dlp1->dm_mged_variables != save_dlp->dm_mged_variables) {
 		continue;
@@ -444,7 +502,8 @@ set_dlist(const struct bu_structparse *UNUSED(sdp),
 	    if (dm_get_displaylist(dlp1->dm_dmp) &&
 		dlp1->dm_dlist_state->dl_active == 0) {
 		set_curr_dm(s, dlp1);
-		createDLists((void *)s, (struct bu_list *)ged_dl(s->gedp));
+		if (s->gedp && ged_dl(s->gedp))
+		    createDLists((void *)s, (struct bu_list *)ged_dl(s->gedp));
 		dlp1->dm_dlist_state->dl_active = 1;
 		dlp1->dm_dirty = 1;
 		dm_set_dirty(dlp1->dm_dmp, 1);
@@ -459,6 +518,8 @@ set_dlist(const struct bu_structparse *UNUSED(sdp),
 	for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 
 	    struct mged_dm *dlp1 = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
+	    if (!dlp1 || !dlp1->dm_dmp || !dlp1->dm_dlist_state)
+		continue;
 
 	    if (dlp1->dm_mged_variables != save_dlp->dm_mged_variables)
 		continue;
@@ -467,21 +528,23 @@ set_dlist(const struct bu_structparse *UNUSED(sdp),
 		/* for each display manager dlp2 that is sharing display lists with dlp1 */
 		struct mged_dm *dlp2 = MGED_DM_NULL;
 		for (size_t dj = 0; dj < BU_PTBL_LEN(&active_dm_set); dj++) {
-		    struct mged_dm *m_dmp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
+		    struct mged_dm *m_dmp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, dj);
+		    if (!m_dmp || m_dmp == dlp1)
+			continue;
 
 		    if (m_dmp->dm_dlist_state != dlp1->dm_dlist_state) {
 			continue;
 		    }
 
-		    /* found a dlp2 that is actively using dlp1's display lists */
-		    if (dlp2 && dlp2->dm_mged_variables->mv_dlist) {
+		    /* found another dm that is actively using this display list state */
+		    if (m_dmp->dm_mged_variables && m_dmp->dm_mged_variables->mv_dlist) {
 			dlp2 = m_dmp;
 			break;
 		    }
 		}
 
 		/* these display lists are not being used, so free them */
-		if (dlp2 == MGED_DM_NULL) {
+		if (dlp2 == MGED_DM_NULL && s->gedp && ged_dl(s->gedp)) {
 		    struct display_list *gdlp;
 		    struct display_list *next_gdlp;
 
@@ -491,11 +554,16 @@ set_dlist(const struct bu_structparse *UNUSED(sdp),
 		    while (BU_LIST_NOT_HEAD(gdlp, (struct bu_list *)ged_dl(s->gedp))) {
 			next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
 
-			(void)dm_make_current(dlp1->dm_dmp);
-			(void)dm_free_dlists(dlp1->dm_dmp,
-				      BU_LIST_FIRST(bv_scene_obj, &gdlp->dl_head_scene_obj)->s_dlist,
-				      BU_LIST_LAST(bv_scene_obj, &gdlp->dl_head_scene_obj)->s_dlist -
-				      BU_LIST_FIRST(bv_scene_obj, &gdlp->dl_head_scene_obj)->s_dlist + 1);
+			if (BU_LIST_NON_EMPTY(&gdlp->dl_head_scene_obj)) {
+			    struct bv_scene_obj *first_obj = BU_LIST_FIRST(bv_scene_obj, &gdlp->dl_head_scene_obj);
+			    struct bv_scene_obj *last_obj = BU_LIST_LAST(bv_scene_obj, &gdlp->dl_head_scene_obj);
+			    if (first_obj && last_obj && last_obj->s_dlist >= first_obj->s_dlist) {
+				(void)dm_make_current(dlp1->dm_dmp);
+				(void)dm_free_dlists(dlp1->dm_dmp,
+						      first_obj->s_dlist,
+						      last_obj->s_dlist - first_obj->s_dlist + 1);
+			    }
+			}
 
 			gdlp = next_gdlp;
 		    }
@@ -517,7 +585,12 @@ set_perspective(const struct bu_structparse *sdp,
 		void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s)
+	s = MGED_STATE;
+    if (!s || !mged_variables)
+	return;
     MGED_CK_STATE(s);
+
     /* if perspective is set to something greater than 0, turn perspective mode on */
     if (mged_variables->mv_perspective > 0)
 	mged_variables->mv_perspective_mode = 1;
@@ -525,10 +598,12 @@ set_perspective(const struct bu_structparse *sdp,
 	mged_variables->mv_perspective_mode = 0;
 
     /* keep view object in sync */
-    view_state->vs_gvp->gv_perspective = mged_variables->mv_perspective;
+    if (view_state && view_state->vs_gvp)
+	view_state->vs_gvp->gv_perspective = mged_variables->mv_perspective;
 
     /* keep display manager in sync */
-    dm_set_perspective(DMP, mged_variables->mv_perspective_mode);
+    if (s->mged_curr_dm && DMP)
+	dm_set_perspective(DMP, mged_variables->mv_perspective_mode);
 
     set_dirty_flag(sdp, name, base, value, data);
 }
@@ -542,15 +617,25 @@ establish_perspective(const struct bu_structparse *sdp,
 		      void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s)
+	s = MGED_STATE;
+    if (!s || !mged_variables || !s->mged_curr_dm)
+	return;
     MGED_CK_STATE(s);
+
+    if (perspective_angle < 0 || perspective_angle > 3)
+	perspective_angle = 0;
+
     mged_variables->mv_perspective = mged_variables->mv_perspective_mode ?
 	perspective_table[perspective_angle] : -1;
 
     /* keep view object in sync */
-    view_state->vs_gvp->gv_perspective = mged_variables->mv_perspective;
+    if (view_state && view_state->vs_gvp)
+	view_state->vs_gvp->gv_perspective = mged_variables->mv_perspective;
 
     /* keep display manager in sync */
-    dm_set_perspective(DMP, mged_variables->mv_perspective_mode);
+    if (DMP)
+	dm_set_perspective(DMP, mged_variables->mv_perspective_mode);
 
     set_dirty_flag(sdp, name, base, value, data);
 }
@@ -569,13 +654,21 @@ toggle_perspective(const struct bu_structparse *sdp,
 		   void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s)
+	s = MGED_STATE;
+    if (!s || !mged_variables || !s->mged_curr_dm)
+	return;
     MGED_CK_STATE(s);
-     /* set perspective matrix */
+
+    /* set perspective matrix */
     if (mged_variables->mv_toggle_perspective > 0)
 	perspective_angle = mged_variables->mv_toggle_perspective <= 4 ?
 	    mged_variables->mv_toggle_perspective - 1: 3;
     else if (--perspective_angle < 0) /* toggle perspective matrix */
 	perspective_angle = 3;
+
+    if (perspective_angle < 0 || perspective_angle > 3)
+	perspective_angle = 0;
 
     /*
       Just in case the "!" is used with the set command. This
@@ -589,10 +682,12 @@ toggle_perspective(const struct bu_structparse *sdp,
     mged_variables->mv_perspective = perspective_table[perspective_angle];
 
     /* keep view object in sync */
-    view_state->vs_gvp->gv_perspective = mged_variables->mv_perspective;
+    if (view_state && view_state->vs_gvp)
+	view_state->vs_gvp->gv_perspective = mged_variables->mv_perspective;
 
     /* keep display manager in sync */
-    dm_set_perspective(DMP, mged_variables->mv_perspective_mode);
+    if (DMP)
+	dm_set_perspective(DMP, mged_variables->mv_perspective_mode);
 
     set_dirty_flag(sdp, name, base, value, data);
 }
@@ -606,6 +701,10 @@ set_coords(const struct bu_structparse *UNUSED(sdp),
 	   void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s)
+	s = MGED_STATE;
+    if (!s || !view_state || !view_state->vs_gvp || !mged_variables)
+	return;
     MGED_CK_STATE(s);
     view_state->vs_gvp->gv_coord = mged_variables->mv_coords;
 }
@@ -619,6 +718,10 @@ set_rotate_about(const struct bu_structparse *UNUSED(sdp),
 		 void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s)
+	s = MGED_STATE;
+    if (!s || !view_state || !view_state->vs_gvp || !mged_variables)
+	return;
     MGED_CK_STATE(s);
     view_state->vs_gvp->gv_rotate_about = mged_variables->mv_rotate_about;
 }

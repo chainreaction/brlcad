@@ -41,22 +41,26 @@
 
 /* These values go in edit_flag .  Some names not changed yet */
 
-#define SEDIT_ROTATE (s->global_editing_state == ST_S_EDIT && \
+#define SEDIT_ROTATE (s && s->s_edit && s->s_edit->e && \
+	s->global_editing_state == ST_S_EDIT && \
 	s->s_edit->e->edit_mode == RT_PARAMS_EDIT_ROT)
-#define SEDIT_TRAN (s->global_editing_state == ST_S_EDIT && \
+#define SEDIT_TRAN (s && s->s_edit && s->s_edit->e && \
+	s->global_editing_state == ST_S_EDIT && \
 	s->s_edit->e->edit_mode == RT_PARAMS_EDIT_TRANS)
-#define SEDIT_SCALE (s->global_editing_state == ST_S_EDIT && \
+#define SEDIT_SCALE (s && s->s_edit && s->s_edit->e && \
+	s->global_editing_state == ST_S_EDIT && \
 	s->s_edit->e->edit_mode == RT_PARAMS_EDIT_SCALE)
-#define SEDIT_PICK (s->global_editing_state == ST_S_EDIT && \
+#define SEDIT_PICK (s && s->s_edit && s->s_edit->e && \
+	s->global_editing_state == ST_S_EDIT && \
 	s->s_edit->e->edit_mode == RT_PARAMS_EDIT_PICK)
 
-#define OEDIT_ROTATE (s->global_editing_state == ST_O_EDIT && \
+#define OEDIT_ROTATE (s && s->global_editing_state == ST_O_EDIT && \
 		      edobj == BE_O_ROTATE)
-#define OEDIT_TRAN (s->global_editing_state == ST_O_EDIT && \
+#define OEDIT_TRAN (s && s->global_editing_state == ST_O_EDIT && \
 		    (edobj == BE_O_X || \
 		     edobj == BE_O_Y || \
 		     edobj == BE_O_XY))
-#define OEDIT_SCALE (s->global_editing_state == ST_O_EDIT && \
+#define OEDIT_SCALE (s && s->global_editing_state == ST_O_EDIT && \
 		     (edobj == BE_O_XSCALE || \
 		      edobj == BE_O_YSCALE || \
 		      edobj == BE_O_ZSCALE || \

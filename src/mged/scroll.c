@@ -95,16 +95,29 @@ struct scroll_item sl_adc_menu[] = {
 /*
  * Set scroll_array.
  */
+/*
+ * Set scroll_array.
+ */
 void
 set_scroll(struct mged_state *s)
 {
+    size_t i;
+    size_t max_scroll;
+
+    if (!s || !s->mged_curr_dm || !mged_variables)
+	return;
+
+    max_scroll = sizeof(s->mged_curr_dm->dm_scroll_array) / sizeof(s->mged_curr_dm->dm_scroll_array[0]);
+    for (i = 0; i < max_scroll; i++)
+	scroll_array[i] = NULL;
+
     if (mged_variables->mv_sliders) {
 	if (mged_variables->mv_rateknobs)
 	    scroll_array[0] = sl_menu;
 	else
 	    scroll_array[0] = sl_abs_menu;
 
-	if (adc_state->adc_draw)
+	if (adc_state && adc_state->adc_draw)
 	    scroll_array[1] = sl_adc_menu;
 	else
 	    scroll_array[1] = NULL;
@@ -125,8 +138,11 @@ sl_halt_scroll(struct rt_edit *UNUSED(es), int UNUSED(a), int UNUSED(b), int UNU
     struct mged_state *s = (struct mged_state *)data;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
+    if (!s || !s->interp)
+	return;
+
     bu_vls_printf(&vls, "knob zero");
-    (void)Tcl_Eval(s->interp, bu_vls_addr(&vls));
+    (void)Tcl_Eval(s->interp, bu_vls_cstr(&vls));
     bu_vls_free(&vls);
 }
 
@@ -135,6 +151,9 @@ void
 sl_toggle_scroll(struct rt_edit *UNUSED(es), int UNUSED(a), int UNUSED(b), int UNUSED(c), void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!mged_variables)
+	return;
+
     mged_variables->mv_sliders = mged_variables->mv_sliders ? 0 : 1;
 
     {
@@ -158,22 +177,30 @@ sl_toggle_scroll(struct rt_edit *UNUSED(es), int UNUSED(a), int UNUSED(b), int U
  *									*
  ************************************************************************/
 
+static inline double
+apply_sl_tol(double val)
+{
+    if (val < -SL_TOL)
+	return val + SL_TOL;
+    if (val > SL_TOL)
+	return val - SL_TOL;
+    return 0.0;
+}
+
+
 static void
 sl_tol(struct scroll_item *mptr, double val)
 {
     struct mged_state *s = MGED_STATE;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-    if (val < -SL_TOL) {
-	val += SL_TOL;
-    } else if (val > SL_TOL) {
-	val -= SL_TOL;
-    } else {
-	val = 0.0;
-    }
+    if (!s || !s->interp || !mptr || !mptr->scroll_cmd)
+	return;
+
+    val = apply_sl_tol(val);
 
     bu_vls_printf(&vls, "knob %s %f", mptr->scroll_cmd, val);
-    Tcl_Eval(s->interp, bu_vls_addr(&vls));
+    Tcl_Eval(s->interp, bu_vls_cstr(&vls));
     bu_vls_free(&vls);
 }
 
@@ -184,19 +211,16 @@ sl_atol(struct scroll_item *mptr, double val)
     struct mged_state *s = MGED_STATE;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-    if (s->dbip == DBI_NULL)
+    if (!s || !s->interp || !mptr || !mptr->scroll_cmd || !s->dbip || s->dbip == DBI_NULL)
 	return;
 
-    if (val < -SL_TOL) {
-	val += SL_TOL;
-    } else if (val > SL_TOL) {
-	val -= SL_TOL;
-    } else {
-	val = 0.0;
-    }
+    if (!view_state || !view_state->vs_gvp)
+	return;
+
+    val = apply_sl_tol(val);
 
     bu_vls_printf(&vls, "knob %s %f", mptr->scroll_cmd, val*view_state->vs_gvp->gv_scale*s->dbip->dbi_base2local);
-    Tcl_Eval(s->interp, bu_vls_addr(&vls));
+    Tcl_Eval(s->interp, bu_vls_cstr(&vls));
     bu_vls_free(&vls);
 }
 
@@ -207,16 +231,13 @@ sl_rrtol(struct scroll_item *mptr, double val)
     struct mged_state *s = MGED_STATE;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-    if (val < -SL_TOL) {
-	val += SL_TOL;
-    } else if (val > SL_TOL) {
-	val -= SL_TOL;
-    } else {
-	val = 0.0;
-    }
+    if (!s || !s->interp || !mptr || !mptr->scroll_cmd)
+	return;
+
+    val = apply_sl_tol(val);
 
     bu_vls_printf(&vls, "knob %s %f", mptr->scroll_cmd, val * RATE_ROT_FACTOR);
-    Tcl_Eval(s->interp, bu_vls_addr(&vls));
+    Tcl_Eval(s->interp, bu_vls_cstr(&vls));
     bu_vls_free(&vls);
 }
 
@@ -227,16 +248,13 @@ sl_artol(struct scroll_item *mptr, double val)
     struct mged_state *s = MGED_STATE;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-    if (val < -SL_TOL) {
-	val += SL_TOL;
-    } else if (val > SL_TOL) {
-	val -= SL_TOL;
-    } else {
-	val = 0.0;
-    }
+    if (!s || !s->interp || !mptr || !mptr->scroll_cmd)
+	return;
+
+    val = apply_sl_tol(val);
 
     bu_vls_printf(&vls, "knob %s %f", mptr->scroll_cmd, val*ABS_ROT_FACTOR);
-    Tcl_Eval(s->interp, bu_vls_addr(&vls));
+    Tcl_Eval(s->interp, bu_vls_cstr(&vls));
     bu_vls_free(&vls);
 }
 
@@ -247,16 +265,13 @@ sl_adctol(struct scroll_item *mptr, double val)
     struct mged_state *s = MGED_STATE;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-    if (val < -SL_TOL) {
-	val += SL_TOL;
-    } else if (val > SL_TOL) {
-	val -= SL_TOL;
-    } else {
-	val = 0.0;
-    }
+    if (!s || !s->interp || !mptr || !mptr->scroll_cmd)
+	return;
+
+    val = apply_sl_tol(val);
 
     bu_vls_printf(&vls, "knob %s %f", mptr->scroll_cmd, 45.0 - val*45.0);
-    Tcl_Eval(s->interp, bu_vls_addr(&vls));
+    Tcl_Eval(s->interp, bu_vls_cstr(&vls));
     bu_vls_free(&vls);
 }
 
@@ -267,16 +282,13 @@ sl_itol(struct scroll_item *mptr, double val)
     struct mged_state *s = MGED_STATE;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-    if (val < -SL_TOL) {
-	val += SL_TOL;
-    } else if (val > SL_TOL) {
-	val -= SL_TOL;
-    } else {
-	val = 0.0;
-    }
+    if (!s || !s->interp || !mptr || !mptr->scroll_cmd)
+	return;
+
+    val = apply_sl_tol(val);
 
     bu_vls_printf(&vls, "knob %s %f", mptr->scroll_cmd, val*BV_MAX);
-    Tcl_Eval(s->interp, bu_vls_addr(&vls));
+    Tcl_Eval(s->interp, bu_vls_cstr(&vls));
     bu_vls_free(&vls);
 }
 
@@ -291,6 +303,9 @@ sl_itol(struct scroll_item *mptr, double val)
 static void
 second_menu_scroll_display(fastf_t *f, struct scroll_item *mptr, struct mged_state *s)
 {
+    if (!f || !mptr || !s || !adc_state || !DMP || !color_scheme)
+	return;
+
     switch (mptr->scroll_val) {
 	case 0:
 	    *f = (double)adc_state->adc_dv_x * INV_BV;
@@ -308,8 +323,10 @@ second_menu_scroll_display(fastf_t *f, struct scroll_item *mptr, struct mged_sta
 	    *f = (double)adc_state->adc_dv_dist * INV_BV;
 	    break;
 	default:
-	    Tcl_AppendResult(s->interp,
-		    "scroll_display: 2nd scroll menu is hosed\n", (char *)NULL);
+	    if (s->interp) {
+		Tcl_AppendResult(s->interp,
+			"scroll_display: 2nd scroll menu is hosed\n", (char *)NULL);
+	    }
 	    return;
     }
 
@@ -325,6 +342,9 @@ second_menu_scroll_display(fastf_t *f, struct scroll_item *mptr, struct mged_sta
 static int
 edit_scroll_display(fastf_t *f, struct scroll_item *mptr, struct mged_state *s)
 {
+    if (!f || !mptr || !s || !s->s_edit || !MEDIT(s) || !DMP || !color_scheme || !mged_variables)
+	return 0;
+
     /* Determine which edit transform (if any) is active for this scroll_val */
     switch (mptr->scroll_val) {
 	case 0: /* X translation */
@@ -403,6 +423,9 @@ edit_scroll_display(fastf_t *f, struct scroll_item *mptr, struct mged_state *s)
 static void
 view_scroll_display(fastf_t *f, struct scroll_item *mptr, struct mged_state *s)
 {
+    if (!f || !mptr || !s || !view_state || !DMP || !color_scheme || !mged_variables)
+	return;
+
     switch (mptr->scroll_val) {
 	case 0: /* X translation */
 	case 1: /* Y translation */
@@ -444,8 +467,10 @@ view_scroll_display(fastf_t *f, struct scroll_item *mptr, struct mged_state *s)
 	    break;
 
 	default:
-	    Tcl_AppendResult(s->interp,
-		    "scroll_display: first scroll menu is hosed\n", (char *)NULL);
+	    if (s->interp) {
+		Tcl_AppendResult(s->interp,
+			"scroll_display: first scroll menu is hosed\n", (char *)NULL);
+	    }
 	    return;
     }
 
@@ -475,6 +500,10 @@ scroll_display(struct mged_state *s, int y_top)
     int xpos;
     int second_menu = -1;
     fastf_t f = 0;
+    size_t max_scroll;
+
+    if (!s || !s->mged_curr_dm || !DMP || !mged_variables || !color_scheme)
+	return y_top;
 
     scroll_top = y_top;
     y = y_top;
@@ -487,9 +516,10 @@ scroll_display(struct mged_state *s, int y_top)
     else if (EDIT_TRAN && mged_variables->mv_transform == 'e') edit_flag = 1;
     else if (EDIT_SCALE && mged_variables->mv_transform == 'e') edit_flag = 1;
 
-    for (m = &scroll_array[0]; *m != NULL; m++) {
+    max_scroll = sizeof(s->mged_curr_dm->dm_scroll_array) / sizeof(s->mged_curr_dm->dm_scroll_array[0]);
+    for (m = &scroll_array[0]; *m != NULL && m < &scroll_array[max_scroll]; m++) {
 	++second_menu;
-	for (mptr = *m; mptr->scroll_string[0] != '\0'; mptr++) {
+	for (mptr = *m; mptr && mptr->scroll_string && mptr->scroll_string[0] != '\0'; mptr++) {
 	    y += SCROLL_DY;		/* y is now bottom line pos */
 
 	    f = 0.0;
@@ -556,7 +586,9 @@ scroll_select(struct mged_state *s, int pen_x, int pen_y, int do_func)
     int yy;
     struct scroll_item **m;
     struct scroll_item *mptr;
+    size_t max_scroll;
 
+    if (!s || !s->mged_curr_dm || !mged_variables) return 0;
     if (!mged_variables->mv_sliders) return 0;	/* not enabled */
 
     if (pen_y > scroll_top)
@@ -567,8 +599,9 @@ scroll_select(struct mged_state *s, int pen_x, int pen_y, int do_func)
      * above here.
      */
     yy = scroll_top;
-    for (m = &scroll_array[0]; *m != NULL; m++) {
-	for (mptr = *m; mptr->scroll_string[0] != '\0'; mptr++) {
+    max_scroll = sizeof(s->mged_curr_dm->dm_scroll_array) / sizeof(s->mged_curr_dm->dm_scroll_array[0]);
+    for (m = &scroll_array[0]; *m != NULL && m < &scroll_array[max_scroll]; m++) {
+	for (mptr = *m; mptr && mptr->scroll_string && mptr->scroll_string[0] != '\0'; mptr++) {
 	    fastf_t val;
 	    yy += SCROLL_DY;	/* bottom line pos */
 	    if (pen_y < yy)

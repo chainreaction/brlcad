@@ -66,6 +66,14 @@ cmd_rt(ClientData clientData,
 
     CHECK_DBI_NULL;
 
+    if (!interp || argc < 1 || !argv || !argv[0])
+	return TCL_ERROR;
+
+    if (!s || !s->gedp) {
+	Tcl_AppendResult(interp, "rt: internal error: invalid state or gedp\n", (char *)NULL);
+	return TCL_ERROR;
+    }
+
     /* skip past _mged_ */
     if (argv[0][0] == '_' && argv[0][1] == 'm' &&
 	bu_strncmp(argv[0], "_mged_", 6) == 0)
@@ -75,7 +83,7 @@ cmd_rt(ClientData clientData,
 
     ret = ged_exec(s->gedp, argc, (const char **)argv);
 
-    Tcl_DStringAppend(&ds, bu_vls_addr(s->gedp->ged_result_str), -1);
+    Tcl_DStringAppend(&ds, bu_vls_cstr(s->gedp->ged_result_str), -1);
     Tcl_DStringResult(interp, &ds);
 
     if (ret == BRLCAD_OK)
@@ -101,11 +109,14 @@ cmd_rrt(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 
     CHECK_DBI_NULL;
 
-    if (argc < 2) {
+    if (!interp)
+	return TCL_ERROR;
+
+    if (argc < 2 || !argv) {
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help rrt");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -113,10 +124,15 @@ cmd_rrt(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
     if (not_state(s, ST_VIEW, "Ray-trace of current view"))
 	return TCL_ERROR;
 
+    if (!s || !s->gedp) {
+	Tcl_AppendResult(interp, "rrt: internal error: invalid state or gedp\n", (char *)NULL);
+	return TCL_ERROR;
+    }
+
     Tcl_DStringInit(&ds);
 
     ret = ged_exec(s->gedp, argc, (const char **)argv);
-    Tcl_DStringAppend(&ds, bu_vls_addr(s->gedp->ged_result_str), -1);
+    Tcl_DStringAppend(&ds, bu_vls_cstr(s->gedp->ged_result_str), -1);
     Tcl_DStringResult(interp, &ds);
 
     if (ret == BRLCAD_OK)
@@ -134,6 +150,9 @@ rt_read(FILE *fp, fastf_t *scale, fastf_t *eye, fastf_t *mat)
 {
     int i;
     double d;
+
+    if (!fp || !scale || !eye || !mat)
+	return -1;
 
     if (fscanf(fp, "%lf", &d) != 1) return -1;
     *scale = d*0.5;
@@ -184,11 +203,14 @@ f_rmats(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 
     CHECK_DBI_NULL;
 
-    if (argc < 2 || 3 < argc) {
+    if (!interp)
+	return TCL_ERROR;
+
+    if (argc < 2 || 3 < argc || !argv || !argv[1]) {
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help rmats");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -196,16 +218,25 @@ f_rmats(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
     if (not_state(s, ST_VIEW, "animate from matrix file"))
 	return TCL_ERROR;
 
+    if (!view_state || !view_state->vs_gvp) {
+	Tcl_AppendResult(interp, "rmats: invalid view state\n", (char *)NULL);
+	return TCL_ERROR;
+    }
+
     if ((fp = fopen(argv[1], "r")) == NULL) {
 	perror(argv[1]);
+	Tcl_AppendResult(interp, "rmats: cannot open '", argv[1], "'\n", (char *)NULL);
 	return TCL_ERROR;
     }
 
     sp = NULL;
 
     mode = -1;
-    if (argc > 2)
-	mode = atoi(argv[2]);
+    if (argc > 2 && argv[2]) {
+	if (bu_sscanf(argv[2], "%d", &mode) != 1) {
+	    mode = -1;
+	}
+    }
     switch (mode) {
 	case 1:
 	    if ((dp = db_lookup(s->dbip, "EYE", LOOKUP_NOISY)) == RT_DIR_NULL) {
@@ -213,24 +244,27 @@ f_rmats(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 		break;
 	    }
 
-	    gdlp = BU_LIST_NEXT(display_list, (struct bu_list *)ged_dl(s->gedp));
-	    while (BU_LIST_NOT_HEAD(gdlp, (struct bu_list *)ged_dl(s->gedp))) {
-		next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
+	    if (s->gedp && ged_dl(s->gedp)) {
+		gdlp = BU_LIST_NEXT(display_list, (struct bu_list *)ged_dl(s->gedp));
+		while (BU_LIST_NOT_HEAD(gdlp, (struct bu_list *)ged_dl(s->gedp))) {
+		    next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
 
-		for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
-		    if (!sp->s_u_data)
-			continue;
-		    struct ged_bv_data *bdata = (struct ged_bv_data *)sp->s_u_data;
-		    if (LAST_SOLID(bdata) != dp) continue;
-		    if (BU_LIST_IS_EMPTY(&(sp->s_vlist))) continue;
-		    vp = BU_LIST_LAST(bv_vlist, &(sp->s_vlist));
-		    VMOVE(sav_start, vp->pt[vp->nused-1]);
-		    VMOVE(sav_center, sp->s_center);
-		    Tcl_AppendResult(interp, "animating EYE solid\n", (char *)NULL);
-		    goto work;
+		    for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
+			if (!sp || !sp->s_u_data)
+			    continue;
+			struct ged_bv_data *bdata = (struct ged_bv_data *)sp->s_u_data;
+			if (LAST_SOLID(bdata) != dp) continue;
+			if (BU_LIST_IS_EMPTY(&(sp->s_vlist))) continue;
+			vp = BU_LIST_LAST(bv_vlist, &(sp->s_vlist));
+			if (!vp || vp->nused <= 0) continue;
+			VMOVE(sav_start, vp->pt[vp->nused-1]);
+			VMOVE(sav_center, sp->s_center);
+			Tcl_AppendResult(interp, "animating EYE solid\n", (char *)NULL);
+			goto work;
+		    }
+
+		    gdlp = next_gdlp;
 		}
-
-		gdlp = next_gdlp;
 	    }
 	    /* Fall through */
 	default:
@@ -244,10 +278,14 @@ f_rmats(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
     }
 work:
     /* FIXME: this isn't portable or seem well thought-out */
-    if (setjmp(jmp_env) == 0)
+    if (setjmp(jmp_env) == 0) {
 	(void)signal(SIGINT, sig3);  /* allow interrupts */
-    else
+    } else {
+	if (fp)
+	    fclose(fp);
+	(void)signal(SIGINT, SIG_IGN);
 	return TCL_OK;
+    }
 
     while (!feof(fp) &&
 	   rt_read(fp, &scale, eye_model, rot) >= 0) {
@@ -271,18 +309,21 @@ work:
 		new_mats(s);
 		break;
 	    case 1:
+		if (!sp) break;
 		/* Adjust center for displaylist devices */
 		VMOVE(sp->s_center, eye_model);
 
 		/* Adjust vector list for non-dl devices */
 		if (BU_LIST_IS_EMPTY(&(sp->s_vlist))) break;
 		vp = BU_LIST_LAST(bv_vlist, &(sp->s_vlist));
+		if (!vp || vp->nused <= 0) break;
 		VSUB2(xlate, eye_model, vp->pt[vp->nused-1]);
 		for (BU_LIST_FOR(vp, bv_vlist, &(sp->s_vlist))) {
 		    int i;
 		    int nused = vp->nused;
 		    int *cmd = vp->cmd;
 		    point_t *pt = vp->pt;
+		    if (!cmd || !pt) continue;
 		    for (i = 0; i < nused; i++, cmd++, pt++) {
 			switch (*cmd) {
 			    case BV_VLIST_POLY_START:
@@ -309,33 +350,36 @@ work:
 	refresh(s);	/* Draw new display */
     }
 
-    if (mode == 1) {
+    if (mode == 1 && sp) {
 	VMOVE(sp->s_center, sav_center);
 	if (BU_LIST_NON_EMPTY(&(sp->s_vlist))) {
 	    vp = BU_LIST_LAST(bv_vlist, &(sp->s_vlist));
-	    VSUB2(xlate, sav_start, vp->pt[vp->nused-1]);
-	    for (BU_LIST_FOR(vp, bv_vlist, &(sp->s_vlist))) {
-		int i;
-		int nused = vp->nused;
-		int *cmd = vp->cmd;
-		point_t *pt = vp->pt;
-		for (i = 0; i < nused; i++, cmd++, pt++) {
-		    switch (*cmd) {
-			case BV_VLIST_POLY_START:
-			case BV_VLIST_POLY_VERTNORM:
-			case BV_VLIST_TRI_START:
-			case BV_VLIST_TRI_VERTNORM:
-			    break;
-			case BV_VLIST_LINE_MOVE:
-			case BV_VLIST_LINE_DRAW:
-			case BV_VLIST_POLY_MOVE:
-			case BV_VLIST_POLY_DRAW:
-			case BV_VLIST_POLY_END:
-			case BV_VLIST_TRI_MOVE:
-			case BV_VLIST_TRI_DRAW:
-			case BV_VLIST_TRI_END:
-			    VADD2(*pt, *pt, xlate);
-			    break;
+	    if (vp && vp->nused > 0) {
+		VSUB2(xlate, sav_start, vp->pt[vp->nused-1]);
+		for (BU_LIST_FOR(vp, bv_vlist, &(sp->s_vlist))) {
+		    int i;
+		    int nused = vp->nused;
+		    int *cmd = vp->cmd;
+		    point_t *pt = vp->pt;
+		    if (!cmd || !pt) continue;
+		    for (i = 0; i < nused; i++, cmd++, pt++) {
+			switch (*cmd) {
+			    case BV_VLIST_POLY_START:
+			    case BV_VLIST_POLY_VERTNORM:
+			    case BV_VLIST_TRI_START:
+			    case BV_VLIST_TRI_VERTNORM:
+				break;
+			    case BV_VLIST_LINE_MOVE:
+			    case BV_VLIST_LINE_DRAW:
+			    case BV_VLIST_POLY_MOVE:
+			    case BV_VLIST_POLY_DRAW:
+			    case BV_VLIST_POLY_END:
+			    case BV_VLIST_TRI_MOVE:
+			    case BV_VLIST_TRI_DRAW:
+			    case BV_VLIST_TRI_END:
+				VADD2(*pt, *pt, xlate);
+				break;
+			}
 		    }
 		}
 	    }
@@ -364,6 +408,14 @@ f_nirt(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 
     CHECK_DBI_NULL;
 
+    if (!interp || argc < 1 || !argv || !argv[0])
+	return TCL_ERROR;
+
+    if (!s || !s->gedp) {
+	Tcl_AppendResult(interp, "nirt: internal error: invalid state or gedp\n", (char *)NULL);
+	return TCL_ERROR;
+    }
+
     /* skip past _mged_ */
     if (argv[0][0] == '_' && argv[0][1] == 'm' &&
 	bu_strncmp(argv[0], "_mged_", 6) == 0)
@@ -371,14 +423,14 @@ f_nirt(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 
     Tcl_DStringInit(&ds);
 
-    if (mged_variables->mv_use_air) {
+    if (mged_variables && mged_variables->mv_use_air) {
 	int insertArgc = 2;
 	char *insertArgv[3];
 	int newArgc;
 	char **newArgv;
 
-	insertArgv[0] = "-u";
-	insertArgv[1] = "1";
+	insertArgv[0] = (char *)"-u";
+	insertArgv[1] = (char *)"1";
 	insertArgv[2] = (char *)0;
 	newArgv = bu_argv_dupinsert(1, insertArgc, (const char **)insertArgv, argc, (const char **)argv);
 	newArgc = argc + insertArgc;
@@ -388,7 +440,7 @@ f_nirt(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	ret = ged_exec(s->gedp, argc, (const char **)argv);
     }
 
-    Tcl_DStringAppend(&ds, bu_vls_addr(s->gedp->ged_result_str), -1);
+    Tcl_DStringAppend(&ds, bu_vls_cstr(s->gedp->ged_result_str), -1);
     Tcl_DStringResult(interp, &ds);
 
     if (ret == BRLCAD_OK)
@@ -409,6 +461,14 @@ f_vnirt(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 
     CHECK_DBI_NULL;
 
+    if (!interp || argc < 1 || !argv || !argv[0])
+	return TCL_ERROR;
+
+    if (!s || !s->gedp) {
+	Tcl_AppendResult(interp, "vnirt: internal error: invalid state or gedp\n", (char *)NULL);
+	return TCL_ERROR;
+    }
+
     /* skip past _mged_ */
     if (argv[0][0] == '_' && argv[0][1] == 'm' &&
 	bu_strncmp(argv[0], "_mged_", 6) == 0)
@@ -418,7 +478,7 @@ f_vnirt(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 
     ret = ged_exec(s->gedp, argc, (const char **)argv);
 
-    Tcl_DStringAppend(&ds, bu_vls_addr(s->gedp->ged_result_str), -1);
+    Tcl_DStringAppend(&ds, bu_vls_cstr(s->gedp->ged_result_str), -1);
     Tcl_DStringResult(interp, &ds);
 
     if (ret == BRLCAD_OK)
