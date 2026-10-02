@@ -74,12 +74,15 @@ grid_set_dirty_flag(const struct bu_structparse *UNUSED(sdp),
 		    void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s || !s->mged_curr_dm || !s->mged_curr_dm->dm_grid_state)
+	return;
     MGED_CK_STATE(s);
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *m_dmp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
-	if (m_dmp->dm_grid_state == grid_state) {
+	if (m_dmp && m_dmp->dm_grid_state == grid_state) {
 	    m_dmp->dm_dirty = 1;
-	    dm_set_dirty(m_dmp->dm_dmp, 1);
+	    if (m_dmp->dm_dmp)
+		dm_set_dirty(m_dmp->dm_dmp, 1);
 	}
     }
 }
@@ -93,6 +96,8 @@ set_grid_draw(const struct bu_structparse *sdp,
 	      void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s || !s->mged_curr_dm || !grid_state)
+	return;
     MGED_CK_STATE(s);
 
     if (s->dbip == DBI_NULL) {
@@ -103,14 +108,14 @@ set_grid_draw(const struct bu_structparse *sdp,
     grid_set_dirty_flag(sdp, name, base, value, data);
 
     /* This gets done at most one time. */
-    if (grid_auto_size && grid_state->draw) {
+    if (grid_auto_size && grid_state->draw && view_state && view_state->vs_gvp) {
 	fastf_t res = view_state->vs_gvp->gv_size*s->dbip->dbi_base2local / 64.0;
 
 	grid_state->res_h = res;
 	grid_state->res_v = res;
 	for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	    struct mged_dm *dlp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
-	    if (dlp->dm_grid_state == grid_state)
+	    if (dlp && dlp->dm_grid_state == grid_state)
 		dlp->dm_grid_auto_size = 0;
 	}
     }
@@ -125,6 +130,8 @@ set_grid_res(const struct bu_structparse *sdp,
 	     void *data)
 {
     struct mged_state *s = (struct mged_state *)data;
+    if (!s || !s->mged_curr_dm || !grid_state)
+	return;
     MGED_CK_STATE(s);
 
     grid_set_dirty_flag(sdp, name, base, value, data);
@@ -134,8 +141,8 @@ set_grid_res(const struct bu_structparse *sdp,
 
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *dlp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
-	    if (dlp->dm_grid_state == grid_state)
-		dlp->dm_grid_auto_size = 0;
+	if (dlp && dlp->dm_grid_state == grid_state)
+	    dlp->dm_grid_auto_size = 0;
     }
 }
 
@@ -159,30 +166,45 @@ draw_grid(struct mged_state *s)
     fastf_t inv_grid_res_v;
     fastf_t inv_aspect;
 
-    if (s->dbip == DBI_NULL ||
-	ZERO(grid_state->res_h) ||
-	ZERO(grid_state->res_v))
+    if (!s || !s->mged_curr_dm || !s->dbip || !grid_state || !view_state || !view_state->vs_gvp || !DMP || !color_scheme)
 	return;
 
-    inv_grid_res_h= 1.0 / grid_state->res_h;
-    inv_grid_res_v= 1.0 / grid_state->res_v;
+    if (ZERO(grid_state->res_h) || ZERO(grid_state->res_v))
+	return;
 
-    sf = view_state->vs_gvp->gv_scale*s->dbip->dbi_base2local;
+    if (grid_state->res_major_h <= 0 || grid_state->res_major_v <= 0)
+	return;
+
+    sf = view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local;
+    if (ZERO(sf))
+	return;
+
+    fastf_t aspect = dm_get_aspect(DMP);
+    if (ZERO(aspect))
+	return;
 
     /* sanity - don't draw the grid if it would fill the screen */
     {
 	int width = dm_get_width(DMP);
+	if (width <= 0)
+	    return;
 	fastf_t pixel_size = 2.0 * sf / (fastf_t)width;
 
 	if (grid_state->res_h < pixel_size || grid_state->res_v < pixel_size)
 	    return;
     }
 
+    inv_grid_res_h = 1.0 / grid_state->res_h;
+    inv_grid_res_v = 1.0 / grid_state->res_v;
     inv_sf = 1.0 / sf;
-    inv_aspect = 1.0 / dm_get_aspect(DMP);
+    inv_aspect = 1.0 / aspect;
 
     nv_dots = 2.0 * inv_aspect * sf * inv_grid_res_v + (2 * grid_state->res_major_v);
     nh_dots = 2.0 * sf * inv_grid_res_h + (2 * grid_state->res_major_h);
+
+    /* Clamp maximum dots to prevent UI freezes */
+    if (nv_dots > 2000 || nh_dots > 2000 || nv_dots < 0 || nh_dots < 0)
+	return;
 
     VSCALE(model_grid_anchor, grid_state->anchor, s->dbip->dbi_local2base);
     MAT4X3PNT(view_grid_anchor, view_state->vs_gvp->gv_model2view, model_grid_anchor);
@@ -216,7 +238,7 @@ draw_grid(struct mged_state *s)
 
 	for (j = 0; j < nh_dots; ++j) {
 	    fx = (view_grid_start_pt_local[X] + (j * grid_state->res_h)) * inv_sf;
-	    dm_draw_point_2d(DMP, fx, fy * dm_get_aspect(DMP));
+	    dm_draw_point_2d(DMP, fx, fy * aspect);
 	}
     }
 
@@ -227,7 +249,7 @@ draw_grid(struct mged_state *s)
 
 	    for (j = 0; j < nv_dots; ++j) {
 		fy = (view_grid_start_pt_local[Y] + (j * grid_state->res_v)) * inv_sf;
-		dm_draw_point_2d(DMP, fx, fy * dm_get_aspect(DMP));
+		dm_draw_point_2d(DMP, fx, fy * aspect);
 	    }
 	}
     }
@@ -249,13 +271,16 @@ snap_to_grid(
     fastf_t sf;
     fastf_t inv_sf;
 
-    if (s->dbip == DBI_NULL ||
-	ZERO(grid_state->res_h) ||
-	ZERO(grid_state->res_v))
+    if (!s || !mx || !my || !s->mged_curr_dm || !s->dbip || !grid_state || !view_state || !view_state->vs_gvp)
 	return;
 
-    sf = view_state->vs_gvp->gv_scale*s->dbip->dbi_base2local;
-    inv_sf = 1 / sf;
+    if (ZERO(grid_state->res_h) || ZERO(grid_state->res_v))
+	return;
+
+    sf = view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local;
+    if (ZERO(sf))
+	return;
+    inv_sf = 1.0 / sf;
 
     VSET(view_pt, *mx, *my, 0.0);
     VSCALE(view_pt, view_pt, sf);  /* view_pt now in local units */
@@ -298,7 +323,7 @@ snap_keypoint_to_grid(struct mged_state *s)
     point_t model_pt;
     struct bu_vls cmd = BU_VLS_INIT_ZERO;
 
-    if (s->dbip == DBI_NULL)
+    if (!s || !s->mged_curr_dm || !s->dbip || !s->interp || !view_state || !view_state->vs_gvp || !MEDIT(s))
 	return;
 
     if (s->global_editing_state != ST_S_EDIT && s->global_editing_state != ST_O_EDIT) {
@@ -320,12 +345,14 @@ snap_keypoint_to_grid(struct mged_state *s)
 	bu_vls_printf(&cmd, "p %lf %lf %lf", model_pt[X], model_pt[Y], model_pt[Z]);
     else
 	bu_vls_printf(&cmd, "translate %lf %lf %lf", model_pt[X], model_pt[Y], model_pt[Z]);
-    (void)Tcl_Eval(s->interp, bu_vls_addr(&cmd));
+    (void)Tcl_Eval(s->interp, bu_vls_cstr(&cmd));
     bu_vls_free(&cmd);
 
     /* save model_pt in local units */
-    VMOVE(dm_work_pt, model_pt);
-    dm_mouse_dx = dm_mouse_dy = 0;
+    if (s->mged_curr_dm) {
+	VMOVE(dm_work_pt, model_pt);
+	dm_mouse_dx = dm_mouse_dy = 0;
+    }
 }
 
 
@@ -334,7 +361,7 @@ snap_view_center_to_grid(struct mged_state *s)
 {
     point_t view_pt, model_pt;
 
-    if (s->dbip == DBI_NULL)
+    if (!s || !s->mged_curr_dm || !s->dbip || !view_state || !view_state->vs_gvp)
 	return;
 
     MAT_DELTAS_GET_NEG(model_pt, view_state->vs_gvp->gv_center);
@@ -348,8 +375,10 @@ snap_view_center_to_grid(struct mged_state *s)
     VSCALE(model_pt, model_pt, s->dbip->dbi_base2local);
 
     /* save new center in local units */
-    VMOVE(dm_work_pt, model_pt);
-    dm_mouse_dx = dm_mouse_dy = 0;
+    if (s->mged_curr_dm) {
+	VMOVE(dm_work_pt, model_pt);
+	dm_mouse_dx = dm_mouse_dy = 0;
+    }
 }
 
 
@@ -364,17 +393,20 @@ round_to_grid(struct mged_state *s, fastf_t *view_dx, fastf_t *view_dy)
     fastf_t sf, inv_sf;
     int nh, nv;
 
-    if (s->dbip == DBI_NULL ||
-	ZERO(grid_state->res_h) ||
-	ZERO(grid_state->res_v))
+    if (!s || !view_dx || !view_dy || !s->mged_curr_dm || !s->dbip || !grid_state || !view_state || !view_state->vs_gvp)
 	return;
 
-    sf = view_state->vs_gvp->gv_scale*s->dbip->dbi_base2local;
-    inv_sf = 1 / sf;
+    if (ZERO(grid_state->res_h) || ZERO(grid_state->res_v))
+	return;
+
+    sf = view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local;
+    if (ZERO(sf))
+	return;
+    inv_sf = 1.0 / sf;
 
     /* convert mouse distance to grid units */
     grid_units_h = *view_dx * sf / grid_state->res_h;
-    grid_units_v = *view_dy * sf /  grid_state->res_v;
+    grid_units_v = *view_dy * sf / grid_state->res_v;
     nh = grid_units_h;
     nv = grid_units_v;
     grid_units_h -= nh;
@@ -405,9 +437,10 @@ snap_view_to_grid(struct mged_state *s, fastf_t view_dx, fastf_t view_dy)
     point_t model_pt, view_pt;
     point_t vcenter, diff;
 
-    if (s->dbip == DBI_NULL ||
-	ZERO(grid_state->res_h) ||
-	ZERO(grid_state->res_v))
+    if (!s || !s->mged_curr_dm || !s->dbip || !grid_state || !view_state || !view_state->vs_gvp)
+	return;
+
+    if (ZERO(grid_state->res_h) || ZERO(grid_state->res_v))
 	return;
 
     round_to_grid(s, &view_dx, &view_dy);
@@ -432,19 +465,26 @@ update_grids(struct mged_state *s, fastf_t sf)
     struct bu_vls save_result = BU_VLS_INIT_ZERO;
     struct bu_vls cmd = BU_VLS_INIT_ZERO;
 
+    if (!s || !s->interp)
+	return;
+
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *dlp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
-	dlp->dm_grid_state->res_h *= sf;
-	dlp->dm_grid_state->res_v *= sf;
-	VSCALE(dlp->dm_grid_state->anchor, dlp->dm_grid_state->anchor, sf);
+	if (dlp && dlp->dm_grid_state) {
+	    dlp->dm_grid_state->res_h *= sf;
+	    dlp->dm_grid_state->res_v *= sf;
+	    VSCALE(dlp->dm_grid_state->anchor, dlp->dm_grid_state->anchor, sf);
+	}
     }
 
-    bu_vls_strcpy(&save_result, Tcl_GetStringResult(s->interp));
+    const char *result_str = Tcl_GetStringResult(s->interp);
+    if (result_str)
+	bu_vls_strcpy(&save_result, result_str);
 
     bu_vls_printf(&cmd, "grid_control_update %lf\n", sf);
-    (void)Tcl_Eval(s->interp, bu_vls_addr(&cmd));
+    (void)Tcl_Eval(s->interp, bu_vls_cstr(&cmd));
 
-    Tcl_SetResult(s->interp, bu_vls_addr(&save_result), TCL_VOLATILE);
+    Tcl_SetResult(s->interp, (char *)bu_vls_cstr(&save_result), TCL_VOLATILE);
 
     bu_vls_free(&save_result);
     bu_vls_free(&cmd);
@@ -454,15 +494,22 @@ update_grids(struct mged_state *s, fastf_t sf)
 int
 f_grid_set (ClientData clientData, Tcl_Interp *interpreter, int argc, const char *argv[])
 {
+    if (!clientData || !interpreter)
+	return TCL_ERROR;
+
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
     struct mged_state *s = ctp->s;
+    if (!s || !s->mged_curr_dm || !grid_state) {
+	Tcl_AppendResult(interpreter, "grid_state not available\n", (char *)NULL);
+	return TCL_ERROR;
+    }
 
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
     if (argc < 1 || 5 < argc) {
 	bu_vls_printf(&vls, "help grid_set");
-	Tcl_Eval(interpreter, bu_vls_addr(&vls));
+	Tcl_Eval(interpreter, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 
 	return TCL_ERROR;
@@ -470,7 +517,7 @@ f_grid_set (ClientData clientData, Tcl_Interp *interpreter, int argc, const char
 
     mged_vls_struct_parse(s, &vls, "Grid", grid_vparse,
 			  (char *)grid_state, argc, argv);
-    Tcl_AppendResult(interpreter, bu_vls_addr(&vls), (char *)NULL);
+    Tcl_AppendResult(interpreter, bu_vls_cstr(&vls), (char *)NULL);
     bu_vls_free(&vls);
 
     return TCL_OK;

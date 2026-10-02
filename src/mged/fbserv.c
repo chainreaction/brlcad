@@ -59,6 +59,8 @@ extern struct pkg_switch pkg_switch[];
 static void
 communications_error(const char *str)
 {
+    if (!str)
+	return;
     bu_log("%s", str);
 }
 
@@ -67,6 +69,9 @@ static void
 fbserv_setup_socket(int fd)
 {
     int on = 1;
+
+    if (fd < 0)
+	return;
 
 #if defined(SO_KEEPALIVE)
     if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *)&on, sizeof(on)) < 0) {
@@ -101,13 +106,20 @@ static void
 fbserv_drop_client(int sub)
 {
     struct mged_state *s = MGED_STATE;
+    if (sub < 0 || sub >= MAX_CLIENTS)
+	return;
+    if (!s || !s->mged_curr_dm)
+	return;
+
     if (clients[sub].c_pkg != PKC_NULL) {
 	pkg_close(clients[sub].c_pkg);
-	Tcl_DeleteChannelHandler(clients[sub].c_chan,
-		clients[sub].c_handler,
-		(ClientData)(size_t)clients[sub].c_fd);
+	if (clients[sub].c_chan != NULL && clients[sub].c_handler != NULL) {
+	    Tcl_DeleteChannelHandler(clients[sub].c_chan,
+		    clients[sub].c_handler,
+		    (ClientData)(size_t)clients[sub].c_fd);
+	}
 
-	if (dm_interp(DMP) != NULL) {
+	if (DMP && dm_interp(DMP) != NULL && clients[sub].c_chan != NULL) {
 	    Tcl_Close((Tcl_Interp *)dm_interp(DMP), clients[sub].c_chan);
 	}
 	clients[sub].c_chan = NULL;
@@ -127,8 +139,13 @@ fbserv_existing_client_handler(ClientData clientData, int UNUSED(mask))
     struct mged_state *s = MGED_STATE;
     int i;
 
+    if (!s)
+	return;
+
     /* NOTE: assumes fd's will be small */
     int fd = (uint16_t)((long)(uintptr_t)clientData & 0xFFFF);
+    if (fd <= 0)
+	return;
 
     int npp;			/* number of processed packages */
     struct mged_dm *dlp = MGED_DM_NULL;
@@ -136,6 +153,8 @@ fbserv_existing_client_handler(ClientData clientData, int UNUSED(mask))
 
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	struct mged_dm *m_dmp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
+	if (!m_dmp)
+	    continue;
 	for (i = MAX_CLIENTS-1; i >= 0; i--)
 	    if (fd == m_dmp->dm_clients[i].c_fd) {
 		dlp = m_dmp;
@@ -151,7 +170,7 @@ found:
 
     set_curr_dm(MGED_STATE, dlp);
     for (i = MAX_CLIENTS-1; i >= 0; i--) {
-	if (clients[i].c_fd == 0)
+	if (clients[i].c_fd == 0 || clients[i].c_pkg == PKC_NULL)
 	    continue;
 
 	if ((npp = pkg_process(clients[i].c_pkg)) < 0)
@@ -164,12 +183,12 @@ found:
 	    continue;
 	}
 
-	if (npp > 0) {
+	if (npp > 0 && DMP) {
 	    DMP_dirty = 1;
 	    dm_set_dirty(DMP, 1);
 	}
 
-	if (clients[i].c_fd != fd)
+	if (clients[i].c_fd != fd || clients[i].c_pkg == PKC_NULL)
 	    continue;
 
 	if (pkg_suckin(clients[i].c_pkg) <= 0) {
@@ -179,7 +198,7 @@ found:
 	    continue;
 	}
 
-	if ((npp = pkg_process(clients[i].c_pkg)) < 0)
+	if (clients[i].c_pkg != PKC_NULL && (npp = pkg_process(clients[i].c_pkg)) < 0)
 	    bu_log("pkg_process error encountered (2)\n");
 
 	/* Deferred drop from second-pass handler */
@@ -188,7 +207,7 @@ found:
 	    continue;
 	}
 
-	if (npp > 0) {
+	if (npp > 0 && DMP) {
 	    DMP_dirty = 1;
 	    dm_set_dirty(DMP, 1);
 	}
@@ -202,6 +221,8 @@ found:
 static struct pkg_conn *
 fbserv_makeconn(int fd, const struct pkg_switch *switchp)
 {
+    if (fd < 0 || !switchp)
+	return PKC_ERROR;
     struct pkg_conn *pc = pkg_adopt_socket(fd, switchp, communications_error);
     if (pc == PKC_ERROR) {
 	communications_error("fbserv_makeconn: pkg_adopt_socket failure\n");
@@ -215,8 +236,13 @@ fbserv_new_client(struct pkg_conn *pcp, Tcl_Channel chan)
     struct mged_state *s = MGED_STATE;
     int i;
 
-    if (pcp == PKC_ERROR)
+    if (pcp == PKC_ERROR || pcp == PKC_NULL)
 	return;
+
+    if (!s || !s->mged_curr_dm || chan == NULL) {
+	pkg_close(pcp);
+	return;
+    }
 
     for (i = MAX_CLIENTS-1; i >= 0; i--) {
 	if (clients[i].c_fd != 0)
@@ -254,7 +280,7 @@ fbserv_new_client_handler(ClientData clientData,
 
     /* clientData is the mged_dm pointer passed to Tcl_OpenTcpServer */
     struct mged_dm *dlp = (struct mged_dm *)clientData;
-    if (dlp == NULL)
+    if (s == NULL || dlp == NULL || chan == NULL)
 	return;
 
     /* save */
@@ -264,7 +290,7 @@ fbserv_new_client_handler(ClientData clientData,
 
     /* Extract the native OS handle from the connected channel and wrap it
      * in a pkg_conn so the rest of the fbserv machinery can use it. */
-    uintptr_t fd;
+    uintptr_t fd = 0;
     if (Tcl_GetChannelHandle(chan, TCL_READABLE, (ClientData *)&fd) == TCL_OK)
 	fbserv_new_client(fbserv_makeconn((int)fd, pkg_switch), chan);
 
@@ -282,6 +308,9 @@ fbserv_has_ipv4_listener(Tcl_Channel channel)
     int have_ipv4 = 0;
     enum { SOCKET_NAME_FIELD_COUNT = 3 };
 
+    if (channel == NULL)
+	return 0;
+
     Tcl_DStringInit(&socket_names);
     if (Tcl_GetChannelOption(NULL, channel, "-sockname", &socket_names) != TCL_OK)
 	goto done;
@@ -292,7 +321,7 @@ fbserv_has_ipv4_listener(Tcl_Channel channel)
      * The first value is numeric, so IPv6 addresses contain a colon. */
     for (int i = 0; i + SOCKET_NAME_FIELD_COUNT <= value_count;
 	 i += SOCKET_NAME_FIELD_COUNT) {
-	if (strchr(values[i], ':') == NULL) {
+	if (values && values[i] && strchr(values[i], ':') == NULL) {
 	    have_ipv4 = 1;
 	    break;
 	}
@@ -324,6 +353,8 @@ mged_fbserv_set_active_session(struct mged_dm *display_manager)
 static void
 fbserv_clear_session(struct mged_dm *display_manager)
 {
+    if (!display_manager)
+	return;
     display_manager->dm_session_token[0] = '\0';
     display_manager->dm_require_auth = 0;
     mged_fbserv_set_active_session(display_manager);
@@ -337,6 +368,9 @@ fbserv_set_port(const struct bu_structparse *UNUSED(sp), const char *UNUSED(c1),
     int i;
     int save_port;
 
+    if (!s || !s->mged_curr_dm || !mged_variables)
+	return;
+
 #define MAX_PORT_TRIES 100
 
     /* Check to see if previously active --- if so then deactivate */
@@ -347,7 +381,7 @@ fbserv_set_port(const struct bu_structparse *UNUSED(sp), const char *UNUSED(c1),
 
 	/* Close the server channel; this unregisters the accept callback and
 	 * closes the underlying listen socket. */
-	if (dm_interp(DMP) != NULL)
+	if (DMP && dm_interp(DMP) != NULL)
 	    Tcl_Close((Tcl_Interp *)dm_interp(DMP), s->mged_curr_dm->dm_netchan);
 
 	s->mged_curr_dm->dm_netchan = NULL;
@@ -386,7 +420,7 @@ fbserv_set_port(const struct bu_structparse *UNUSED(sp), const char *UNUSED(c1),
      * POSIX-only pkg_permserver + Tcl_CreateFileHandler approach. */
     for (i = 0; i < MAX_PORT_TRIES; ++i) {
 	s->mged_curr_dm->dm_netchan = NULL;
-	if (dm_interp(DMP) != NULL) {
+	if (DMP && dm_interp(DMP) != NULL) {
 	    /* NULL host means listen on all interfaces (INADDR_ANY) */
 	    s->mged_curr_dm->dm_netchan = Tcl_OpenTcpServer(
 		    (Tcl_Interp *)dm_interp(DMP), port, NULL,
@@ -399,7 +433,8 @@ fbserv_set_port(const struct bu_structparse *UNUSED(sp), const char *UNUSED(c1),
 	 * port connect over IPv4.  Reject that partial bind and keep looking. */
 	if (s->mged_curr_dm->dm_netchan &&
 	    !fbserv_has_ipv4_listener(s->mged_curr_dm->dm_netchan)) {
-	    Tcl_Close((Tcl_Interp *)dm_interp(DMP), s->mged_curr_dm->dm_netchan);
+	    if (DMP && dm_interp(DMP) != NULL)
+		Tcl_Close((Tcl_Interp *)dm_interp(DMP), s->mged_curr_dm->dm_netchan);
 	    s->mged_curr_dm->dm_netchan = NULL;
 	}
 	if (s->mged_curr_dm->dm_netchan == NULL)
@@ -431,6 +466,10 @@ fbserv_set_port(const struct bu_structparse *UNUSED(sp), const char *UNUSED(c1),
 void
 fb_server_fb_unknown(struct pkg_conn *pcp, char *buf)
 {
+    if (pcp == PKC_NULL) {
+	if (buf) (void)free(buf);
+	return;
+    }
     if (buf == NULL) {
 	bu_log("fb_server_fb_unknown: null buffer\n");
 	return;
@@ -452,6 +491,8 @@ mged_conn_idx(struct pkg_conn *pcp)
 {
     struct mged_state *s = MGED_STATE;
     int i;
+    if (!s || !s->mged_curr_dm || pcp == PKC_NULL)
+	return -1;
     for (i = MAX_CLIENTS - 1; i >= 0; i--) {
 	if (clients[i].c_pkg == pcp)
 	    return i;
@@ -472,6 +513,11 @@ mged_data_guard(struct pkg_conn *pcp, char *buf)
     char erbuf[NET_LONG_LEN+1];
 
     if (pcp == PKC_NULL) {
+	if (buf) (void)free(buf);
+	return -1;
+    }
+
+    if (!s || !s->mged_curr_dm) {
 	if (buf) (void)free(buf);
 	return -1;
     }
@@ -522,6 +568,11 @@ fb_server_fb_auth(struct pkg_conn *pcp, char *buf)
 	return;
     }
 
+    if (!s || !s->mged_curr_dm) {
+	if (buf) (void)free(buf);
+	return;
+    }
+
     idx = mged_conn_idx(pcp);
     expected = s->mged_curr_dm->dm_session_token;
 
@@ -533,8 +584,10 @@ fb_server_fb_auth(struct pkg_conn *pcp, char *buf)
 	return;
     }
 
-    if (buf && pcp->pkc_len >= FBSERV_AUTH_TOKEN_LEN)
-	bu_strlcpy(provided, buf, sizeof(provided));
+    if (buf && pcp->pkc_len >= FBSERV_AUTH_TOKEN_LEN) {
+	memcpy(provided, buf, FBSERV_AUTH_TOKEN_LEN);
+	provided[FBSERV_AUTH_TOKEN_LEN] = '\0';
+    }
 
     if (fbserv_verify_token(provided, expected)) {
 	if (idx >= 0)
@@ -565,6 +618,11 @@ fb_server_fb_open(struct pkg_conn *pcp, char *buf)
 	return;
     }
 
+    if (pcp == PKC_NULL || !s || !s->mged_curr_dm) {
+	(void)free(buf);
+	return;
+    }
+
     /* Auth check: if dm_require_auth is set, reject unauthenticated clients */
     if (s->mged_curr_dm->dm_require_auth) {
 	int idx = mged_conn_idx(pcp);
@@ -584,6 +642,18 @@ fb_server_fb_open(struct pkg_conn *pcp, char *buf)
 	    (void)free(buf);
 	    return;
 	}
+    }
+
+    if (fbp == FB_NULL) {
+	bu_log("fb_server_fb_open: framebuffer is null\n");
+	(void)pkg_plong(&rbuf[0*NET_LONG_LEN], -1);
+	(void)pkg_plong(&rbuf[1*NET_LONG_LEN], 0);
+	(void)pkg_plong(&rbuf[2*NET_LONG_LEN], 0);
+	(void)pkg_plong(&rbuf[3*NET_LONG_LEN], 0);
+	(void)pkg_plong(&rbuf[4*NET_LONG_LEN], 0);
+	pkg_send(MSG_RETURN, rbuf, 5*NET_LONG_LEN, pcp);
+	(void)free(buf);
+	return;
     }
 
     /* Don't really open a new framebuffer --- use existing one */
@@ -648,14 +718,26 @@ fb_server_fb_clear(struct pkg_conn *pcp, char *buf)
     char rbuf[NET_LONG_LEN+1] = {0};
 
     if (buf == NULL) {
-	bu_log("fb_server_fb_window: null buffer\n");
+	bu_log("fb_server_fb_clear: null buffer\n");
+	return;
+    }
+    if (pcp == PKC_NULL) {
+	(void)free(buf);
 	return;
     }
     if (mged_data_guard(pcp, buf) < 0) return;
 
-    bg[RED] = buf[0];
-    bg[GRN] = buf[1];
-    bg[BLU] = buf[2];
+    if (pcp->pkc_len < 3) {
+	bu_log("fb_server_fb_clear: packet truncated (%zu < 3)\n", pcp->pkc_len);
+	(void)pkg_plong(rbuf, -1);
+	pkg_send(MSG_RETURN, rbuf, NET_LONG_LEN, pcp);
+	(void)free(buf);
+	return;
+    }
+
+    bg[RED] = (unsigned char)buf[0];
+    bg[GRN] = (unsigned char)buf[1];
+    bg[BLU] = (unsigned char)buf[2];
 
     (void)pkg_plong(rbuf, fb_clear(fbp, bg));
     pkg_send(MSG_RETURN, rbuf, NET_LONG_LEN, pcp);
@@ -676,23 +758,40 @@ fb_server_fb_read(struct pkg_conn *pcp, char *buf)
     static size_t buflen = 0;
 
     if (buf == NULL) {
-	bu_log("fb_server_fb_readrect: null buffer\n");
+	bu_log("fb_server_fb_read: null buffer\n");
+	return;
+    }
+    if (pcp == PKC_NULL) {
+	(void)free(buf);
 	return;
     }
     if (mged_data_guard(pcp, buf) < 0) return;
 
+    if (pcp->pkc_len < 3*NET_LONG_LEN) {
+	bu_log("fb_server_fb_read: packet truncated\n");
+	if (buf) (void)free(buf);
+	return;
+    }
+
     x = pkg_glong(&buf[0*NET_LONG_LEN]);
     y = pkg_glong(&buf[1*NET_LONG_LEN]);
-    num = (size_t)pkg_glong(&buf[2*NET_LONG_LEN]);
+    num = (size_t)(long)pkg_glong(&buf[2*NET_LONG_LEN]);
+
+    /* Clamp absurd requests to avoid runaway allocation */
+    if (num > (size_t)8192 * 8192) {
+	bu_log("fb_read: unreasonably large pixel count %zu, clamping\n", num);
+	num = 0;
+    }
 
     if (num*sizeof(RGBpixel) > buflen) {
 	if (scanbuf != NULL)
 	    free((char *)scanbuf);
 	buflen = num*sizeof(RGBpixel);
-	if (buflen < 1024*sizeof(RGBpixel))
-	    buflen = 1024*sizeof(RGBpixel);
+	V_MAX(buflen, 1024*sizeof(RGBpixel));
+
 	if ((scanbuf = (unsigned char *)malloc(buflen)) == NULL) {
-	    fb_log("fb_read: malloc failed!");
+	    bu_log("fb_read: malloc failed!\n");
+	    pkg_send(MSG_RETURN, NULL, 0, pcp);
 	    if (buf)
 		(void)free(buf);
 	    buflen = 0;
@@ -700,8 +799,8 @@ fb_server_fb_read(struct pkg_conn *pcp, char *buf)
 	}
     }
 
-    ret = fb_read(fbp, x, y, scanbuf, num);
-    if (ret < 0) ret = 0;		/* map error indications */
+    ret = num ? fb_read(fbp, x, y, scanbuf, num) : 0;
+    V_MAX(ret, 0);		/* map error indications */
     /* sending a 0-length package indicates error */
     pkg_send(MSG_RETURN, (char *)scanbuf, ret*sizeof(RGBpixel), pcp);
     if (buf)
@@ -719,14 +818,35 @@ fb_server_fb_write(struct pkg_conn *pcp, char *buf)
     int type;
 
     if (buf == NULL) {
-	bu_log("fb_server_fb_readrect: null buffer\n");
+	bu_log("fb_server_fb_write: null buffer\n");
+	return;
+    }
+    if (pcp == PKC_NULL) {
+	(void)free(buf);
 	return;
     }
     if (mged_data_guard(pcp, buf) < 0) return;
 
+    if (pcp->pkc_len < 3*NET_LONG_LEN) {
+	bu_log("fb_server_fb_write: packet truncated\n");
+	if (buf) (void)free(buf);
+	return;
+    }
+
     x = pkg_glong(&buf[0*NET_LONG_LEN]);
     y = pkg_glong(&buf[1*NET_LONG_LEN]);
     num = pkg_glong(&buf[2*NET_LONG_LEN]);
+    if (num < 0 || (size_t)num > (SIZE_MAX - 3*NET_LONG_LEN) / sizeof(RGBpixel) ||
+	pcp->pkc_len < 3*NET_LONG_LEN + (size_t)num * sizeof(RGBpixel)) {
+	bu_log("fb_write: packet length %zu too small for %d pixels\n", pcp->pkc_len, num);
+	if (pcp->pkc_type < MSG_NORETURN) {
+	    (void)pkg_plong(&rbuf[0*NET_LONG_LEN], -1);
+	    pkg_send(MSG_RETURN, rbuf, NET_LONG_LEN, pcp);
+	}
+	if (buf) (void)free(buf);
+	return;
+    }
+
     type = pcp->pkc_type;
     ret = fb_write(fbp, x, y, (unsigned char *)&buf[3*NET_LONG_LEN], num);
 
@@ -754,22 +874,40 @@ fb_server_fb_readrect(struct pkg_conn *pcp, char *buf)
 	bu_log("fb_server_fb_readrect: null buffer\n");
 	return;
     }
+    if (pcp == PKC_NULL) {
+	(void)free(buf);
+	return;
+    }
     if (mged_data_guard(pcp, buf) < 0) return;
+
+    if (pcp->pkc_len < 4*NET_LONG_LEN) {
+	bu_log("fb_server_fb_readrect: packet truncated\n");
+	if (buf) (void)free(buf);
+	return;
+    }
 
     xmin = pkg_glong(&buf[0*NET_LONG_LEN]);
     ymin = pkg_glong(&buf[1*NET_LONG_LEN]);
     width = pkg_glong(&buf[2*NET_LONG_LEN]);
     height = pkg_glong(&buf[3*NET_LONG_LEN]);
-    num = width * height;
+
+    if (width <= 0 || height <= 0 || (size_t)width > 8192 || (size_t)height > 8192) {
+	bu_log("fb_readrect: invalid dimensions %dx%d\n", width, height);
+	pkg_send(MSG_RETURN, NULL, 0, pcp);
+	if (buf) (void)free(buf);
+	return;
+    }
+    num = (size_t)width * (size_t)height;
 
     if (num*sizeof(RGBpixel) > buflen) {
 	if (scanbuf != NULL)
 	    free((char *)scanbuf);
 	buflen = num*sizeof(RGBpixel);
-	if (buflen < 1024*sizeof(RGBpixel))
-	    buflen = 1024*sizeof(RGBpixel);
+	V_MAX(buflen, 1024*sizeof(RGBpixel));
+
 	if ((scanbuf = (unsigned char *)malloc(buflen)) == NULL) {
-	    fb_log("fb_read: malloc failed!");
+	    bu_log("fb_readrect: malloc failed!\n");
+	    pkg_send(MSG_RETURN, NULL, 0, pcp);
 	    if (buf)
 		(void)free(buf);
 	    buflen = 0;
@@ -778,7 +916,7 @@ fb_server_fb_readrect(struct pkg_conn *pcp, char *buf)
     }
 
     ret = fb_readrect(fbp, xmin, ymin, width, height, scanbuf);
-    if (ret < 0) ret = 0;		/* map error indications */
+    V_MAX(ret, 0);		/* map error indications */
     /* sending a 0-length package indicates error */
     pkg_send(MSG_RETURN, (char *)scanbuf, ret*sizeof(RGBpixel), pcp);
     if (buf)
@@ -797,15 +935,37 @@ fb_server_fb_writerect(struct pkg_conn *pcp, char *buf)
     int type;
 
     if (buf == NULL) {
-	bu_log("fb_server_fb_readrect: null buffer\n");
+	bu_log("fb_server_fb_writerect: null buffer\n");
+	return;
+    }
+    if (pcp == PKC_NULL) {
+	(void)free(buf);
 	return;
     }
     if (mged_data_guard(pcp, buf) < 0) return;
+
+    if (pcp->pkc_len < 4*NET_LONG_LEN) {
+	bu_log("fb_server_fb_writerect: packet truncated\n");
+	if (buf) (void)free(buf);
+	return;
+    }
 
     x = pkg_glong(&buf[0*NET_LONG_LEN]);
     y = pkg_glong(&buf[1*NET_LONG_LEN]);
     width = pkg_glong(&buf[2*NET_LONG_LEN]);
     height = pkg_glong(&buf[3*NET_LONG_LEN]);
+
+    if (width <= 0 || height <= 0 || (size_t)width > 8192 || (size_t)height > 8192 ||
+	pcp->pkc_len < 4*NET_LONG_LEN + (size_t)width * (size_t)height * sizeof(RGBpixel)) {
+	bu_log("fb_writerect: invalid dimensions %dx%d or packet length %zu too small\n",
+	       width, height, pcp->pkc_len);
+	if (pcp->pkc_type < MSG_NORETURN) {
+	    (void)pkg_plong(&rbuf[0*NET_LONG_LEN], -1);
+	    pkg_send(MSG_RETURN, rbuf, NET_LONG_LEN, pcp);
+	}
+	if (buf) (void)free(buf);
+	return;
+    }
 
     type = pcp->pkc_type;
     ret = fb_writerect(fbp, x, y, width, height,
@@ -826,41 +986,62 @@ fb_server_fb_bwreadrect(struct pkg_conn *pcp, char *buf)
     struct mged_state *s = MGED_STATE;
     int xmin, ymin;
     int width, height;
-    int num;
+    size_t num;
     int ret;
     static unsigned char *scanbuf = NULL;
-    static int buflen = 0;
+    static size_t buflen = 0;
 
     if (buf == NULL) {
 	bu_log("fb_server_fb_bwreadrect: null buffer\n");
 	return;
     }
+    if (pcp == PKC_NULL) {
+	(void)free(buf);
+	return;
+    }
     if (mged_data_guard(pcp, buf) < 0) return;
+
+    if (pcp->pkc_len < 4*NET_LONG_LEN) {
+	bu_log("fb_server_fb_bwreadrect: packet truncated\n");
+	if (buf) (void)free(buf);
+	return;
+    }
+
     xmin = pkg_glong(&buf[0*NET_LONG_LEN]);
     ymin = pkg_glong(&buf[1*NET_LONG_LEN]);
     width = pkg_glong(&buf[2*NET_LONG_LEN]);
     height = pkg_glong(&buf[3*NET_LONG_LEN]);
-    num = width * height;
+
+    if (width <= 0 || height <= 0 || (size_t)width > 8192 || (size_t)height > 8192) {
+	bu_log("fb_bwreadrect: invalid dimensions %dx%d\n", width, height);
+	pkg_send(MSG_RETURN, NULL, 0, pcp);
+	if (buf) (void)free(buf);
+	return;
+    }
+    num = (size_t)width * (size_t)height;
 
     if (num > buflen) {
 	if (scanbuf != NULL)
 	    free((char *)scanbuf);
 	buflen = num;
-	if (buflen < 1024)
-	    buflen = 1024;
+	V_MAX(buflen, 1024);
+
 	if ((scanbuf = (unsigned char *)malloc(buflen)) == NULL) {
-	    fb_log("fb_server_fb_bwreadrect: malloc failed!");
-	    (void)free(buf);
+	    bu_log("fb_bwreadrect: malloc failed!\n");
+	    pkg_send(MSG_RETURN, NULL, 0, pcp);
+	    if (buf)
+		(void)free(buf);
 	    buflen = 0;
 	    return;
 	}
     }
 
     ret = fb_bwreadrect(fbp, xmin, ymin, width, height, scanbuf);
-    if (ret < 0) ret = 0;		/* map error indications */
+    V_MAX(ret, 0);		/* map error indications */
     /* sending a 0-length package indicates error */
     pkg_send(MSG_RETURN, (char *)scanbuf, ret, pcp);
-    (void)free(buf);
+    if (buf)
+	(void)free(buf);
 }
 
 
@@ -878,17 +1059,40 @@ fb_server_fb_bwwriterect(struct pkg_conn *pcp, char *buf)
     int type;
 
     if (buf == NULL) {
-	bu_log("rfbbwwriterect: null buffer\n");
+	bu_log("fb_server_fb_bwwriterect: null buffer\n");
+	return;
+    }
+    if (pcp == PKC_NULL) {
+	(void)free(buf);
 	return;
     }
     if (mged_data_guard(pcp, buf) < 0) return;
+
+    if (pcp->pkc_len < 4*NET_LONG_LEN) {
+	bu_log("fb_server_fb_bwwriterect: packet truncated\n");
+	if (buf) (void)free(buf);
+	return;
+    }
+
     x = pkg_glong(&buf[0*NET_LONG_LEN]);
     y = pkg_glong(&buf[1*NET_LONG_LEN]);
     width = pkg_glong(&buf[2*NET_LONG_LEN]);
     height = pkg_glong(&buf[3*NET_LONG_LEN]);
 
+    if (width <= 0 || height <= 0 || (size_t)width > 8192 || (size_t)height > 8192 ||
+	pcp->pkc_len < 4*NET_LONG_LEN + (size_t)width * (size_t)height) {
+	bu_log("fb_bwwriterect: invalid dimensions %dx%d or packet length %zu too small\n",
+	       width, height, pcp->pkc_len);
+	if (pcp->pkc_type < MSG_NORETURN) {
+	    (void)pkg_plong(&rbuf[0*NET_LONG_LEN], -1);
+	    pkg_send(MSG_RETURN, rbuf, NET_LONG_LEN, pcp);
+	}
+	if (buf) (void)free(buf);
+	return;
+    }
+
     type = pcp->pkc_type;
-    ret = fb_writerect(fbp, x, y, width, height,
+    ret = fb_bwwriterect(fbp, x, y, width, height,
 	    (unsigned char *)&buf[4*NET_LONG_LEN]);
 
     if (type < MSG_NORETURN) {
@@ -908,10 +1112,20 @@ fb_server_fb_cursor(struct pkg_conn *pcp, char *buf)
     char rbuf[NET_LONG_LEN+1] = {0};
 
     if (buf == NULL) {
-	bu_log("fb_server_fb_window: null buffer\n");
+	bu_log("fb_server_fb_cursor: null buffer\n");
+	return;
+    }
+    if (pcp == PKC_NULL) {
+	(void)free(buf);
 	return;
     }
     if (mged_data_guard(pcp, buf) < 0) return;
+
+    if (pcp->pkc_len < 3*NET_LONG_LEN) {
+	bu_log("fb_server_fb_cursor: packet truncated\n");
+	if (buf) (void)free(buf);
+	return;
+    }
 
     mode = pkg_glong(&buf[0*NET_LONG_LEN]);
     x = pkg_glong(&buf[1*NET_LONG_LEN]);
@@ -929,9 +1143,13 @@ fb_server_fb_getcursor(struct pkg_conn *pcp, char *buf)
 {
     struct mged_state *s = MGED_STATE;
     int ret;
-    int mode, x, y;
-    char rbuf[4*NET_LONG_LEN+1];
+    int mode = 0, x = 0, y = 0;
+    char rbuf[4*NET_LONG_LEN+1] = {0};
 
+    if (pcp == PKC_NULL) {
+	if (buf) (void)free(buf);
+	return;
+    }
     if (mged_data_guard(pcp, buf) < 0) return;
     ret = fb_getcursor(fbp, &mode, &x, &y);
     (void)pkg_plong(&rbuf[0*NET_LONG_LEN], ret);
@@ -954,15 +1172,36 @@ fb_server_fb_setcursor(struct pkg_conn *pcp, char *buf)
     int xorig, yorig;
 
     if (buf == NULL) {
-	bu_log("fb_server_fb_readrect: null buffer\n");
+	bu_log("fb_server_fb_setcursor: null buffer\n");
+	return;
+    }
+    if (pcp == PKC_NULL) {
+	(void)free(buf);
 	return;
     }
     if (mged_data_guard(pcp, buf) < 0) return;
+
+    if (pcp->pkc_len < 4*NET_LONG_LEN) {
+	bu_log("fb_server_fb_setcursor: packet truncated\n");
+	if (buf) (void)free(buf);
+	return;
+    }
 
     xbits = pkg_glong(&buf[0*NET_LONG_LEN]);
     ybits = pkg_glong(&buf[1*NET_LONG_LEN]);
     xorig = pkg_glong(&buf[2*NET_LONG_LEN]);
     yorig = pkg_glong(&buf[3*NET_LONG_LEN]);
+
+    if (xbits < 0 || ybits < 0 || xbits > 1024 || ybits > 1024 ||
+	pcp->pkc_len < 4*NET_LONG_LEN + (((size_t)xbits * (size_t)ybits + 7) >> 3)) {
+	bu_log("fb_setcursor: invalid dimensions or packet truncated\n");
+	if (pcp->pkc_type < MSG_NORETURN) {
+	    (void)pkg_plong(&rbuf[0*NET_LONG_LEN], -1);
+	    pkg_send(MSG_RETURN, rbuf, NET_LONG_LEN, pcp);
+	}
+	if (buf) (void)free(buf);
+	return;
+    }
 
     ret = fb_setcursor(fbp, (unsigned char *)&buf[4*NET_LONG_LEN],
 	    xbits, ybits, xorig, yorig);
@@ -987,10 +1226,20 @@ fb_server_fb_scursor(struct pkg_conn *pcp, char *buf)
     char rbuf[NET_LONG_LEN+1] = {0};
 
     if (buf == NULL) {
-	bu_log("fb_server_fb_open: null buffer\n");
+	bu_log("fb_server_fb_scursor: null buffer\n");
+	return;
+    }
+    if (pcp == PKC_NULL) {
+	(void)free(buf);
 	return;
     }
     if (mged_data_guard(pcp, buf) < 0) return;
+
+    if (pcp->pkc_len < 3*NET_LONG_LEN) {
+	bu_log("fb_server_fb_scursor: packet truncated\n");
+	if (buf) (void)free(buf);
+	return;
+    }
 
     mode = pkg_glong(&buf[0*NET_LONG_LEN]);
     x = pkg_glong(&buf[1*NET_LONG_LEN]);
@@ -998,7 +1247,8 @@ fb_server_fb_scursor(struct pkg_conn *pcp, char *buf)
 
     (void)pkg_plong(&rbuf[0], fb_scursor(fbp, mode, x, y));
     pkg_send(MSG_RETURN, rbuf, NET_LONG_LEN, pcp);
-    (void)free(buf);
+    if (buf)
+	(void)free(buf);
 }
 
 
@@ -1016,7 +1266,17 @@ fb_server_fb_window(struct pkg_conn *pcp, char *buf)
 	bu_log("fb_server_fb_window: null buffer\n");
 	return;
     }
+    if (pcp == PKC_NULL) {
+	(void)free(buf);
+	return;
+    }
     if (mged_data_guard(pcp, buf) < 0) return;
+
+    if (pcp->pkc_len < 2*NET_LONG_LEN) {
+	bu_log("fb_server_fb_window: packet truncated\n");
+	if (buf) (void)free(buf);
+	return;
+    }
 
     x = pkg_glong(&buf[0*NET_LONG_LEN]);
     y = pkg_glong(&buf[1*NET_LONG_LEN]);
@@ -1039,10 +1299,20 @@ fb_server_fb_zoom(struct pkg_conn *pcp, char *buf)
     char rbuf[NET_LONG_LEN+1] = {0};
 
     if (buf == NULL) {
-	bu_log("fb_server_fb_readrect: null buffer\n");
+	bu_log("fb_server_fb_zoom: null buffer\n");
+	return;
+    }
+    if (pcp == PKC_NULL) {
+	(void)free(buf);
 	return;
     }
     if (mged_data_guard(pcp, buf) < 0) return;
+
+    if (pcp->pkc_len < 2*NET_LONG_LEN) {
+	bu_log("fb_server_fb_zoom: packet truncated\n");
+	if (buf) (void)free(buf);
+	return;
+    }
 
     x = pkg_glong(&buf[0*NET_LONG_LEN]);
     y = pkg_glong(&buf[1*NET_LONG_LEN]);
@@ -1063,10 +1333,20 @@ fb_server_fb_view(struct pkg_conn *pcp, char *buf)
     char rbuf[NET_LONG_LEN+1] = {0};
 
     if (buf == NULL) {
-	bu_log("fb_server_fb_readrect: null buffer\n");
+	bu_log("fb_server_fb_view: null buffer\n");
+	return;
+    }
+    if (pcp == PKC_NULL) {
+	(void)free(buf);
 	return;
     }
     if (mged_data_guard(pcp, buf) < 0) return;
+
+    if (pcp->pkc_len < 4*NET_LONG_LEN) {
+	bu_log("fb_server_fb_view: packet truncated\n");
+	if (buf) (void)free(buf);
+	return;
+    }
 
     xcenter = pkg_glong(&buf[0*NET_LONG_LEN]);
     ycenter = pkg_glong(&buf[1*NET_LONG_LEN]);
@@ -1086,9 +1366,13 @@ fb_server_fb_getview(struct pkg_conn *pcp, char *buf)
 {
     struct mged_state *s = MGED_STATE;
     int ret;
-    int xcenter, ycenter, xzoom, yzoom;
-    char rbuf[5*NET_LONG_LEN+1];
+    int xcenter = 0, ycenter = 0, xzoom = 0, yzoom = 0;
+    char rbuf[5*NET_LONG_LEN+1] = {0};
 
+    if (pcp == PKC_NULL) {
+	if (buf) (void)free(buf);
+	return;
+    }
     if (mged_data_guard(pcp, buf) < 0) return;
     ret = fb_getview(fbp, &xcenter, &ycenter, &xzoom, &yzoom);
     (void)pkg_plong(&rbuf[0*NET_LONG_LEN], ret);
@@ -1111,6 +1395,10 @@ fb_server_fb_rmap(struct pkg_conn *pcp, char *buf)
     ColorMap map;
     unsigned char cm[256*2*3];
 
+    if (pcp == PKC_NULL) {
+	if (buf) (void)free(buf);
+	return;
+    }
     if (mged_data_guard(pcp, buf) < 0) return;
     (void)pkg_plong(&rbuf[0*NET_LONG_LEN], fb_rmap(fbp, &map));
     for (i = 0; i < 256; i++) {
@@ -1144,7 +1432,17 @@ fb_server_fb_wmap(struct pkg_conn *pcp, char *buf)
 	bu_log("fb_server_fb_wmap: null buffer\n");
 	return;
     }
+    if (pcp == PKC_NULL) {
+	(void)free(buf);
+	return;
+    }
     if (mged_data_guard(pcp, buf) < 0) return;
+
+    if (pcp->pkc_len != 0 && pcp->pkc_len < 3*256*2) {
+	bu_log("fb_server_fb_wmap: packet truncated\n");
+	if (buf) (void)free(buf);
+	return;
+    }
 
     if (pcp->pkc_len == 0)
 	ret = fb_wmap(fbp, COLORMAP_NULL);
@@ -1170,6 +1468,10 @@ fb_server_fb_flush(struct pkg_conn *pcp, char *buf)
     int ret;
     char rbuf[NET_LONG_LEN+1] = {0};
 
+    if (pcp == PKC_NULL) {
+	if (buf) (void)free(buf);
+	return;
+    }
     if (mged_data_guard(pcp, buf) < 0) return;
     ret = fb_flush(fbp);
 
@@ -1187,6 +1489,10 @@ static void
 fb_server_fb_poll(struct pkg_conn *pcp, char *buf)
 {
     struct mged_state *s = MGED_STATE;
+    if (pcp == PKC_NULL) {
+	if (buf) (void)free(buf);
+	return;
+    }
     if (mged_data_guard(pcp, buf) < 0) return;
     (void)fb_poll(fbp);
     if (buf) (void)free(buf);
@@ -1205,10 +1511,20 @@ fb_server_fb_help(struct pkg_conn *pcp, char *buf)
     char rbuf[NET_LONG_LEN+1] = {0};
 
     if (buf == NULL) {
-	bu_log("fb_server_fb_window: null buffer\n");
+	bu_log("fb_server_fb_help: null buffer\n");
+	return;
+    }
+    if (pcp == PKC_NULL) {
+	(void)free(buf);
 	return;
     }
     if (mged_data_guard(pcp, buf) < 0) return;
+
+    if (pcp->pkc_len < NET_LONG_LEN) {
+	bu_log("fb_server_fb_help: packet truncated\n");
+	if (buf) (void)free(buf);
+	return;
+    }
 
     (void)pkg_glong(&buf[0*NET_LONG_LEN]);
 
