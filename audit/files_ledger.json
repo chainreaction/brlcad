@@ -33584,20 +33584,24 @@
       "path": "src/mged/doevent.c",
       "subsystem": "src/mged",
       "lines": 686,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T05:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0284"
+      ]
     },
     {
       "id": 3181,
       "path": "src/mged/dozoom.c",
       "subsystem": "src/mged",
       "lines": 378,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T05:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0284"
+      ]
     },
     {
       "id": 3182,
