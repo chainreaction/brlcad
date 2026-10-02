@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1218,
-    "pending_files": 2275,
-    "last_updated": "2026-10-01T03:58:00Z",
-    "total_issues": 272,
-    "reviewed_count": 556
+    "reviewed_files": 610,
+    "pending_files": 2240,
+    "last_updated": "2026-10-01T20:10:14Z",
+    "total_issues": 282,
+    "reviewed_count": 610
   },
   "files": [
     {
@@ -26477,8 +26477,8 @@
       "path": "src/libged/tops/tops.c",
       "subsystem": "src/libged",
       "lines": 141,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26487,8 +26487,8 @@
       "path": "src/libged/tra/tra.c",
       "subsystem": "src/libged",
       "lines": 65,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26497,8 +26497,8 @@
       "path": "src/libged/trace.c",
       "subsystem": "src/libged",
       "lines": 191,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26507,8 +26507,8 @@
       "path": "src/libged/track/track.c",
       "subsystem": "src/libged",
       "lines": 99,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26517,28 +26517,32 @@
       "path": "src/libged/tree/tree.c",
       "subsystem": "src/libged",
       "lines": 365,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0274"
+      ]
     },
     {
       "id": 2494,
       "path": "src/libged/typein/typein.c",
       "subsystem": "src/libged",
       "lines": 3755,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0274"
+      ]
     },
     {
       "id": 2495,
       "path": "src/libged/unhide/unhide.c",
       "subsystem": "src/libged",
       "lines": 127,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26547,38 +26551,44 @@
       "path": "src/libged/units/units.c",
       "subsystem": "src/libged",
       "lines": 126,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0274"
+      ]
     },
     {
       "id": 2497,
       "path": "src/libged/v2m_point/v2m_point.c",
       "subsystem": "src/libged",
       "lines": 110,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0274"
+      ]
     },
     {
       "id": 2498,
       "path": "src/libged/vdraw/vdraw.c",
       "subsystem": "src/libged",
       "lines": 797,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0274"
+      ]
     },
     {
       "id": 2499,
       "path": "src/libged/vers.c",
       "subsystem": "src/libged",
       "lines": 49,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26587,28 +26597,32 @@
       "path": "src/libged/view/aet.c",
       "subsystem": "src/libged",
       "lines": 131,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0275"
+      ]
     },
     {
       "id": 2501,
       "path": "src/libged/view/align.c",
       "subsystem": "src/libged",
       "lines": 148,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0275"
+      ]
     },
     {
       "id": 2502,
       "path": "src/libged/view/autoview.c",
       "subsystem": "src/libged",
       "lines": 151,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26617,8 +26631,8 @@
       "path": "src/libged/view/autoview2.cpp",
       "subsystem": "src/libged",
       "lines": 157,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26627,8 +26641,8 @@
       "path": "src/libged/view/axes.c",
       "subsystem": "src/libged",
       "lines": 358,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26637,18 +26651,20 @@
       "path": "src/libged/view/center.cpp",
       "subsystem": "src/libged",
       "lines": 192,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0275"
+      ]
     },
     {
       "id": 2506,
       "path": "src/libged/view/data_lines.c",
       "subsystem": "src/libged",
       "lines": 316,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26657,28 +26673,32 @@
       "path": "src/libged/view/eye.c",
       "subsystem": "src/libged",
       "lines": 122,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0275"
+      ]
     },
     {
       "id": 2508,
       "path": "src/libged/view/faceplate/faceplate.c",
       "subsystem": "src/libged",
       "lines": 460,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0275"
+      ]
     },
     {
       "id": 2509,
       "path": "src/libged/view/faceplate/faceplate.h",
       "subsystem": "src/libged",
       "lines": 49,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26687,8 +26707,8 @@
       "path": "src/libged/view/faceplate/faceplate_axes.c",
       "subsystem": "src/libged",
       "lines": 808,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26697,8 +26717,8 @@
       "path": "src/libged/view/faceplate/faceplate_grid.c",
       "subsystem": "src/libged",
       "lines": 456,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26707,8 +26727,8 @@
       "path": "src/libged/view/faceplate/interactive_rect.c",
       "subsystem": "src/libged",
       "lines": 548,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26717,8 +26737,8 @@
       "path": "src/libged/view/ged_view.h",
       "subsystem": "src/libged",
       "lines": 85,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-01T20:10:14Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -36552,5 +36572,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-09-30T23:15:00Z"
+  "last_updated": "2026-10-01T20:10:14Z"
 }

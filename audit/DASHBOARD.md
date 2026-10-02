@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-10-01 07:45:00 UTC
+**Last Updated:** 2026-10-01 20:11:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 1228 (35.2%)
-- **Files Pending Review:** 2265
-- **Total Issues Identified:** 276
+- **Files Reviewed:** 1243 (35.6%)
+- **Files Pending Review:** 2250
+- **Total Issues Identified:** 282
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 202 | Possible exploit or crash under specific circumstances |
-| **1 (Low)** | 51 | Localized / low-impact vulnerability |
+| **2 (Medium)** | 207 | Possible exploit or crash under specific circumstances |
+| **1 (Low)** | 52 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 276
+- **Fixed (Committed):** 282
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -391,3 +391,6 @@
 | `SEC-0271` | **Sev 2** | Logic Bugs, Temporary File and Resource Leaks, Double-Free, Missing Option and Parameter Validation, and Null Pointer Dereferences | `src/libged (Batch 29: tests/draw, tests/edit, ged_test_rm, ged_test_tire, plugins, search_tests, test_bb_tight)` | `FIXED` | In BRL-CAD libged Batch 29 test suites and drivers: in tests/draw/lod.cpp and select.cpp, corrected option parsing check from ac != 2 to uac != 2 so optional command flags such as -c are correctly recognized without causing premature test failure, added null guards on ac, av, gedp, gedp->dbip, v, and v->dmp, freed fname and cleaned up temporary test databases on all exit paths; in tests/draw/quad.cpp, added null checks across drawing and refresh helpers, guarded image comparison against null control and test images, freed cname, corrected option parsing bounds, and ensured temporary database cleanup on exit; in tests/draw/util.cpp, added null guards on dp, u_data, dbi_state, ged_gvp, and dmp, and plugged memory leaks in img_cmp; in tests/edit/test_edit.cpp, replaced invalid jump-over-initialization error path with direct cleanup in create_p0_fixture, replaced manual export and double-free in create_p6_fixture with mk_brep, and ensured all 10 temporary database files (p0_path through p6_path) are unlinked via bu_file_delete across all error and success exits; in tests/ged_test_rm.c, replaced leaking db_close calls with wdb_close, added close_test_db to delete temporary test database files upon completion across all 26 test functions, fixed unchecked db_lookup dereferences, and added null guards in CHECK_PRESENT, CHECK_ABSENT, member_count, comb_has_op, and main; in tests/ged_test_tire.cpp, fixed database handle leaks by properly pairing wdb_fopen with wdb_close, added close_test_db to clean up temporary test databases, unlinked temporary text files and pattern files via bu_file_delete, eliminated premature wdb_close in run_partial_cleanup_case on an unowned handle, and added null checks across inspection helpers; in tests/plugins.cpp, fixed off-by-one / null pointer dereference in error message accessing av[1] instead of av[0], guarded ac and av in main, and added null checks on imsgs and cmds; in tests/search_tests.cpp, added null guards for gedp, gedp->dbip, path_dp, and search_count_helper, and validated argc/argv; and in tests/test_bb_tight.c, fixed wdbp handle leaks in open_test_db, added close_test_db to remove temporary test databases, and added null guards in parse_bb_volume, run_bb_volume, and main. |
 | `SEC-0272` | **Sev 2** | Resource Leaks, Null Pointer Dereferences, Division by Zero, and Array Overflow | `src/libged (Batch 30: test_bo, test_db, test_gqa, test_list, test_material, test_search, test_select, test_tops, test_view_dir, tire)` | `FIXED` | In BRL-CAD libged Batch 30 test programs and tire command: in test_bo.c, replaced db_close(wdbp->dbip) with wdb_close(wdbp) to fix wdb handle leak, and added null guard on binunif internal pointer before accessing type, count, and data fields; in test_gqa.c, added null check on ged_open return value; in test_list.c, validated atoi result for non-positive values and guarded elapsed_sec > 0 before division to prevent division by zero in ops-per-second calculation; in test_material.c, added null check on ged_open return value and added ged_close before exit to prevent resource leak; in test_search.c, added null check on ged_open return value and added bounds check on variadic plan arguments to prevent overflow of fixed-size cmd[6] array; in test_select.cpp, added null check on ged_open return value, freed DbiState allocation, and cleaned up temporary cache directory with bu_dirclear on exit; in test_tops.c, added null check on ged_open return value; test_db.c reviewed clean; test_view_dir.c reviewed clean; tire/tire.cpp reviewed clean. |
 | `SEC-0273` | **Sev 2** | Division by Zero, Integer Underflow, and Convention Violations | `src/libged (Batch 31: tire, title, tol)` | `FIXED` | In BRL-CAD libged Batch 31 (tire, title, tol): in tire/tire_surface.cpp, added ZERO() division-by-zero guard; in tire/tire_tread.cpp, added empty vector guard to prevent size_t underflow; in title/title.c, replaced bu_vls_addr with bu_vls_cstr; in tol/tol.c, replaced sscanf with bu_sscanf. Reviewed clean: tire_conic.cpp, tire_csg.cpp, tire_private.h, tire_tread_def.cpp, tire_tread_profile.cpp, tire_wheel.cpp. |
+| `SEC-0274` | **Sev 2** | Memory Leaks, Resource Leaks, Unsafe API, and Convention Violations | `src/libged (Batch 32: tops, tra, trace, track, tree, typein, unhide, units, v2m_point, vdraw)` | `FIXED` | In BRL-CAD libged Batch 32 (tops through vdraw): in tree/tree.c, fixed memory leak of attribute value set by adding bu_avs_free, fixed resource leak of rt_db_internal on v4gift flatten failure, replaced bu_vls_addr with bu_vls_cstr; in typein/typein.c, fixed resource leaks in extrude_in and revolve_in when imported object is not ID_SKETCH by adding rt_db_free_internal, replaced bu_vls_addr with bu_vls_cstr in revolve_in and pnts_in (4 instances); in units/units.c, replaced bu_vls_addr with bu_vls_cstr; in v2m_point/v2m_point.c, replaced raw sscanf with bu_sscanf (3 instances), fixed copy-paste error in error messages; in vdraw/vdraw.c, replaced raw sscanf with bu_sscanf (7 instances). Reviewed clean: tops.c, tra.c, trace.c, track.c, unhide.c. |
+| `SEC-0275` | **Sev 2** | Unsafe API and Memory Leaks | `src/libged (Batch 33: view module)` | `FIXED` | In BRL-CAD libged Batch 33 (view module): in view/aet.c, replaced raw sscanf with bu_sscanf (3 sites); in view/align.c, replaced raw sscanf with bu_sscanf (3 sites); in view/center.cpp, replaced raw sscanf with bu_sscanf (3 sites); in view/eye.c, replaced raw sscanf with bu_sscanf (3 sites); in view/faceplate/faceplate.c, added bu_vls_free on stack VLS after bu_opt_color and bu_opt_int calls to prevent memory leaks (4 sites). Reviewed clean: vers.c, autoview.c, autoview2.cpp, axes.c, data_lines.c, faceplate.h, faceplate_axes.c, faceplate_grid.c, interactive_rect.c, ged_view.h. |
+
