@@ -50,6 +50,9 @@ mk_extrusion(
 {
     struct rt_extrude_internal *extr;
 
+    if (!fp || !name || !sketch_name || !V || !h || !u_vec || !v_vec || ZERO(MAGSQ(h)))
+	return -1;
+
     BU_ALLOC(extr, struct rt_extrude_internal);
     extr->magic = RT_EXTRUDE_INTERNAL_MAGIC;
     extr->sketch_name = bu_strdup(sketch_name);

@@ -78,12 +78,17 @@ make_hole(struct rt_wdb *wdbp,		/* database to be modified */
     struct bu_vls tmp_name = BU_VLS_INIT_ZERO;
     int i, base_len, count=0;
 
+    if (!wdbp || !wdbp->dbip || !hole_start || !hole_depth || hole_radius <= 0.0 || ZERO(hole_radius) || num_objs <= 0 || !dp)
+	return 1;
+
     RT_CK_WDB(wdbp);
 
     /* make sure we are only making holes in combinations, they do not
      * have to be regions
      */
     for (i=0; i<num_objs; i++) {
+	if (!dp[i])
+	    return 1;
 	RT_CK_DIR(dp[i]);
 	if (!(dp[i]->d_flags & RT_DIR_COMB)) {
 	    bu_log("make_hole(): can only make holes in combinations\n");
@@ -151,6 +156,7 @@ make_hole(struct rt_wdb *wdbp,		/* database to be modified */
 	 */
 	wdb_put_internal(wdbp, dp[i]->d_namep, &intern, 1.0);
     }
+    bu_vls_free(&tmp_name);
     return 0;
 }
 
@@ -170,6 +176,9 @@ make_hole_in_prepped_regions(struct rt_wdb *wdbp,	/* database to be modified */
     struct directory *dp;
     struct rt_db_internal intern;
     struct soltab *stp;
+
+    if (!wdbp || !wdbp->dbip || !rtip || !hole_start || !hole_depth || radius <= 0.0 || ZERO(radius) || !regions)
+	return 1;
 
     RT_CHECK_WDB(wdbp);
 
@@ -193,16 +202,18 @@ make_hole_in_prepped_regions(struct rt_wdb *wdbp,	/* database to be modified */
     /* lookup the newly created RCC */
     dp=db_lookup(wdbp->dbip, bu_vls_addr(&tmp_name), LOOKUP_QUIET);
     if (dp == RT_DIR_NULL) {
-      bu_log("Failed to lookup RCC (%s) just made by make_hole_in_prepped_regions()!!!\n",
+	bu_log("Failed to lookup RCC (%s) just made by make_hole_in_prepped_regions()!!!\n",
 	       bu_vls_addr(&tmp_name));
-	bu_bomb("Failed to lookup RCC just made by make_hole_in_prepped_regions()!!!\n");
+	bu_vls_free(&tmp_name);
+	return 3;
     }
 
     /* get the internal form of the new RCC */
     if (rt_db_get_internal(&intern, dp, wdbp->dbip, NULL) < 0) {
 	bu_log("Failed to get internal form of RCC (%s) just made by make_hole_in_prepped_regions()!!!\n",
 	       bu_vls_addr(&tmp_name));
-	bu_bomb("Failed to get internal form of RCC just made by make_hole_in_prepped_regions()!!!\n");
+	bu_vls_free(&tmp_name);
+	return 3;
     }
 
     /* Build a soltab structure for the new RCC */
@@ -217,8 +228,13 @@ make_hole_in_prepped_regions(struct rt_wdb *wdbp,	/* database to be modified */
     if (intern.idb_meth->ft_prep(stp, &intern, rtip)) {
 	bu_log("Failed to prep RCC (%s) just made by make_hole_in_prepped_regions()!!!\n",
 	       bu_vls_addr(&tmp_name));
-	bu_bomb("Failed to prep RCC just made by make_hole_in_prepped_regions()!!!\n");
+	rt_db_free_internal(&intern);
+	bu_free(stp, "soltab");
+	bu_vls_free(&tmp_name);
+	return 4;
     }
+
+    rt_db_free_internal(&intern);
 
     /* initialize the soltabs list of containing regions */
     bu_ptbl_init(&stp->st_regions, BU_PTBL_LEN(regions), "stp->st_regions");
@@ -230,6 +246,8 @@ make_hole_in_prepped_regions(struct rt_wdb *wdbp,	/* database to be modified */
 
 	/* get the next region structure */
 	rp = (struct region *)BU_PTBL_GET(regions, i);
+	if (!rp)
+	    continue;
 
 	RT_CK_REGION(rp);
 
@@ -263,6 +281,7 @@ make_hole_in_prepped_regions(struct rt_wdb *wdbp,	/* database to be modified */
     /* Add the new soltab into the rt_i space-partitioning structures. */
     rt_dynamic_add_solid(rtip, stp);
 
+    bu_vls_free(&tmp_name);
     return 0;
 }
 

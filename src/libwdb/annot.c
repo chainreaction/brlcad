@@ -36,10 +36,15 @@ mk_annot(struct rt_wdb *fp, const char *name, const struct rt_annot_internal *an
 {
     struct rt_annot_internal *annot_ip;
 
+    if (!fp || !name || !ann)
+	return -1;
+
     RT_ANNOT_CK_MAGIC(ann);
 
     /* copy the caller's struct */
     annot_ip = rt_copy_annot(ann);
+    if (!annot_ip)
+	return -1;
 
     return wdb_export(fp, name, (void *)annot_ip, ID_ANNOT, mk_conv2mm);
 }

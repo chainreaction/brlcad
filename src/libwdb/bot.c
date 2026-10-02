@@ -73,6 +73,15 @@ mk_bot_w_normals_and_uvs(
     struct rt_bot_internal *bot;
     size_t i;
 
+    if (!fp || !fp->dbip || !name || !vertices || !faces || num_vertices == 0 || num_faces == 0)
+	return -1;
+
+    if (num_normals > 0 && (!normals || !face_normals))
+	return -1;
+
+    if (num_uvs > 0 && (!uvs || !face_uvs))
+	return -1;
+
     if (db_version(fp->dbip) < 5) {
 	bu_log("NOTE: You are using an old database format which does not support.\n"
 	       "      surface normals or uv texture coordinates for BOT primitives.\n\n");
@@ -98,12 +107,10 @@ mk_bot_w_normals_and_uvs(
     bot->num_faces = num_faces;
 
     bot->vertices = (fastf_t *)bu_calloc(num_vertices * 3, sizeof(fastf_t), "bot->vertices");
-    for (i=0; i<num_vertices*3; i++)
-	bot->vertices[i] = vertices[i];
+    memcpy(bot->vertices, vertices, num_vertices * 3 * sizeof(fastf_t));
 
     bot->faces = (int *)bu_calloc(num_faces * 3, sizeof(int), "bot->faces");
-    for (i=0; i<num_faces*3; i++)
-	bot->faces[i] = faces[i];
+    memcpy(bot->faces, faces, num_faces * 3 * sizeof(int));
 
     if (mode == RT_BOT_PLATE || mode == RT_BOT_PLATE_NOCOS) {
 	bot->thickness = (fastf_t *)bu_calloc(num_faces, sizeof(fastf_t), "bot->thickness");
@@ -111,7 +118,7 @@ mk_bot_w_normals_and_uvs(
 	    for (i=0; i<num_faces; i++)
 		bot->thickness[i] = thickness[i];
 	}
-	bot->face_mode = bu_bitv_dup(face_mode);
+	bot->face_mode = face_mode ? bu_bitv_dup(face_mode) : (struct bu_bitv *)NULL;
     } else {
 	bot->thickness = (fastf_t *)NULL;
 	bot->face_mode = (struct bu_bitv *)NULL;

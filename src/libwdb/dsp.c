@@ -41,6 +41,9 @@ mk_dsp(struct rt_wdb *fp, const char *name, const char *file, size_t xdim, size_
 {
     struct rt_dsp_internal *dsp;
 
+    if (!fp || !name || !file || xdim == 0 || ydim == 0 || !mat)
+	return -1;
+
     BU_ALLOC(dsp, struct rt_dsp_internal);
     dsp->magic = RT_DSP_INTERNAL_MAGIC;
 
@@ -49,6 +52,7 @@ mk_dsp(struct rt_wdb *fp, const char *name, const char *file, size_t xdim, size_
 
     dsp->dsp_xcnt = xdim;
     dsp->dsp_ycnt = ydim;
+    dsp->dsp_datasrc = RT_DSP_SRC_FILE;
     MAT_COPY(dsp->dsp_stom, mat);
 
     return wdb_export(fp, name, (void *)dsp, ID_DSP, mk_conv2mm);
@@ -63,6 +67,9 @@ mk_dsp_obj(struct rt_wdb *fp, const char *name, const char *binunif, size_t xcnt
     /* convert solid coords to model space */
 {
     struct rt_dsp_internal *dsp;
+
+    if (!fp || !name || !binunif || xcnt == 0 || ycnt == 0 || !stom)
+	return -1;
 
     BU_ALLOC(dsp, struct rt_dsp_internal);
     dsp->magic = RT_DSP_INTERNAL_MAGIC;

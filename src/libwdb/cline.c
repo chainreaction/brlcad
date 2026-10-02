@@ -47,6 +47,9 @@ mk_cline(
 {
     struct rt_cline_internal *cli;
 
+    if (!fp || !name || !V || !height || radius < 0.0 || ZERO(radius) || thickness < 0.0)
+	return -1;
+
     BU_ALLOC(cli, struct rt_cline_internal);
     cli->magic = RT_CLINE_INTERNAL_MAGIC;
     VMOVE(cli->v, V);

@@ -42,10 +42,10 @@ mk_datum(struct rt_wdb *wdbp, const char *name, const point_t point, const vect_
 {
     struct rt_datum_internal *datum;
 
-    RT_CK_WDB(wdbp);
-
-    if (!name)
+    if (!wdbp || !name || !point || !direction)
 	return -1;
+
+    RT_CK_WDB(wdbp);
 
     BU_ALLOC(datum, struct rt_datum_internal);
     VMOVE(datum->pnt, point);
@@ -66,10 +66,10 @@ mk_datums(struct rt_wdb *fp, const char *name, struct rt_datum_internal *head)
     struct rt_datum_internal *tail = NULL;
     const struct rt_datum_internal *src;
 
-    RT_CK_WDB(fp);
-
-    if (!name || !head)
+    if (!fp || !name || !head)
 	return -1;
+
+    RT_CK_WDB(fp);
 
     /* Duplicate the caller's chain so the exported internal is
      * well-formed and owns its own nodes.  We do not take ownership of,

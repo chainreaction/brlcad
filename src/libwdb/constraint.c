@@ -34,10 +34,13 @@
 
 
 int
-mk_constraint(struct rt_wdb *wdbp, const char *name, const char *UNUSED(expr))
+mk_constraint(struct rt_wdb *wdbp, const char *name, const char *expr)
 {
     struct rt_db_internal intern;
     struct rt_constraint_internal *constraint;
+
+    if (!wdbp || !name)
+	return -1;
 
     RT_CK_WDB(wdbp);
 
@@ -48,6 +51,8 @@ mk_constraint(struct rt_wdb *wdbp, const char *name, const char *UNUSED(expr))
     constraint->magic = RT_CONSTRAINT_MAGIC;
     constraint->id = constraint->type = 0;
     BU_VLS_INIT(&constraint->expression);
+    if (expr)
+	bu_vls_strcpy(&constraint->expression, expr);
 
     intern.idb_major_type = DB5_MAJORTYPE_BRLCAD;
     intern.idb_type = ID_CONSTRAINT;

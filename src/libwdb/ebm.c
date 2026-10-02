@@ -44,12 +44,16 @@ mk_ebm(struct rt_wdb *fp, const char *name, const char *file, size_t xdim, size_
 {
     struct rt_ebm_internal *ebm;
 
+    if (!fp || !name || !file || xdim == 0 || ydim == 0 || tallness <= 0.0 || ZERO(tallness) || !mat)
+	return -1;
+
     BU_ALLOC(ebm, struct rt_ebm_internal);
     ebm->magic = RT_EBM_INTERNAL_MAGIC;
     bu_strlcpy(ebm->name, file, RT_EBM_NAME_LEN);
     ebm->xdim = xdim;
     ebm->ydim = ydim;
     ebm->tallness = tallness;
+    ebm->datasrc = RT_EBM_SRC_FILE;
     MAT_COPY(ebm->mat, mat);
 
     return wdb_export(fp, name, (void *)ebm, ID_EBM, mk_conv2mm);
@@ -65,6 +69,9 @@ mk_ebm_obj(struct rt_wdb *fp, const char *name, const char *binunif, size_t xdim
     /* convert local coords to model space */
 {
     struct rt_ebm_internal *ebm;
+
+    if (!fp || !name || !binunif || xdim == 0 || ydim == 0 || tallness <= 0.0 || ZERO(tallness) || !mat)
+	return -1;
 
     BU_ALLOC(ebm, struct rt_ebm_internal);
     ebm->magic = RT_EBM_INTERNAL_MAGIC;

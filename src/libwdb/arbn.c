@@ -43,7 +43,7 @@ mk_arbn(struct rt_wdb *filep, const char *name, size_t neqn, const plane_t *eqn)
     plane_t *equations = NULL;
     size_t i;
 
-    if (neqn <= 0)
+    if (!filep || !name || !eqn || neqn == 0)
 	return -1;
 
     equations = (plane_t *)bu_malloc(neqn*sizeof(plane_t), "equations");

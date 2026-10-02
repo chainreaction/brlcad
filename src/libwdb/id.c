@@ -42,6 +42,8 @@
 int
 mk_id(struct rt_wdb *fp, const char *title)
 {
+    if (!fp || !title)
+	return -1;
     return mk_id_editunits(fp, title, 1.0);
 }
 
@@ -49,7 +51,13 @@ mk_id(struct rt_wdb *fp, const char *title)
 int
 mk_id_units(struct rt_wdb *fp, const char *title, const char *units)
 {
-    return mk_id_editunits(fp, title, bu_units_conversion(units));
+    double conv;
+    if (!units)
+	return -1;
+    conv = bu_units_conversion(units);
+    if (conv <= 0.0 || ZERO(conv))
+	return -1;
+    return mk_id_editunits(fp, title, conv);
 }
 
 
@@ -59,6 +67,8 @@ mk_id_editunits(
     const char *title,
     double local2mm)
 {
+    if (!wdbp || !wdbp->dbip || !title || local2mm <= 0.0 || ZERO(local2mm))
+	return -1;
     RT_CK_WDB(wdbp);
     return db_update_ident(wdbp->dbip, title, local2mm);
 }
