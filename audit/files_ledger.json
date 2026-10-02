@@ -33060,118 +33060,140 @@
       "path": "src/libwdb/annot.c",
       "subsystem": "src/libwdb",
       "lines": 56,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:41:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0278"
+      ]
     },
     {
       "id": 3137,
       "path": "src/libwdb/arbn.c",
       "subsystem": "src/libwdb",
       "lines": 71,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:41:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0278"
+      ]
     },
     {
       "id": 3138,
       "path": "src/libwdb/ars.c",
       "subsystem": "src/libwdb",
       "lines": 70,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:41:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0278"
+      ]
     },
     {
       "id": 3139,
       "path": "src/libwdb/bot.c",
       "subsystem": "src/libwdb",
       "lines": 222,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:41:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0278"
+      ]
     },
     {
       "id": 3140,
       "path": "src/libwdb/brep.cpp",
       "subsystem": "src/libwdb",
       "lines": 65,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:41:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0278"
+      ]
     },
     {
       "id": 3141,
       "path": "src/libwdb/cline.c",
       "subsystem": "src/libwdb",
       "lines": 69,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:41:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0278"
+      ]
     },
     {
       "id": 3142,
       "path": "src/libwdb/constraint.c",
       "subsystem": "src/libwdb",
       "lines": 75,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:41:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0278"
+      ]
     },
     {
       "id": 3143,
       "path": "src/libwdb/datum.c",
       "subsystem": "src/libwdb",
       "lines": 122,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:41:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0278"
+      ]
     },
     {
       "id": 3144,
       "path": "src/libwdb/dsp.c",
       "subsystem": "src/libwdb",
       "lines": 90,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:41:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0278"
+      ]
     },
     {
       "id": 3145,
       "path": "src/libwdb/dynamic_geometry.c",
       "subsystem": "src/libwdb",
       "lines": 278,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:41:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0278"
+      ]
     },
     {
       "id": 3146,
       "path": "src/libwdb/ebm.c",
       "subsystem": "src/libwdb",
       "lines": 90,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:41:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0278"
+      ]
     },
     {
       "id": 3147,
       "path": "src/libwdb/export.c",
       "subsystem": "src/libwdb",
       "lines": 48,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:41:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -33180,20 +33202,24 @@
       "path": "src/libwdb/extrude.c",
       "subsystem": "src/libwdb",
       "lines": 75,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:41:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0278"
+      ]
     },
     {
       "id": 3149,
       "path": "src/libwdb/id.c",
       "subsystem": "src/libwdb",
       "lines": 75,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:41:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0278"
+      ]
     },
     {
       "id": 3150,
@@ -36644,5 +36670,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-10-02T04:17:49Z"
+  "last_updated": "2026-10-02T04:41:00Z"
 }
