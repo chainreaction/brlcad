@@ -58,18 +58,22 @@ set_e_axes_pos_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *id)
 {
     struct mged_state *s = (struct mged_state *)d;
     int *flag = (int *)id;
+    if (!s || !MEDIT(s) || !flag)
+	return BRLCAD_ERROR;
     int both = *flag;
 
     s->update_views = 1;
-    dm_set_dirty(DMP, 1);
+    if (DMP)
+	dm_set_dirty(DMP, 1);
 
     struct rt_db_internal *ip = &MEDIT(s)->es_int;
 
-    if (EDOBJ[ip->idb_type].ft_e_axes_pos) {
+    if (ip->idb_type > ID_NULL && ip->idb_type <= ID_MAX_SOLID && EDOBJ[ip->idb_type].ft_e_axes_pos) {
 	bu_vls_trunc(MEDIT(s)->log_str, 0);
 	(*EDOBJ[ip->idb_type].ft_e_axes_pos)(MEDIT(s), ip, &s->tol.tol);
 	if (bu_vls_strlen(MEDIT(s)->log_str)) {
-	    Tcl_AppendResult(s->interp, bu_vls_cstr(MEDIT(s)->log_str), (char *)NULL);
+	    if (s->interp)
+		Tcl_AppendResult(s->interp, bu_vls_cstr(MEDIT(s)->log_str), (char *)NULL);
 	    bu_vls_trunc(MEDIT(s)->log_str, 0);
 	}
     } else {
@@ -80,7 +84,8 @@ set_e_axes_pos_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *id)
 	VMOVE(MEDIT(s)->e_axes_pos, MEDIT(s)->curr_e_axes_pos);
 
 	if (EDIT_ROTATE) {
-	    s->s_edit->es_edclass = EDIT_CLASS_ROTATE;
+	    if (s->s_edit)
+		s->s_edit->es_edclass = EDIT_CLASS_ROTATE;
 	    VSETALL(MEDIT(s)->k.rot_m_abs, 0.0);
 	    VSETALL(MEDIT(s)->k.rot_o_abs, 0.0);
 	    VSETALL(MEDIT(s)->k.rot_v_abs, 0.0);
@@ -88,27 +93,31 @@ set_e_axes_pos_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *id)
 	    VSETALL(MEDIT(s)->k.rot_o_abs_last, 0.0);
 	    VSETALL(MEDIT(s)->k.rot_v_abs_last, 0.0);
 	} else if (EDIT_TRAN) {
-	    s->s_edit->es_edclass = EDIT_CLASS_TRAN;
+	    if (s->s_edit)
+		s->s_edit->es_edclass = EDIT_CLASS_TRAN;
 	    VSETALL(MEDIT(s)->k.tra_m_abs, 0.0);
 	    VSETALL(MEDIT(s)->k.tra_v_abs, 0.0);
 	    VSETALL(MEDIT(s)->k.tra_m_abs_last, 0.0);
 	    VSETALL(MEDIT(s)->k.tra_v_abs_last, 0.0);
 	} else if (EDIT_SCALE) {
-	    s->s_edit->es_edclass = EDIT_CLASS_SCALE;
+	    if (s->s_edit)
+		s->s_edit->es_edclass = EDIT_CLASS_SCALE;
 
 	    if (SEDIT_SCALE) {
 		MEDIT(s)->k.sca_abs = 0.0;
 		MEDIT(s)->acc_sc_sol = 1.0;
 	    }
 	} else {
-	    s->s_edit->es_edclass = EDIT_CLASS_NULL;
+	    if (s->s_edit)
+		s->s_edit->es_edclass = EDIT_CLASS_NULL;
 	}
 
 	MAT_IDN(MEDIT(s)->acc_rot_sol);
 
 	for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {
 	    struct mged_dm *m_dmp = (struct mged_dm *)BU_PTBL_GET(&active_dm_set, di);
-	    m_dmp->dm_mged_variables->mv_transform = 'e';
+	    if (m_dmp && m_dmp->dm_mged_variables)
+		m_dmp->dm_mged_variables->mv_transform = 'e';
 	}
     }
 
@@ -118,6 +127,8 @@ set_e_axes_pos_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *id)
 void
 set_e_axes_pos(struct mged_state *s, int both)
 {
+    if (!s)
+	return;
     int flag = both;
     set_e_axes_pos_clbk(0, NULL, (void *)s, (void *)&flag);
 }
@@ -126,15 +137,23 @@ int
 arb_setup_rotface_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUSED(d2))
 {
     struct mged_state *ms = (struct mged_state *)d;
+    if (!ms || !MEDIT(ms) || !ms->interp)
+	return -1;
     struct rt_edit *s = MEDIT(ms);
     struct rt_arb8_edit *aint = (struct rt_arb8_edit *)s->ipe_ptr;
+    if (!aint)
+	return -1;
     int vertex = -1;
     struct bu_vls str = BU_VLS_INIT_ZERO;
     struct bu_vls cmd = BU_VLS_INIT_ZERO;
     const int vertices_per_face = 4;
     int arb_type = rt_arb_std_type(&s->es_int, s->tol);
+    if (arb_type < ARB4 || arb_type > ARB8)
+	return -1;
     int type = arb_type - ARB4;
     int loc = aint->edit_menu * vertices_per_face;
+    if (type < 0 || type >= 5 || loc < 0 || loc + vertices_per_face > 24)
+	return -1;
     int valid = 0;
 
     /* check if point 5 is in the face */
@@ -158,14 +177,14 @@ arb_setup_rotface_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *U
     }
     bu_vls_printf(&str, ") [%d]: ", rt_arb_vertices[type][loc]);
 
-    const struct bu_vls *dnvp = dm_get_dname(ms->mged_curr_dm->dm_dmp);
+    const struct bu_vls *dnvp = (ms->mged_curr_dm && ms->mged_curr_dm->dm_dmp) ? dm_get_dname(ms->mged_curr_dm->dm_dmp) : NULL;
 
     bu_vls_printf(&cmd, "cad_input_dialog .get_vertex %s {Need vertex for solid rotate}\
 	    {%s} vertex_num %d 0 {{ summary \"Enter a vertex number to rotate about.\"}} OK",
 	    (dnvp) ? bu_vls_cstr(dnvp) : "id", bu_vls_cstr(&str), rt_arb_vertices[type][loc]);
 
     while (!valid) {
-	if (Tcl_Eval(ms->interp, bu_vls_addr(&cmd)) != TCL_OK) {
+	if (Tcl_Eval(ms->interp, bu_vls_cstr(&cmd)) != TCL_OK) {
 	    bu_vls_printf(s->log_str, "get_rotation_vertex: Error reading vertex\n");
 	    /* Using default */
 	    bu_vls_free(&cmd);
@@ -174,7 +193,14 @@ arb_setup_rotface_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *U
 	    return rt_arb_vertices[type][loc];
 	}
 
-	vertex = atoi(Tcl_GetVar(ms->interp, "vertex_num", TCL_GLOBAL_ONLY));
+	const char *vnum_str = Tcl_GetVar(ms->interp, "vertex_num", TCL_GLOBAL_ONLY);
+	if (!vnum_str) {
+	    bu_vls_free(&cmd);
+	    bu_vls_free(&str);
+	    pr_prompt(ms);
+	    return rt_arb_vertices[type][loc];
+	}
+	vertex = atoi(vnum_str);
 	for (int j = 0; j < vertices_per_face; j++) {
 	    if (vertex == rt_arb_vertices[type][loc + j])
 		valid = 1;
@@ -192,7 +218,11 @@ int
 ecmd_bot_mode_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUSED(d2))
 {
     struct mged_state *ms = (struct mged_state *)d;
+    if (!ms || !MEDIT(ms) || !ms->interp)
+	return BRLCAD_ERROR;
     struct rt_edit *s = MEDIT(ms);
+    if (s->es_int.idb_type != ID_BOT || !s->es_int.idb_ptr)
+	return BRLCAD_ERROR;
     struct rt_bot_internal *bot = (struct rt_bot_internal *)s->es_int.idb_ptr;
     RT_BOT_CK_MAGIC(bot);
 
@@ -200,8 +230,8 @@ ecmd_bot_mode_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUSE
     char mode[10];
     int ret_tcl = TCL_ERROR;
 
-    sprintf(mode, " %d", bot->mode - 1);
-    if (dm_get_pathname(ms->mged_curr_dm->dm_dmp)) {
+    snprintf(mode, sizeof(mode), " %d", bot->mode - 1);
+    if (ms->mged_curr_dm && ms->mged_curr_dm->dm_dmp && dm_get_pathname(ms->mged_curr_dm->dm_dmp)) {
 	ret_tcl = Tcl_VarEval(ms->interp, "cad_radio", " .bot_mode_radio ",
 		bu_vls_cstr(dm_get_pathname(ms->mged_curr_dm->dm_dmp)), " _bot_mode_result",
 		" \"BOT Mode\"", "  \"Select the desired mode\"", mode,
@@ -213,6 +243,8 @@ ecmd_bot_mode_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUSE
 	return BRLCAD_ERROR;
     }
     radio_result = Tcl_GetVar(ms->interp, "_bot_mode_result", TCL_GLOBAL_ONLY);
+    if (!radio_result)
+	return BRLCAD_ERROR;
     bot->mode = atoi(radio_result) + 1;
 
     return BRLCAD_OK;
@@ -222,6 +254,10 @@ int
 ecmd_bot_orient_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUSED(d2))
 {
     struct mged_state *s = (struct mged_state *)d;
+    if (!s || !MEDIT(s) || !s->interp)
+	return BRLCAD_ERROR;
+    if (MEDIT(s)->es_int.idb_type != ID_BOT || !MEDIT(s)->es_int.idb_ptr)
+	return BRLCAD_ERROR;
     struct rt_bot_internal *bot = (struct rt_bot_internal *)MEDIT(s)->es_int.idb_ptr;
     RT_BOT_CK_MAGIC(bot);
 
@@ -229,10 +265,10 @@ ecmd_bot_orient_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNU
     char orient[10];
     int ret_tcl = TCL_ERROR;
 
-    sprintf(orient, " %d", bot->orientation - 1);
-    if (dm_get_pathname(DMP)) {
+    snprintf(orient, sizeof(orient), " %d", bot->orientation - 1);
+    if (DMP && dm_get_pathname(DMP)) {
 	ret_tcl = Tcl_VarEval(s->interp, "cad_radio", " .bot_orient_radio ",
-		bu_vls_addr(dm_get_pathname(DMP)), " _bot_orient_result",
+		bu_vls_cstr(dm_get_pathname(DMP)), " _bot_orient_result",
 		" \"BOT Face Orientation\"", "  \"Select the desired orientation\"", orient,
 		" { none right-hand-rule left-hand-rule }",
 		" { \"No orientation means that there is no particular order for the vertices of the triangles\" \"right-hand-rule means that the vertices of each triangle are ordered such that the right-hand-rule produces an outward pointing normal\"  \"left-hand-rule means that the vertices of each triangle are ordered such that the left-hand-rule produces an outward pointing normal\" } ", (char *)NULL);
@@ -242,6 +278,8 @@ ecmd_bot_orient_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNU
 	return BRLCAD_ERROR;
     }
     radio_result = Tcl_GetVar(s->interp, "_bot_orient_result", TCL_GLOBAL_ONLY);
+    if (!radio_result)
+	return BRLCAD_ERROR;
     bot->orientation = atoi(radio_result) + 1;
 
     return BRLCAD_OK;
@@ -251,6 +289,10 @@ int
 ecmd_bot_thick_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUSED(d2))
 {
     struct mged_state *s = (struct mged_state *)d;
+    if (!s || !MEDIT(s) || !s->interp)
+	return BRLCAD_ERROR;
+    if (MEDIT(s)->es_int.idb_type != ID_BOT || !MEDIT(s)->es_int.idb_ptr || !MEDIT(s)->ipe_ptr)
+	return BRLCAD_ERROR;
     struct rt_bot_internal *bot = (struct rt_bot_internal *)MEDIT(s)->es_int.idb_ptr;
     struct rt_bot_edit *b = (struct rt_bot_edit *)MEDIT(s)->ipe_ptr;
     RT_BOT_CK_MAGIC(bot);
@@ -268,6 +310,9 @@ ecmd_bot_thick_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUS
 	return BRLCAD_ERROR;
     }
 
+    if (!bot->thickness && bot->num_faces > 0)
+	bot->thickness = (fastf_t *)bu_calloc(bot->num_faces, sizeof(fastf_t), "BOT thickness");
+
     if (b->bot_verts[0] < 0 || b->bot_verts[1] < 0 || b->bot_verts[2] < 0) {
 	/* setting thickness for all faces */
 	(void)Tcl_VarEval(s->interp, "cad_dialog ", ".bot_err ",
@@ -277,28 +322,33 @@ ecmd_bot_thick_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUS
 	if (atoi(Tcl_GetStringResult(s->interp)))
 	    return BRLCAD_ERROR;
 
-	for (size_t i=0; i<bot->num_faces; i++)
-	    bot->thickness[i] = MEDIT(s)->e_para[0];
+	if (bot->thickness) {
+	    for (size_t i=0; i<bot->num_faces; i++)
+		bot->thickness[i] = MEDIT(s)->e_para[0];
+	}
     } else {
 	/* setting thickness for just one face */
 
 	face_state = -1;
-	for (size_t i=0; i < bot->num_faces; i++) {
-	    if (b->bot_verts[0] == bot->faces[i*3] &&
-		    b->bot_verts[1] == bot->faces[i*3+1] &&
-		    b->bot_verts[2] == bot->faces[i*3+2])
-	    {
-		face_no = i;
-		face_state = 0;
-		break;
+	if (bot->faces) {
+	    for (size_t i=0; i < bot->num_faces; i++) {
+		if (b->bot_verts[0] == bot->faces[i*3] &&
+			b->bot_verts[1] == bot->faces[i*3+1] &&
+			b->bot_verts[2] == bot->faces[i*3+2])
+		{
+		    face_no = i;
+		    face_state = 0;
+		    break;
+		}
 	    }
 	}
-	if (face_state > -1) {
+	if (face_state < 0) {
 	    bu_log("Cannot find face with vertices %d %d %d!\n", V3ARGS(b->bot_verts));
 	    return BRLCAD_ERROR;
 	}
 
-	bot->thickness[face_no] = MEDIT(s)->e_para[0];
+	if (bot->thickness && face_no < bot->num_faces)
+	    bot->thickness[face_no] = MEDIT(s)->e_para[0];
     }
 
     return BRLCAD_OK;
@@ -308,6 +358,10 @@ int
 ecmd_bot_flags_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUSED(d2))
 {
     struct mged_state *s = (struct mged_state *)d;
+    if (!s || !MEDIT(s) || !s->interp)
+	return BRLCAD_ERROR;
+    if (MEDIT(s)->es_int.idb_type != ID_BOT || !MEDIT(s)->es_int.idb_ptr)
+	return BRLCAD_ERROR;
     int ret_tcl = TCL_ERROR;
     const char *dialog_result;
     char cur_settings[11];
@@ -322,13 +376,13 @@ ecmd_bot_flags_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUS
     if (bot->bot_flags & RT_BOT_USE_FLOATS)
 	cur_settings[5] = '1';
 
-    if (dm_get_pathname(DMP)) {
+    if (DMP && dm_get_pathname(DMP)) {
 	/* Invoke a Tk checkbox dialog to let the user toggle the two BOT flags.
 	 * The result is stored as a two-element list in _bot_flags_result (e.g. "1 0"). */
 	ret_tcl = Tcl_VarEval(s->interp,
 		"cad_list_buts",
 		" .bot_list_flags ",
-		bu_vls_addr(dm_get_pathname(DMP)),
+		bu_vls_cstr(dm_get_pathname(DMP)),
 		" _bot_flags_result ",
 		cur_settings,
 		" \"BOT Flags\"",
@@ -342,6 +396,8 @@ ecmd_bot_flags_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUS
 	return BRLCAD_ERROR;
     }
     dialog_result = Tcl_GetVar(s->interp, "_bot_flags_result", TCL_GLOBAL_ONLY);
+    if (!dialog_result || strlen(dialog_result) < 3)
+	return BRLCAD_ERROR;
 
     if (dialog_result[0] == '1') {
 	bot->bot_flags |= RT_BOT_USE_NORMALS;
@@ -361,6 +417,10 @@ int
 ecmd_bot_fmode_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUSED(d2))
 {
     struct mged_state *s = (struct mged_state *)d;
+    if (!s || !MEDIT(s) || !s->interp)
+	return BRLCAD_ERROR;
+    if (MEDIT(s)->es_int.idb_type != ID_BOT || !MEDIT(s)->es_int.idb_ptr || !MEDIT(s)->ipe_ptr)
+	return BRLCAD_ERROR;
     struct rt_bot_internal *bot = (struct rt_bot_internal *)MEDIT(s)->es_int.idb_ptr;
     struct rt_bot_edit *b = (struct rt_bot_edit *)MEDIT(s)->ipe_ptr;
     char fmode[10];
@@ -378,6 +438,9 @@ ecmd_bot_fmode_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUS
 	return BRLCAD_ERROR;
     }
 
+    if (!bot->face_mode && bot->num_faces > 0)
+	bot->face_mode = bu_bitv_new(bot->num_faces);
+
     if (b->bot_verts[0] < 0 || b->bot_verts[1] < 0 || b->bot_verts[2] < 0) {
 	/* setting mode for all faces */
 	(void)Tcl_VarEval(s->interp, "cad_dialog ", ".bot_err ",
@@ -391,14 +454,16 @@ ecmd_bot_fmode_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUS
     } else {
 	/* setting thickness for just one face */
 	face_state = -1;
-	for (size_t i=0; i < bot->num_faces; i++) {
-	    if (b->bot_verts[0] == bot->faces[i*3] &&
-		    b->bot_verts[1] == bot->faces[i*3+1] &&
-		    b->bot_verts[2] == bot->faces[i*3+2])
-	    {
-		face_no = i;
-		face_state = 0;
-		break;
+	if (bot->faces) {
+	    for (size_t i=0; i < bot->num_faces; i++) {
+		if (b->bot_verts[0] == bot->faces[i*3] &&
+			b->bot_verts[1] == bot->faces[i*3+1] &&
+			b->bot_verts[2] == bot->faces[i*3+2])
+		{
+		    face_no = i;
+		    face_state = 0;
+		    break;
+		}
 	    }
 	}
 	if (face_state < 0) {
@@ -407,13 +472,17 @@ ecmd_bot_fmode_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUS
 	}
     }
 
-    if (face_state > -1)
-	sprintf(fmode, " %d", BU_BITTEST(bot->face_mode, face_no)?1:0);
-    else
-	sprintf(fmode, " %d", BU_BITTEST(bot->face_mode, 0)?1:0);
+    if (bot->face_mode) {
+	if (face_state > -1)
+	    snprintf(fmode, sizeof(fmode), " %d", BU_BITTEST(bot->face_mode, face_no)?1:0);
+	else
+	    snprintf(fmode, sizeof(fmode), " %d", BU_BITTEST(bot->face_mode, 0)?1:0);
+    } else {
+	snprintf(fmode, sizeof(fmode), " 0");
+    }
 
-    if (dm_get_pathname(DMP)) {
-	ret_tcl = Tcl_VarEval(s->interp, "cad_radio", " .bot_fmode_radio ", bu_vls_addr(dm_get_pathname(DMP)),
+    if (DMP && dm_get_pathname(DMP)) {
+	ret_tcl = Tcl_VarEval(s->interp, "cad_radio", " .bot_fmode_radio ", bu_vls_cstr(dm_get_pathname(DMP)),
 		" _bot_fmode_result ", "\"BOT Face Mode\"",
 		" \"Select the desired face mode\"", fmode,
 		" { {Thickness centered about hit point} {Thickness appended to hit point} }",
@@ -425,18 +494,22 @@ ecmd_bot_fmode_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUS
 	return BRLCAD_ERROR;
     }
     radio_result = Tcl_GetVar(s->interp, "_bot_fmode_result", TCL_GLOBAL_ONLY);
+    if (!radio_result)
+	return BRLCAD_ERROR;
 
-    if (face_state > -1) {
-	if (atoi(radio_result))
-	    BU_BITSET(bot->face_mode, face_no);
-	else
-	    BU_BITCLR(bot->face_mode, face_no);
-    } else {
-	if (atoi(radio_result)) {
-	    for (size_t i=0; i<bot->num_faces; i++)
-		BU_BITSET(bot->face_mode, i);
-	} else
-	    bu_bitv_clear(bot->face_mode);
+    if (bot->face_mode) {
+	if (face_state > -1) {
+	    if (atoi(radio_result))
+		BU_BITSET(bot->face_mode, face_no);
+	    else
+		BU_BITCLR(bot->face_mode, face_no);
+	} else {
+	    if (atoi(radio_result)) {
+		for (size_t i=0; i<bot->num_faces; i++)
+		    BU_BITSET(bot->face_mode, i);
+	    } else
+		bu_bitv_clear(bot->face_mode);
+	}
     }
 
     return BRLCAD_OK;
@@ -447,6 +520,8 @@ ecmd_bot_pickt_multihit_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, v
 {
     struct mged_state *s = (struct mged_state *)d;
     struct rt_edit *se = (struct rt_edit *)d2;
+    if (!s || !s->interp || !se || !se->ipe_ptr || !se->u_ptr)
+	return BRLCAD_ERROR;
     struct rt_bot_edit *b = (struct rt_bot_edit *)se->ipe_ptr;
     struct bu_vls *vls = (struct bu_vls *)se->u_ptr;
 
@@ -475,8 +550,12 @@ int
 ecmd_nmg_edebug_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUSED(d2))
 {
     struct mged_state *ms = (struct mged_state *)d;
+    if (!ms || !MEDIT(ms) || !ms->gedp)
+	return BRLCAD_ERROR;
     struct rt_edit *s = MEDIT(ms);
     struct rt_nmg_edit *en = (struct rt_nmg_edit *)s->ipe_ptr;
+    if (!en)
+	return BRLCAD_ERROR;
     nmg_plot_eu(ms->gedp, en->es_eu, s->tol, s->vlfree);
     return BRLCAD_OK;
 }
@@ -486,27 +565,36 @@ int
 ecmd_extrude_skt_name_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUSED(d2))
 {
     struct mged_state *s = (struct mged_state *)d;
+    if (!s || !MEDIT(s) || !s->interp || !s->dbip)
+	return BRLCAD_ERROR;
     struct rt_edit *se = MEDIT(s);
+    if (se->es_int.idb_type != ID_EXTRUDE || !se->es_int.idb_ptr)
+	return BRLCAD_ERROR;
     struct rt_extrude_internal *extr = (struct rt_extrude_internal *)se->es_int.idb_ptr;
 
     struct bu_vls tcl_cmd = BU_VLS_INIT_ZERO;
-    bu_vls_printf(&tcl_cmd, "cad_input_dialog .get_sketch_name $mged_gui(mged,screen) {Select Sketch} {Enter the name     of the sketch to be extruded} final_sketch_name %s 0 {{summary \"Enter sketch name\"}} APPLY DISMISS", extr->sketch_name);
-    int ret_tcl = Tcl_Eval(s->interp, bu_vls_addr(&tcl_cmd));
+    bu_vls_printf(&tcl_cmd, "cad_input_dialog .get_sketch_name $mged_gui(mged,screen) {Select Sketch} {Enter the name     of the sketch to be extruded} final_sketch_name %s 0 {{summary \"Enter sketch name\"}} APPLY DISMISS", extr->sketch_name ? extr->sketch_name : "");
+    int ret_tcl = Tcl_Eval(s->interp, bu_vls_cstr(&tcl_cmd));
     if (ret_tcl != TCL_OK) {
 	bu_log("ERROR: %s\n", Tcl_GetStringResult(s->interp));
 	bu_vls_free(&tcl_cmd);
 	return BRLCAD_ERROR;
     }
 
-    if (atoi(Tcl_GetStringResult(s->interp)) == 1)
+    if (atoi(Tcl_GetStringResult(s->interp)) == 1) {
+	bu_vls_free(&tcl_cmd);
 	return BRLCAD_ERROR;
+    }
 
     bu_vls_free(&tcl_cmd);
 
     if (extr->sketch_name)
 	bu_free((char *)extr->sketch_name, "extr->sketch_name");
 
-    extr->sketch_name = bu_strdup(Tcl_GetVar(s->interp, "final_sketch_name", TCL_GLOBAL_ONLY));
+    const char *svar = Tcl_GetVar(s->interp, "final_sketch_name", TCL_GLOBAL_ONLY);
+    if (!svar)
+	return BRLCAD_ERROR;
+    extr->sketch_name = bu_strdup(svar);
 
     struct directory *dp = RT_DIR_NULL;
     if ((dp = db_lookup(s->dbip, extr->sketch_name, 0)) == RT_DIR_NULL) {
@@ -515,8 +603,11 @@ ecmd_extrude_skt_name_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, voi
     } else {
 	/* import the new sketch */
 	struct rt_db_internal tmp_ip;
-	if (rt_db_get_internal(&tmp_ip, dp, s->dbip, bn_mat_identity) != ID_SKETCH) {
+	int itype = rt_db_get_internal(&tmp_ip, dp, s->dbip, bn_mat_identity);
+	if (itype != ID_SKETCH) {
 	    bu_log("rt_extrude_import: ERROR: Cannot import sketch (%.16s) for extrusion\n", extr->sketch_name);
+	    if (itype >= 0)
+		rt_db_free_internal(&tmp_ip);
 	    extr->skt = (struct rt_sketch_internal *)NULL;
 	} else {
 	    extr->skt = (struct rt_sketch_internal *)tmp_ip.idb_ptr;
@@ -530,8 +621,12 @@ int
 f_get_solid_keypoint(ClientData clientData, Tcl_Interp *UNUSED(interp), int UNUSED(argc), char *UNUSED(argv[]))
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
+    if (!ctp)
+	return TCL_ERROR;
     MGED_CK_CMD(ctp);
     struct mged_state *s = ctp->s;
+    if (!s || !MEDIT(s))
+	return TCL_ERROR;
 
     if (s->global_editing_state == ST_VIEW || s->global_editing_state == ST_S_PICK || s->global_editing_state == ST_O_PICK)
 	return TCL_OK;
@@ -544,7 +639,7 @@ f_get_solid_keypoint(ClientData clientData, Tcl_Interp *UNUSED(interp), int UNUS
 static int
 reinit_edit_state(struct mged_state *s, struct ged_bv_data *bdata)
 {
-    if (!s || !MEDIT(s) || !bdata)
+    if (!s || !MEDIT(s) || !bdata || !s->interp || !s->dbip || !view_state || !view_state->vs_gvp)
 	return BRLCAD_ERROR;
 
     /* MEDIT is persistent so Tcl links into it remain safe between edits. */
@@ -557,7 +652,8 @@ reinit_edit_state(struct mged_state *s, struct ged_bv_data *bdata)
     if (ret != BRLCAD_OK)
 	return BRLCAD_ERROR;
 
-    MEDIT(s)->mv_context = mged_variables->mv_context;
+    if (mged_variables)
+	MEDIT(s)->mv_context = mged_variables->mv_context;
     MEDIT(s)->vlfree = &rt_vlfree;
     return mged_edit_clbk_sync(MEDIT(s), s);
 }
@@ -571,7 +667,7 @@ reinit_edit_state(struct mged_state *s, struct ged_bv_data *bdata)
 void
 init_sedit(struct mged_state *s)
 {
-    if (s->dbip == DBI_NULL || !illump)
+    if (!s || s->dbip == DBI_NULL || !illump || !s->interp)
 	return;
 
     /*
@@ -587,6 +683,8 @@ init_sedit(struct mged_state *s)
 	return;
 
     struct ged_bv_data *bdata = (struct ged_bv_data *)illump->s_u_data;
+    if (bdata->s_fullpath.fp_len == 0 || !LAST_SOLID(bdata))
+	return;
 
     if (reinit_edit_state(s, bdata) != BRLCAD_OK) {
 	Tcl_AppendResult(s->interp, "init_sedit(",
@@ -608,7 +706,7 @@ init_sedit(struct mged_state *s)
 
 	bu_vls_strcpy(&vls, "begin_edit_callback ");
 	db_path_to_vls(&vls, &bdata->s_fullpath);
-	(void)Tcl_Eval(s->interp, bu_vls_addr(&vls));
+	(void)Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
     }
 }
@@ -617,6 +715,9 @@ init_sedit(struct mged_state *s)
 static void
 init_sedit_vars(struct mged_state *s)
 {
+    if (!s || !MEDIT(s))
+	return;
+
     MAT_IDN(MEDIT(s)->acc_rot_sol);
     MAT_IDN(MEDIT(s)->incr_change);
 
@@ -651,18 +752,21 @@ int
 replot_editing_solid(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUSED(id))
 {
     struct mged_state *s = (struct mged_state *)d;
+    if (!s || !MEDIT(s) || !s->gedp || !ged_dl(s->gedp))
+	return BRLCAD_OK;
+
     struct display_list *gdlp;
     struct display_list *next_gdlp;
     mat_t mat;
     struct bv_scene_obj *sp;
     struct directory *illdp;
 
-    if (!illump) {
+    if (!illump || !illump->s_u_data) {
 	return BRLCAD_OK;
     }
-    if (!illump->s_u_data)
-	return BRLCAD_OK;
     struct ged_bv_data *bdata = (struct ged_bv_data *)illump->s_u_data;
+    if (bdata->s_fullpath.fp_len == 0 || !LAST_SOLID(bdata))
+	return BRLCAD_OK;
     illdp = LAST_SOLID(bdata);
 
     gdlp = BU_LIST_NEXT(display_list, (struct bu_list *)ged_dl(s->gedp));
@@ -672,7 +776,7 @@ replot_editing_solid(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNU
 	for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
 	    if (sp->s_u_data) {
 		bdata = (struct ged_bv_data *)sp->s_u_data;
-		if (LAST_SOLID(bdata) == illdp) {
+		if (bdata->s_fullpath.fp_len > 0 && LAST_SOLID(bdata) == illdp) {
 		    (void)db_path_to_mat(s->dbip, &bdata->s_fullpath, mat, bdata->s_fullpath.fp_len-1);
 		    (void)replot_modified_solid(s, sp, &MEDIT(s)->es_int, mat);
 		}
@@ -699,6 +803,8 @@ transform_editing_solid(
     struct rt_db_internal *is,		/* input solid */
     int freeflag)
 {
+    if (!s || !s->dbip || !os || !is)
+	return;
     if (rt_matrix_transform(os, mat, is, freeflag, s->dbip) < 0)
 	bu_exit(EXIT_FAILURE, "transform_editing_solid failed to apply a matrix transform, aborting");
 }
@@ -709,6 +815,8 @@ transform_editing_solid(
  */
 void
 sedit_menu(struct mged_state *s) {
+    if (!s || !MEDIT(s) || !menu_state)
+	return;
 
     menu_state->ms_flag = 0;		/* No menu item selected yet */
 
@@ -716,11 +824,12 @@ sedit_menu(struct mged_state *s) {
     chg_l2menu(s, ST_S_EDIT);
 
     const struct rt_db_internal *ip = &MEDIT(s)->es_int;
-    if (EDOBJ[ip->idb_type].ft_menu_item) {
+    if (ip->idb_type > ID_NULL && ip->idb_type <= ID_MAX_SOLID && EDOBJ[ip->idb_type].ft_menu_item) {
 	bu_vls_trunc(MEDIT(s)->log_str, 0);
 	struct rt_edit_menu_item *mi = (*EDOBJ[ip->idb_type].ft_menu_item)(&s->tol.tol);
 	if (bu_vls_strlen(MEDIT(s)->log_str)) {
-	    Tcl_AppendResult(s->interp, bu_vls_cstr(MEDIT(s)->log_str), (char *)NULL);
+	    if (s->interp)
+		Tcl_AppendResult(s->interp, bu_vls_cstr(MEDIT(s)->log_str), (char *)NULL);
 	    bu_vls_trunc(MEDIT(s)->log_str, 0);
 	}
 	mmenu_set_all(s, MENU_L1, mi);
@@ -732,22 +841,26 @@ sedit_menu(struct mged_state *s) {
 char *
 get_sketch_name(struct mged_state *s, const char *sk_n)
 {
+    if (!s || !s->interp)
+	return NULL;
     struct bu_vls tcl_cmd = BU_VLS_INIT_ZERO;
-    bu_vls_printf(&tcl_cmd, "cad_input_dialog .get_sketch_name $mged_gui(mged,screen) {Select Sketch} {Enter the name   of the sketch to be extruded} final_sketch_name %s 0 {{summary \"Enter sketch name\"}} APPLY DISMISS", sk_n);
-    int ret_tcl = Tcl_Eval(s->interp, bu_vls_addr(&tcl_cmd));
+    bu_vls_printf(&tcl_cmd, "cad_input_dialog .get_sketch_name $mged_gui(mged,screen) {Select Sketch} {Enter the name   of the sketch to be extruded} final_sketch_name %s 0 {{summary \"Enter sketch name\"}} APPLY DISMISS", sk_n ? sk_n : "");
+    int ret_tcl = Tcl_Eval(s->interp, bu_vls_cstr(&tcl_cmd));
     if (ret_tcl != TCL_OK) {
 	bu_log("ERROR: %s\n", Tcl_GetStringResult(s->interp));
 	bu_vls_free(&tcl_cmd);
 	return NULL;
     }
 
-    if (atoi(Tcl_GetStringResult(s->interp)) == 1)
+    if (atoi(Tcl_GetStringResult(s->interp)) == 1) {
+	bu_vls_free(&tcl_cmd);
 	return NULL;
+    }
 
     bu_vls_free(&tcl_cmd);
 
     const char *sketch_name = Tcl_GetVar(s->interp, "final_sketch_name", TCL_GLOBAL_ONLY);
-    return bu_strdup(sketch_name);
+    return sketch_name ? bu_strdup(sketch_name) : NULL;
 }
 
 /*
@@ -764,16 +877,19 @@ get_sketch_name(struct mged_state *s, const char *sk_n)
 void
 sedit_mouse(struct mged_state *s, const vect_t mousevec)
 {
+    if (!s || !MEDIT(s))
+	return;
     if (MEDIT(s)->edit_flag <= 0)
 	return;
 
     int ret = 0;
     const struct rt_db_internal *ip = &MEDIT(s)->es_int;
-    if (EDOBJ[ip->idb_type].ft_edit_xy) {
+    if (ip->idb_type > ID_NULL && ip->idb_type <= ID_MAX_SOLID && EDOBJ[ip->idb_type].ft_edit_xy) {
 	bu_vls_trunc(MEDIT(s)->log_str, 0);
 	ret = (*EDOBJ[ip->idb_type].ft_edit_xy)(MEDIT(s), mousevec);
 	if (bu_vls_strlen(MEDIT(s)->log_str)) {
-	    Tcl_AppendResult(s->interp, bu_vls_cstr(MEDIT(s)->log_str), (char *)NULL);
+	    if (s->interp)
+		Tcl_AppendResult(s->interp, bu_vls_cstr(MEDIT(s)->log_str), (char *)NULL);
 	    bu_vls_trunc(MEDIT(s)->log_str, 0);
 	}
     }
@@ -795,6 +911,9 @@ sedit_mouse(struct mged_state *s, const vect_t mousevec)
 void
 objedit_mouse(struct mged_state *s, const vect_t mousevec)
 {
+    if (!s || !MEDIT(s) || !view_state)
+	return;
+
     /* Maintain legacy invariant: incr_change starts (and ends) identity */
     MAT_IDN(MEDIT(s)->incr_change);
 
@@ -824,16 +943,18 @@ objedit_mouse(struct mged_state *s, const vect_t mousevec)
 	    rt_edit_set_edflag(MEDIT(s), RT_MATRIX_EDIT_TRANS_VIEW_XY);
 	MAT_COPY(MEDIT(s)->model2objview, view_state->vs_model2objview);
     } else {
-	Tcl_AppendResult(s->interp, "No object edit mode selected;  mouse press ignored\n", (char *)NULL);
+	if (s->interp)
+	    Tcl_AppendResult(s->interp, "No object edit mode selected;  mouse press ignored\n", (char *)NULL);
 	return;
     }
 
     const struct rt_db_internal *ip = &MEDIT(s)->es_int;
-    if (EDOBJ[ip->idb_type].ft_edit_xy) {
+    if (ip->idb_type > ID_NULL && ip->idb_type <= ID_MAX_SOLID && EDOBJ[ip->idb_type].ft_edit_xy) {
 	bu_vls_trunc(MEDIT(s)->log_str, 0);
 	(*EDOBJ[ip->idb_type].ft_edit_xy)(MEDIT(s), mousevec);
 	if (bu_vls_strlen(MEDIT(s)->log_str)) {
-	    Tcl_AppendResult(s->interp, bu_vls_cstr(MEDIT(s)->log_str), (char *)NULL);
+	    if (s->interp)
+		Tcl_AppendResult(s->interp, bu_vls_cstr(MEDIT(s)->log_str), (char *)NULL);
 	    bu_vls_trunc(MEDIT(s)->log_str, 0);
 	}
     }
@@ -845,19 +966,21 @@ objedit_mouse(struct mged_state *s, const vect_t mousevec)
 void
 vls_solid(struct mged_state *ms, struct bu_vls *vp, struct rt_edit *s, const mat_t mat)
 {
+    if (!ms || !vp || !s || !ms->dbip || !ms->interp)
+	return;
     struct rt_db_internal *ip = &MEDIT(ms)->es_int;
     struct rt_db_internal intern;
     int id;
 
     RT_DB_INTERNAL_INIT(&intern);
 
-    if (ms->dbip == DBI_NULL)
-	return;
-
     BU_CK_VLS(vp);
     RT_CK_DB_INTERNAL(ip);
 
     id = ip->idb_type;
+    if (id <= ID_NULL || id > ID_MAX_SOLID)
+	return;
+
     transform_editing_solid(ms, &intern, mat, (struct rt_db_internal *)ip, 0);
 
     if (id != ID_ARS && id != ID_POLY && id != ID_BOT) {
@@ -868,9 +991,9 @@ vls_solid(struct mged_state *ms, struct bu_vls *vp, struct rt_edit *s, const mat
 	    Tcl_AppendResult(ms->interp, "vls_solid: describe error\n", (char *)NULL);
     }
 
-    if (id == ID_PIPE) {
+    if (id == ID_PIPE && s->ipe_ptr) {
 	struct rt_pipe_edit *p = (struct rt_pipe_edit *)s->ipe_ptr;
-	if (p->es_pipe_pnt) {
+	if (p->es_pipe_pnt && ip->idb_ptr) {
 	    struct rt_pipe_internal *pipeip;
 	    struct wdb_pipe_pnt *ps=(struct wdb_pipe_pnt *)NULL;
 	    int seg_no = 0;
@@ -896,10 +1019,13 @@ vls_solid(struct mged_state *ms, struct bu_vls *vp, struct rt_edit *s, const mat
 static int
 init_oedit_guts(struct mged_state *s)
 {
-    if (s->dbip == DBI_NULL || !illump || !illump->s_u_data)
+    if (!s || s->dbip == DBI_NULL || !illump || !illump->s_u_data || !s->interp)
 	return BRLCAD_ERROR;
 
     struct ged_bv_data *bdata = (struct ged_bv_data *)illump->s_u_data;
+    if (bdata->s_fullpath.fp_len == 0 || !LAST_SOLID(bdata))
+	return BRLCAD_ERROR;
+
     if (reinit_edit_state(s, bdata) != BRLCAD_OK) {
 	Tcl_AppendResult(s->interp, "init_oedit(",
 		LAST_SOLID(bdata)->d_namep,
@@ -928,6 +1054,9 @@ init_oedit_guts(struct mged_state *s)
 static void
 init_oedit_vars(struct mged_state *s)
 {
+    if (!s || !MEDIT(s))
+	return;
+
     set_e_axes_pos(s, 1);
 
     VSETALL(MEDIT(s)->k.rot_m_abs, 0.0);
@@ -964,7 +1093,7 @@ set_oedit_bbox_keypoint(struct mged_state *s)
     struct db_full_path path;
     char *path_name;
 
-    if (!MEDIT(s) || !illump || !illump->s_u_data)
+    if (!s || !s->dbip || !MEDIT(s) || !illump || !illump->s_u_data)
 	return BRLCAD_ERROR;
 
     struct ged_bv_data *bdata = (struct ged_bv_data *)illump->s_u_data;
@@ -996,16 +1125,19 @@ set_oedit_bbox_keypoint(struct mged_state *s)
 int
 init_oedit(struct mged_state *s)
 {
+    if (!s || !s->interp)
+	return BRLCAD_ERROR;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
     if (init_oedit_guts(s) != BRLCAD_OK)
 	return BRLCAD_ERROR;
 
-    s->s_edit->es_edclass = EDIT_CLASS_NULL;
+    if (s->s_edit)
+	s->s_edit->es_edclass = EDIT_CLASS_NULL;
 
     /* begin edit callback */
     bu_vls_strcpy(&vls, "begin_edit_callback {}");
-    (void)Tcl_Eval(s->interp, bu_vls_addr(&vls));
+    (void)Tcl_Eval(s->interp, bu_vls_cstr(&vls));
     bu_vls_free(&vls);
     return BRLCAD_OK;
 }
@@ -1027,9 +1159,11 @@ oedit_apply(struct mged_state *s, int continue_editing)
     mat_t deltam;	/* final "changes":  deltam = (inv_topm)(MEDIT(s)->model_changes)(topm) */
     mat_t tempm;
 
-    if (!illump || !illump->s_u_data)
+    if (!s || !MEDIT(s) || !illump || !illump->s_u_data)
 	return;
     struct ged_bv_data *bdata = (struct ged_bv_data *)illump->s_u_data;
+    if (bdata->s_fullpath.fp_len == 0)
+	return;
 
     switch (ipathpos) {
 	case 0:
@@ -1037,26 +1171,31 @@ oedit_apply(struct mged_state *s, int continue_editing)
 		     MEDIT(s)->model_changes);
 	    break;
 	case 1:
-	    moveHinstance(s, DB_FULL_PATH_GET(&bdata->s_fullpath, ipathpos-1),
-			  DB_FULL_PATH_GET(&bdata->s_fullpath, ipathpos),
-			  MEDIT(s)->model_changes);
+	    if (bdata->s_fullpath.fp_len > 1) {
+		moveHinstance(s, DB_FULL_PATH_GET(&bdata->s_fullpath, ipathpos-1),
+			      DB_FULL_PATH_GET(&bdata->s_fullpath, ipathpos),
+			      MEDIT(s)->model_changes);
+	    }
 	    break;
 	default:
-	    MAT_IDN(topm);
-	    MAT_IDN(inv_topm);
-	    MAT_IDN(deltam);
-	    MAT_IDN(tempm);
+	    if (ipathpos > 0 && (size_t)ipathpos < bdata->s_fullpath.fp_len) {
+		MAT_IDN(topm);
+		MAT_IDN(inv_topm);
+		MAT_IDN(deltam);
+		MAT_IDN(tempm);
 
-	    (void)db_path_to_mat(s->dbip, &bdata->s_fullpath, topm, ipathpos-1);
+		(void)db_path_to_mat(s->dbip, &bdata->s_fullpath, topm, ipathpos-1);
 
-	    bn_mat_inv(inv_topm, topm);
+		if (!bn_mat_inverse(inv_topm, topm))
+		    MAT_IDN(inv_topm);
 
-	    bn_mat_mul(tempm, MEDIT(s)->model_changes, topm);
-	    bn_mat_mul(deltam, inv_topm, tempm);
+		bn_mat_mul(tempm, MEDIT(s)->model_changes, topm);
+		bn_mat_mul(deltam, inv_topm, tempm);
 
-	    moveHinstance(s, DB_FULL_PATH_GET(&bdata->s_fullpath, ipathpos-1),
-			  DB_FULL_PATH_GET(&bdata->s_fullpath, ipathpos),
-			  deltam);
+		moveHinstance(s, DB_FULL_PATH_GET(&bdata->s_fullpath, ipathpos-1),
+			      DB_FULL_PATH_GET(&bdata->s_fullpath, ipathpos),
+			      deltam);
+	    }
 	    break;
     }
 
@@ -1067,6 +1206,9 @@ oedit_apply(struct mged_state *s, int continue_editing)
      * so we can safely fiddle the displaylist.
      */
     MEDIT(s)->model_changes[15] = 1000000000;	/* => small ratio */
+
+    if (!s->gedp || !ged_dl(s->gedp))
+	return;
 
     /* Now, recompute new chunks of displaylist */
     gdlp = BU_LIST_NEXT(display_list, (struct bu_list *)ged_dl(s->gedp));
@@ -1095,24 +1237,26 @@ oedit_accept(struct mged_state *s)
     struct display_list *next_gdlp;
     struct bv_scene_obj *sp;
 
-    if (s->dbip == DBI_NULL)
+    if (!s || s->dbip == DBI_NULL)
 	return;
 
     if (s->dbip->dbi_read_only) {
 	oedit_reject(s);
 
-	gdlp = BU_LIST_NEXT(display_list, (struct bu_list *)ged_dl(s->gedp));
-	while (BU_LIST_NOT_HEAD(gdlp, (struct bu_list *)ged_dl(s->gedp))) {
-	    next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
+	if (s->gedp && ged_dl(s->gedp)) {
+	    gdlp = BU_LIST_NEXT(display_list, (struct bu_list *)ged_dl(s->gedp));
+	    while (BU_LIST_NOT_HEAD(gdlp, (struct bu_list *)ged_dl(s->gedp))) {
+		next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
 
-	    for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
-		if (sp->s_iflag == DOWN)
-		    continue;
-		(void)replot_original_solid(s, sp);
-		sp->s_iflag = DOWN;
+		for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
+		    if (sp->s_iflag == DOWN)
+			continue;
+		    (void)replot_original_solid(s, sp);
+		    sp->s_iflag = DOWN;
+		}
+
+		gdlp = next_gdlp;
 	    }
-
-	    gdlp = next_gdlp;
 	}
 
 	bu_log("Sorry, this database is READ-ONLY\n");
@@ -1129,6 +1273,8 @@ oedit_accept(struct mged_state *s)
 void
 oedit_reject(struct mged_state *s)
 {
+    if (!s || !MEDIT(s))
+	return;
     rt_edit_reset(MEDIT(s));
     MEDIT(s)->edit_flag = -1;
 }
@@ -1144,14 +1290,18 @@ int
 f_eqn(ClientData clientData, Tcl_Interp *UNUSED(interp), int argc, const char *argv[])
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
+    if (!ctp)
+	return TCL_ERROR;
     MGED_CK_CMD(ctp);
     struct mged_state *s = ctp->s;
+    if (!s || !s->interp || !MEDIT(s))
+	return TCL_ERROR;
 
     if (argc < 4 || 4 < argc) {
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help eqn");
-	Tcl_Eval(s->interp, bu_vls_addr(&vls));
+	Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -1169,7 +1319,8 @@ f_eqn(ClientData clientData, Tcl_Interp *UNUSED(interp), int argc, const char *a
     replot_editing_solid(0, NULL, s, NULL);
 
     /* update display information */
-    view_state->vs_flag = 1;
+    if (view_state)
+	view_state->vs_flag = 1;
 
     return TCL_OK;
 }
@@ -1184,11 +1335,14 @@ f_eqn(ClientData clientData, Tcl_Interp *UNUSED(interp), int argc, const char *a
 static int
 sedit_apply(struct mged_state *s, int accept_flag)
 {
+    if (!s || !MEDIT(s) || !s->interp)
+	return TCL_ERROR;
     struct directory *dp;
 
     /* reset internal variables */
-    if (EDOBJ[MEDIT(s)->es_int.idb_type].ft_prim_edit_reset)
-	(*EDOBJ[MEDIT(s)->es_int.idb_type].ft_prim_edit_reset)(MEDIT(s));
+    int stype = MEDIT(s)->es_int.idb_type;
+    if (stype > ID_NULL && stype <= ID_MAX_SOLID && EDOBJ[stype].ft_prim_edit_reset)
+	(*EDOBJ[stype].ft_prim_edit_reset)(MEDIT(s));
 
     /* make sure we are in solid edit mode */
     if (!illump) {
@@ -1206,17 +1360,16 @@ sedit_apply(struct mged_state *s, int accept_flag)
 	return TCL_ERROR;
     }
     struct ged_bv_data *bdata = (struct ged_bv_data *)illump->s_u_data;
-    dp = LAST_SOLID(bdata);
-    if (!dp) {
-	/* sanity check, unexpected error */
+    if (bdata->s_fullpath.fp_len == 0 || !LAST_SOLID(bdata)) {
 	rt_edit_reset(MEDIT(s));
 	mmenu_set(s, MENU_L1, NULL);
 	mmenu_set(s, MENU_L2, NULL);
 	return TCL_ERROR;
     }
+    dp = LAST_SOLID(bdata);
 
     /* make sure that any BOT solid is minimally legal */
-    if (MEDIT(s)->es_int.idb_type == ID_BOT) {
+    if (MEDIT(s)->es_int.idb_type == ID_BOT && MEDIT(s)->es_int.idb_ptr) {
 	struct rt_bot_internal *bot = (struct rt_bot_internal *)MEDIT(s)->es_int.idb_ptr;
 
 	RT_BOT_CK_MAGIC(bot);
@@ -1230,7 +1383,7 @@ sedit_apply(struct mged_state *s, int accept_flag)
 		bu_free((char *)bot->face_mode, "BOT face_mode");
 		bot->face_mode = NULL;
 	    }
-	} else {
+	} else if (bot->num_faces > 0) {
 	    /* make sure face_modes and thicknesses exist */
 	    if (!bot->thickness)
 		bot->thickness = (fastf_t *)bu_calloc(bot->num_faces, sizeof(fastf_t), "BOT thickness");
@@ -1241,12 +1394,10 @@ sedit_apply(struct mged_state *s, int accept_flag)
     }
 
     /* Scale change on export is 1.0 -- no change */
+    /* Note: rt_db_put_internal frees MEDIT(s)->es_int on both success and failure */
     if (rt_db_put_internal(dp, s->dbip, &MEDIT(s)->es_int) < 0) {
 	Tcl_AppendResult(s->interp, "sedit_apply(", dp->d_namep,
 			 "):  solid export failure\n", (char *)NULL);
-	if (accept_flag) {
-	    rt_db_free_internal(&MEDIT(s)->es_int);
-	}
 	rt_edit_reset(MEDIT(s));
 	mmenu_set(s, MENU_L1, NULL);
 	mmenu_set(s, MENU_L2, NULL);
@@ -1254,9 +1405,11 @@ sedit_apply(struct mged_state *s, int accept_flag)
     }
 
     if (accept_flag) {
-	menu_state->ms_flag = 0;
+	if (menu_state)
+	    menu_state->ms_flag = 0;
 	movedir = 0;
-	s->s_edit->es_edclass = EDIT_CLASS_NULL;
+	if (s->s_edit)
+	    s->s_edit->es_edclass = EDIT_CLASS_NULL;
 
 	/* Reset the persistent rt_edit to idle: frees es_int, ipe_ptr and all
 	 * per-solid state without freeing the struct itself.  MEDIT(s) remains
@@ -1356,6 +1509,9 @@ mged_param(struct mged_state *s, Tcl_Interp *interp, int argc, fastf_t *argvect)
 {
     int i;
 
+    if (!s || !interp || !MEDIT(s) || !argvect)
+	return TCL_ERROR;
+
     CHECK_DBI_NULL;
 
     if (MEDIT(s)->edit_flag <= 0) {
@@ -1364,6 +1520,9 @@ mged_param(struct mged_state *s, Tcl_Interp *interp, int argc, fastf_t *argvect)
 			 (char *)NULL);
 	return TCL_ERROR;
     }
+
+    if (argc < 0 || argc > RT_EDIT_MAXPARA)
+	argc = (argc < 0) ? 0 : RT_EDIT_MAXPARA;
 
     MEDIT(s)->e_inpara = 0;
     for (i = 0; i < argc; i++) {
@@ -1376,7 +1535,8 @@ mged_param(struct mged_state *s, Tcl_Interp *interp, int argc, fastf_t *argvect)
 
     if (SEDIT_TRAN) {
 	vect_t diff;
-	fastf_t inv_Viewscale = 1/view_state->vs_gvp->gv_scale;
+	fastf_t inv_Viewscale = (view_state && view_state->vs_gvp && !ZERO(view_state->vs_gvp->gv_scale))
+	    ? 1.0 / view_state->vs_gvp->gv_scale : 1.0;
 
 	VSUB2(diff, MEDIT(s)->e_para, MEDIT(s)->e_axes_pos);
 	VSCALE(MEDIT(s)->k.tra_m_abs, diff, inv_Viewscale);
@@ -1385,7 +1545,7 @@ mged_param(struct mged_state *s, Tcl_Interp *interp, int argc, fastf_t *argvect)
 	VMOVE(MEDIT(s)->k.rot_m_abs, MEDIT(s)->e_para);
     } else if (SEDIT_SCALE) {
 	MEDIT(s)->k.sca_abs = MEDIT(s)->acc_sc_sol - 1.0;
-	if (MEDIT(s)->k.sca_abs > 0)
+	if (MEDIT(s)->k.sca_abs > 0.0)
 	    MEDIT(s)->k.sca_abs /= 3.0;
     }
     return TCL_OK;
@@ -1399,10 +1559,14 @@ f_param(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
+    if (!ctp || !interp || !argv)
+	return TCL_ERROR;
     struct mged_state *s = ctp->s;
+    if (!s)
+	return TCL_ERROR;
 
     int i;
-    vect_t argvect;
+    vect_t argvect = {0.0, 0.0, 0.0};
 
     CHECK_DBI_NULL;
     CHECK_READ_ONLY;
@@ -1411,13 +1575,16 @@ f_param(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help p");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
 
     for (i = 1; i < argc && i <= 3; i++) {
-	argvect[i-1] = atof(argv[i]);
+	if (!argv[i] || bu_sscanf(argv[i], "%lf", &argvect[i-1]) != 1) {
+	    Tcl_AppendResult(interp, "p: invalid parameter value '", argv[i] ? argv[i] : "(null)", "'\n", (char *)NULL);
+	    return TCL_ERROR;
+	}
     }
 
     return mged_param(s, interp, argc-1, argvect);
@@ -1439,14 +1606,22 @@ label_edited_solid(
     const mat_t xform,
     struct rt_db_internal *ip)
 {
+    if (!s || !pl || max_pl <= 0 || !ip)
+	return;
+
     /* ip is always &MEDIT(s)->es_int (see titles.c call site) */
     RT_CK_DB_INTERNAL(ip);
 
+    if (ip->idb_type <= ID_NULL || ip->idb_type > ID_MAX_SOLID) {
+	pl[0].str[0] = '\0';
+	return;
+    }
+
     // First, see if we have an edit-aware labeling method.  If we do, use it.
-    if (EDOBJ[ip->idb_type].ft_labels) {
+    if (EDOBJ[ip->idb_type].ft_labels && MEDIT(s)) {
 	bu_vls_trunc(MEDIT(s)->log_str, 0);
 	(*EDOBJ[ip->idb_type].ft_labels)(num_lines, lines, pl, max_pl, xform, MEDIT(s), &s->tol.tol);
-	if (bu_vls_strlen(MEDIT(s)->log_str)) {
+	if (bu_vls_strlen(MEDIT(s)->log_str) && s->interp) {
 	    Tcl_AppendResult(s->interp, bu_vls_cstr(MEDIT(s)->log_str), (char *)NULL);
 	    bu_vls_trunc(MEDIT(s)->log_str, 0);
 	}
@@ -1469,7 +1644,11 @@ f_keypoint(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
+    if (!ctp || !interp || !argv)
+	return TCL_ERROR;
     struct mged_state *s = ctp->s;
+    if (!s || !MEDIT(s))
+	return TCL_ERROR;
 
     CHECK_DBI_NULL;
 
@@ -1477,7 +1656,7 @@ f_keypoint(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help keypoint");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -1493,23 +1672,38 @@ f_keypoint(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv
 		struct bu_vls tmp_vls = BU_VLS_INIT_ZERO;
 		point_t key;
 
+		if (!s->dbip)
+		    return TCL_ERROR;
+
 		VSCALE(key, MEDIT(s)->e_keypoint, s->dbip->dbi_base2local);
-		bu_vls_printf(&tmp_vls, "%s (%g, %g, %g)\n", MEDIT(s)->e_keytag, V3ARGS(key));
-		Tcl_AppendResult(interp, bu_vls_addr(&tmp_vls), (char *)NULL);
+		bu_vls_printf(&tmp_vls, "%s (%g, %g, %g)\n",
+			      MEDIT(s)->e_keytag ? MEDIT(s)->e_keytag : "",
+			      V3ARGS(key));
+		Tcl_AppendResult(interp, bu_vls_cstr(&tmp_vls), (char *)NULL);
 		bu_vls_free(&tmp_vls);
 	    }
 
 	    break;
 	case 3:
-	    VSET(MEDIT(s)->e_keypoint,
-		 atof(argv[1]) * s->dbip->dbi_local2base,
-		 atof(argv[2]) * s->dbip->dbi_local2base,
-		 atof(argv[3]) * s->dbip->dbi_local2base);
-	    MEDIT(s)->e_keytag = "user-specified";
-	    MEDIT(s)->e_keyfixed = 1;
-	    break;
+	    {
+		double kx, ky, kz;
+		if (!s->dbip || !argv[1] || !argv[2] || !argv[3] ||
+		    bu_sscanf(argv[1], "%lf", &kx) != 1 ||
+		    bu_sscanf(argv[2], "%lf", &ky) != 1 ||
+		    bu_sscanf(argv[3], "%lf", &kz) != 1) {
+		    Tcl_AppendResult(interp, "Usage: 'keypoint [<x y z> | reset]'\n", (char *)NULL);
+		    return TCL_ERROR;
+		}
+		VSET(MEDIT(s)->e_keypoint,
+		     kx * s->dbip->dbi_local2base,
+		     ky * s->dbip->dbi_local2base,
+		     kz * s->dbip->dbi_local2base);
+		MEDIT(s)->e_keytag = "user-specified";
+		MEDIT(s)->e_keyfixed = 1;
+		break;
+	    }
 	case 1:
-	    if (BU_STR_EQUAL(argv[1], "reset")) {
+	    if (argv[1] && BU_STR_EQUAL(argv[1], "reset")) {
 		MEDIT(s)->e_keytag = "";
 		MEDIT(s)->e_keyfixed = 0;
 		rt_get_solid_keypoint(MEDIT(s), &MEDIT(s)->e_keypoint, &MEDIT(s)->e_keytag, MEDIT(s)->e_mat);
@@ -1521,7 +1715,8 @@ f_keypoint(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv
 	    return TCL_ERROR;
     }
 
-    view_state->vs_flag = 1;
+    if (view_state)
+	view_state->vs_flag = 1;
     return TCL_OK;
 }
 
@@ -1531,7 +1726,11 @@ f_get_sedit_menus(ClientData clientData, Tcl_Interp *interp, int UNUSED(argc), c
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
+    if (!ctp || !interp)
+	return TCL_ERROR;
     struct mged_state *s = ctp->s;
+    if (!s || !MEDIT(s))
+	return TCL_ERROR;
     struct rt_db_internal *ip = &MEDIT(s)->es_int;
 
     struct bu_vls vls = BU_VLS_INIT_ZERO;
@@ -1539,15 +1738,20 @@ f_get_sedit_menus(ClientData clientData, Tcl_Interp *interp, int UNUSED(argc), c
     if (s->global_editing_state != ST_S_EDIT)
 	return TCL_ERROR;
 
+    if (ip->idb_type <= ID_NULL || ip->idb_type > ID_MAX_SOLID)
+	return TCL_ERROR;
+
     if (EDOBJ[ip->idb_type].ft_menu_str) {
 	bu_vls_trunc(MEDIT(s)->log_str, 0);
 	int ret = (*EDOBJ[ip->idb_type].ft_menu_str)(&vls, ip, &s->tol.tol);
 	if (bu_vls_strlen(MEDIT(s)->log_str)) {
-	    Tcl_AppendResult(s->interp, bu_vls_cstr(MEDIT(s)->log_str), (char *)NULL);
+	    Tcl_AppendResult(s->interp ? s->interp : interp, bu_vls_cstr(MEDIT(s)->log_str), (char *)NULL);
 	    bu_vls_trunc(MEDIT(s)->log_str, 0);
 	}
-	if (ret != BRLCAD_OK)
+	if (ret != BRLCAD_OK) {
+	    bu_vls_free(&vls);
 	    return TCL_ERROR;
+	}
     }
 
     Tcl_AppendResult(interp, bu_vls_cstr(&vls), (char *)0);
@@ -1562,7 +1766,11 @@ f_get_sedit(ClientData clientData, Tcl_Interp *interp, int argc, const char *arg
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
+    if (!ctp || !interp || !argv)
+	return TCL_ERROR;
     struct mged_state *s = ctp->s;
+    if (!s || !MEDIT(s))
+	return TCL_ERROR;
 
     int status;
     struct rt_db_internal ces_int;
@@ -1573,7 +1781,7 @@ f_get_sedit(ClientData clientData, Tcl_Interp *interp, int argc, const char *arg
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "helpdevel get_sed");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -1583,9 +1791,13 @@ f_get_sedit(ClientData clientData, Tcl_Interp *interp, int argc, const char *arg
 	return TCL_ERROR;
     }
 
-    if (illump || !illump->s_u_data)
+    if (!illump || !illump->s_u_data)
 	return TCL_ERROR;
     struct ged_bv_data *bdata = (struct ged_bv_data *)illump->s_u_data;
+    if (bdata->s_fullpath.fp_len <= 0 || !LAST_SOLID(bdata)) {
+	Tcl_AppendResult(interp, "get_sed: no solid selected\n", (char *)NULL);
+	return TCL_ERROR;
+    }
 
     if (argc == 1) {
 	struct bu_vls logstr = BU_VLS_INIT_ZERO;
@@ -1593,8 +1805,12 @@ f_get_sedit(ClientData clientData, Tcl_Interp *interp, int argc, const char *arg
 	/* get solid type and parameters */
 	RT_CK_DB_INTERNAL(&MEDIT(s)->es_int);
 	RT_CK_FUNCTAB(MEDIT(s)->es_int.idb_meth);
+	if (!MEDIT(s)->es_int.idb_meth->ft_get) {
+	    Tcl_AppendResult(interp, "get_sed: get method not supported\n", (char *)NULL);
+	    return TCL_ERROR;
+	}
 	status = MEDIT(s)->es_int.idb_meth->ft_get(&logstr, &MEDIT(s)->es_int, (char *)0);
-	Tcl_AppendResult(interp, bu_vls_addr(&logstr), (char *)0);
+	Tcl_AppendResult(interp, bu_vls_cstr(&logstr), (char *)0);
 	pto = Tcl_GetObjResult(interp);
 
 	bu_vls_free(&logstr);
@@ -1608,7 +1824,7 @@ f_get_sedit(ClientData clientData, Tcl_Interp *interp, int argc, const char *arg
 	return status;
     }
 
-    if (argv[1][0] != '-' || argv[1][1] != 'c') {
+    if (!argv[1] || argv[1][0] != '-' || argv[1][1] != 'c' || argv[1][2] != '\0') {
 	Tcl_AppendResult(interp, "Usage: get_sed [-c]", (char *)0);
 	return TCL_ERROR;
     }
@@ -1620,11 +1836,16 @@ f_get_sedit(ClientData clientData, Tcl_Interp *interp, int argc, const char *arg
     /* get solid type and parameters */
     RT_CK_DB_INTERNAL(&ces_int);
     RT_CK_FUNCTAB(ces_int.idb_meth);
+    if (!ces_int.idb_meth->ft_get) {
+	rt_db_free_internal(&ces_int);
+	Tcl_AppendResult(interp, "get_sed: get method not supported\n", (char *)NULL);
+	return TCL_ERROR;
+    }
     {
 	struct bu_vls logstr = BU_VLS_INIT_ZERO;
 
 	status = ces_int.idb_meth->ft_get(&logstr, &ces_int, (char *)0);
-	Tcl_AppendResult(interp, bu_vls_addr(&logstr), (char *)0);
+	Tcl_AppendResult(interp, bu_vls_cstr(&logstr), (char *)0);
 	bu_vls_free(&logstr);
     }
     pto = Tcl_GetObjResult(interp);
@@ -1635,7 +1856,7 @@ f_get_sedit(ClientData clientData, Tcl_Interp *interp, int argc, const char *arg
 	struct bu_vls str = BU_VLS_INIT_ZERO;
 
 	db_path_to_vls(&str, &bdata->s_fullpath);
-	Tcl_AppendStringsToObj(pnto, bu_vls_addr(&str), NULL);
+	Tcl_AppendStringsToObj(pnto, bu_vls_cstr(&str), NULL);
 	bu_vls_free(&str);
     }
 
@@ -1655,7 +1876,11 @@ f_put_sedit(ClientData clientData, Tcl_Interp *interp, int argc, const char *arg
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
+    if (!ctp || !interp || !argv)
+	return TCL_ERROR;
     struct mged_state *s = ctp->s;
+    if (!s || !MEDIT(s))
+	return TCL_ERROR;
 
     const struct rt_functab *ftp;
     uint32_t save_magic;
@@ -1668,7 +1893,7 @@ f_put_sedit(ClientData clientData, Tcl_Interp *interp, int argc, const char *arg
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "helpdevel put_sed");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -1678,11 +1903,16 @@ f_put_sedit(ClientData clientData, Tcl_Interp *interp, int argc, const char *arg
 	return TCL_ERROR;
     }
 
+    if (!argv[1])
+	return TCL_ERROR;
+
     /* look for -c */
     if (argv[1][0] == '-' && argv[1][1] == 'c') {
 	context = 1;
 	--argc;
 	++argv;
+	if (argc < 5 || !argv[1])
+	    return TCL_ERROR;
     } else
 	context = 0;
 
@@ -1695,11 +1925,18 @@ f_put_sedit(ClientData clientData, Tcl_Interp *interp, int argc, const char *arg
 	return TCL_ERROR;
     }
 
+    RT_CK_DB_INTERNAL(&MEDIT(s)->es_int);
     RT_CK_FUNCTAB(MEDIT(s)->es_int.idb_meth);
     if (MEDIT(s)->es_int.idb_meth != ftp) {
 	Tcl_AppendResult(interp,
 			 "put_sed: idb_meth type mismatch",
 			 (char *)0);
+	return TCL_ERROR;
+    }
+
+    if (!MEDIT(s)->es_int.idb_ptr) {
+	Tcl_AppendResult(interp, "put_sed: null internal solid pointer", (char *)0);
+	return TCL_ERROR;
     }
 
     save_magic = *((uint32_t *)MEDIT(s)->es_int.idb_ptr);
@@ -1709,7 +1946,7 @@ f_put_sedit(ClientData clientData, Tcl_Interp *interp, int argc, const char *arg
 	struct bu_vls vlog = BU_VLS_INIT_ZERO;
 
 	ret = bu_structparse_argv(&vlog, argc-2, argv+2, ftp->ft_parsetab, (char *)MEDIT(s)->es_int.idb_ptr, NULL);
-	Tcl_AppendResult(interp, bu_vls_addr(&vlog), (char *)NULL);
+	Tcl_AppendResult(interp, bu_vls_cstr(&vlog), (char *)NULL);
 	bu_vls_free(&vlog);
 	if (ret != BRLCAD_OK)
 	    return TCL_ERROR;
@@ -1734,7 +1971,11 @@ f_sedit_reset(ClientData clientData, Tcl_Interp *interp, int argc, const char *U
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
+    if (!ctp || !interp)
+	return TCL_ERROR;
     struct mged_state *s = ctp->s;
+    if (!s || !MEDIT(s))
+	return TCL_ERROR;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
     if (s->global_editing_state != ST_S_EDIT || !illump)
@@ -1742,32 +1983,32 @@ f_sedit_reset(ClientData clientData, Tcl_Interp *interp, int argc, const char *U
 
     if (argc != 1) {
 	bu_vls_printf(&vls, "helpdevel sed_reset");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
 
+    int idb_type = MEDIT(s)->es_int.idb_type;
+
+    /* reset internal variables before freeing internal */
+    if (idb_type > ID_NULL && idb_type <= ID_MAX_SOLID && EDOBJ[idb_type].ft_prim_edit_reset)
+	(*EDOBJ[idb_type].ft_prim_edit_reset)(MEDIT(s));
+
     /* free old copy */
     rt_db_free_internal(&MEDIT(s)->es_int);
-
-    /* reset internal variables */
-    if (EDOBJ[MEDIT(s)->es_int.idb_type].ft_prim_edit_reset)
-	(*EDOBJ[MEDIT(s)->es_int.idb_type].ft_prim_edit_reset)(MEDIT(s));
 
     /* read in a fresh copy */
     if (!illump || !illump->s_u_data)
 	return TCL_ERROR;
     struct ged_bv_data *bdata = (struct ged_bv_data *)illump->s_u_data;
+    if (!s->dbip || bdata->s_fullpath.fp_len <= 0 || !LAST_SOLID(bdata))
+	return TCL_ERROR;
+
     if (rt_db_get_internal(&MEDIT(s)->es_int, LAST_SOLID(bdata),
 			   s->dbip, NULL) < 0) {
-	if (bdata->s_fullpath.fp_len > 0) {
-	    Tcl_AppendResult(interp, "sedit_reset(",
-		    LAST_SOLID(bdata)->d_namep,
-		    "):  solid import failure\n", (char *)NULL);
-	} else {
-	    Tcl_AppendResult(interp, "sedit_reset(NULL):  solid import failure\n", (char *)NULL);
-
-	}
+	Tcl_AppendResult(interp, "sedit_reset(",
+		LAST_SOLID(bdata)->d_namep,
+		"):  solid import failure\n", (char *)NULL);
 	return TCL_ERROR;				/* FAIL */
     }
     RT_CK_DB_INTERNAL(&MEDIT(s)->es_int);
@@ -1799,11 +2040,12 @@ f_sedit_reset(ClientData clientData, Tcl_Interp *interp, int argc, const char *U
 
     set_e_axes_pos(s, 1);
     s->update_views = 1;
-    dm_set_dirty(DMP, 1);
+    if (DMP)
+	dm_set_dirty(DMP, 1);
 
     /* active edit callback */
     bu_vls_printf(&vls, "active_edit_callback");
-    (void)Tcl_Eval(interp, bu_vls_addr(&vls));
+    (void)Tcl_Eval(interp, bu_vls_cstr(&vls));
     bu_vls_free(&vls);
 
     return TCL_OK;
@@ -1815,7 +2057,11 @@ f_sedit_apply(ClientData clientData, Tcl_Interp *interp, int UNUSED(argc), const
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
+    if (!ctp || !interp)
+	return TCL_ERROR;
     struct mged_state *s = ctp->s;
+    if (!s)
+	return TCL_ERROR;
 
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
@@ -1830,7 +2076,7 @@ f_sedit_apply(ClientData clientData, Tcl_Interp *interp, int UNUSED(argc), const
 
     /* active edit callback */
     bu_vls_printf(&vls, "active_edit_callback");
-    (void)Tcl_Eval(interp, bu_vls_addr(&vls));
+    (void)Tcl_Eval(interp, bu_vls_cstr(&vls));
     bu_vls_free(&vls);
 
     return TCL_OK;
@@ -1842,7 +2088,11 @@ f_oedit_reset(ClientData clientData, Tcl_Interp *interp, int argc, const char *U
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
+    if (!ctp || !interp)
+	return TCL_ERROR;
     struct mged_state *s = ctp->s;
+    if (!s || !MEDIT(s))
+	return TCL_ERROR;
 
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
@@ -1851,12 +2101,12 @@ f_oedit_reset(ClientData clientData, Tcl_Interp *interp, int argc, const char *U
 
     if (argc != 1) {
 	bu_vls_printf(&vls, "helpdevel oed_reset");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
 
-    int bbox_keypoint = BU_STR_EQUAL(MEDIT(s)->e_keytag, "bounding-box center");
+    int bbox_keypoint = (MEDIT(s)->e_keytag && BU_STR_EQUAL(MEDIT(s)->e_keytag, "bounding-box center"));
 
     oedit_reject(s);
     if (init_oedit_guts(s) != BRLCAD_OK)
@@ -1867,11 +2117,12 @@ f_oedit_reset(ClientData clientData, Tcl_Interp *interp, int argc, const char *U
 
     new_edit_mats(s);
     s->update_views = 1;
-    dm_set_dirty(DMP, 1);
+    if (DMP)
+	dm_set_dirty(DMP, 1);
 
     /* active edit callback */
     bu_vls_printf(&vls, "active_edit_callback");
-    (void)Tcl_Eval(interp, bu_vls_addr(&vls));
+    (void)Tcl_Eval(interp, bu_vls_cstr(&vls));
     bu_vls_free(&vls);
 
     return TCL_OK;
@@ -1883,25 +2134,33 @@ f_oedit_apply(ClientData clientData, Tcl_Interp *interp, int UNUSED(argc), const
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
+    if (!ctp || !interp)
+	return TCL_ERROR;
     struct mged_state *s = ctp->s;
+    if (!s || !MEDIT(s))
+	return TCL_ERROR;
 
     struct bu_vls vls = BU_VLS_INIT_ZERO;
-    const char *strp="";
+    const char *strp = "";
 
     CHECK_DBI_NULL;
-    int bbox_keypoint = BU_STR_EQUAL(MEDIT(s)->e_keytag, "bounding-box center");
+    int bbox_keypoint = (MEDIT(s)->e_keytag && BU_STR_EQUAL(MEDIT(s)->e_keytag, "bounding-box center"));
     oedit_apply(s, UP); /* apply changes, but continue editing */
 
-    if (!illump->s_u_data)
+    if (!illump || !illump->s_u_data)
 	return TCL_ERROR;
     struct ged_bv_data *bdata = (struct ged_bv_data *)illump->s_u_data;
+    if (bdata->s_fullpath.fp_len <= 0)
+	return TCL_ERROR;
 
     /* Save aggregate path matrix */
     MAT_IDN(MEDIT(s)->e_mat);
-    (void)db_path_to_mat(s->dbip, &bdata->s_fullpath, MEDIT(s)->e_mat, bdata->s_fullpath.fp_len-1);
+    (void)db_path_to_mat(s->dbip, &bdata->s_fullpath, MEDIT(s)->e_mat, bdata->s_fullpath.fp_len - 1);
 
     /* get the inverse matrix */
-    bn_mat_inv(MEDIT(s)->e_invmat, MEDIT(s)->e_mat);
+    if (bn_mat_inverse(MEDIT(s)->e_invmat, MEDIT(s)->e_mat) != 1) {
+	MAT_IDN(MEDIT(s)->e_invmat);
+    }
 
     rt_get_solid_keypoint(MEDIT(s), &MEDIT(s)->e_keypoint, &strp, MEDIT(s)->e_mat);
     init_oedit_vars(s);
@@ -1909,11 +2168,12 @@ f_oedit_apply(ClientData clientData, Tcl_Interp *interp, int UNUSED(argc), const
 	(void)set_oedit_bbox_keypoint(s);
     new_edit_mats(s);
     s->update_views = 1;
-    dm_set_dirty(DMP, 1);
+    if (DMP)
+	dm_set_dirty(DMP, 1);
 
     /* active edit callback */
     bu_vls_printf(&vls, "active_edit_callback");
-    (void)Tcl_Eval(interp, bu_vls_addr(&vls));
+    (void)Tcl_Eval(interp, bu_vls_cstr(&vls));
     bu_vls_free(&vls);
 
     return TCL_OK;
@@ -1926,10 +2186,14 @@ f_extrude(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
+    if (!ctp || !interp || !argv)
+	return TCL_ERROR;
     struct mged_state *s = ctp->s;
+    if (!s || !MEDIT(s))
+	return TCL_ERROR;
 
-    static int face;
-    static fastf_t dist;
+    int face;
+    fastf_t dist;
 
     CHECK_DBI_NULL;
 
@@ -1937,7 +2201,7 @@ f_extrude(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help extrude");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 
 	return TCL_ERROR;
@@ -1951,22 +2215,36 @@ f_extrude(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	return TCL_ERROR;
     }
 
+    if (!MEDIT(s)->es_int.idb_ptr) {
+	Tcl_AppendResult(interp, "Extrude: internal solid pointer is null\n", (char *)NULL);
+	return TCL_ERROR;
+    }
+
     int arb_type = rt_arb_std_type(&MEDIT(s)->es_int, MEDIT(s)->tol);
 
     if (arb_type != ARB8 && arb_type != ARB6 && arb_type != ARB4) {
 	struct bu_vls tmp_vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&tmp_vls, "ARB%d: extrusion of faces not allowed\n", arb_type);
-	Tcl_AppendResult(interp, bu_vls_addr(&tmp_vls), (char *)NULL);
+	Tcl_AppendResult(interp, bu_vls_cstr(&tmp_vls), (char *)NULL);
 	bu_vls_free(&tmp_vls);
 
 	return TCL_ERROR;
     }
 
-    face = atoi(argv[1]);
+    if (!argv[1] || !argv[2])
+	return TCL_ERROR;
+
+    if (bu_sscanf(argv[1], "%d", &face) != 1) {
+	Tcl_AppendResult(interp, "Extrude: invalid face number '", argv[1], "'\n", (char *)NULL);
+	return TCL_ERROR;
+    }
 
     /* get distance to project face */
-    dist = atof(argv[2]);
+    if (bu_sscanf(argv[2], "%lf", &dist) != 1) {
+	Tcl_AppendResult(interp, "Extrude: invalid distance '", argv[2], "'\n", (char *)NULL);
+	return TCL_ERROR;
+    }
     /* apply MEDIT(s)->e_mat[15] to get to real model space */
     /* convert from the local unit (as input) to the base unit */
     dist = dist * MEDIT(s)->e_mat[15] * s->dbip->dbi_local2base;
@@ -2004,7 +2282,8 @@ f_extrude(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     /* draw the updated solid */
     replot_editing_solid(0, NULL, s, NULL);
     s->update_views = 1;
-    dm_set_dirty(DMP, 1);
+    if (DMP)
+	dm_set_dirty(DMP, 1);
 
     return TCL_OK;
 }
@@ -2017,7 +2296,11 @@ f_mirface(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
+    if (!ctp || !interp || !argv)
+	return TCL_ERROR;
     struct mged_state *s = ctp->s;
+    if (!s || !MEDIT(s))
+	return TCL_ERROR;
 
     int face;
 
@@ -2025,7 +2308,7 @@ f_mirface(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help mirface");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 
 	return TCL_ERROR;
@@ -2039,10 +2322,21 @@ f_mirface(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	return TCL_ERROR;
     }
 
+    if (!MEDIT(s)->es_int.idb_ptr) {
+	Tcl_AppendResult(interp, "Mirface: internal solid pointer is null\n", (char *)NULL);
+	return TCL_ERROR;
+    }
+
     struct rt_arb_internal *arb = (struct rt_arb_internal *)MEDIT(s)->es_int.idb_ptr;
     RT_ARB_CK_MAGIC(arb);
 
-    face = atoi(argv[1]);
+    if (!argv[1] || !argv[2])
+	return TCL_ERROR;
+
+    if (bu_sscanf(argv[1], "%d", &face) != 1) {
+	Tcl_AppendResult(interp, "Mirface: invalid face number '", argv[1], "'\n", (char *)NULL);
+	return TCL_ERROR;
+    }
 
     fastf_t es_peqn[7][4];
     struct bu_vls error_msg = BU_VLS_INIT_ZERO;
@@ -2061,7 +2355,8 @@ f_mirface(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 
     /* draw the updated solid */
     replot_editing_solid(0, NULL, s, NULL);
-    view_state->vs_flag = 1;
+    if (view_state)
+	view_state->vs_flag = 1;
 
     return TCL_OK;
 }
@@ -2075,13 +2370,17 @@ f_edgedir(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
+    if (!ctp || !interp || !argv)
+	return TCL_ERROR;
     struct mged_state *s = ctp->s;
+    if (!s || !MEDIT(s))
+	return TCL_ERROR;
 
     if (argc < 3 || 4 < argc) {
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help edgedir");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 
 	return TCL_ERROR;
@@ -2114,19 +2413,19 @@ f_permute(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 {
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
+    if (!ctp || !interp || !argv)
+	return TCL_ERROR;
     struct mged_state *s = ctp->s;
+    if (!s || !MEDIT(s))
+	return TCL_ERROR;
 
-    /*
-     * 1) Why were all vars declared static?
-     * 2) Recompute plane equations?
-     */
     struct bu_vls vls = BU_VLS_INIT_ZERO;
     CHECK_DBI_NULL;
     CHECK_READ_ONLY;
 
     if (argc < 2 || 2 < argc) {
 	bu_vls_printf(&vls, "help permute");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 
 	return TCL_ERROR;
@@ -2140,8 +2439,16 @@ f_permute(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	return TCL_ERROR;
     }
 
+    if (!MEDIT(s)->es_int.idb_ptr) {
+	Tcl_AppendResult(interp, "Permute: internal solid pointer is null\n", (char *)NULL);
+	return TCL_ERROR;
+    }
+
     struct rt_arb_internal *arb = (struct rt_arb_internal *)MEDIT(s)->es_int.idb_ptr;
     RT_ARB_CK_MAGIC(arb);
+
+    if (!argv[1])
+	return TCL_ERROR;
 
     if (arb_permute(arb, argv[1], MEDIT(s)->tol)) {
 	Tcl_AppendResult(interp, "Permute failed.\n", (char *)NULL);
@@ -2150,7 +2457,8 @@ f_permute(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 
     /* draw the updated solid */
     replot_editing_solid(0, NULL, s, NULL);
-    view_state->vs_flag = 1;
+    if (view_state)
+	view_state->vs_flag = 1;
 
     return TCL_OK;
 }
