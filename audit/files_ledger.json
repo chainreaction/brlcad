@@ -33536,40 +33536,48 @@
       "path": "src/mged/color_scheme.c",
       "subsystem": "src/mged",
       "lines": 339,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T05:25:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0283"
+      ]
     },
     {
       "id": 3177,
       "path": "src/mged/columns.c",
       "subsystem": "src/mged",
       "lines": 103,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T05:25:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0283"
+      ]
     },
     {
       "id": 3178,
       "path": "src/mged/dm-generic.c",
       "subsystem": "src/mged",
       "lines": 699,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T05:25:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0283"
+      ]
     },
     {
       "id": 3179,
       "path": "src/mged/dodraw.c",
       "subsystem": "src/mged",
       "lines": 308,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T05:25:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0283"
+      ]
     },
     {
       "id": 3180,
