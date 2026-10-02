@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-10-02 05:10:00 UTC
+**Last Updated:** 2026-10-02 05:25:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 1316 (37.7%)
-- **Files Pending Review:** 2177
-- **Total Issues Identified:** 301
+- **Files Reviewed:** 1318 (37.7%)
+- **Files Pending Review:** 2175
+- **Total Issues Identified:** 302
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 226 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 227 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 52 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 301
+- **Fixed (Committed):** 302
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -103,7 +103,7 @@
 | `src/libtclcad` | 31 | 0 | 0.0% | 0 |
 | `src/libtermio` | 2 | 2 | 100.0% | 1 |
 | `src/libwdb` | 27 | 27 | 100.0% | 2 |
-| `src/mged` | 55 | 9 | 16.4% | 1 |
+| `src/mged` | 55 | 11 | 20.0% | 2 |
 | `src/nirt` | 2 | 2 | 100.0% | 1 |
 | `src/proc-db` | 55 | 0 | 0.0% | 0 |
 | `src/qged` | 34 | 0 | 0.0% | 0 |
@@ -400,3 +400,4 @@
 
 
 | `SEC-0280` | **Sev 2** | Buffer Overflow, Double-Free, Logic / Angle Calculation Bug, Memory Leaks, Array Out-of-Bounds, Division by Zero, and Missing Validation | `src/mged (Batch 38: adc through chgtree)` | `FIXED` | In BRL-CAD mged Batch 38 (adc through chgtree, 9 files): in adc.c, fixed stack buffer overflow by capping user_pt coordinate parsing to the 3-element buffer capacity, replaced atof with bu_sscanf, guarded against division by zero in grid_scale across dst, dh, dv, and hv with ZERO macro, fixed incorrect input point parameter in MAT4X3PNT (passing pos_view instead of pos_model), added null pointer guards in adc_set_dirty_flag, adc_set_scroll, adcursor, and f_adc, and replaced bu_vls_addr with bu_vls_cstr; in arbs.c, eliminated double-free on rt_db_put_internal failure and fixed memory leak of internal struct on db_diradd failure and switch default, freed temporary vls on error return, eliminated unused file-scope dead array p_arb3pt and global mutable promp pointer, replaced atof with bu_sscanf, and replaced bu_vls_addr with bu_vls_cstr; in attach.c, made release() name parameter const char *, added null check on s and wp_name in mged_attach, removed redundant null check, and replaced bu_vls_addr with bu_vls_cstr; in axes.c, guarded against aspect division by zero with ZERO macro in draw_v_axes, and added null pointer guards in draw_e_axes, draw_m_axes, and draw_v_axes; in buttons.c, added bounds-checked get_state_str() helper to prevent out-of-bounds array reads on state_str, added null pointer checks in f_press, bv_vrestore, bv_vsave, and bv_adcursor, and replaced bu_vls_addr with bu_vls_cstr; in cad_boundp.c, resolved angle calculation bug where atan2 radian output was multiplied by DEG2RAD instead of RAD2DEG (corrupting bounding polygon angle computations), moved stray debug newline output inside #ifdef DEBUG, migrated memory management to bu_malloc and bu_free, included bu/malloc.h, replaced sscanf with bu_sscanf, and added negative tolerance validation; in cad_parea.c, replaced sscanf with bu_sscanf, and routed error logging from printf to stderr to prevent corrupting redirected stdout files; in chgmodel.c, guarded divisions in f_sc_obj against zero scale denominator and scale accumulators with ZERO macro, validated scale input with bu_sscanf, verified direction vector magnitude squared in f_qorot and corrected inverted error message, replaced sprintf with snprintf and guarded view_state in f_make, and replaced bu_vls_addr with bu_vls_cstr; in chgtree.c, fixed memory leak of internal database struct on db_diradd failure in f_copy_inv, added null guards in find_solid_with_path and find_solid_below_path, ensured lhs, rhs, and both paths are properly freed on all error exit paths in cmd_oed, and replaced bu_vls_addr with bu_vls_cstr. |
+| `SEC-0281` | **Sev 2** | Stack Buffer Overflow, Out-of-bounds Array Access, Double-Free, Division by Zero, Memory Leaks, and Null Pointer Dereferences | `src/mged (Batch 39: chgview.c, clone.c)` | `FIXED` | In BRL-CAD mged Batch 39 (chgview.c and clone.c, 4,128 lines): in clone.c, fixed stack buffer overflows in get_name by adding field width limits with CPP_XSTR(CLONE_BUFSIZE) to bu_sscanf and replacing raw sscanf with bu_sscanf, fixed double-free and memory leaks of name vls by migrating deallocation from bu_vls_free to bu_vls_vlsfree (since get_name allocates outer struct via bu_vls_vlsinit), fixed out-of-bounds negative array indexing obj_list.names[-1] in copy_v5_comb_tree and copy_v4_comb by validating index_in_list return value (lidx >= 0) before indexing, fixed memory leak of obj_list.names[i].src in copy_object and ensured obj_list is freed across all return paths, fixed memory leaks of internal structures and records in copy_v4_solid, copy_v4_comb, copy_v5_solid, and copy_v5_comb on error paths, fixed potential division by zero in f_tracker by checking n_verts > 1, replaced raw calloc/free with bu_calloc/bu_free, and replaced read-only bu_vls_addr calls with bu_vls_cstr; in chgview.c, guarded against division by zero in cmd_size, mged_vscale, and cmd_sca by checking gv_i_scale with ZERO macro, added null checks on view_state and vs_gvp across cmd_center, cmd_size, size_reset, edit_com, cmd_autoview, f_status, f_refresh, update_all_rate_flags, mged_print_knobvals, knob_apply_misc, f_knob, mged_zoom, cmd_setview, f_slewview, mged_svbase, f_svbase, setview, slewview, f_view_ring, cmd_mrot, cmd_rot, cmd_arot, mged_vscale, and cmd_sca, fixed out-of-bounds argv access in edit_com, bounded state_str array indexing in f_status, replaced sprintf with snprintf in f_regdebug and guarded DMP, fixed early-out memory leak of orig_nargv and vlsargv in f_ill, guarded path_parse against null path, guarded MEDIT(s) and s->s_edit before dereference in mged_librt_knob_edit_apply and mged_escale, and replaced read-only bu_vls_addr calls with bu_vls_cstr. |

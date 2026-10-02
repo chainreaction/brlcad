@@ -33490,20 +33490,24 @@
       "path": "src/mged/chgview.c",
       "subsystem": "src/mged",
       "lines": 2936,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T05:25:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0281"
+      ]
     },
     {
       "id": 3173,
       "path": "src/mged/clone.c",
       "subsystem": "src/mged",
       "lines": 1192,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T05:25:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0281"
+      ]
     },
     {
       "id": 3174,
