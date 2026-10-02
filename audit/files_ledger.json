@@ -26937,210 +26937,252 @@
       "path": "src/libged/view2grid_lu/view2grid_lu.c",
       "subsystem": "src/libged",
       "lines": 94,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2531,
       "path": "src/libged/view2model/view2model.c",
       "subsystem": "src/libged",
       "lines": 71,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2532,
       "path": "src/libged/view2model_lu/view2model_lu.c",
       "subsystem": "src/libged",
       "lines": 93,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2533,
       "path": "src/libged/view2model_vec/view2model_vec.c",
       "subsystem": "src/libged",
       "lines": 89,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2534,
       "path": "src/libged/voxelize/voxelize.c",
       "subsystem": "src/libged",
       "lines": 248,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2535,
       "path": "src/libged/vrot/vrot.c",
       "subsystem": "src/libged",
       "lines": 94,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2536,
       "path": "src/libged/vutil.c",
       "subsystem": "src/libged",
       "lines": 217,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2537,
       "path": "src/libged/wcodes/wcodes.c",
       "subsystem": "src/libged",
       "lines": 198,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2538,
       "path": "src/libged/wdb_importFg4Section.c",
       "subsystem": "src/libged",
       "lines": 558,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2539,
       "path": "src/libged/whatid/whatid.c",
       "subsystem": "src/libged",
       "lines": 96,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2540,
       "path": "src/libged/which/which.cpp",
       "subsystem": "src/libged",
       "lines": 312,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2541,
       "path": "src/libged/which_shader/which_shader.c",
       "subsystem": "src/libged",
       "lines": 120,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2542,
       "path": "src/libged/who/who.c",
       "subsystem": "src/libged",
       "lines": 124,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2543,
       "path": "src/libged/who/who2.cpp",
       "subsystem": "src/libged",
       "lines": 123,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2544,
       "path": "src/libged/who/who_solids.cpp",
       "subsystem": "src/libged",
       "lines": 459,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2545,
       "path": "src/libged/wireframe_eval.c",
       "subsystem": "src/libged",
       "lines": 1871,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2546,
       "path": "src/libged/wmater/wmater.c",
       "subsystem": "src/libged",
       "lines": 113,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2547,
       "path": "src/libged/xpush/xpush.c",
       "subsystem": "src/libged",
       "lines": 592,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2548,
       "path": "src/libged/zap/zap.c",
       "subsystem": "src/libged",
       "lines": 141,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2549,
       "path": "src/libged/zap/zap2.cpp",
       "subsystem": "src/libged",
       "lines": 164,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2550,
       "path": "src/libged/zoom/zoom.c",
       "subsystem": "src/libged",
       "lines": 85,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:34:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0277"
+      ]
     },
     {
       "id": 2551,
