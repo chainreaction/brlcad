@@ -36,10 +36,15 @@ mk_sketch(struct rt_wdb *fp, const char *name, const struct rt_sketch_internal *
 {
     struct rt_sketch_internal *sketch;
 
+    if (!fp || !name || !skt)
+	return -1;
+
     RT_SKETCH_CK_MAGIC(skt);
 
     /* copy the caller's struct */
     sketch = rt_copy_sketch(skt);
+    if (!sketch)
+	return -1;
 
     return wdb_export(fp, name, (void *)sketch, ID_SKETCH, mk_conv2mm);
 }

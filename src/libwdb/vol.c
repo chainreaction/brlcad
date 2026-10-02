@@ -48,9 +48,15 @@ mk_vol(struct rt_wdb *fp, const char *name, char datasrc, const char *file, size
 {
     struct rt_vol_internal *vol;
 
+    if (!fp || !name || !file || !cellsize || !mat || xdim == 0 || ydim == 0 || zdim == 0 || lo > hi ||
+	cellsize[0] <= 0.0 || ZERO(cellsize[0]) ||
+	cellsize[1] <= 0.0 || ZERO(cellsize[1]) ||
+	cellsize[2] <= 0.0 || ZERO(cellsize[2]))
+	return -1;
+
     BU_ALLOC(vol, struct rt_vol_internal);
     vol->magic = RT_VOL_INTERNAL_MAGIC;
-    vol->datasrc = datasrc;
+    vol->datasrc = (datasrc == RT_VOL_SRC_OBJ) ? RT_VOL_SRC_OBJ : RT_VOL_SRC_FILE;
     bu_strlcpy(vol->name, file, RT_VOL_NAME_LEN);
     vol->xdim = xdim;
     vol->ydim = ydim;

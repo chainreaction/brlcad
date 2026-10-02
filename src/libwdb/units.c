@@ -42,7 +42,10 @@ mk_conversion(const char *str)
 {
     double d;
 
-    if ((d = bu_units_conversion(str)) <= 0.0) return -1;
+    if (!str)
+	return -1;
+    if ((d = bu_units_conversion(str)) <= 0.0 || ZERO(d))
+	return -1;
     return mk_set_conversion(d);
 }
 
@@ -50,7 +53,8 @@ mk_conversion(const char *str)
 int
 mk_set_conversion(double val)
 {
-    if (val <= 0.0) return -1;
+    if (val <= 0.0 || ZERO(val))
+	return -1;
     mk_conv2mm = val;
     return 0;
 }

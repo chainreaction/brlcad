@@ -35,6 +35,9 @@ mk_submodel(struct rt_wdb *fp, const char *name, const char *file, const char *t
 {
     struct rt_submodel_internal *in;
 
+    if (!fp || !name || !treetop)
+	return -1;
+
     BU_ALLOC(in, struct rt_submodel_internal);
     in->magic = RT_SUBMODEL_INTERNAL_MAGIC;
     bu_vls_init(&in->file);

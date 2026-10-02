@@ -50,6 +50,9 @@ mk_particle(struct rt_wdb *fp, const char *name, point_t vertex, vect_t height, 
 {
     struct rt_part_internal *part;
 
+    if (!fp || !name || !vertex || !height || vradius < 0.0 || hradius < 0.0 || (ZERO(vradius) && ZERO(hradius)))
+	return -1;
+
     BU_ALLOC(part, struct rt_part_internal);
     part->part_magic = RT_PART_INTERNAL_MAGIC;
     VMOVE(part->part_V, vertex);
@@ -66,6 +69,9 @@ int
 mk_pipe(struct rt_wdb *fp, const char *name, struct bu_list *headp)
 {
     struct rt_pipe_internal *pipep;
+
+    if (!fp || !name || !headp)
+	return -1;
 
     if (rt_pipe_ck(headp)) {
 	bu_log("mk_pipe: BAD PIPE SOLID (%s)\n", name);
@@ -87,6 +93,9 @@ mk_pipe_free(struct bu_list *headp)
 {
     struct wdb_pipe_pnt *wp;
 
+    if (!headp)
+	return;
+
     while (BU_LIST_WHILE(wp, wdb_pipe_pnt, headp)) {
 	BU_LIST_DEQUEUE(&wp->l);
 	bu_free((char *)wp, "mk_pipe_free");
@@ -104,6 +113,9 @@ mk_add_pipe_pnt(
 {
     struct wdb_pipe_pnt *newpp;
 
+    if (!headp || !coord || od <= 0.0 || ZERO(od) || id < 0.0 || id >= od || bendradius < 0.0)
+	return;
+
     BU_CKMAG(headp, WDB_PIPESEG_MAGIC, "pipe point");
 
     BU_ALLOC(newpp, struct wdb_pipe_pnt);
@@ -119,6 +131,8 @@ mk_add_pipe_pnt(
 void
 mk_pipe_init(struct bu_list *headp)
 {
+    if (!headp)
+	return;
     BU_LIST_INIT(headp);
     headp->magic = WDB_PIPESEG_MAGIC;
 }

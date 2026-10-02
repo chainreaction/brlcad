@@ -45,12 +45,20 @@ mk_bspline(struct rt_wdb *wdbp, const char *name, struct face_g_snurb **surfs)
 {
     struct rt_nurb_internal *ni;
 
+    if (!wdbp || !name || !surfs)
+	return -1;
+
     BU_ALLOC(ni, struct rt_nurb_internal);
     ni->magic = RT_NURB_INTERNAL_MAGIC;
     ni->srfs = surfs;
 
     for (ni->nsrf = 0; ni->srfs[ni->nsrf] != NULL; ni->nsrf++)
 	; /* NIL */
+
+    if (ni->nsrf == 0) {
+	bu_free(ni, "rt_nurb_internal");
+	return -1;
+    }
 
     return wdb_export(wdbp, name, (void *)ni, ID_BSPLINE, mk_conv2mm);
 }

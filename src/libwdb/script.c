@@ -36,10 +36,18 @@ mk_script(struct rt_wdb *fp, const char *name, const struct rt_script_internal *
 {
     struct rt_script_internal *script_ip;
 
+    if (!fp || !name || !scr)
+	return -1;
+
     RT_SCRIPT_CK_MAGIC(scr);
 
     /* copy the caller's struct */
-    script_ip = (struct rt_script_internal *)scr;
+    BU_ALLOC(script_ip, struct rt_script_internal);
+    script_ip->script_magic = RT_SCRIPT_INTERNAL_MAGIC;
+    BU_VLS_INIT(&script_ip->s_type);
+    if (BU_VLS_IS_INITIALIZED(&scr->s_type)) {
+	bu_vls_vlscat(&script_ip->s_type, &scr->s_type);
+    }
 
     return wdb_export(fp, name, (void *)script_ip, ID_SCRIPT, mk_conv2mm);
 }

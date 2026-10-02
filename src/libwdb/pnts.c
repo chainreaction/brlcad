@@ -84,7 +84,7 @@ pnts_new_pnt(rt_pnt_type t)
 static void
 pnts_init_head_pnt(struct rt_pnts_internal *pnts)
 {
-    if (!pnts)
+    if (!pnts || !pnts->point)
 	return;
     switch (pnts->type) {
 	case RT_PNT_TYPE_PNT:
@@ -125,6 +125,8 @@ pnts_init_head_pnt(struct rt_pnts_internal *pnts)
 static void
 pnts_add(struct rt_pnts_internal *pnts, void *point)
 {
+    if (!pnts || !pnts->point || !point)
+	return;
     switch (pnts->type) {
 	case RT_PNT_TYPE_PNT:
 	    BU_LIST_INSERT(&(((struct pnt *)pnts->point)->l), &((struct pnt *)point)->l);
@@ -197,7 +199,7 @@ mk_pnts(struct rt_wdb *fp, const char *name, rt_pnt_type type,
     int want_scale;
     int want_normal;
 
-    if (!fp || !name)
+    if (!fp || !name || scale < 0.0)
 	return -1;
 
     if (type == RT_PNT_UNKNOWN || type >= RT_PNT_UNKNOWN)
@@ -238,6 +240,9 @@ mk_pnts(struct rt_wdb *fp, const char *name, rt_pnt_type type,
     for (i = 0; i < count; i++) {
 	void *point = pnts_new_pnt(type);
 	const fastf_t *v = &verts[i*3];
+
+	if (!point)
+	    continue;
 
 	switch (type) {
 	    case RT_PNT_TYPE_PNT:

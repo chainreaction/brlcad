@@ -40,6 +40,9 @@
 int
 mk_nmg(struct rt_wdb *filep, const char *name, struct model *m)
 {
+    if (!filep || !name || !m)
+	return -1;
+
     NMG_CK_MODEL(m);
 
     /* FIXME: wdb_export is documented as always free'ing the entity
@@ -57,7 +60,12 @@ mk_bot_from_nmg(struct rt_wdb *ofp, const char *name, struct shell *s)
     struct rt_bot_internal *botp;
     struct bu_list *vlfree = &rt_vlfree;
 
+    if (!ofp || !name || !s)
+	return -1;
+
     botp = nmg_bot(s, vlfree, &ofp->wdb_tol);
+    if (!botp)
+	return -1;
 
     /* FIXME: wdb_export is documented as always free'ing the entity
      * passed to it.  that means this routine needs to make a copy of

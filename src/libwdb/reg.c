@@ -100,6 +100,9 @@ mk_tree_pure(struct rt_comb_internal *comb, struct bu_list *member_hd)
     union tree **trees;
     size_t tree_capacity;
 
+    if (!comb || !member_hd)
+	return;
+
     tree_capacity = (size_t)bu_list_len(member_hd);
     if (tree_capacity == 0) {
 	return;
@@ -177,6 +180,9 @@ mk_tree_gift(struct rt_comb_internal *comb, struct bu_list *member_hd)
     size_t node_count;
     size_t actual_count;
     int new_nodes;
+
+    if (!comb || !member_hd)
+	return -1;
 
     new_nodes = bu_list_len(member_hd);
     if (new_nodes <= 0)
@@ -296,6 +302,9 @@ mk_freemembers(struct bu_list *headp)
 {
     struct wmember *wp;
 
+    if (!headp)
+	return;
+
     while (BU_LIST_WHILE(wp, wmember, headp)) {
 	WDB_CK_WMEMBER(wp);
 	BU_LIST_DEQUEUE(&wp->l);
@@ -325,6 +334,9 @@ mk_comb(
     struct rt_db_internal intern;
     struct rt_comb_internal *comb;
     int fresh_combination;
+
+    if (!wdbp || !combname || !headp)
+	return -1;
 
     RT_CK_WDB(wdbp);
 
@@ -423,6 +435,9 @@ mk_comb1(struct rt_wdb *wdbp,
 {
     struct bu_list head;
 
+    if (!wdbp || !combname || !membname)
+	return -1;
+
     BU_LIST_INIT(&head);
     if (mk_addmember(membname, &head, NULL, WMOP_UNION) == WMEMBER_NULL)
 	return -2;
@@ -442,6 +457,9 @@ mk_region1(
     const unsigned char *rgb)
 {
     struct bu_list head;
+
+    if (!wdbp || !combname || !membname)
+	return -1;
 
     BU_LIST_INIT(&head);
     if (mk_addmember(membname, &head, NULL, WMOP_UNION) == WMEMBER_NULL)
