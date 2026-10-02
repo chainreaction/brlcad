@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-10-01 20:11:00 UTC
+**Last Updated:** 2026-10-02 04:15:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 1243 (35.6%)
-- **Files Pending Review:** 2250
-- **Total Issues Identified:** 282
+- **Files Reviewed:** 1259 (36.0%)
+- **Files Pending Review:** 2234
+- **Total Issues Identified:** 297
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 207 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 222 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 52 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 282
+- **Fixed (Committed):** 297
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -92,7 +92,7 @@
 | `src/libdm` | 80 | 80 | 100.0% | 1 |
 | `src/libfft` | 8 | 8 | 100.0% | 1 |
 | `src/libgcv` | 111 | 111 | 100.0% | 1 |
-| `src/libged` | 509 | 447 | 87.8% | 34 |
+| `src/libged` | 509 | 488 | 95.9% | 34 |
 | `src/libicv` | 34 | 0 | 0.0% | 0 |
 | `src/libnmg` | 54 | 0 | 0.0% | 0 |
 | `src/liboptical` | 46 | 0 | 0.0% | 0 |
@@ -393,4 +393,5 @@
 | `SEC-0273` | **Sev 2** | Division by Zero, Integer Underflow, and Convention Violations | `src/libged (Batch 31: tire, title, tol)` | `FIXED` | In BRL-CAD libged Batch 31 (tire, title, tol): in tire/tire_surface.cpp, added ZERO() division-by-zero guard; in tire/tire_tread.cpp, added empty vector guard to prevent size_t underflow; in title/title.c, replaced bu_vls_addr with bu_vls_cstr; in tol/tol.c, replaced sscanf with bu_sscanf. Reviewed clean: tire_conic.cpp, tire_csg.cpp, tire_private.h, tire_tread_def.cpp, tire_tread_profile.cpp, tire_wheel.cpp. |
 | `SEC-0274` | **Sev 2** | Memory Leaks, Resource Leaks, Unsafe API, and Convention Violations | `src/libged (Batch 32: tops, tra, trace, track, tree, typein, unhide, units, v2m_point, vdraw)` | `FIXED` | In BRL-CAD libged Batch 32 (tops through vdraw): in tree/tree.c, fixed memory leak of attribute value set by adding bu_avs_free, fixed resource leak of rt_db_internal on v4gift flatten failure, replaced bu_vls_addr with bu_vls_cstr; in typein/typein.c, fixed resource leaks in extrude_in and revolve_in when imported object is not ID_SKETCH by adding rt_db_free_internal, replaced bu_vls_addr with bu_vls_cstr in revolve_in and pnts_in (4 instances); in units/units.c, replaced bu_vls_addr with bu_vls_cstr; in v2m_point/v2m_point.c, replaced raw sscanf with bu_sscanf (3 instances), fixed copy-paste error in error messages; in vdraw/vdraw.c, replaced raw sscanf with bu_sscanf (7 instances). Reviewed clean: tops.c, tra.c, trace.c, track.c, unhide.c. |
 | `SEC-0275` | **Sev 2** | Unsafe API and Memory Leaks | `src/libged (Batch 33: view module)` | `FIXED` | In BRL-CAD libged Batch 33 (view module): in view/aet.c, replaced raw sscanf with bu_sscanf (3 sites); in view/align.c, replaced raw sscanf with bu_sscanf (3 sites); in view/center.cpp, replaced raw sscanf with bu_sscanf (3 sites); in view/eye.c, replaced raw sscanf with bu_sscanf (3 sites); in view/faceplate/faceplate.c, added bu_vls_free on stack VLS after bu_opt_color and bu_opt_int calls to prevent memory leaks (4 sites). Reviewed clean: vers.c, autoview.c, autoview2.cpp, axes.c, data_lines.c, faceplate.h, faceplate_axes.c, faceplate_grid.c, interactive_rect.c, ged_view.h. |
+| `SEC-0276` | **Sev 2** | Memory Leaks, Logic Bugs, Out-of-bounds Array Access, Resource Leaks, Unsafe API, and Missing Validation | `src/libged (Batch 34: view module: gobjs through ypr)` | `FIXED` | In BRL-CAD libged Batch 34 (view module: gobjs through ypr): in view/gobjs.cpp, fixed memory leaks of full path and internal objects in create command and scene free callback, and checked database open; in view/labels.c and view/lines.c, guarded against null scene object creation and used bu_vls_sprintf to prevent vls buffer leaks; in view/lod.cpp, validated database open before cache commands, checked wdb handle, fixed copy-paste error in scale message, and removed dead vls variables; in view/lookat.c, replaced raw sscanf with bu_sscanf (3 sites), guarded against zero vector division when lookat point is at eye position, and added missing newlines; in view/objs.cpp, fixed memory leak of directory pointers in _view_cmd_old_obj across all return paths, guarded against null ged internals, removed redundant recurse check, and fixed argument reporting in arrow subcommand; in view/polygons.c, fixed out-of-bounds argv index in overlap subcommand (argv[1] -> argv[0]), fixed error message reporting in bool subcommand (argv[0] -> argv[1]), checked database open before overlap tolerance check, and formatted s_name with bu_vls_sprintf; in view/quat.c, replaced raw sscanf with bu_sscanf (4 sites) and added missing newlines; in view/qvrot.c, replaced raw sscanf with bu_sscanf (4 sites), corrected argument reporting for bad angle from argv[1] to argv[4], and added missing newlines; in view/saveview.c, replaced bu_vls_addr with bu_vls_cstr, guarded display list traversal against null pointers, and added missing newlines; in view/size.c, replaced raw sscanf with bu_sscanf and added missing newlines; in view/snap.c, fixed critical logic bug where vp was set from uninitialized p instead of parsed 2D coordinates p2d, freed temporary msg vls on all early returns to eliminate memory leak, and added missing newlines; in view/view.c, added missing newlines to usage and error messages; in view/viewdir.c, added missing newline to usage message; in view/ypr.c, replaced raw sscanf with bu_sscanf (3 sites) and added missing newlines. Reviewed clean: knob.c. |
 

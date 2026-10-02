@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 610,
-    "pending_files": 2240,
-    "last_updated": "2026-10-01T20:10:14Z",
-    "total_issues": 282,
-    "reviewed_count": 610
+    "reviewed_files": 626,
+    "pending_files": 2224,
+    "last_updated": "2026-10-02T04:17:49Z",
+    "total_issues": 297,
+    "reviewed_count": 626
   },
   "files": [
     {
@@ -26747,18 +26747,20 @@
       "path": "src/libged/view/gobjs.cpp",
       "subsystem": "src/libged",
       "lines": 275,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:17:49Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0276"
+      ]
     },
     {
       "id": 2515,
       "path": "src/libged/view/knob.c",
       "subsystem": "src/libged",
       "lines": 205,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:17:49Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -26767,140 +26769,168 @@
       "path": "src/libged/view/labels.c",
       "subsystem": "src/libged",
       "lines": 211,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:17:49Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0276"
+      ]
     },
     {
       "id": 2517,
       "path": "src/libged/view/lines.c",
       "subsystem": "src/libged",
       "lines": 199,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:17:49Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0276"
+      ]
     },
     {
       "id": 2518,
       "path": "src/libged/view/lod.cpp",
       "subsystem": "src/libged",
       "lines": 406,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:17:49Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0276"
+      ]
     },
     {
       "id": 2519,
       "path": "src/libged/view/lookat.c",
       "subsystem": "src/libged",
       "lines": 118,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:17:49Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0276"
+      ]
     },
     {
       "id": 2520,
       "path": "src/libged/view/objs.cpp",
       "subsystem": "src/libged",
       "lines": 634,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:17:49Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0276"
+      ]
     },
     {
       "id": 2521,
       "path": "src/libged/view/polygons.c",
       "subsystem": "src/libged",
       "lines": 956,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:17:49Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0276"
+      ]
     },
     {
       "id": 2522,
       "path": "src/libged/view/quat.c",
       "subsystem": "src/libged",
       "lines": 88,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:17:49Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0276"
+      ]
     },
     {
       "id": 2523,
       "path": "src/libged/view/qvrot.c",
       "subsystem": "src/libged",
       "lines": 143,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:17:49Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0276"
+      ]
     },
     {
       "id": 2524,
       "path": "src/libged/view/saveview.c",
       "subsystem": "src/libged",
       "lines": 204,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:17:49Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0276"
+      ]
     },
     {
       "id": 2525,
       "path": "src/libged/view/size.c",
       "subsystem": "src/libged",
       "lines": 92,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:17:49Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0276"
+      ]
     },
     {
       "id": 2526,
       "path": "src/libged/view/snap.c",
       "subsystem": "src/libged",
       "lines": 214,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:17:49Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0276"
+      ]
     },
     {
       "id": 2527,
       "path": "src/libged/view/view.c",
       "subsystem": "src/libged",
       "lines": 987,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:17:49Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0276"
+      ]
     },
     {
       "id": 2528,
       "path": "src/libged/view/viewdir.c",
       "subsystem": "src/libged",
       "lines": 84,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:17:49Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0276"
+      ]
     },
     {
       "id": 2529,
       "path": "src/libged/view/ypr.c",
       "subsystem": "src/libged",
       "lines": 102,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T04:17:49Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0276"
+      ]
     },
     {
       "id": 2530,
@@ -36572,5 +36602,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-10-01T20:10:14Z"
+  "last_updated": "2026-10-02T04:17:49Z"
 }
