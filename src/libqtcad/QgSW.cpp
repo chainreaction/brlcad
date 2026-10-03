@@ -77,31 +77,44 @@ QgSW::QgSW(QWidget *parent, struct fb *fbp)
 
 QgSW::~QgSW()
 {
-    if (dmp)
+    if (dmp) {
 	dm_close(dmp);
+	dmp = NULL;
+    }
     if (ifp && !fb_get_standalone(ifp)) {
 	fb_close_existing(ifp);
+	ifp = NULL;
     }
-    BU_PUT(local_v, struct bv);
+    if (local_v) {
+	bv_free(local_v);
+	BU_PUT(local_v, struct bview);
+	local_v = NULL;
+    }
 }
 
 void QgSW::need_update()
 {
     QTCAD_SLOT("QgSW::need_update", 1);
+    if (!dmp)
+	return;
     dm_set_dirty(dmp, 1);
     update();
 }
 
 void QgSW::paintEvent(QPaintEvent *e)
 {
-    // Go ahead and set the flag, but (unlike the rendering thread
-    // implementation) we need to do the draw routine every time in paintGL, or
-    // we end up with unrendered frames.
-    dm_set_dirty(dmp, 0);
-
     // Without a view, SWrast can't work
     if (!v)
 	return;
+
+    if (width() <= 0 || height() <= 0)
+	return;
+
+    // Go ahead and set the flag, but (unlike the rendering thread
+    // implementation) we need to do the draw routine every time in paintGL, or
+    // we end up with unrendered frames.
+    if (dmp)
+	dm_set_dirty(dmp, 0);
 
     if (!m_init) {
 
@@ -123,9 +136,11 @@ void QgSW::paintEvent(QPaintEvent *e)
 	    // If we have a framebuffer, now we can open it
 	    if (ifp) {
 		struct fb_platform_specific *fbps = fb_get_platform_specific(FB_QTGL_MAGIC);
-		fbps->data = (void *)dmp;
-		fb_setup_existing(ifp, dm_get_width(dmp), dm_get_height(dmp), fbps);
-		fb_put_platform_specific(fbps);
+		if (fbps) {
+		    fbps->data = (void *)dmp;
+		    fb_setup_existing(ifp, dm_get_width(dmp), dm_get_height(dmp), fbps);
+		    fb_put_platform_specific(fbps);
+		}
 	    }
 	}
 
@@ -160,10 +175,11 @@ void QgSW::paintEvent(QPaintEvent *e)
     if (!m_init || !dmp)
 	return;
 
-    unsigned char *dm_bg1;
-    unsigned char *dm_bg2;
+    unsigned char *dm_bg1 = NULL;
+    unsigned char *dm_bg2 = NULL;
     dm_get_bg(&dm_bg1, &dm_bg2, dmp);
-    dm_set_bg(dmp, dm_bg1[0], dm_bg1[1], dm_bg1[2], dm_bg2[0], dm_bg2[1], dm_bg2[2]);
+    if (dm_bg1 && dm_bg2)
+	dm_set_bg(dmp, dm_bg1[0], dm_bg1[1], dm_bg1[2], dm_bg2[0], dm_bg2[1], dm_bg2[2]);
 
     matp_t mat = v->gv_model2view;
     dm_loadmatrix(dmp, mat, 0);
@@ -172,11 +188,15 @@ void QgSW::paintEvent(QPaintEvent *e)
     dm_draw_end(dmp);
 
     // Set up a QImage with the rendered output..
-    unsigned char *dm_image;
-    if (dm_get_display_image(dmp, &dm_image, 0, 1)) {
+    unsigned char *dm_image = NULL;
+    if (dm_get_display_image(dmp, &dm_image, 0, 1) || !dm_image) {
 	return;
     }
-    QImage image(dm_image, dm_get_width(dmp), dm_get_height(dmp), QImage::Format_RGBX8888);
+    int w = dm_get_width(dmp);
+    int h = dm_get_height(dmp);
+    if (w <= 0 || h <= 0)
+	return;
+    QImage image(dm_image, w, h, QImage::Format_RGBX8888);
     QPainter painter(this);
     painter.translate(0, height());
     painter.scale(1.0, -1.0);
@@ -253,7 +273,7 @@ void QgSW::mousePressEvent(QMouseEvent *e) {
 }
 
 void QgSW::mouseReleaseEvent(QMouseEvent *e) {
-    if (!v) {
+    if (!v || !dmp) {
 	QWidget::mouseReleaseEvent(e);
 	return;
     }
@@ -334,7 +354,7 @@ void QgSW::stash_hashes()
     } else {
 	prev_dhash = dm_hash(dmp);
     }
-    prev_vhash = bv_hash(v);
+    prev_vhash = v ? bv_hash(v) : 0;
 }
 
 bool QgSW::diff_hashes()
@@ -373,12 +393,19 @@ bool QgSW::diff_hashes()
 }
 
 void QgSW::save_image() {
+    if (!dmp)
+	return;
+    int w = dm_get_width(dmp);
+    int h = dm_get_height(dmp);
+    if (w <= 0 || h <= 0)
+	return;
+
     // Set up a QImage with the rendered output..
-    unsigned char *dm_image;
-    if (dm_get_display_image(dmp, &dm_image, 0, 1)) {
+    unsigned char *dm_image = NULL;
+    if (dm_get_display_image(dmp, &dm_image, 0, 1) || !dm_image) {
 	return;
     }
-    QImage image(dm_image, dm_get_width(dmp), dm_get_height(dmp), QImage::Format_RGBX8888);
+    QImage image(dm_image, w, h, QImage::Format_RGBX8888);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
     image.flipped(Qt::Vertical).save("file.png");
 #else
@@ -430,14 +457,22 @@ void QgSW::get_viewport_image(QImage &img)
     }
     if (!dmp) return;
 
+    int w = dm_get_width(dmp);
+    int h = dm_get_height(dmp);
+    if (w <= 0 || h <= 0) return;
+
     /* Render */
-    unsigned char *dm_bg1;
-    unsigned char *dm_bg2;
+    unsigned char *dm_bg1 = NULL;
+    unsigned char *dm_bg2 = NULL;
     dm_get_bg(&dm_bg1, &dm_bg2, dmp);
     /* Use a dark-grey background for better visibility in screenshots;
      * fall through to the stored background if it is already non-black. */
-    unsigned char bg1r = dm_bg1[0], bg1g = dm_bg1[1], bg1b = dm_bg1[2];
-    unsigned char bg2r = dm_bg2[0], bg2g = dm_bg2[1], bg2b = dm_bg2[2];
+    unsigned char bg1r = dm_bg1 ? dm_bg1[0] : 0;
+    unsigned char bg1g = dm_bg1 ? dm_bg1[1] : 0;
+    unsigned char bg1b = dm_bg1 ? dm_bg1[2] : 0;
+    unsigned char bg2r = dm_bg2 ? dm_bg2[0] : 0;
+    unsigned char bg2g = dm_bg2 ? dm_bg2[1] : 0;
+    unsigned char bg2b = dm_bg2 ? dm_bg2[2] : 0;
     if (bg1r == 0 && bg1g == 0 && bg1b == 0 &&
 	bg2r == 0 && bg2g == 0 && bg2b == 0) {
 	/* Default black: override with a neutral dark background */
@@ -453,8 +488,7 @@ void QgSW::get_viewport_image(QImage &img)
     unsigned char *vp_image = NULL;
     if (dm_get_display_image(dmp, &vp_image, 1, 1) || !vp_image) return;
     /* Copy pixel data into a QImage (QImage doesn't own vp_image) */
-    img = QImage(vp_image, dm_get_width(dmp), dm_get_height(dmp),
-		 QImage::Format_RGBA8888).copy();
+    img = QImage(vp_image, w, h, QImage::Format_RGBA8888).copy();
     bu_free(vp_image, "copy of backend image");
 }
 

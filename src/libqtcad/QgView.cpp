@@ -80,18 +80,22 @@ QgView::QgView(QWidget *parent, int type, struct fb *fbp)
 	    QObject::connect(canvas_sw, &QgSW::changed, this, &QgView::do_view_changed);
 	    QObject::connect(canvas_sw, &QgSW::init_done, this, &QgView::do_init_done);
 #endif
-	    return;
+	    break;
     }
 }
 
 QgView::~QgView()
 {
 #ifdef BRLCAD_OPENGL
-    if (canvas_gl)
+    if (canvas_gl) {
 	delete canvas_gl;
+	canvas_gl = NULL;
+    }
 #endif
-    if (canvas_sw)
+    if (canvas_sw) {
 	delete canvas_sw;
+	canvas_sw = NULL;
+    }
 }
 
 bool
@@ -305,6 +309,8 @@ QgView::current()
 void
 QgView::add_event_filter(QObject *o)
 {
+    if (!o)
+	return;
     curr_event_filter = o;
     filters.push_back(o);
 #ifdef BRLCAD_OPENGL
@@ -322,29 +328,38 @@ QgView::add_event_filter(QObject *o)
 void
 QgView::clear_event_filter(QObject *o)
 {
+    if (o) {
 #ifdef BRLCAD_OPENGL
-    if (canvas_gl) {
-	if (o) {
+	if (canvas_gl)
 	    canvas_gl->removeEventFilter(o);
-	} else {
+#endif
+	if (canvas_sw)
+	    canvas_sw->removeEventFilter(o);
+
+	for (auto it = filters.begin(); it != filters.end(); ) {
+	    if (*it == o)
+		it = filters.erase(it);
+	    else
+		++it;
+	}
+	if (curr_event_filter == o)
+	    curr_event_filter = filters.empty() ? NULL : filters.back();
+    } else {
+#ifdef BRLCAD_OPENGL
+	if (canvas_gl) {
 	    for (size_t i = 0; i < filters.size(); i++) {
 		canvas_gl->removeEventFilter(filters[i]);
 	    }
-	    filters.clear();
 	}
-    }
 #endif
-    if (canvas_sw) {
-	if (o) {
-	    canvas_sw->removeEventFilter(o);
-	} else {
+	if (canvas_sw) {
 	    for (size_t i = 0; i < filters.size(); i++) {
 		canvas_sw->removeEventFilter(filters[i]);
 	    }
-	    filters.clear();
 	}
+	filters.clear();
+	curr_event_filter = NULL;
     }
-    curr_event_filter = NULL;
 }
 
 void

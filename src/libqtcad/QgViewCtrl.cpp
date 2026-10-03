@@ -94,6 +94,8 @@ void
 QgViewCtrl::fbclear_cmd()
 {
     QTCAD_SLOT("QgViewCtrl::fbclear_cmd", 1);
+    if (!gedp)
+	return;
     const char *av[2] = {NULL};
     av[0] = "fbclear";
     ged_exec_fbclear(gedp, 1, (const char **)av);
@@ -104,9 +106,11 @@ void
 QgViewCtrl::fb_mode_cmd()
 {
     QTCAD_SLOT("QgViewCtrl::fb_mode_cmd", 1);
-    if (!gedp->ged_gvp)
+    if (!gedp || !gedp->ged_gvp)
 	return;
     struct bview *v = gedp->ged_gvp;
+    if (!v->gv_s)
+	return;
     switch (v->gv_s->gv_fb_mode) {
 	case 0:
 	    v->gv_s->gv_fb_mode = 2;
@@ -127,9 +131,11 @@ void
 QgViewCtrl::do_view_update(unsigned long long flags)
 {
     QTCAD_SLOT("QgViewCtrl::do_view_update", 1);
-    if (!gedp->ged_gvp || !flags)
+    if (!gedp || !gedp->ged_gvp || !flags || !fb_mode)
 	return;
     struct bview *v = gedp->ged_gvp;
+    if (!v->gv_s)
+	return;
     switch (v->gv_s->gv_fb_mode) {
 	case 0:
 	    fb_mode->setIcon(QIcon(QPixmap(":images/view/framebuffer_off.png")));
@@ -152,6 +158,8 @@ rt_cmd_start(int UNUSED(ac), const char **UNUSED(av), void *pid_ptr, void *ctx)
     if (!pidp)
 	return BRLCAD_OK;
     QgViewCtrl *vctrl = (QgViewCtrl *)ctx;
+    if (!vctrl)
+	return BRLCAD_OK;
     vctrl->raytrace_start(*pidp);
     return BRLCAD_OK;
 }
@@ -160,6 +168,8 @@ int
 rt_cmd_done(int UNUSED(ac), const char **UNUSED(av), void *UNUSED(u1), void *ctx)
 {
     QgViewCtrl *vctrl = (QgViewCtrl *)ctx;
+    if (!vctrl)
+	return BRLCAD_OK;
     vctrl->raytrace_done();
     return BRLCAD_OK;
 }
@@ -168,6 +178,8 @@ void
 QgViewCtrl::raytrace_cmd()
 {
     QTCAD_SLOT("QgViewCtrl::raytrace_cmd", 1);
+    if (!gedp)
+	return;
     const char *av[4] = {NULL};
     struct bu_vls pid_str = BU_VLS_INIT_ZERO;
 
@@ -199,7 +211,8 @@ void
 QgViewCtrl::raytrace_start(int rpid)
 {
     QTCAD_SLOT("QgViewCtrl::raytrace_start", 1);
-    raytrace->setIcon(QIcon(QPixmap(":images/view/raytrace_abort.png")));
+    if (raytrace)
+	raytrace->setIcon(QIcon(QPixmap(":images/view/raytrace_abort.png")));
     raytrace_running = true;
     pid = rpid;
 }
@@ -208,7 +221,8 @@ void
 QgViewCtrl::raytrace_done()
 {
     QTCAD_SLOT("QgViewCtrl::raytrace_done", 1);
-    raytrace->setIcon(QIcon(QPixmap(":images/view/raytrace.png")));
+    if (raytrace)
+	raytrace->setIcon(QIcon(QPixmap(":images/view/raytrace.png")));
     raytrace_running = false;
     pid = -1;
 }

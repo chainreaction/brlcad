@@ -73,12 +73,19 @@ QgGL::QgGL(QWidget *parent, struct fb *fbp)
 
 QgGL::~QgGL()
 {
-    if (dmp)
+    if (dmp) {
 	dm_close(dmp);
+	dmp = NULL;
+    }
     if (ifp && !fb_get_standalone(ifp)) {
 	fb_close_existing(ifp);
+	ifp = NULL;
     }
-    BU_PUT(local_v, struct bv);
+    if (local_v) {
+	bv_free(local_v);
+	BU_PUT(local_v, struct bview);
+	local_v = NULL;
+    }
 }
 
 
@@ -107,9 +114,11 @@ void QgGL::paintGL()
 	    // If we have a framebuffer, now we can open it
 	    if (ifp) {
 		struct fb_platform_specific *fbps = fb_get_platform_specific(FB_QTGL_MAGIC);
-		fbps->data = (void *)dmp;
-		fb_setup_existing(ifp, dm_get_width(dmp), dm_get_height(dmp), fbps);
-		fb_put_platform_specific(fbps);
+		if (fbps) {
+		    fbps->data = (void *)dmp;
+		    fb_setup_existing(ifp, dm_get_width(dmp), dm_get_height(dmp), fbps);
+		    fb_put_platform_specific(fbps);
+		}
 	    }
 
 	    dm_set_pathname(dmp, "QTDM");
@@ -147,10 +156,11 @@ void QgGL::paintGL()
 	return;
 
     // Re-draw the background to clear any previous drawing
-    unsigned char *dm_bg1;
-    unsigned char *dm_bg2;
+    unsigned char *dm_bg1 = NULL;
+    unsigned char *dm_bg2 = NULL;
     dm_get_bg(&dm_bg1, &dm_bg2, dmp);
-    dm_set_bg(dmp, dm_bg1[0], dm_bg1[1], dm_bg1[2], dm_bg2[0], dm_bg2[1], dm_bg2[2]);
+    if (dm_bg1 && dm_bg2)
+	dm_set_bg(dmp, dm_bg1[0], dm_bg1[1], dm_bg1[2], dm_bg2[0], dm_bg2[1], dm_bg2[2]);
 
     // Go ahead and set the flag, but (unlike the rendering thread
     // implementation) we need to do the draw routine every time in paintGL, or
@@ -238,7 +248,7 @@ void QgGL::mousePressEvent(QMouseEvent *e) {
 
 void QgGL::mouseReleaseEvent(QMouseEvent *e) {
 
-    if (!v) {
+    if (!v || !dmp) {
 	QOpenGLWidget::mouseReleaseEvent(e);
 	return;
     }
@@ -318,7 +328,7 @@ void QgGL::stash_hashes()
     } else {
 	prev_dhash = dm_hash(dmp);
     }
-    prev_vhash = bv_hash(v);
+    prev_vhash = v ? bv_hash(v) : 0;
 }
 
 bool QgGL::diff_hashes()
@@ -329,7 +339,8 @@ bool QgGL::diff_hashes()
 
     if (dmp)
 	c_dhash = dm_hash(dmp);
-    c_vhash = bv_hash(v);
+    if (v)
+	c_vhash = bv_hash(v);
 
     if (dmp && dm_get_dirty(dmp))
 	ret = true;
@@ -355,7 +366,8 @@ bool QgGL::diff_hashes()
 
 void QgGL::save_image() {
     QImage image = this->grabFramebuffer();
-    image.save("file.png");
+    if (!image.isNull())
+	image.save("file.png");
 }
 
 void QgGL::aet(double a, double e, double t)

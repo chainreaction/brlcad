@@ -81,15 +81,15 @@ class QTCAD_EXPORT QgViewCtrl : public QToolBar
 
     public:
 	// Left mouse behavior controls (when not using a tool or editing)
-	QAction *sca;
-	QAction *rot;
-	QAction *tra;
-	QAction *center;
+	QAction *sca = nullptr;
+	QAction *rot = nullptr;
+	QAction *tra = nullptr;
+	QAction *center = nullptr;
 
 	// Raytrace/framebuffer controls
-	QAction *raytrace;
-	QAction *fb_mode;
-	QAction *fb_clear;
+	QAction *raytrace = nullptr;
+	QAction *fb_mode = nullptr;
+	QAction *fb_clear = nullptr;
 
     private:
 	bool raytrace_running = false;

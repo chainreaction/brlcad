@@ -64,10 +64,13 @@ QgQuadView::QgQuadView(QWidget *parent, struct ged *gedpRef, int type) : QWidget
     graphicsType = type;
 
     views[UPPER_RIGHT_QUADRANT] = createView(UPPER_RIGHT_QUADRANT);
-    bv_set_add_view(&gedp->ged_views, views[UPPER_RIGHT_QUADRANT]->view());
-    gedp->ged_gvp = views[UPPER_RIGHT_QUADRANT]->view();
-
-    views[UPPER_RIGHT_QUADRANT]->set_current(1);
+    if (views[UPPER_RIGHT_QUADRANT]) {
+	if (gedp && views[UPPER_RIGHT_QUADRANT]->view()) {
+	    bv_set_add_view(&gedp->ged_views, views[UPPER_RIGHT_QUADRANT]->view());
+	    gedp->ged_gvp = views[UPPER_RIGHT_QUADRANT]->view();
+	}
+	views[UPPER_RIGHT_QUADRANT]->set_current(1);
+    }
     currentView = views[UPPER_RIGHT_QUADRANT];
 
     default_views(1);
@@ -110,13 +113,18 @@ QgQuadView::curr_view()
 QgView *
 QgQuadView::createView(unsigned int index)
 {
+    if (index > LOWER_RIGHT_QUADRANT)
+	index = UPPER_RIGHT_QUADRANT;
+
     QgView *view = new QgView(this, graphicsType);
-    bu_vls_sprintf(&view->view()->gv_name, "%s", VIEW_NAMES[index]);
+    if (view->view()) {
+	bu_vls_sprintf(&view->view()->gv_name, "%s", VIEW_NAMES[index]);
+	view->view()->independent = 0;
+	if (gedp)
+	    view->view()->vset = &gedp->ged_views;
+    }
     view->set_current(0);
     view->installEventFilter(this);
-
-    view->view()->vset = &gedp->ged_views;
-    view->view()->independent = 0;
 
     QObject::connect(view, &QgView::changed, this, &QgQuadView::do_view_changed);
     QObject::connect(view, &QgView::init_done, this, &QgQuadView::do_init_done);
@@ -131,16 +139,17 @@ QgQuadView::createView(unsigned int index)
 QGridLayout *
 QgQuadView::createLayout()
 {
+    if (currentLayout != nullptr) {
+	delete currentLayout;
+	currentLayout = nullptr;
+    }
+
     QGridLayout *layout = new QGridLayout(this);
     layout->setSpacing(0);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
 
     this->setLayout(layout);
-
-    if (currentLayout != nullptr) {
-	delete currentLayout;
-    }
     currentLayout = layout;
 
     return layout;
@@ -158,19 +167,22 @@ QgQuadView::changeToSingleFrame()
 	layout = createLayout();
     }
     while (layout->takeAt(0) != NULL);
-    layout->addWidget(views[UPPER_RIGHT_QUADRANT], 0, 2);
+    if (views[UPPER_RIGHT_QUADRANT])
+	layout->addWidget(views[UPPER_RIGHT_QUADRANT], 0, 2);
 
     for (int i = 1; i < 4; i++) {
 	// Don't want use cpu for views that are not visible
 	if (views[i] != nullptr) {
 	    views[i]->disconnect();
-	    bv_set_rm_view(&gedp->ged_views, views[i]->view());
+	    if (gedp && views[i]->view())
+		bv_set_rm_view(&gedp->ged_views, views[i]->view());
 	    delete views[i];
 	    views[i] = nullptr;
 	}
     }
 
-    views[UPPER_RIGHT_QUADRANT]->set_current(1);
+    if (views[UPPER_RIGHT_QUADRANT])
+	views[UPPER_RIGHT_QUADRANT]->set_current(1);
     currentView = views[UPPER_RIGHT_QUADRANT];
 
     // No need to indicate active quad
@@ -200,26 +212,32 @@ QgQuadView::changeToQuadFrame()
 	    // Make the new view
 	    views[i] = createView(i);
 
-	    // Out of the gate, have the new view units match the first view's
-	    // units (which should usually be based on the database units)
-	    views[i]->view()->gv_base2local = views[0]->view()->gv_base2local;
-	    views[i]->view()->gv_local2base = views[0]->view()->gv_local2base;
+	    if (views[i] && views[i]->view() && views[UPPER_RIGHT_QUADRANT] && views[UPPER_RIGHT_QUADRANT]->view()) {
+		// Out of the gate, have the new view units match the first view's
+		// units (which should usually be based on the database units)
+		views[i]->view()->gv_base2local = views[UPPER_RIGHT_QUADRANT]->view()->gv_base2local;
+		views[i]->view()->gv_local2base = views[UPPER_RIGHT_QUADRANT]->view()->gv_local2base;
 
-	    // For initial layout calculations, we need to set a screen width
-	    // and height.  This won't be right in the end, but it gives
-	    // bv_view_bounds something to work with
-	    views[i]->view()->gv_width = views[UPPER_RIGHT_QUADRANT]->view()->gv_width;
-	    views[i]->view()->gv_height = views[UPPER_RIGHT_QUADRANT]->view()->gv_height;
+		// For initial layout calculations, we need to set a screen width
+		// and height.  This won't be right in the end, but it gives
+		// bv_view_bounds something to work with
+		views[i]->view()->gv_width = views[UPPER_RIGHT_QUADRANT]->view()->gv_width;
+		views[i]->view()->gv_height = views[UPPER_RIGHT_QUADRANT]->view()->gv_height;
+	    }
 	}
-	// Turn on adaptive mesh for all new views, if the existing view has it
-	// enabled - we lose the memory and performance benefits if we have to
-	// load a full-sized mesh in one of them.
-	views[i]->view()->gv_s->adaptive_plot_mesh = views[UPPER_RIGHT_QUADRANT]->view()->gv_s->adaptive_plot_mesh;
-	// For consistency, do the same with CSG lod - this actually cuts against
-	// us in memory usage as a rule, but default to matching the mesh setting
-	// behavior
-	views[i]->view()->gv_s->adaptive_plot_csg = views[UPPER_RIGHT_QUADRANT]->view()->gv_s->adaptive_plot_csg;
-	bv_set_add_view(&gedp->ged_views, views[i]->view());
+	if (views[i] && views[i]->view() && views[i]->view()->gv_s &&
+	    views[UPPER_RIGHT_QUADRANT] && views[UPPER_RIGHT_QUADRANT]->view() && views[UPPER_RIGHT_QUADRANT]->view()->gv_s) {
+	    // Turn on adaptive mesh for all new views, if the existing view has it
+	    // enabled - we lose the memory and performance benefits if we have to
+	    // load a full-sized mesh in one of them.
+	    views[i]->view()->gv_s->adaptive_plot_mesh = views[UPPER_RIGHT_QUADRANT]->view()->gv_s->adaptive_plot_mesh;
+	    // For consistency, do the same with CSG lod - this actually cuts against
+	    // us in memory usage as a rule, but default to matching the mesh setting
+	    // behavior
+	    views[i]->view()->gv_s->adaptive_plot_csg = views[UPPER_RIGHT_QUADRANT]->view()->gv_s->adaptive_plot_csg;
+	}
+	if (gedp && views[i] && views[i]->view())
+	    bv_set_add_view(&gedp->ged_views, views[i]->view());
     }
 
     // Define the spacers
@@ -272,37 +290,48 @@ QgQuadView::changeToQuadFrame()
     // but if we don't do it here we'll start out with blank windows until something notifies
     // the draw logic it needs to do updates.
     for (int i = UPPER_RIGHT_QUADRANT + 1; i < LOWER_RIGHT_QUADRANT + 1; i++) {
-	bv_autoview(views[i]->view(), BV_AUTOVIEW_SCALE_DEFAULT, 0);
-	bv_view_bounds(views[i]->view());
-    }
-    struct bu_ptbl *db_objs = bv_view_objs(views[UPPER_RIGHT_QUADRANT]->view(), BV_DB_OBJS);
-    if (db_objs) {
-	for (size_t i = 0; i < BU_PTBL_LEN(db_objs); i++) {
-	    struct bv_scene_obj *so = (struct bv_scene_obj *)BU_PTBL_GET(db_objs, i);
-	    for (int j = UPPER_RIGHT_QUADRANT + 1; j < LOWER_RIGHT_QUADRANT + 1; j++) {
-		draw_scene(so, views[j]->view());
-	    }
+	if (views[i] && views[i]->view()) {
+	    bv_autoview(views[i]->view(), BV_AUTOVIEW_SCALE_DEFAULT, 0);
+	    bv_view_bounds(views[i]->view());
 	}
     }
-    struct bu_ptbl *local_db_objs = bv_view_objs(views[UPPER_RIGHT_QUADRANT]->view(), BV_DB_OBJS | BV_LOCAL_OBJS);
-    if (local_db_objs) {
-	for (size_t i = 0; i < BU_PTBL_LEN(local_db_objs); i++) {
-	    struct bv_scene_obj *so = (struct bv_scene_obj *)BU_PTBL_GET(local_db_objs, i);
-	    for (int j = UPPER_RIGHT_QUADRANT + 1; j < LOWER_RIGHT_QUADRANT + 1; j++) {
-		draw_scene(so, views[j]->view());
+    if (views[UPPER_RIGHT_QUADRANT] && views[UPPER_RIGHT_QUADRANT]->view()) {
+	struct bu_ptbl *db_objs = bv_view_objs(views[UPPER_RIGHT_QUADRANT]->view(), BV_DB_OBJS);
+	if (db_objs) {
+	    for (size_t i = 0; i < BU_PTBL_LEN(db_objs); i++) {
+		struct bv_scene_obj *so = (struct bv_scene_obj *)BU_PTBL_GET(db_objs, i);
+		for (int j = UPPER_RIGHT_QUADRANT + 1; j < LOWER_RIGHT_QUADRANT + 1; j++) {
+		    if (views[j] && views[j]->view())
+			draw_scene(so, views[j]->view());
+		}
 	    }
 	}
-    }
+	struct bu_ptbl *local_db_objs = bv_view_objs(views[UPPER_RIGHT_QUADRANT]->view(), BV_DB_OBJS | BV_LOCAL_OBJS);
+	if (local_db_objs) {
+	    for (size_t i = 0; i < BU_PTBL_LEN(local_db_objs); i++) {
+		struct bv_scene_obj *so = (struct bv_scene_obj *)BU_PTBL_GET(local_db_objs, i);
+		for (int j = UPPER_RIGHT_QUADRANT + 1; j < LOWER_RIGHT_QUADRANT + 1; j++) {
+		    if (views[j] && views[j]->view())
+			draw_scene(so, views[j]->view());
+		}
+	    }
+	}
 
-    for (int i = UPPER_RIGHT_QUADRANT + 1; i < LOWER_RIGHT_QUADRANT + 1; i++) {
-	views[i]->view()->gv_width = views[UPPER_RIGHT_QUADRANT]->view()->gv_width;
-	views[i]->view()->gv_height = views[UPPER_RIGHT_QUADRANT]->view()->gv_height;
+	for (int i = UPPER_RIGHT_QUADRANT + 1; i < LOWER_RIGHT_QUADRANT + 1; i++) {
+	    if (views[i] && views[i]->view()) {
+		views[i]->view()->gv_width = views[UPPER_RIGHT_QUADRANT]->view()->gv_width;
+		views[i]->view()->gv_height = views[UPPER_RIGHT_QUADRANT]->view()->gv_height;
+	    }
+	}
     }
 
     // Current view selection pieces
     select(UPPER_RIGHT_QUADRANT);
-    gedp->ged_gvp = views[UPPER_RIGHT_QUADRANT]->view();
-    views[UPPER_RIGHT_QUADRANT]->set_current(1);
+    if (views[UPPER_RIGHT_QUADRANT]) {
+	if (gedp && views[UPPER_RIGHT_QUADRANT]->view())
+	    gedp->ged_gvp = views[UPPER_RIGHT_QUADRANT]->view();
+	views[UPPER_RIGHT_QUADRANT]->set_current(1);
+    }
     currentView = views[UPPER_RIGHT_QUADRANT];
 }
 
@@ -310,7 +339,8 @@ void
 QgQuadView::do_view_changed()
 {
     QTCAD_SLOT("QgQuadView::do_view_changed", 1);
-    emit changed(currentView);
+    if (currentView)
+	emit changed(currentView);
 }
 
 bool
@@ -368,7 +398,7 @@ QgQuadView::view(int quadrantId)
 	return views[quadrantId]->view();
     }
 
-    return currentView->view();
+    return currentView ? currentView->view() : nullptr;
 }
 
 QgView *
@@ -386,28 +416,23 @@ QgQuadView::get(int quadrantId)
 QgView *
 QgQuadView::get(const QPoint &gpos)
 {
-    QgView *retv = NULL;
     for (int i = UPPER_RIGHT_QUADRANT; i < LOWER_RIGHT_QUADRANT + 1; i++) {
 	QgView *cv = views[i];
 	if (cv == nullptr)
 	    continue;
 	QWidget *cw = (QWidget *)cv;
-	QRect br = cw->geometry();
-	QWidget *pcw = (QWidget *)cw->parent();
-	QPoint lp = pcw->mapFromGlobal(gpos);
-	if (br.contains(lp)) {
-	    retv = cv;
-	    break;
+	if (cw->rect().contains(cw->mapFromGlobal(gpos))) {
+	    return cv;
 	}
     }
 
-    return retv;
+    return NULL;
 }
 
 QgView *
 QgQuadView::get(QEvent *e)
 {
-    if (e->type() != QEvent::MouseButtonPress)
+    if (!e || e->type() != QEvent::MouseButtonPress)
 	return NULL;
     QMouseEvent *m_e = (QMouseEvent *)e;
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
@@ -445,7 +470,8 @@ QgQuadView::select(int quadrantId)
 	return;
 
     // If we're in quad mode, more work to do
-    currentView->set_current(1);
+    if (currentView)
+	currentView->set_current(1);
 
     for (int i = UPPER_RIGHT_QUADRANT; i < LOWER_RIGHT_QUADRANT + 1; i++) {
 	if (i == quadrantId)
@@ -456,32 +482,34 @@ QgQuadView::select(int quadrantId)
     }
 
     if (quadrantId == UPPER_RIGHT_QUADRANT) {
-	spacerTop->setStyleSheet("background-color:yellow;");
-	spacerRight->setStyleSheet("background-color:yellow;");
+	if (spacerTop) spacerTop->setStyleSheet("background-color:yellow;");
+	if (spacerRight) spacerRight->setStyleSheet("background-color:yellow;");
     }
 
     if (quadrantId == UPPER_LEFT_QUADRANT) {
-	spacerTop->setStyleSheet("background-color:yellow;");
-	spacerLeft->setStyleSheet("background-color:yellow;");
+	if (spacerTop) spacerTop->setStyleSheet("background-color:yellow;");
+	if (spacerLeft) spacerLeft->setStyleSheet("background-color:yellow;");
     }
 
     if (quadrantId == LOWER_LEFT_QUADRANT) {
-	spacerBottom->setStyleSheet("background-color:yellow;");
-	spacerLeft->setStyleSheet("background-color:yellow;");
+	if (spacerBottom) spacerBottom->setStyleSheet("background-color:yellow;");
+	if (spacerLeft) spacerLeft->setStyleSheet("background-color:yellow;");
     }
 
     if (quadrantId == LOWER_RIGHT_QUADRANT) {
-	spacerBottom->setStyleSheet("background-color:yellow;");
-	spacerRight->setStyleSheet("background-color:yellow;");
+	if (spacerBottom) spacerBottom->setStyleSheet("background-color:yellow;");
+	if (spacerRight) spacerRight->setStyleSheet("background-color:yellow;");
     }
 
-    if (oc != currentView)
+    if (oc != currentView && currentView)
 	emit selected(currentView);
 }
 
 void
 QgQuadView::select(const char *quadrant_id)
 {
+    if (!quadrant_id)
+	return;
     if (BU_STR_EQUIV(quadrant_id, "ur")) {
 	select(UPPER_RIGHT_QUADRANT);
 	return;
