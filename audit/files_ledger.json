@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1475,
-    "pending_files": 2018,
-    "last_updated": "2026-10-03T08:55:00Z",
-    "total_issues": 334,
-    "reviewed_count": 1475
+    "reviewed_files": 1484,
+    "pending_files": 2009,
+    "last_updated": "2026-10-03T09:00:00Z",
+    "total_issues": 335,
+    "reviewed_count": 1484
   },
   "files": [
     {
@@ -2344,10 +2344,12 @@
       "path": "include/qtcad/QgConsoleListener.h",
       "subsystem": "include",
       "lines": 93,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T09:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0314"
+      ]
     },
     {
       "id": 232,
@@ -2366,10 +2368,12 @@
       "path": "include/qtcad/QgEdit.h",
       "subsystem": "include",
       "lines": 122,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T09:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0314"
+      ]
     },
     {
       "id": 234,
@@ -2408,10 +2412,12 @@
       "path": "include/qtcad/QgKeyVal.h",
       "subsystem": "include",
       "lines": 106,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T09:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0314"
+      ]
     },
     {
       "id": 238,
@@ -2530,10 +2536,12 @@
       "path": "include/qtcad/QgUtil.h",
       "subsystem": "include",
       "lines": 69,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T09:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0314"
+      ]
     },
     {
       "id": 250,
@@ -28780,10 +28788,12 @@
       "path": "src/libqtcad/QgConsoleListener.cpp",
       "subsystem": "src/libqtcad",
       "lines": 100,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T09:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0314"
+      ]
     },
     {
       "id": 2707,
@@ -28834,10 +28844,12 @@
       "path": "src/libqtcad/QgKeyVal.cpp",
       "subsystem": "src/libqtcad",
       "lines": 184,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T09:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0314"
+      ]
     },
     {
       "id": 2712,
@@ -28944,10 +28956,12 @@
       "path": "src/libqtcad/QgUtil.cpp",
       "subsystem": "src/libqtcad",
       "lines": 329,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T09:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0314"
+      ]
     },
     {
       "id": 2723,
@@ -28974,20 +28988,24 @@
       "path": "src/libqtcad/bindings.cpp",
       "subsystem": "src/libqtcad",
       "lines": 378,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T09:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0314"
+      ]
     },
     {
       "id": 2726,
       "path": "src/libqtcad/bindings.h",
       "subsystem": "src/libqtcad",
       "lines": 41,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T09:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0314"
+      ]
     },
     {
       "id": 2727,
