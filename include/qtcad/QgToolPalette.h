@@ -69,7 +69,7 @@ class QTCAD_EXPORT QgToolPaletteButton: public QPushButton
 	void element_selected(QgToolPaletteElement *);
 
     private:
-	QgToolPaletteElement *element;
+	QgToolPaletteElement *element = nullptr;
 };
 
 
@@ -126,8 +126,8 @@ class QTCAD_EXPORT QgToolPaletteElement: public QWidget
 	void element_view_changed(unsigned long long);
 
     public:
-	QgToolPaletteButton *button;
-	QWidget *controls;
+	QgToolPaletteButton *button = nullptr;
+	QWidget *controls = nullptr;
 	int scroll_pos = 0;
 
 	bool use_event_filter = false;
@@ -139,7 +139,7 @@ class QTCAD_EXPORT QgToolPalette: public QWidget
     Q_OBJECT
 
     public:
-	QgToolPalette(QWidget *pparent = 0);
+	QgToolPalette(QWidget *pparent = nullptr);
 	~QgToolPalette();
 	void addElement(QgToolPaletteElement *element);
 	void deleteElement(QgToolPaletteElement *element);
@@ -149,10 +149,10 @@ class QTCAD_EXPORT QgToolPalette: public QWidget
 
 	void resizeEvent(QResizeEvent *pevent);
 
-	QgToolPaletteElement *selected;
+	QgToolPaletteElement *selected = nullptr;
 	QString selected_style = QString("");
 
-	QVBoxLayout *mlayout;
+	QVBoxLayout *mlayout = nullptr;
 
    signals:
 
@@ -195,13 +195,13 @@ class QTCAD_EXPORT QgToolPalette: public QWidget
 	void palette_do_view_changed(unsigned long long);
 
     private:
-	int always_selected;
-	int icon_width;
-	int icon_height;
-	QSplitter *splitter;
-	QWidget *button_container;
-	QgFlowLayout *button_layout;
-	QScrollArea *control_container;
+	int always_selected = 1;
+	int icon_width = 30;
+	int icon_height = 30;
+	QSplitter *splitter = nullptr;
+	QWidget *button_container = nullptr;
+	QgFlowLayout *button_layout = nullptr;
+	QScrollArea *control_container = nullptr;
 	QSet<QgToolPaletteElement *> elements;
 };
 

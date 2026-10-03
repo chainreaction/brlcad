@@ -38,10 +38,16 @@
 void
 QgTreeSelectionModel::clear_all()
 {
+    if (!treeview || !treeview->m || !treeview->m->gedp)
+	return;
     QgModel *m = treeview->m;
 
     DbiState *dbis = (DbiState *)m->gedp->dbi_state;
+    if (!dbis)
+	return;
     std::vector<BSelectState *> sv = dbis->get_selected_states(NULL);
+    if (sv.empty() || !sv[0])
+	return;
     BSelectState *ss = sv[0];
     ss->clear();
     ss->characterize();
@@ -51,28 +57,26 @@ void
 QgTreeSelectionModel::select(const QItemSelection &selection, QItemSelectionModel::SelectionFlags flags)
 {
     QTCAD_SLOT("QgTreeSelectionModel::select QItemSelection", 1);
+    if (!treeview || !treeview->m || !treeview->m->gedp)
+	return;
     QgModel *m = treeview->m;
     struct ged *gedp = m->gedp;
 
     DbiState *dbis = (DbiState *)gedp->dbi_state;
+    if (!dbis)
+	return;
     std::vector<BSelectState *> ssv = dbis->get_selected_states(NULL);
 
-    if (ssv.size() != 1)
+    if (ssv.size() != 1 || !ssv[0])
 	return;
 
     BSelectState *ss = ssv[0];
 
-#if 0
     QModelIndexList dl = selection.indexes();
     for (long int i = 0; i < dl.size(); i++) {
 	QgItem *snode = static_cast<QgItem *>(dl.at(i).internalPointer());
-#else
-    // Above should work (and does on Linux) - using a Windows workaround from
-    // https://stackoverflow.com/q/15123109/2037687 for the moment...
-    QModelIndexList *dl = new QModelIndexList(selection.indexes());
-    for (long int i = 0; i < dl->size(); i++) {
-	QgItem *snode = static_cast<QgItem *>(dl->at(i).internalPointer());
-#endif
+	if (!snode)
+	    continue;
 
 	// If we are selecting an already selected node, clear it
 	if (flags & QItemSelectionModel::Select && ss->is_selected(snode->path_hash())) {
@@ -103,20 +107,25 @@ QgTreeSelectionModel::select(const QItemSelection &selection, QItemSelectionMode
 	sflags |= QG_VIEW_REFRESH;
 
     emit treeview->view_changed(sflags);
-    emit treeview->m->layoutChanged();
+    if (treeview->m)
+	emit treeview->m->layoutChanged();
 }
 
 void
 QgTreeSelectionModel::select(const QModelIndex &index, QItemSelectionModel::SelectionFlags flags)
 {
     QTCAD_SLOT("QgTreeSelectionModel::select QModelIndex", 1);
+    if (!treeview || !treeview->m || !treeview->m->gedp)
+	return;
     QgModel *m = treeview->m;
     struct ged *gedp = m->gedp;
 
     DbiState *dbis = (DbiState *)gedp->dbi_state;
+    if (!dbis)
+	return;
     std::vector<BSelectState *> ssv = dbis->get_selected_states(NULL);
 
-    if (ssv.size() != 1)
+    if (ssv.size() != 1 || !ssv[0])
 	return;
 
     BSelectState *ss = ssv[0];
@@ -136,7 +145,8 @@ QgTreeSelectionModel::select(const QModelIndex &index, QItemSelectionModel::Sele
 	    sflags |= QG_VIEW_REFRESH;
 
 	emit treeview->view_changed(sflags);
-	emit treeview->m->layoutChanged();
+	if (treeview->m)
+	    emit treeview->m->layoutChanged();
 	return;
     }
 
@@ -152,7 +162,8 @@ QgTreeSelectionModel::select(const QModelIndex &index, QItemSelectionModel::Sele
 	    if (ss->draw_sync())
 		sflags |= QG_VIEW_REFRESH;
 	    emit treeview->view_changed(sflags);
-	    emit treeview->m->layoutChanged();
+	    if (treeview->m)
+		emit treeview->m->layoutChanged();
 	    return;
 	}
 
@@ -174,7 +185,8 @@ QgTreeSelectionModel::select(const QModelIndex &index, QItemSelectionModel::Sele
 	sflags |= QG_VIEW_REFRESH;
 
     emit treeview->view_changed(sflags);
-    emit treeview->m->layoutChanged();
+    if (treeview->m)
+	emit treeview->m->layoutChanged();
 }
 
 // Local Variables:

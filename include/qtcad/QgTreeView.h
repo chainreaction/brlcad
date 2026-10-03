@@ -50,7 +50,7 @@ class QTCAD_EXPORT QgTreeView : public QTreeView
 	QModelIndex selected();
 
 	void drawBranches(QPainter* painter, const QRect& rrect, const QModelIndex& index) const override;
-	QgModel *m = NULL;
+	QgModel *m = nullptr;
 
     protected:
 	void resizeEvent(QResizeEvent *pevent) override;
@@ -81,12 +81,12 @@ class QTCAD_EXPORT gObjDelegate : public QStyledItemDelegate
     Q_OBJECT
 
     public:
-	gObjDelegate(QgTreeView *tv = NULL, QWidget *pparent = 0) : QStyledItemDelegate(pparent) {cadtreeview = tv  ;}
+	gObjDelegate(QgTreeView *tv = nullptr, QWidget *pparent = nullptr) : QStyledItemDelegate(pparent), cadtreeview(tv) {}
 
-	void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const;
-	QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const;
+	void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
+	QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override;
 
-	QgTreeView *cadtreeview = NULL;
+	QgTreeView *cadtreeview = nullptr;
 };
 
 #endif //QGTREEVIEW_H

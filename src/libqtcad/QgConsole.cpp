@@ -104,15 +104,17 @@ GEDShellCompleter::updateCompletionModel(const QString& console_txt)
 	int completion_cnt = ged_cmd_completions(&completions, seed);
 	QStringList clist = QStringList();
 	for (int i = 0; i < completion_cnt; i++) {
-	    clist.append(QString(completions[i]));
+	    if (completions[i])
+		clist.append(QString(completions[i]));
 	}
-	bu_argv_free(completion_cnt, (char **)completions);
+	if (completions)
+	    bu_argv_free(completion_cnt, (char **)completions);
 	if (!clist.isEmpty()) {
 	    setCompletionMode(QCompleter::PopupCompletion);
 	    setModel(new QStringListModel(clist, this));
 	    setCaseSensitivity(Qt::CaseSensitive);
 	    setCompletionPrefix(QString(seed));
-	    if (popup())
+	    if (popup() && completionModel())
 		popup()->setCurrentIndex(completionModel()->index(0, 0));
 	}
 	bu_free(ct, "strcpy");
@@ -124,27 +126,35 @@ GEDShellCompleter::updateCompletionModel(const QString& console_txt)
     // looking to complete) is some sort of db geometry object/path element.
     // TODO - does QComplete allow for mid-string insertions?
 
-    if (!gedp)
+    if (!gedp || !gedp->dbip) {
+	bu_free(ct, "strcpy");
+	bu_free(av, "av");
 	return;
+    }
 
     char *seed = av[ac - 1];
     const char **completions = NULL;
     struct bu_vls prefix = BU_VLS_INIT_ZERO;
     int completion_cnt = ged_geom_completions(&completions, &prefix, gedp->dbip, seed);
-    ((QgConsole *)(parent()))->split_slash = 0;
-    if (!BU_STR_EQUAL(bu_vls_cstr(&prefix), seed))
-	((QgConsole *)(parent()))->split_slash = 1;
+    QgConsole *qc = qobject_cast<QgConsole *>(parent());
+    if (qc) {
+	qc->split_slash = 0;
+	if (!BU_STR_EQUAL(bu_vls_cstr(&prefix), seed))
+	    qc->split_slash = 1;
+    }
     QStringList clist = QStringList();
     for (int i = 0; i < completion_cnt; i++) {
-	clist.append(QString(completions[i]));
+	if (completions[i])
+	    clist.append(QString(completions[i]));
     }
-    bu_argv_free(completion_cnt, (char **)completions);
+    if (completions)
+	bu_argv_free(completion_cnt, (char **)completions);
     if (!clist.isEmpty()) {
 	setCompletionMode(QCompleter::PopupCompletion);
 	setModel(new QStringListModel(clist, this));
 	setCaseSensitivity(Qt::CaseSensitive);
 	setCompletionPrefix(QString(bu_vls_cstr(&prefix)));
-	if (popup())
+	if (popup() && completionModel())
 	    popup()->setCurrentIndex(completionModel()->index(0, 0));
     }
     bu_vls_free(&prefix);
@@ -192,7 +202,7 @@ class QgConsole::pqImplementation :
 	// TODO - figure out how to implement this...
 	bool consolidateHistory(size_t start, size_t end)
 	{
-	    if (start > end)
+	    if (start > end || start >= (size_t)CommandHistory.size() || end > (size_t)CommandHistory.size())
 		return false;
 	    QString nline;
 	    for (size_t i = start; i < end; i++) {
@@ -211,9 +221,9 @@ class QgConsole::pqImplementation :
 
 	std::string historyAt(size_t ind)
 	{
-	    const char *cmd = CommandHistory.at(ind).toLocal8Bit().data();
-	    std::string scmd(cmd);
-	    return scmd;
+	    if (ind >= (size_t)CommandHistory.size())
+		return std::string();
+	    return CommandHistory.at(ind).toStdString();
 	}
 
 	// Try to keep the scrollbar slider from getting too small to be usable
@@ -225,6 +235,8 @@ class QgConsole::pqImplementation :
 
 	void insertFromMimeData(const QMimeData * s)
 	{
+	    if (!s)
+		return;
 	    QTextCursor text_cursor = this->textCursor();
 
 	    // Set to true if the cursor overlaps the history area
@@ -245,7 +257,7 @@ class QgConsole::pqImplementation :
 
 	void keyPressEvent(QKeyEvent* e)
 	{
-	    if (this->Completer && this->Completer->popup()->isVisible()) {
+	    if (this->Completer && this->Completer->popup() && this->Completer->popup()->isVisible()) {
 		// The following keys are forwarded by the completer to the widget
 		switch (e->key()) {
 		    case Qt::Key_Tab:
@@ -292,11 +304,16 @@ class QgConsole::pqImplementation :
 	    // Allow paste only if the selection is in the interactive area ...
 	    if (e->key() == Qt::Key_V && e->modifiers() == Qt::ControlModifier) {
 		if (!history_area) {
-		    const QMimeData* const clipboard = QApplication::clipboard()->mimeData();
-		    const QString text = clipboard->text();
-		    if (!text.isNull()) {
-			text_cursor.insertText(text);
-			this->updateCommandBuffer();
+		    QClipboard *cb = QApplication::clipboard();
+		    if (cb) {
+			const QMimeData* const clipboard = cb->mimeData();
+			if (clipboard) {
+			    const QString text = clipboard->text();
+			    if (!text.isNull()) {
+				text_cursor.insertText(text);
+				this->updateCommandBuffer();
+			    }
+			}
 		    }
 		}
 
@@ -313,17 +330,17 @@ class QgConsole::pqImplementation :
 	    switch (e->key()) {
 		case Qt::Key_Up:
 		    e->accept();
-		    if (this->CommandPosition > 0) {
+		    if (this->CommandPosition > 0 && this->CommandPosition - 1 < this->CommandHistory.size()) {
 			this->replaceCommandBuffer(this->CommandHistory[--this->CommandPosition]);
 		    }
 		    break;
 
 		case Qt::Key_Down:
 		    e->accept();
-		    if (this->CommandPosition < this->CommandHistory.size() - 2) {
+		    if (this->CommandPosition >= 0 && this->CommandPosition < this->CommandHistory.size() - 2) {
 			this->replaceCommandBuffer(this->CommandHistory[++this->CommandPosition]);
-		    } else {
-			this->CommandPosition = this->CommandHistory.size()-1;
+		    } else if (!this->CommandHistory.isEmpty()) {
+			this->CommandPosition = this->CommandHistory.size() - 1;
 			this->replaceCommandBuffer("");
 		    }
 		    break;
@@ -416,7 +433,7 @@ class QgConsole::pqImplementation :
 
 	void updateCompleterIfVisible()
 	{
-	    if (this->Completer && this->Completer->popup()->isVisible()) {
+	    if (this->Completer && this->Completer->popup() && this->Completer->popup()->isVisible()) {
 		this->updateCompleter();
 	    }
 	}
@@ -427,7 +444,8 @@ class QgConsole::pqImplementation :
 	{
 	    if (this->Completer && this->Completer->completionCount() == 1) {
 		this->Parent.insertCompletion(this->Completer->currentCompletion());
-		this->Completer->popup()->hide();
+		if (this->Completer->popup())
+		    this->Completer->popup()->hide();
 	    }
 	}
 
@@ -451,11 +469,16 @@ class QgConsole::pqImplementation :
 		    text_cursor.movePosition(QTextCursor::StartOfWord);
 		    QRect cr = this->cursorRect(text_cursor);
 		    cr.translate(0, 8);
-		    cr.setWidth(this->Completer->popup()->sizeHintForColumn(0) +
-			    this->Completer->popup()->verticalScrollBar()->sizeHint().width());
-		    this->Completer->complete(cr);
+		    if (this->Completer->popup()) {
+			int w = this->Completer->popup()->sizeHintForColumn(0);
+			if (this->Completer->popup()->verticalScrollBar())
+			    w += this->Completer->popup()->verticalScrollBar()->sizeHint().width();
+			cr.setWidth(w);
+			this->Completer->complete(cr);
+		    }
 		} else {
-		    this->Completer->popup()->hide();
+		    if (this->Completer->popup())
+			this->Completer->popup()->hide();
 		}
 	    }
 	}
@@ -481,6 +504,8 @@ class QgConsole::pqImplementation :
 	/// References the buffer where the current un-executed command is stored
 	QString& commandBuffer()
 	{
+	    if (this->CommandHistory.isEmpty())
+		this->CommandHistory.append("");
 	    return this->CommandHistory.back();
 	}
 
@@ -550,6 +575,10 @@ QgConsole::QgConsole(QWidget* Parent) :
 //-----------------------------------------------------------------------------
 QgConsole::~QgConsole()
 {
+    for (std::map<std::pair<struct ged_subprocess *, int>, QConsoleListener *>::iterator it = listeners.begin(); it != listeners.end(); ++it) {
+	delete it->second;
+    }
+    listeners.clear();
     delete this->Implementation;
 }
 
@@ -594,17 +623,27 @@ QPoint QgConsole::getCursorPosition()
 //-----------------------------------------------------------------------------
 void QgConsole::listen(int fd, struct ged_subprocess *p, bu_process_io_t t, ged_io_func_t c, void *d)
 {
+    if (fd < 0 || !p)
+	return;
+    std::pair<struct ged_subprocess *, int> key = std::make_pair(p, (int)t);
+    std::map<std::pair<struct ged_subprocess *, int>, QConsoleListener *>::iterator it = listeners.find(key);
+    if (it != listeners.end()) {
+	delete it->second;
+	listeners.erase(it);
+    }
     QConsoleListener *l = new QConsoleListener(fd, p, t, c, d);
     bu_log("Start listening: %d\n", (int)t);
     QObject::connect(l, &QConsoleListener::newLine, this, &QgConsole::printStringBeforePrompt);
     /* EOF may be reported from inside the notifier callback.  Queue detach
      * so the listener is not deleted while that callback is still active. */
     QObject::connect(l, &QConsoleListener::is_finished, this, &QgConsole::detach, Qt::QueuedConnection);
-    listeners[std::make_pair(p, t)] = l;
+    listeners[key] = l;
 }
 void QgConsole::detach(struct ged_subprocess *p, int t)
 {
     QTCAD_SLOT("QgConsole::detach", 1);
+    if (!p)
+	return;
     std::map<std::pair<struct ged_subprocess *, int>, QConsoleListener *>::iterator l_it, si_it, so_it, e_it;
     l_it = listeners.find(std::make_pair(p,t));
 
@@ -615,11 +654,13 @@ void QgConsole::detach(struct ged_subprocess *p, int t)
     if (l_it != listeners.end()) {
 	bu_log("Stop listening: %d\n", (int)t);
 	QConsoleListener *l = l_it->second;
-	process = l->process;
-	callback = l->callback;
-	gdata = l->data;
+	if (l) {
+	    process = l->process;
+	    callback = l->callback;
+	    gdata = l->data;
+	    delete l;
+	}
 	listeners.erase(l_it);
-	delete l;
     }
 
     if (process) {
@@ -665,7 +706,9 @@ void QgConsole::insertCompletion(const QString& completion)
     if (tc.selectedText() == ".") {
 	tc.insertText(QString(".") + completion);
     } else {
-	tc.setPosition(tc.position()+1, QTextCursor::MoveAnchor);
+	if (text.length() > 0 && (text.at(0) == ' ' || (split_slash && text.at(0) == '/'))) {
+	    tc.setPosition(tc.position() + 1, QTextCursor::MoveAnchor);
+	}
 	tc.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
 	tc.insertText(completion);
 	this->Implementation->setTextCursor(tc);
@@ -708,8 +751,8 @@ void QgConsole::printStringBeforePrompt(const QString& Text)
     QTCAD_SLOT("QgConsole::printStringBeforePrompt", 1);
     logbuf.append(Text);
     int64_t ctime = bu_gettime();
-    double elapsed = ((double)ctime - (double)log_timestamp)/1000000.0;
-    if (elapsed > 0.1 && logbuf.length()) {
+    int64_t elapsed_us = ctime - log_timestamp;
+    if ((log_timestamp == 0 || elapsed_us > 100000) && !logbuf.isEmpty()) {
 	// Make a local printing copy and clear the buffer
 	QString llogbuf = logbuf;
 	logbuf.clear();
@@ -730,6 +773,12 @@ void QgConsole::printStringBeforePrompt(const QString& Text)
 	// Store the current editing point relative to the prompt (it may not
 	// be the end of the command, if the user is editing mid-command.)
 	int curr_pos_offset = tc.position() - (prompt_start + prompt_str.length());
+
+	int doc_end = this->Implementation->documentEnd();
+	if (prompt_start > doc_end)
+	    prompt_start = doc_end;
+	if (prompt_start < 0)
+	    prompt_start = 0;
 
 	// Before appending new content to the log, clear the old prompt and
 	// command string.  We restore them after the new log content is added.
@@ -759,7 +808,13 @@ void QgConsole::printStringBeforePrompt(const QString& Text)
 	// restore it to its prior offset from the prompt.  Since we are altering the
 	// user-interactive editing cursor this time, and not just manipulating the text,
 	// we must use setTextCursor to apply the change.
-	tc.setPosition(prompt_start + prompt_str.length() + curr_pos_offset);
+	int target_pos = prompt_start + prompt_str.length() + curr_pos_offset;
+	doc_end = this->Implementation->documentEnd();
+	if (target_pos < 0)
+	    target_pos = 0;
+	if (target_pos > doc_end)
+	    target_pos = doc_end;
+	tc.setPosition(target_pos);
 	this->Implementation->setTextCursor(tc);
 
 	// All done - unlock
@@ -767,7 +822,7 @@ void QgConsole::printStringBeforePrompt(const QString& Text)
     }
 
     // If there is anything queued up, we need to make sure we print it soon(ish)
-    if (logbuf.length()) {
+    if (!logbuf.isEmpty()) {
 	QTimer::singleShot(1000, this, &QgConsole::emit_queued);
     }
 }

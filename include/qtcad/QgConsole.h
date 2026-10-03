@@ -72,7 +72,7 @@ class QTCAD_EXPORT GEDShellCompleter : public QgConsoleWidgetCompleter
 public:
   GEDShellCompleter(QWidget *p, struct ged *ged_ptr);
   void updateCompletionModel(const QString& console_txt) override;
-  struct ged *gedp = NULL;
+  struct ged *gedp = nullptr;
 };
 
 /**

@@ -56,7 +56,7 @@ class QTCAD_EXPORT QgTreeSelectionModel : public QItemSelectionModel
         void select(const QModelIndex &index, QItemSelectionModel::SelectionFlags flags) override;
 
     public:
-	QgTreeView *treeview;
+	QgTreeView *treeview = nullptr;
 };
 
 #endif //QGTREESELECTIONMODEL_H
