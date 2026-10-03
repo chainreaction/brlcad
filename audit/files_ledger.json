@@ -34720,18 +34720,20 @@
       "path": "src/qged/QgEdApp.cpp",
       "subsystem": "src/qged",
       "lines": 655,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:25:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0307"
+      ]
     },
     {
       "id": 3276,
       "path": "src/qged/QgEdApp.h",
       "subsystem": "src/qged",
       "lines": 119,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:25:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -34740,18 +34742,20 @@
       "path": "src/qged/QgEdFilter.cpp",
       "subsystem": "src/qged",
       "lines": 99,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:25:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0307"
+      ]
     },
     {
       "id": 3278,
       "path": "src/qged/QgEdFilter.h",
       "subsystem": "src/qged",
       "lines": 44,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:25:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -34760,20 +34764,24 @@
       "path": "src/qged/QgEdMainWindow.cpp",
       "subsystem": "src/qged",
       "lines": 532,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:25:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0307"
+      ]
     },
     {
       "id": 3280,
       "path": "src/qged/QgEdMainWindow.h",
       "subsystem": "src/qged",
       "lines": 155,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:25:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0307"
+      ]
     },
     {
       "id": 3281,
