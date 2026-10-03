@@ -248,6 +248,9 @@ open_raster_georef(const char *path)
     GDALDatasetH ds;
     double gt[6];
 
+    if (!path)
+	return NULL;
+
     ds = GDALOpenEx(path,
 		    GDAL_OF_READONLY | GDAL_OF_RASTER | GDAL_OF_VERBOSE_ERROR,
 		    NULL, NULL, NULL);
@@ -791,7 +794,23 @@ main(int ac, char *av[])
     point_t center;
     vect_t sun_dir;
 
-    bu_setprogname(av[0]);
+    if (ac > 0 && av && av[0])
+	bu_setprogname(av[0]);
+
+    if (ac > 1 && (BU_STR_EQUAL(av[1], "-h") || BU_STR_EQUAL(av[1], "-?") || BU_STR_EQUAL(av[1], "--help"))) {
+	bu_log("Usage: %s input.tif output.g [options]\n\n"
+	       "  input.tif             Global DEM raster (e.g. ETOPO 2022 GeoTIFF)\n"
+	       "  output.g              Output BRL-CAD database\n"
+	       "  --dim N               Samples per cube-face edge        (default %d)\n"
+	       "  --exaggeration F      Vertical scale factor              (default %.0f)\n"
+	       "  --texture-day FILE    Daytime color texture map (GeoTIFF/JPEG/PNG)\n"
+	       "  --texture-night FILE  Nighttime city lights texture map (GeoTIFF/JPEG/PNG)\n"
+	       "  --texture-dim N       Texture resolution per face edge   (default = dim)\n"
+	       "  --sun-lon DEG         Subsolar longitude in degrees     (default 0.0)\n"
+	       "  --sun-lat DEG         Subsolar latitude in degrees      (default 0.0)\n",
+	       (ac > 0 && av && av[0]) ? av[0] : "gaia", DEFAULT_DIM, DEFAULT_EXAG);
+	return 0;
+    }
 
     if (ac < 3) {
 	bu_exit(1,
@@ -805,16 +824,18 @@ main(int ac, char *av[])
 		"  --texture-dim N       Texture resolution per face edge   (default = dim)\n"
 		"  --sun-lon DEG         Subsolar longitude in degrees     (default 0.0)\n"
 		"  --sun-lat DEG         Subsolar latitude in degrees      (default 0.0)\n",
-		av[0], DEFAULT_DIM, DEFAULT_EXAG);
+		(ac > 0 && av && av[0]) ? av[0] : "gaia", DEFAULT_DIM, DEFAULT_EXAG);
     }
     input_path  = av[1];
     output_path = av[2];
 
     for (i = 3; i < ac; i++) {
 	if (BU_STR_EQUAL(av[i], "--dim") && i + 1 < ac) {
-	    dim = (unsigned int)atoi(av[++i]);
+	    i++;
+	    (void)bu_sscanf(av[i], "%u", &dim);
 	} else if (BU_STR_EQUAL(av[i], "--exaggeration") && i + 1 < ac) {
-	    exag = atof(av[++i]);
+	    i++;
+	    (void)bu_sscanf(av[i], "%lf", &exag);
 	} else if ((BU_STR_EQUAL(av[i], "--texture-day") ||
 		    BU_STR_EQUAL(av[i], "--day") ||
 		    BU_STR_EQUAL(av[i], "--texture")) && i + 1 < ac) {
@@ -823,11 +844,14 @@ main(int ac, char *av[])
 		    BU_STR_EQUAL(av[i], "--night")) && i + 1 < ac) {
 	    texture_night_path = av[++i];
 	} else if (BU_STR_EQUAL(av[i], "--texture-dim") && i + 1 < ac) {
-	    tex_dim = (unsigned int)atoi(av[++i]);
+	    i++;
+	    (void)bu_sscanf(av[i], "%u", &tex_dim);
 	} else if (BU_STR_EQUAL(av[i], "--sun-lon") && i + 1 < ac) {
-	    sun_lon = atof(av[++i]);
+	    i++;
+	    (void)bu_sscanf(av[i], "%lf", &sun_lon);
 	} else if (BU_STR_EQUAL(av[i], "--sun-lat") && i + 1 < ac) {
-	    sun_lat = atof(av[++i]);
+	    i++;
+	    (void)bu_sscanf(av[i], "%lf", &sun_lat);
 	}
     }
 
@@ -868,14 +892,19 @@ main(int ac, char *av[])
     /* Open optional texture datasets */
     if (texture_day_path) {
 	src_day = open_raster_georef(texture_day_path);
-	if (!src_day)
+	if (!src_day) {
+	    GDALClose(src);
 	    bu_exit(2, "gaia: cannot open daytime texture '%s'\n", texture_day_path);
+	}
     }
 
     if (texture_night_path) {
 	src_night = open_raster_georef(texture_night_path);
-	if (!src_night)
+	if (!src_night) {
+	    GDALClose(src);
+	    if (src_day) GDALClose(src_day);
 	    bu_exit(2, "gaia: cannot open nighttime texture '%s'\n", texture_night_path);
+	}
     }
 
     /* Query the global elevation range from band statistics. */

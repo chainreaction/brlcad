@@ -128,6 +128,9 @@ make_gear(struct rt_wdb *db_fp,
     int i;
     int vidx;
 
+    if (!db_fp || teeth <= 0)
+	return -1;
+
     pitch_r = module * teeth / 2.0;
     base_r  = pitch_r * cos(20.0 * DEG2RAD);   /* 20 degree pressure angle */
     outer_r = pitch_r + module;                /* addendum = 1 module */
@@ -245,8 +248,19 @@ make_gear(struct rt_wdb *db_fp,
     snprintf(bore_name, sizeof(bore_name), "bore_%d.s", gear_index);
     snprintf(gear_name, sizeof(gear_name), "gear_%d.r", gear_index);
 
-    if (mk_sketch(db_fp, skt_name, &skt) < 0)
+    if (mk_sketch(db_fp, skt_name, &skt) < 0) {
+	bu_free(verts, "gear verts");
+	bu_free(lsegs, "gear lsegs");
+	bu_free(segments, "gear segments");
+	bu_free(reverse, "gear reverse");
 	bu_exit(1, "Failed to write sketch %s\n", skt_name);
+    }
+
+    /* free the per-gear sketch scratch storage immediately after writing sketch */
+    bu_free(verts, "gear verts");
+    bu_free(lsegs, "gear lsegs");
+    bu_free(segments, "gear segments");
+    bu_free(reverse, "gear reverse");
 
     /*
      * Extrude the tooth profile in +Z to the gear thickness.  The
@@ -292,8 +306,10 @@ make_gear(struct rt_wdb *db_fp,
 	bn_mat_angles(rot, 0.0, 0.0, deg);
 
 	wm = mk_addmember(tooth_name, &gear_head.l, rot, WMOP_UNION);
-	if (wm == NULL)
+	if (wm == NULL) {
+	    mk_freemembers(&gear_head.l);
 	    bu_exit(1, "Failed to add tooth instance to %s\n", gear_name);
+	}
     }
 
     (void)mk_addmember(bore_name, &gear_head.l, NULL, WMOP_SUBTRACT);
@@ -301,17 +317,15 @@ make_gear(struct rt_wdb *db_fp,
     /* make the gear a colored plastic region */
     if (mk_lcomb(db_fp, gear_name, &gear_head, 1,
 		 "plastic", "di=0.8 sp=0.3",
-		 gear_colors[gear_index % NUM_COLORS], 0) < 0)
+		 gear_colors[gear_index % NUM_COLORS], 0) < 0) {
+	mk_freemembers(&gear_head.l);
 	bu_exit(1, "Failed to make gear region %s\n", gear_name);
+    }
 
     bu_log("  gear %d: %d teeth, pitch_r=%.2f, outer_r=%.2f, bore_r=%.2f\n",
 	   gear_index, teeth, pitch_r, outer_r, bore_r);
 
-    /* free the per-gear sketch scratch storage */
-    bu_free(verts, "gear verts");
-    bu_free(lsegs, "gear lsegs");
-    bu_free(segments, "gear segments");
-    bu_free(reverse, "gear reverse");
+    mk_freemembers(&gear_head.l);
 
     /* report the pitch radius back to the caller for spacing */
     return 0;
@@ -344,10 +358,18 @@ main(int ac, char *av[])
 
     int i;
 
-    bu_setprogname(av[0]);
+    if (ac > 0 && av && av[0])
+	bu_setprogname(av[0]);
+
+    if (ac > 1 && (BU_STR_EQUAL(av[1], "-h") || BU_STR_EQUAL(av[1], "-?") || BU_STR_EQUAL(av[1], "--help"))) {
+	bu_log("Usage: %s output.g [--module m] [--gears n] [--teeth \"t1 t2 ...\"] [--thickness t]\n",
+	       (ac > 0 && av && av[0]) ? av[0] : "gears");
+	return 0;
+    }
 
     if (ac < 2) {
-	bu_exit(1, "Usage: %s output.g [--module m] [--gears n] [--teeth \"t1 t2 ...\"] [--thickness t]\n", av[0]);
+	bu_exit(1, "Usage: %s output.g [--module m] [--gears n] [--teeth \"t1 t2 ...\"] [--thickness t]\n",
+		(ac > 0 && av && av[0]) ? av[0] : "gears");
     }
 
     /*
@@ -356,12 +378,22 @@ main(int ac, char *av[])
      * attractive default scene.
      */
     for (i = 2; i < ac; i++) {
-	if (BU_STR_EQUAL(av[i], "--module") && i + 1 < ac) {
-	    module = atof(av[++i]);
+	if (BU_STR_EQUAL(av[i], "-h") || BU_STR_EQUAL(av[i], "-?") || BU_STR_EQUAL(av[i], "--help")) {
+	    bu_log("Usage: %s output.g [--module m] [--gears n] [--teeth \"t1 t2 ...\"] [--thickness t]\n",
+		   (ac > 0 && av && av[0]) ? av[0] : "gears");
+	    return 0;
+	} else if (BU_STR_EQUAL(av[i], "--module") && i + 1 < ac) {
+	    if (bu_sscanf(av[++i], "%lf", &module) != 1) {
+		bu_log("Warning: invalid module value \"%s\", using default\n", av[i]);
+	    }
 	} else if (BU_STR_EQUAL(av[i], "--gears") && i + 1 < ac) {
-	    ngears = atoi(av[++i]);
+	    if (bu_sscanf(av[++i], "%d", &ngears) != 1) {
+		bu_log("Warning: invalid gears value \"%s\", using default\n", av[i]);
+	    }
 	} else if (BU_STR_EQUAL(av[i], "--thickness") && i + 1 < ac) {
-	    thickness = atof(av[++i]);
+	    if (bu_sscanf(av[++i], "%lf", &thickness) != 1) {
+		bu_log("Warning: invalid thickness value \"%s\", using default\n", av[i]);
+	    }
 	} else if (BU_STR_EQUAL(av[i], "--teeth") && i + 1 < ac) {
 	    /* parse a space-separated list of tooth counts */
 	    char *tok;
@@ -372,7 +404,10 @@ main(int ac, char *av[])
 	    n = 0;
 	    tok = strtok(buf, " ,");
 	    while (tok != NULL && n < MAX_GEARS) {
-		teeth[n++] = atoi(tok);
+		int tval = 0;
+		if (bu_sscanf(tok, "%d", &tval) == 1) {
+		    teeth[n++] = tval;
+		}
 		tok = strtok(NULL, " ,");
 	    }
 	    if (n > 0)
@@ -434,8 +469,11 @@ main(int ac, char *av[])
 	mat_t place;
 	char gear_name[64];
 
-	if (make_gear(db_fp, i, teeth[i], module, thickness, bore_frac) != 0)
+	if (make_gear(db_fp, i, teeth[i], module, thickness, bore_frac) != 0) {
+	    mk_freemembers(&all_head.l);
+	    wdb_close(db_fp);
 	    bu_exit(1, "Failed to build gear %d\n", i);
+	}
 
 	snprintf(gear_name, sizeof(gear_name), "gear_%d.r", i);
 
@@ -467,13 +505,19 @@ main(int ac, char *av[])
      */
     VSET(pmin, -max_outer - module, -max_outer - module, -2.0 * thickness);
     VSET(pmax, total_span + max_outer + module, max_outer + module, -thickness);
-    if (mk_rpp(db_fp, "ground.s", pmin, pmax) < 0)
+    if (mk_rpp(db_fp, "ground.s", pmin, pmax) < 0) {
+	mk_freemembers(&all_head.l);
+	wdb_close(db_fp);
 	bu_exit(1, "Failed to make ground plane\n");
+    }
 
     VSET(ground_rgb, 120, 120, 130);
     if (mk_region1(db_fp, "ground.r", "ground.s",
-		   "plastic", "di=0.7 sp=0.1", ground_rgb) < 0)
+		   "plastic", "di=0.7 sp=0.1", ground_rgb) < 0) {
+	mk_freemembers(&all_head.l);
+	wdb_close(db_fp);
 	bu_exit(1, "Failed to make ground region\n");
+    }
     (void)mk_addmember("ground.r", &all_head.l, NULL, WMOP_UNION);
 
     /*
@@ -485,24 +529,34 @@ main(int ac, char *av[])
 	 total_span * 0.5,
 	 -max_outer * 2.0,
 	 max_outer * 3.0 + thickness);
-    if (mk_sph(db_fp, "light.s", lpos, max_outer * 0.25) < 0)
+    if (mk_sph(db_fp, "light.s", lpos, max_outer * 0.25) < 0) {
+	mk_freemembers(&all_head.l);
+	wdb_close(db_fp);
 	bu_exit(1, "Failed to make light\n");
+    }
 
     VSET(light_rgb, 255, 255, 255);
     if (mk_region1(db_fp, "light.r", "light.s",
-		   "light", "inten=1.0 shadows=1", light_rgb) < 0)
+		   "light", "inten=1.0 shadows=1", light_rgb) < 0) {
+	mk_freemembers(&all_head.l);
+	wdb_close(db_fp);
 	bu_exit(1, "Failed to make light region\n");
+    }
     (void)mk_addmember("light.r", &all_head.l, NULL, WMOP_UNION);
 
     /* collect everything under a single renderable top-level group */
     if (mk_lcomb(db_fp, "all", &all_head, 0,
-		 (char *)NULL, (char *)NULL, (unsigned char *)NULL, 0) < 0)
+		 (char *)NULL, (char *)NULL, (unsigned char *)NULL, 0) < 0) {
+	mk_freemembers(&all_head.l);
+	wdb_close(db_fp);
 	bu_exit(1, "Failed to make top-level group 'all'\n");
+    }
 
     bu_log("Done.  Top-level group 'all' contains %d gears, a ground plane, and a light.\n",
 	   ngears);
 
-    db_close(db_fp->dbip);
+    mk_freemembers(&all_head.l);
+    wdb_close(db_fp);
 
     return 0;
 }

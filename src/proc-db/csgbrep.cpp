@@ -56,6 +56,7 @@ write_out(struct rt_wdb* fp, struct rt_db_internal *ip, const char *name, struct
     BU_CK_EXTERNAL(&ext);
     int flags = db_flags_internal(ip);
     ret = wdb_export_external(fp, &ext, name, flags, ip->idb_type);
+    bu_free_external(&ext);
     if (ret) {
 	bu_log("ERROR: failure writing [%s] to disk\n", name);
 	return;
@@ -63,9 +64,17 @@ write_out(struct rt_wdb* fp, struct rt_db_internal *ip, const char *name, struct
 
     /* write the object in brep/nurbs form */
     brep = ON_Brep::New();
-    ip->idb_meth->ft_brep(&brep, ip, tol);
-    mk_brep(fp, bname.c_str(), (void *)brep);
-    // delete brep;
+    if (!brep)
+	return;
+    if (ip->idb_meth && ip->idb_meth->ft_brep) {
+	ip->idb_meth->ft_brep(&brep, ip, tol);
+	if (brep) {
+	    mk_brep(fp, bname.c_str(), (void *)brep);
+	    delete brep;
+	}
+    } else {
+	delete brep;
+    }
 }
 
 
@@ -76,7 +85,8 @@ main(int argc, char** argv)
     struct rt_db_internal tmp_internal;
     ON_TextLog error_log;
 
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
 
     RT_DB_INTERNAL_INIT(&tmp_internal);
     tmp_internal.idb_major_type = DB5_MAJORTYPE_BRLCAD;
@@ -88,16 +98,27 @@ main(int argc, char** argv)
     tol.perp = SMALL_FASTF;
     tol.para = 1.0 - tol.perp;
 
-    if (argc > 1)
-	bu_exit(1, "Usage: %s\n(unexpected arguments encountered)\n", argv[0]);
-    else
-	bu_log("Usage: %s\n", argv[0]);
+    if (argc > 1) {
+	if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help")) {
+	    bu_log("Usage: %s\nGenerates CSG and B-Rep example geometries into %s\n",
+		   (argc > 0 && argv && argv[0]) ? argv[0] : "csgbrep", DEFAULT_FILENAME);
+	    return 0;
+	}
+	bu_exit(1, "Usage: %s\n(unexpected arguments encountered)\n",
+		(argc > 0 && argv && argv[0]) ? argv[0] : "csgbrep");
+    } else {
+	bu_log("Usage: %s\n", (argc > 0 && argv && argv[0]) ? argv[0] : "csgbrep");
+    }
 
     bu_log("Writing objects to [%s]:\n", DEFAULT_FILENAME);
 
     ON::Begin();
 
     outfp = wdb_fopen(DEFAULT_FILENAME);
+    if (!outfp) {
+	ON::End();
+	bu_exit(1, "ERROR: unable to open [%s] for writing\n", DEFAULT_FILENAME);
+    }
     const char* id_name = "CSG B-Rep Examples";
     mk_id(outfp, id_name);
 
@@ -503,6 +524,7 @@ main(int argc, char** argv)
     tmp_internal.idb_minor_type = ID_EXTRUDE;
     tmp_internal.idb_meth = &OBJ[ID_EXTRUDE];
     write_out(outfp, &tmp_internal, "extrude", &tol);
+    bu_free(extrude.sketch_name, "extrude sketch name");
 
     bu_log("REVOLVE\n");
     struct rt_revolve_internal revolve;
@@ -518,6 +540,7 @@ main(int argc, char** argv)
     tmp_internal.idb_minor_type = ID_REVOLVE;
     tmp_internal.idb_meth = &OBJ[ID_REVOLVE];
     write_out(outfp, &tmp_internal, "revolve", &tol);
+    bu_vls_free(&revolve.sketch_name);
 
     /* Gather everything written above into top-level groups so the
      * database renders as a single coherent scene.  write_out() emits
@@ -582,7 +605,7 @@ main(int argc, char** argv)
 */
 
     /* clean up */
-    db_close(outfp->dbip);
+    wdb_close(outfp);
 
     ON::End();
 
