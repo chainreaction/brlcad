@@ -110,12 +110,23 @@ main(int argc, char **argv)
     int i;
     struct bu_list head;
 
+    if (!argv || !argv[0])
+	return 1;
+
     bu_setprogname(argv[0]);
 
-    if (argc > 0)
+    if (argc > 1) {
 	bu_log("Usage: %s\n", argv[0]);
+	if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help"))
+	    return 0;
+	return 1;
+    }
 
     outfp = wdb_fopen("pipetest.g");
+    if (!outfp) {
+	bu_exit(EXIT_FAILURE, "ERROR: Unable to open pipetest.g for writing\n");
+    }
+
     mk_conversion("meters");
     mk_id(outfp, "Pipe & Particle Test");
 
@@ -135,17 +146,18 @@ main(int argc, char **argv)
     mk_particle(outfp, "p3", vert, h, 0.5, 1.0);
 
     /* Make a piece of pipe */
-    BU_LIST_INIT(&head);
+    mk_pipe_init(&head);
     for (i=0; i<pipeA_npts; i++) {
-	BU_LIST_INSERT(&head, &pipeA[i].l);
+	mk_add_pipe_pnt(&head, pipeA[i].pp_coord, pipeA[i].pp_od, pipeA[i].pp_id, pipeA[i].pp_bendradius);
     }
     pr_pipe("pipe1", (struct wdb_pipe_pnt *)&head);
     if ((i = mk_pipe(outfp, "pipe1", &head)) < 0)
 	fprintf(stderr, "mk_pipe(%s) returns %d\n", "pipe1", i);
+    mk_pipe_free(&head);
 
     do_bending(outfp, "pipe2", pipeB, pipeB_npts, 0.1, 0.05);
 
-    db_close(outfp->dbip);
+    wdb_close(outfp);
     return 0;
 }
 
@@ -155,6 +167,9 @@ do_bending(struct rt_wdb *fp, const char *name, point_t (*pts), int npts, double
 {
     struct bu_list head;
     int i;
+
+    if (!fp || !name || !pts || npts <= 0)
+	return;
 
     mk_pipe_init(&head);
 
@@ -177,6 +192,9 @@ void
 pr_pipe(const char *name, struct wdb_pipe_pnt *head)
 {
     struct wdb_pipe_pnt *psp;
+
+    if (!name || !head)
+	return;
 
     fprintf(stderr, "\n--- %s:\n", name);
     for (BU_LIST_FOR(psp, wdb_pipe_pnt, &head->l)) {

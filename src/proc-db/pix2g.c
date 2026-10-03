@@ -63,10 +63,10 @@ struct bu_mapped_file *image;
 /* procedure variable end */
 
 
-void usage(void)
+void usage(const char *prog, int exit_code)
 {
-    fprintf(stderr, "Usage: %s image_file.pix db_file.g [pixelWidth [pixelHeight [cellSize [objectSize]]]]\n", progname);
-    bu_exit(-1, NULL);
+    bu_log("Usage: %s image_file.pix db_file.g [pixelWidth [pixelHeight [cellSize [objectSize]]]]\n", prog ? prog : "pix2g");
+    bu_exit(exit_code, NULL);
 }
 
 
@@ -148,6 +148,8 @@ void computeScanline(int UNUSED(pid), void *UNUSED(arg)) {
 	    mk_lcomb(db_fp, scratch, &wm_hd, is_region, NULL, NULL, rgb, 0);
 	    bu_semaphore_release(BU_SEM_GENERAL);
 
+	    mk_freemembers(&wm_hd.l);
+
 	    mk_addmember(scratch, &scanlineList.l, matrix, WMOP_UNION);
 	}
 
@@ -157,9 +159,13 @@ void computeScanline(int UNUSED(pid), void *UNUSED(arg)) {
 	mk_lcomb(db_fp, scratch, &scanlineList, 0, NULL, NULL, NULL, 0);
 	bu_semaphore_release(BU_SEM_GENERAL);
 
+	mk_freemembers(&scanlineList.l);
+
 	/* all threads keep track of the scan line (in case they get to the end first */
 	sprintf(scratch, "%d.c", i+1);
+	bu_semaphore_acquire(BU_SEM_GENERAL);
 	mk_addmember(scratch, &allScanlineList.l, NULL, WMOP_UNION);
+	bu_semaphore_release(BU_SEM_GENERAL);
     }
 
 }
@@ -173,23 +179,37 @@ main(int ac, char *av[])
     char scratch[MAXSIZE + 15]="";
     point_t origin;
 
-    bu_setprogname(av[0]);
+    if (av && av[0]) {
+	bu_setprogname(av[0]);
+	progname = av[0];
+    }
 
-    progname = *av;
+    if (ac > 1 && (BU_STR_EQUAL(av[1], "-h") || BU_STR_EQUAL(av[1], "-?") || BU_STR_EQUAL(av[1], "--help"))) {
+	usage(progname, 0);
+    }
 
-    if (ac < 3) usage();
+    if (ac < 3) usage(progname, 1);
 
-    snprintf(imageFileName, MAXSIZE, "%s", av[1]);
-    snprintf(databaseFileName, MAXSIZE, "%s", av[2]);
+    bu_strlcpy(imageFileName, av[1], sizeof(imageFileName));
+    bu_strlcpy(databaseFileName, av[2], sizeof(databaseFileName));
 
     if (ac > 3) {
-	width=(int)atoi(av[3]);
+	if (bu_sscanf(av[3], "%d", &width) != 1 || width <= 0 || width > 65536) {
+	    bu_exit(1, "ERROR: pixelWidth must be between 1 and 65536\n");
+	}
 	if (ac > 4) {
-	    height=(int)atoi(av[4]);
+	    if (bu_sscanf(av[4], "%d", &height) != 1 || height <= 0 || height > 65536) {
+		bu_exit(1, "ERROR: pixelHeight must be between 1 and 65536\n");
+	    }
 	    if (ac > 5) {
-		cellSize=(double)atof(av[5]);
-		if (ac > 6)
-		    objectSize=(double)atof(av[6]);
+		if (bu_sscanf(av[5], "%lf", &cellSize) != 1 || ZERO(cellSize) || cellSize < 0.0) {
+		    bu_exit(1, "ERROR: cellSize must be positive\n");
+		}
+		if (ac > 6) {
+		    if (bu_sscanf(av[6], "%lf", &objectSize) != 1 || ZERO(objectSize) || objectSize < 0.0) {
+			bu_exit(1, "ERROR: objectSize must be positive\n");
+		    }
+		}
 	    }
 	}
     }
@@ -205,15 +225,20 @@ main(int ac, char *av[])
     if ((image = bu_open_mapped_file(imageFileName, NULL)) == NULL) {
 	bu_log("unable to open image [%s]\n", imageFileName);
 	perror("Unable to open file");
+	wdb_close(db_fp);
 	bu_exit(-2, NULL);
     }
 
     bu_log("Loading image %s from file...", imageFileName);
 
-    if (image->buflen < (size_t)width * (size_t)height * 3)
-	bu_log("\nWARNING: %s needs %d bytes, file only contains %zu bytes\n", imageFileName, width*height*3, image->buflen);
-    else if (image->buflen > (size_t)width* (size_t)height * 3)
+    if (image->buflen < (size_t)width * (size_t)height * 3) {
+	bu_log("\nERROR: %s needs %zu bytes, file only contains %zu bytes\n", imageFileName, (size_t)width * (size_t)height * 3, image->buflen);
+	bu_close_mapped_file(image);
+	wdb_close(db_fp);
+	bu_exit(-3, NULL);
+    } else if (image->buflen > (size_t)width * (size_t)height * 3) {
 	bu_log("\nWarning: Image file size is larger than specified texture size\n");
+    }
 
     bu_log("...done loading image\n");
 
@@ -260,12 +285,13 @@ main(int ac, char *av[])
     /* write out the main image combination */
 
     mk_lcomb(db_fp, "image.c", &allScanlineList, 0, NULL, NULL, NULL, 0);
+    mk_freemembers(&allScanlineList.l);
 
     bu_log("\n...done! (see %s)\n", databaseFileName);
 
     bu_close_mapped_file(image);
 
-    db_close(db_fp->dbip);
+    wdb_close(db_fp);
 
     return 0;
 }

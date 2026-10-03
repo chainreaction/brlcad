@@ -55,36 +55,6 @@ do_leaf(const char *name)
     mk_arb4(outfp, name, &pt[0][X]);
 }
 
-/*
- * Find the single outward pointing normal for a facet.
- * Assumes all points are coplanar (they better be!).
- */
-void
-pnorms(fastf_t (*norms)[3], fastf_t (*verts)[3], fastf_t *centroid, int npts)
-{
-    int i;
-    vect_t ab, ac;
-    vect_t n;
-    vect_t out;		/* hopefully points outwards */
-
-    VSUB2(ab, verts[1], verts[0]);
-    VSUB2(ac, verts[2], verts[0]);
-    VCROSS(n, ab, ac);
-    VUNITIZE(n);
-
-    /* If normal points inwards (towards centroid), flip it */
-    VSUB2(out, verts[0], centroid);
-    if (VDOT(n, out) < 0) {
-	VREVERSE(n, n);
-    }
-
-    /* Use same normal for all vertices (flat shading) */
-    for (i=0; i<npts; i++) {
-	VMOVE(norms[i], n);
-    }
-}
-
-
 void
 do_tree(const char *name, const char *lname, int level)
 {
@@ -124,6 +94,7 @@ do_tree(const char *name, const char *lname, int level)
 
     /* Set region flag on lowest level */
     mk_lcomb(outfp, name, &head, level<=1, NULL, NULL, NULL, 0);
+    mk_freemembers(&head.l);
 
     /* Loop for children if level > 1 */
     if (level <= 1)
@@ -140,16 +111,30 @@ main(int argc, char **argv)
 {
     int depth;
 
-    bu_setprogname(argv[0]);
+    if (argv && argv[0]) {
+	bu_setprogname(argv[0]);
+    }
 
-    if (argc != 2 || BU_STR_EQUAL(argv[1],"-h") || BU_STR_EQUAL(argv[1],"-?")) {
-	fprintf(stderr, "Usage: pyramid recursion\n      (the argument is of type integer)\n");
+    if (argc == 2 && (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help"))) {
+	bu_log("Usage: %s recursion\n      (the argument is an integer between 1 and 8)\n", argv[0]);
+	return 0;
+    }
+    if (argc != 2) {
+	bu_log("Usage: %s recursion\n      (the argument is an integer between 1 and 8)\n", (argv && argv[0]) ? argv[0] : "pyramid");
 	return 1;
     }
-    depth = atoi(argv[1]);
+
+    if (bu_sscanf(argv[1], "%d", &depth) != 1 || depth < 1 || depth > 8) {
+	bu_log("ERROR: recursion depth must be an integer between 1 and 8\n");
+	return 1;
+    }
     sin60 = sin(60.0 * DEG2RAD);
 
     outfp = wdb_fopen("pyramid.g");
+    if (!outfp) {
+	bu_log("ERROR: failed to open pyramid.g for writing\n");
+	return 1;
+    }
     printf("Creating file pyramid.g\n");
 
     mk_id(outfp, "3-D Pyramids");
@@ -157,7 +142,7 @@ main(int argc, char **argv)
     do_leaf("leaf");
     do_tree("tree", "leaf", depth);
 
-    db_close(outfp->dbip);
+    wdb_close(outfp);
 
     return 0;
 }

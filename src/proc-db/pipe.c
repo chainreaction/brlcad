@@ -119,13 +119,15 @@ Readpoints(void)
 {
     struct points *ptr, *prev;
     double x, y, z;
+    char line[BUFSIZ];
 
     ptr = root;
     prev = NULL;
 
-
     printf("X Y Z (^D for end): ");
-    while (scanf("%lf%lf%lf", &x, &y, &z) ==  3) {
+    while (bu_fgets(line, sizeof(line), stdin) != NULL) {
+	if (bu_sscanf(line, "%lf%lf%lf", &x, &y, &z) != 3)
+	    break;
 	if (ptr == NULL) {
 	    BU_ALLOC(ptr, struct points);
 	    root = ptr;
@@ -164,6 +166,9 @@ Names(void)
 	inform = sph_in;
     } else if (mitre)
 	cutform = haf;
+
+    if (!root || !root->next)
+	return;
 
     ptr = root;
     while (ptr->next != NULL) {
@@ -230,6 +235,7 @@ Normals(void)
     VUNITIZE(root->nnext);
 
     while (ptr->next != NULL) {
+	fastf_t dot;
 	VREVERSE(ptr->nprev, ptr->prev->nnext);
 	VSUB2(ptr->nnext, ptr->next->p, ptr->p);
 	VUNITIZE(ptr->nnext);
@@ -241,7 +247,12 @@ Normals(void)
 	VUNITIZE(ptr->mnorm);
 	if (VDOT(ptr->mnorm, ptr->nnext) > 0.0)
 	    VREVERSE(ptr->mnorm, ptr->mnorm);
-	ptr->alpha = acos(VDOT(ptr->nnext, ptr->nprev));
+	dot = VDOT(ptr->nnext, ptr->nprev);
+	if (dot < -1.0)
+	    dot = -1.0;
+	else if (dot > 1.0)
+	    dot = 1.0;
+	ptr->alpha = acos(dot);
 	ptr = ptr->next;
     }
 }
@@ -275,17 +286,20 @@ Adjust(void)
 	    VMOVE(ptr->p1, ptr->p);
 	    VMOVE(ptr->p2, ptr->p);
 	} else if (torus) {
-	    /* beta=.5*(pi-ptr->alpha);
-	       d=(MINR+1.0)*radius*tan(beta); */ /* dist from new endpts to p2 */
-
 	    beta = 0.5 * ptr->alpha;
-	    d = (MINR + 1.0) * radius / tan(beta);
+	    if (!ZERO(tan(beta)))
+		d = (MINR + 1.0) * radius / tan(beta);
+	    else
+		d = 0.0;
 	    VJOIN1(ptr->p1, ptr->p, d, ptr->nprev);
 	    VJOIN1(ptr->p2, ptr->p, d, ptr->nnext);
 	    d = sqrt(d*d + (MINR+1.0)*(MINR+1.)*radius*radius);
 	    VJOIN1(ptr->center, ptr->p, d, ptr->nmitre);
 	} else if (mitre) {
-	    len = radius/tan(ptr->alpha/2.0);
+	    if (!ZERO(tan(ptr->alpha / 2.0)))
+		len = radius / tan(ptr->alpha / 2.0);
+	    else
+		len = 0.0;
 	    VJOIN1(ptr->p1, ptr->p, -len, ptr->nprev);
 	    VJOIN1(ptr->p2, ptr->p, -len, ptr->nnext);
 	}
@@ -334,17 +348,12 @@ Pipes(void)
 		mk_comb1(fdout, ptr->tubflu_r, ptr->tubflu, 1);
 	    }
 	    mk_lfcomb(fdout, ptr->tube_r, &head, 1);
+	    mk_freemembers(&head.l);
 	} else if (mitre) {
 	    if (ptr->prev != NULL) {
 		len = VDOT(ptr->p, ptr->mnorm);
 		mk_half(fdout, ptr->cut, ptr->mnorm, len);
 	    }
-
-	    //comblen = 4 - cable;
-	    if (ptr->next->next == NULL)
-		//comblen--;
-	    if (ptr->prev == NULL)
-		//comblen--;
 
 	    mk_addmember(ptr->tube, &head.l, NULL, WMOP_UNION);	/* make 'u' member record */
 
@@ -358,16 +367,10 @@ Pipes(void)
 		mk_addmember(ptr->cut, &head.l, NULL, WMOP_INTERSECT);	/* subtract HAF */
 
 	    mk_lfcomb(fdout, ptr->tube_r, &head, 1);
+	    mk_freemembers(&head.l);
 
 	    if (!cable) {
 		/* Make fluid region */
-
-		//comblen = 3;
-		if (ptr->next->next == NULL)
-		    //comblen--;
-		if (ptr->prev == NULL)
-		    //comblen--;
-
 		mk_addmember(ptr->tubflu, &head.l, NULL, WMOP_UNION);	/* make 'u' member record */
 
 		if (ptr->next->next != NULL)
@@ -377,20 +380,10 @@ Pipes(void)
 		    mk_addmember(ptr->cut, &head.l, NULL, WMOP_INTERSECT);	/* subtract */
 
 		mk_lfcomb(fdout, ptr->tubflu_r, &head, 1);	/* make REGION comb record */
+		mk_freemembers(&head.l);
 	    }
 	} else if (sphere) {
-
-	    /* make REGION comb record for tube */
-	    //comblen = 2;
-	    if (cable)
-		//comblen--;
-	    if (ptr->next->tube[0] != '\0')
-		//comblen++;
-	    if (!cable && ptr->prev != NULL)
-		//comblen++;
-
 	    /* make 'u' member record */
-
 	    mk_addmember(ptr->tube, &head.l, NULL, WMOP_UNION);
 
 	    /* make '-' member record */
@@ -403,32 +396,20 @@ Pipes(void)
 		mk_addmember(ptr->prev->tubflu, &head.l, NULL, WMOP_SUBTRACT);
 
 	    mk_lfcomb(fdout, ptr->tube_r, &head, REGION);
+	    mk_freemembers(&head.l);
 
 	    if (!cable) {
 		/* make REGION for fluid */
-
-		/* make 'u' member record */
-
 		mk_addmember(ptr->tubflu, &head.l, NULL, WMOP_UNION);
 
 		if (ptr->next->tubflu[0] != '\0')	/* subtract inside of next tube */
 		    mk_addmember(ptr->next->tubflu, &head.l, NULL, WMOP_SUBTRACT);
 
 		mk_lfcomb(fdout, ptr->tubflu_r, &head, REGION);
+		mk_freemembers(&head.l);
 	    }
 	} else if (nothing) {
-
-	    /* make REGION comb record for tube */
-	    //comblen = 2;
-	    if (cable)
-		//comblen--;
-	    if (ptr->next->tube[0] != '\0')
-		//comblen++;
-	    if (!cable && ptr->prev != NULL)
-		//comblen++;
-
 	    /* make 'u' member record */
-
 	    mk_addmember(ptr->tube, &head.l, NULL, WMOP_UNION);
 
 	    /* make '-' member record */
@@ -441,18 +422,17 @@ Pipes(void)
 		mk_addmember(ptr->prev->tubflu, &head.l, NULL, WMOP_SUBTRACT);
 
 	    mk_lfcomb(fdout, ptr->tube_r, &head, REGION);
+	    mk_freemembers(&head.l);
 
 	    if (!cable) {
 		/* make REGION for fluid */
-
-		/* make 'u' member record */
-
 		mk_addmember(ptr->tubflu, &head.l, NULL, WMOP_UNION);
 
 		if (ptr->next->tubflu[0] != '\0')	/* subtract inside of next tube */
 		    mk_addmember(ptr->next->tubflu, &head.l, NULL, WMOP_SUBTRACT);
 
 		mk_lfcomb(fdout, ptr->tubflu_r, &head, REGION);
+		mk_freemembers(&head.l);
 	    }
 	}
 	ptr = ptr->next;
@@ -496,7 +476,11 @@ Elbows(void)	/* make a tubing elbow and fluid elbow */
 
 	/* Make ARB8 solid */
 	if (torus) {
-	    len = ((MINR+2)*radius + delta) / cos((pi-ptr->alpha)/4.0);
+	    fastf_t cdenom = cos((pi-ptr->alpha)/4.0);
+	    if (!ZERO(cdenom))
+		len = ((MINR+2)*radius + delta) / cdenom;
+	    else
+		len = ((MINR+2)*radius + delta);
 	    /* vector from center of torus to rcc end */
 	    VSUB2(RN1, ptr->p1, ptr->center);
 	    VUNITIZE(RN1);		/* unit vector */
@@ -524,11 +508,13 @@ Elbows(void)	/* make a tubing elbow and fluid elbow */
 		mk_addmember(ptr->elbflu, &head.l, NULL, WMOP_SUBTRACT);	/* make '-' member record */
 	    mk_addmember(ptr->cut, &head.l, NULL, WMOP_INTERSECT);
 	    mk_lfcomb(fdout, ptr->elbow_r, &head, REGION);	/* make REGION comb record */
+	    mk_freemembers(&head.l);
 
 	    if (!cable) {
 		mk_addmember(ptr->elbflu, &head.l, NULL, WMOP_UNION);	/* make 'u' member record */
 		mk_addmember(ptr->cut, &head.l, NULL, WMOP_INTERSECT);
 		mk_lfcomb(fdout, ptr->elbflu_r, &head, REGION);		/* make REGION comb record */
+		mk_freemembers(&head.l);
 	    }
 	} else if (sphere) {
 	    mk_addmember(ptr->elbow, &head.l, NULL, WMOP_UNION);	/* make 'u' member record */
@@ -538,12 +524,14 @@ Elbows(void)	/* make a tubing elbow and fluid elbow */
 	    mk_addmember(ptr->prev->tube, &head.l, NULL, WMOP_SUBTRACT);
 
 	    mk_lfcomb(fdout, ptr->elbow_r, &head, REGION);	/* make REGION comb record */
+	    mk_freemembers(&head.l);
 
 	    if (!cable) {
 		mk_addmember(ptr->elbflu, &head.l, NULL, WMOP_UNION);	/* make 'u' member record */
 		mk_addmember(ptr->tube, &head.l, NULL, WMOP_SUBTRACT);
 		mk_addmember(ptr->prev->tube, &head.l, NULL, WMOP_SUBTRACT);
 		mk_lfcomb(fdout, ptr->elbflu_r, &head, REGION);		/* make REGION comb record */
+		mk_freemembers(&head.l);
 	    }
 	}
 	ptr = ptr->next;
@@ -591,6 +579,7 @@ Groups(void)
 	    ptr = ptr->next;
 	}
 	mk_lfcomb(fdout, tag, &head, 0);
+	mk_freemembers(&head.l);
 
 	if (!cable) {
 	    /* Make name for fluid group = "name".fluid */
@@ -607,6 +596,7 @@ Groups(void)
 		ptr = ptr->next;
 	    }
 	    mk_lfcomb(fdout, tag, &head, 0);
+	    mk_freemembers(&head.l);
 	}
     }
 }
@@ -617,7 +607,11 @@ main(int argc, char **argv)
 {
     int done = 0;
     char units[16], fname[80];
+    char line[BUFSIZ];
     int optc;
+
+    if (!argv || !argv[0])
+	return 1;
 
     bu_setprogname(argv[0]);
 
@@ -639,6 +633,10 @@ main(int argc, char **argv)
 	    case 'c':
 		cable = 1;
 		break;
+	    case 'h':
+	    case '?':
+		Usage();
+		return 0;
 	    default:
 		Usage();
 		return 1;
@@ -685,7 +683,10 @@ main(int argc, char **argv)
     unit_conversion_factor = 0.0;
     while (ZERO(unit_conversion_factor)) {
 	printf("UNITS? (ft, in, m, cm, default is millimeters) ");
-	bu_fgets(units, sizeof(units), stdin);
+	if (bu_fgets(units, sizeof(units), stdin) == NULL) {
+	    wdb_close(fdout);
+	    return 1;
+	}
 	switch (units[0]) {
 	    case '\0':
 	    case '\n':
@@ -723,20 +724,29 @@ main(int argc, char **argv)
     while (!done) {
 	if (!cable) {
 	    printf("radius and wall thickness: ");
-	    if (scanf("%lf %lf", &radius, &wall) == EOF)
+	    if (bu_fgets(line, sizeof(line), stdin) == NULL) {
+		wdb_close(fdout);
 		return 1;
-	    if (radius > wall)
+	    }
+	    if (bu_sscanf(line, "%lf %lf", &radius, &wall) != 2)
+		continue;
+	    if (radius > wall && wall > 0.0)
 		done = 1;
 	    else {
 		printf(" *** bad input!\n\n");
-		printf("radius must be larger than wall thickness\n");
+		printf("radius must be larger than wall thickness and wall must be positive\n");
 		printf("Try again\n");
 	    }
 	} else {
 	    printf("radius: ");
-	    if (scanf("%lf", &radius) == EOF)
+	    if (bu_fgets(line, sizeof(line), stdin) == NULL) {
+		wdb_close(fdout);
 		return 1;
-	    done=1;
+	    }
+	    if (bu_sscanf(line, "%lf", &radius) != 1)
+		continue;
+	    if (radius > 0.0)
+		done=1;
 	}
     }
     if (radius < SMALL_FASTF)
@@ -746,6 +756,13 @@ main(int argc, char **argv)
     wall=unit_conversion_factor*wall;
 
     Readpoints();	/* Read data points */
+    if (!root || !root->next) {
+	bu_log("ERROR: at least two points are required to construct a pipe\n");
+	wdb_close(fdout);
+	if (root)
+	    bu_free(root, "free root point");
+	return 1;
+    }
 
     Names();	/* Construct names for all solids */
 
@@ -772,7 +789,18 @@ main(int argc, char **argv)
 
     Groups();	/* Make some groups */
 
-    db_close(fdout->dbip);
+    wdb_close(fdout);
+
+    /* Free linked list of points */
+    {
+	struct points *cur = root;
+	while (cur) {
+	    struct points *next = cur->next;
+	    bu_free(cur, "free points");
+	    cur = next;
+	}
+	root = NULL;
+    }
 
     return 0;
 }
@@ -781,7 +809,7 @@ main(int argc, char **argv)
 void
 Usage(void)
 {
-    fprintf(stderr, "Usage: pipe [-tsmnc] tag filename\n");
+    fprintf(stderr, "Usage: pipe [-tsmnch?] tag filename\n");
     fprintf(stderr, "   where 'tag' is the name of the piping run and is used by mged in object names;\n");
     fprintf(stderr, "   and 'filename' is the .g file (e.g., fuel.g)\n");
     fprintf(stderr, "   -t -> use tori at the bends (default)\n");
@@ -789,6 +817,7 @@ Usage(void)
     fprintf(stderr, "   -m -> mitre the corners\n");
     fprintf(stderr, "   -n -> nothing at the corners\n");
     fprintf(stderr, "   -c -> cable (no fluid)\n");
+    fprintf(stderr, "   -h, -? -> this help\n");
 }
 
 

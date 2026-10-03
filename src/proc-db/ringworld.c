@@ -74,6 +74,7 @@ mk_sol(struct rt_wdb *fp, double radius)
     BU_LIST_INIT(&c.l);
     mk_addmember("sun.s", &c.l, NULL, WMOP_UNION);
     mk_lcomb(fp, "sun.r", &c, 1, NULL, NULL, NULL, 0);
+    mk_freemembers(&c.l);
     return 0;
 }
 
@@ -106,6 +107,7 @@ mk_ring(struct rt_wdb *fp, double orbit, double width, double thick, double wall
     mk_addmember("ringsub1.s", &c.l, NULL, WMOP_SUBTRACT);
     mk_addmember("ringsub2.s", &c.l, NULL, WMOP_SUBTRACT);
     mk_lcomb(fp, "ring.r", &c, 1, "plastic", "", NULL, 0);
+    mk_freemembers(&c.l);
 
     return 0;
 }
@@ -128,17 +130,24 @@ main(int argc, char *argv[])
     int optc;
     struct rt_wdb *fp;
 
-    bu_setprogname(argv[0]);
+    if (argv && argv[0]) {
+	bu_setprogname(argv[0]);
+    }
 
     while ((optc = bu_getopt(argc, argv, "o:h?")) != -1) {
-    	if (bu_optopt == '?') optc='h';
 	switch (optc) {
 	    case 'o':
-		snprintf(outfile, MAXPATHLEN, "%s", bu_optarg);
+		snprintf(outfile, sizeof(outfile), "%s", bu_optarg);
 		break;
+	    case 'h':
+		bu_log(usage, (argv && argv[0]) ? argv[0] : "ringworld");
+		return EXIT_SUCCESS;
+	    case '?':
+		bu_log(usage, (argv && argv[0]) ? argv[0] : "ringworld");
+		return (bu_optopt == '?') ? EXIT_SUCCESS : EXIT_FAILURE;
 	    default:
-		fprintf(stderr,usage, *argv);
-		return optc == '?' ? EXIT_FAILURE : EXIT_SUCCESS;
+		bu_log(usage, (argv && argv[0]) ? argv[0] : "ringworld");
+		return EXIT_FAILURE;
 	}
     }
 
@@ -148,6 +157,9 @@ main(int argc, char *argv[])
     bu_log("Writing ringworld out to [%s]\n", outfile);
 
     fp = wdb_fopen(outfile);
+    if (!fp) {
+	bu_exit(EXIT_FAILURE, "ERROR: failed to open [%s] for writing\n", outfile);
+    }
 
     mk_sol(fp, SUN_DIAMETER);
     mk_ring(fp, RING_ORBIT, RING_WIDTH, RING_FLOOR_THICKNESS, RING_WALL_THICKNESS, RING_WALL_HEIGHT);
@@ -161,10 +173,11 @@ main(int argc, char *argv[])
 	mk_addmember("sun.r", &c.l, NULL, WMOP_UNION);
 	/* mk_addmember("shadowring.r", &c.l, NULL, WMOP_UNION); */
 	mk_lcomb(fp, "all.g", &c, 0, NULL, NULL, NULL, 0);
+	mk_freemembers(&c.l);
     }
 
 
-    db_close(fp->dbip);
+    wdb_close(fp);
     bu_log("BRL-CAD geometry database file [%s] created.\nDone.\n", outfile);
 
     return EXIT_SUCCESS;
