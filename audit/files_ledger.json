@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1412,
-    "pending_files": 2081,
-    "last_updated": "2026-10-03T05:15:35Z",
-    "total_issues": 324,
-    "reviewed_count": 1412
+    "reviewed_files": 1417,
+    "pending_files": 2076,
+    "last_updated": "2026-10-03T08:06:07Z",
+    "total_issues": 325,
+    "reviewed_count": 1417
   },
   "files": [
     {
@@ -34542,50 +34542,60 @@
       "path": "src/proc-db/surfaceintersect.cpp",
       "subsystem": "src/proc-db",
       "lines": 1136,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:06:07Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0304"
+      ]
     },
     {
       "id": 3261,
       "path": "src/proc-db/surfaceintersect.h",
       "subsystem": "src/proc-db",
       "lines": 77,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:06:07Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0304"
+      ]
     },
     {
       "id": 3262,
       "path": "src/proc-db/tea.c",
       "subsystem": "src/proc-db",
       "lines": 152,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:06:07Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0304"
+      ]
     },
     {
       "id": 3263,
       "path": "src/proc-db/tea.h",
       "subsystem": "src/proc-db",
       "lines": 397,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:06:07Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0304"
+      ]
     },
     {
       "id": 3264,
       "path": "src/proc-db/tea_nmg.c",
       "subsystem": "src/proc-db",
       "lines": 252,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:06:07Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0304"
+      ]
     },
     {
       "id": 3265,
