@@ -34788,18 +34788,20 @@
       "path": "src/qged/QgEdPalette.cpp",
       "subsystem": "src/qged",
       "lines": 156,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0308"
+      ]
     },
     {
       "id": 3282,
       "path": "src/qged/QgEdPalette.h",
       "subsystem": "src/qged",
       "lines": 62,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:30:00Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -34808,30 +34810,36 @@
       "path": "src/qged/fbserv.cpp",
       "subsystem": "src/qged",
       "lines": 364,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0308"
+      ]
     },
     {
       "id": 3284,
       "path": "src/qged/fbserv.h",
       "subsystem": "src/qged",
       "lines": 134,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0308"
+      ]
     },
     {
       "id": 3285,
       "path": "src/qged/main.cpp",
       "subsystem": "src/qged",
       "lines": 165,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0308"
+      ]
     },
     {
       "id": 3286,
