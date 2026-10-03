@@ -38,12 +38,14 @@ QgEdPalette::QgEdPalette(int mode, QWidget *pparent)
 
     // Load plugins for this particular palette type
     const char *ppath = bu_dir(NULL, 0, BU_DIR_LIBEXEC, "qged", NULL);
-    char **filenames;
+    char **filenames = NULL;
     struct bu_vls plugin_pattern = BU_VLS_INIT_ZERO;
     bu_vls_sprintf(&plugin_pattern, "*%s", QGED_PLUGIN_SUFFIX);
     size_t nfiles = bu_file_list(ppath, bu_vls_cstr(&plugin_pattern), &filenames);
     std::map<int, std::set<QgToolPaletteElement *>> c_map;
     for (size_t i = 0; i < nfiles; i++) {
+	if (!filenames || !filenames[i])
+	    continue;
 	char pfile[MAXPATHLEN] = {0};
 	bu_dir(pfile, MAXPATHLEN, BU_DIR_LIBEXEC, "qged", filenames[i], NULL);
 	void *dl_handle;
@@ -97,13 +99,17 @@ QgEdPalette::QgEdPalette(int mode, QWidget *pparent)
 	    if (ptype == (uint32_t)mode) {
 		for (int c = 0; c < plugin->cmd_cnt; c++) {
 		    const struct qged_tool *cmd = cmds[c];
+		    if (!cmd || !cmd->i || !cmd->i->tool_create)
+			continue;
 		    QgToolPaletteElement *el = (QgToolPaletteElement *)(*cmd->i->tool_create)();
-		    c_map[cmd->palette_priority].insert(el);
+		    if (el)
+			c_map[cmd->palette_priority].insert(el);
 		}
 	    }
 	}
     }
-    bu_argv_free(nfiles, filenames);
+    if (filenames)
+	bu_argv_free(nfiles, filenames);
     bu_vls_free(&plugin_pattern);
 
     std::map<int, std::set<QgToolPaletteElement *>>::iterator e_it;
@@ -111,7 +117,8 @@ QgEdPalette::QgEdPalette(int mode, QWidget *pparent)
 	std::set<QgToolPaletteElement *>::iterator el_it;
 	for (el_it = e_it->second.begin(); el_it != e_it->second.end(); el_it++) {
 	    QgToolPaletteElement *el = *el_it;
-	    addElement(el);
+	    if (el)
+		addElement(el);
 	}
     }
 
@@ -134,7 +141,7 @@ QgEdPalette::makeCurrent(QWidget *w)
 	    palette_displayElement(selected);
 	emit interaction_mode(m_mode);
     } else {
-	if (selected)
+	if (selected && selected->button)
 	    selected->button->setStyleSheet("");
     }
 }

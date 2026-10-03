@@ -69,6 +69,11 @@ main(int argc, char **argv)
 {
 #endif
 
+    if (argc < 1 || !argv || !argv[0]) {
+	bu_log("Error: invalid argument vector\n");
+	return BRLCAD_ERROR;
+    }
+
     int console_mode = 0;
     int swrast_mode = 0;
     int quad_mode = 0;
@@ -100,7 +105,7 @@ main(int argc, char **argv)
     // is one).  See if we need to limit our processing
     int acmax = 0;
     for (int i = 0; i < argc; i++) {
-	if (argv[i][0] == '-') {
+	if (argv[i] && argv[i][0] == '-') {
 	    acmax++;
 	} else {
 	    break;
@@ -137,13 +142,17 @@ main(int argc, char **argv)
     // and exit...
     if (argc > 1 && !console_mode) {
 	bu_log("For qged GUI mode need either zero or one .g files specified\n");
+	bu_vls_free(&msg);
 	return BRLCAD_ERROR;
     }
 
     if (console_mode) {
 	bu_log("Unimplemented\n");
+	bu_vls_free(&msg);
 	return BRLCAD_ERROR;
     }
+
+    bu_vls_free(&msg);
 
     // We derive our own app type from QApplication.
     const char *g_file = argc ? argv[0] : NULL;

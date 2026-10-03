@@ -50,8 +50,15 @@ QFBSocket::client_handler()
     QTCAD_SLOT("QFBSocket::client_handler", 1);
     bu_log("client_handler\n");
 
+    if (!fbsp || !s)
+	return;
+    if (ind < 0 || ind >= (int)fbsp->fbs_max_clients)
+	return;
+
     // Get the current libpkg connection
     struct pkg_conn *pkc = fbsp->fbs_clients[ind].fbsc_pkg;
+    if (!pkc)
+	return;
 
     // Set the current framebuffer pointer for callback functions
     pkc->pkc_server_data = (void *)fbsp->fbs_fbp;
@@ -72,7 +79,12 @@ QFBSocket::client_handler()
 
     // Now that we have the data read using Qt methods, prepare for processing
     // using libpkg data structures.
-    pkc->pkc_inbuf = (char *)realloc(pkc->pkc_inbuf, buff.length());
+    char *new_buf = (char *)realloc(pkc->pkc_inbuf, buff.length());
+    if (!new_buf) {
+	bu_log("client_handler realloc failed\n");
+	return;
+    }
+    pkc->pkc_inbuf = new_buf;
     memcpy(pkc->pkc_inbuf, buff.data(), buff.length());
     pkc->pkc_incur = 0;
     pkc->pkc_inlen = pkc->pkc_inend = buff.length();
@@ -86,7 +98,7 @@ QFBSocket::client_handler()
     if ((pkg_process(pkc)) < 0)
 	bu_log("client_handler pkg_process error encountered\n");
 
-    if (pkc->pkc_inend != pkc->pkc_inlen - 1) {
+    if (pkc->pkc_inbuf && pkc->pkc_inend >= 0 && pkc->pkc_inend < pkc->pkc_inlen) {
 	// If pkg_process didn't use all of the read data, store the rest for
 	// the next cycle.
 	//
@@ -122,14 +134,28 @@ QFBServer::on_Connect()
     QTCAD_SLOT("QFBServer::on_Connect", 1);
     // Have a new connection pending, accept it.
     QTcpSocket *tcps = nextPendingConnection();
+    if (!tcps)
+	return;
 
     bu_log("new connection");
+
+    if (!fbsp) {
+	tcps->close();
+	delete tcps;
+	return;
+    }
 
     QFBSocket *fs = new QFBSocket;
     fs->s = tcps;
     fs->fbsp = fbsp;
 
     int fd = tcps->socketDescriptor();
+    if (fd < 0) {
+	bu_log("new connection failed (invalid socket descriptor)");
+	tcps->close();
+	delete fs;
+	return;
+    }
     bu_log("fd: %d\n", fd);
     struct pkg_conn *pc = pkg_adopt_socket(fd, fbs_pkg_switch(), 0);
     if (pc == PKC_ERROR) {
@@ -153,7 +179,7 @@ int
 qdm_is_listening(struct fbserv_obj *fbsp)
 {
     bu_log("is_listening\n");
-    if (fbsp->fbs_listener.fbsl_fd >= 0) {
+    if (fbsp && fbsp->fbs_listener.fbsl_fd >= 0) {
 	return 1;
     }
     return 0;
@@ -163,6 +189,8 @@ int
 qdm_listen_on_port(struct fbserv_obj *fbsp, int available_port)
 {
     bu_log("listen on port\n");
+    if (!fbsp)
+	return 0;
     QFBServer *nl = new QFBServer(fbsp);
     nl->port = available_port;
     if (!nl->listen(QHostAddress::LocalHost, available_port)) {
@@ -181,7 +209,11 @@ void
 qdm_open_server_handler(struct fbserv_obj *fbsp)
 {
     bu_log("open_server_handler\n");
+    if (!fbsp)
+	return;
     QFBServer *nl = (QFBServer *)fbsp->fbs_listener.fbsl_chan;
+    if (!nl)
+	return;
     if (!nl->isListening())
 	bu_log("not listening!\n");
     QObject::connect(nl, &QTcpServer::newConnection, nl, &QFBServer::on_Connect, Qt::QueuedConnection);
@@ -191,7 +223,11 @@ void
 qdm_close_server_handler(struct fbserv_obj *fbsp)
 {
     bu_log("close_server_handler\n");
+    if (!fbsp)
+	return;
     QFBServer *nl = (QFBServer *)fbsp->fbs_listener.fbsl_chan;
+    fbsp->fbs_listener.fbsl_chan = NULL;
+    fbsp->fbs_listener.fbsl_fd = -1;
     delete nl;
 }
 
@@ -200,13 +236,19 @@ void
 qdm_open_client_handler(struct fbserv_obj *fbsp, int i, void *data)
 {
     bu_log("open_client_handler\n");
+    if (!fbsp || i < 0 || i >= (int)fbsp->fbs_max_clients || !data)
+	return;
     fbsp->fbs_clients[i].fbsc_chan = data;
     QFBSocket *s = (QFBSocket *)data;
+    if (!s->s)
+	return;
     QObject::connect(s->s, &QTcpSocket::readyRead, s, &QFBSocket::client_handler, Qt::QueuedConnection);
 
-    QgGL *ctx = (QgGL *)dm_get_ctx(fb_get_dm(fbsp->fbs_fbp));
-    if (ctx) {
-	QObject::connect(s, &QFBSocket::updated, ctx, &QgGL::need_update, Qt::QueuedConnection);
+    if (fbsp->fbs_fbp) {
+	QgGL *ctx = (QgGL *)dm_get_ctx(fb_get_dm(fbsp->fbs_fbp));
+	if (ctx) {
+	    QObject::connect(s, &QFBSocket::updated, ctx, &QgGL::need_update, Qt::QueuedConnection);
+	}
     }
 }
 #endif
@@ -225,13 +267,19 @@ void
 qdm_open_sw_client_handler(struct fbserv_obj *fbsp, int i, void *data)
 {
     bu_log("open_client_handler\n");
+    if (!fbsp || i < 0 || i >= (int)fbsp->fbs_max_clients || !data)
+	return;
     fbsp->fbs_clients[i].fbsc_chan = data;
     QFBSocket *s = (QFBSocket *)data;
+    if (!s->s)
+	return;
     QObject::connect(s->s, &QTcpSocket::readyRead, s, &QFBSocket::client_handler, Qt::QueuedConnection);
 
-    QgSW *ctx = (QgSW *)dm_get_udata(fb_get_dm(fbsp->fbs_fbp));
-    if (ctx) {
-	QObject::connect(s, &QFBSocket::updated, ctx, &QgSW::need_update, Qt::QueuedConnection);
+    if (fbsp->fbs_fbp) {
+	QgSW *ctx = (QgSW *)dm_get_udata(fb_get_dm(fbsp->fbs_fbp));
+	if (ctx) {
+	    QObject::connect(s, &QFBSocket::updated, ctx, &QgSW::need_update, Qt::QueuedConnection);
+	}
     }
 }
 
@@ -239,7 +287,10 @@ void
 qdm_close_client_handler(struct fbserv_obj *fbsp, int i)
 {
     bu_log("close_client_handler\n");
+    if (!fbsp || i < 0 || i >= (int)fbsp->fbs_max_clients)
+	return;
     QFBSocket *s = (QFBSocket *)fbsp->fbs_clients[i].fbsc_chan;
+    fbsp->fbs_clients[i].fbsc_chan = NULL;
     delete s;
 }
 
@@ -260,8 +311,11 @@ QFBIPCSocket::ipc_handler()
 {
     QTCAD_SLOT("QFBIPCSocket::ipc_handler", 1);
 
+    if (!fbsp || ind < 0 || ind >= (int)fbsp->fbs_max_clients || !notifier)
+	return;
+
     struct fbserv_client *fbsc = &fbsp->fbs_clients[ind];
-    if (!fbsc->fbsc_pkg || !notifier)
+    if (!fbsc->fbsc_pkg)
 	return;
 
     /* Handle readiness inline and keep the notifier disabled while libpkg
@@ -295,6 +349,8 @@ void
 qdm_open_ipc_client_handler(struct fbserv_obj *fbsp, int i, void *UNUSED(data))
 {
     bu_log("open_ipc_client_handler (GL)\n");
+    if (!fbsp || i < 0 || i >= (int)fbsp->fbs_max_clients)
+	return;
 
     QFBIPCSocket *s = new QFBIPCSocket;
     s->ind  = i;
@@ -306,10 +362,12 @@ qdm_open_ipc_client_handler(struct fbserv_obj *fbsp, int i, void *UNUSED(data))
     QObject::connect(s->notifier, &QSocketNotifier::activated,
 		     s, &QFBIPCSocket::ipc_handler, Qt::DirectConnection);
 
-    QgGL *ctx = (QgGL *)dm_get_ctx(fb_get_dm(fbsp->fbs_fbp));
-    if (ctx) {
-	QObject::connect(s, &QFBIPCSocket::updated,
-			 ctx, &QgGL::need_update, Qt::QueuedConnection);
+    if (fbsp->fbs_fbp) {
+	QgGL *ctx = (QgGL *)dm_get_ctx(fb_get_dm(fbsp->fbs_fbp));
+	if (ctx) {
+	    QObject::connect(s, &QFBIPCSocket::updated,
+			     ctx, &QgGL::need_update, Qt::QueuedConnection);
+	}
     }
 }
 #endif
@@ -318,6 +376,8 @@ void
 qdm_open_ipc_sw_client_handler(struct fbserv_obj *fbsp, int i, void *UNUSED(data))
 {
     bu_log("open_ipc_client_handler (SW)\n");
+    if (!fbsp || i < 0 || i >= (int)fbsp->fbs_max_clients)
+	return;
 
     QFBIPCSocket *s = new QFBIPCSocket;
     s->ind  = i;
@@ -329,10 +389,12 @@ qdm_open_ipc_sw_client_handler(struct fbserv_obj *fbsp, int i, void *UNUSED(data
     QObject::connect(s->notifier, &QSocketNotifier::activated,
 		     s, &QFBIPCSocket::ipc_handler, Qt::DirectConnection);
 
-    QgSW *ctx = (QgSW *)dm_get_udata(fb_get_dm(fbsp->fbs_fbp));
-    if (ctx) {
-	QObject::connect(s, &QFBIPCSocket::updated,
-			 ctx, &QgSW::need_update, Qt::QueuedConnection);
+    if (fbsp->fbs_fbp) {
+	QgSW *ctx = (QgSW *)dm_get_udata(fb_get_dm(fbsp->fbs_fbp));
+	if (ctx) {
+	    QObject::connect(s, &QFBIPCSocket::updated,
+			     ctx, &QgSW::need_update, Qt::QueuedConnection);
+	}
     }
 }
 
@@ -340,6 +402,8 @@ void
 qdm_close_ipc_client_handler(struct fbserv_obj *fbsp, int i)
 {
     bu_log("close_ipc_client_handler\n");
+    if (!fbsp || i < 0 || i >= (int)fbsp->fbs_max_clients)
+	return;
     QFBIPCSocket *s = (QFBIPCSocket *)fbsp->fbs_clients[i].fbsc_chan;
     fbsp->fbs_clients[i].fbsc_chan = NULL;
     if (!s)

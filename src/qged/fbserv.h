@@ -44,9 +44,9 @@ class QFBSocket : public QObject
     Q_OBJECT
 
     public:
-	QTcpSocket *s;
-	int ind;
-	struct fbserv_obj *fbsp;
+	QTcpSocket *s = nullptr;
+	int ind = -1;
+	struct fbserv_obj *fbsp = nullptr;
 
     signals:
 	void updated();
@@ -86,7 +86,7 @@ class QFBServer : public QTcpServer
 	~QFBServer();
 
 	int port = -1;
-	struct fbserv_obj *fbsp;
+	struct fbserv_obj *fbsp = nullptr;
 
     public slots:
 	void on_Connect();
