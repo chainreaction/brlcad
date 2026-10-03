@@ -30,11 +30,11 @@
 void *
 view_measure_tool_create()
 {
-    QIcon *obj_icon = new QIcon(QPixmap(":measure.svg"));
+    QIcon obj_icon(QPixmap(":measure.svg"));
 
     CADViewMeasure *er = new CADViewMeasure();
 
-    QgToolPaletteElement *el = new QgToolPaletteElement(obj_icon, er);
+    QgToolPaletteElement *el = new QgToolPaletteElement(&obj_icon, er);
 
     QObject::connect(er, &CADViewMeasure::view_updated, el, &QgToolPaletteElement::element_view_changed);
 

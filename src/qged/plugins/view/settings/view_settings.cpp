@@ -30,11 +30,11 @@
 void *
 view_settings_tool_create()
 {
-    QIcon *obj_icon = new QIcon(QPixmap(":settings.svg"));
+    QIcon obj_icon(QPixmap(":settings.svg"));
 
     CADViewSettings *vs = new CADViewSettings();
 
-    QgToolPaletteElement *el = new QgToolPaletteElement(obj_icon, vs);
+    QgToolPaletteElement *el = new QgToolPaletteElement(&obj_icon, vs);
 
     QObject::connect(el, &QgToolPaletteElement::element_view_update, vs, &CADViewSettings::checkbox_refresh);
     QObject::connect(vs, &CADViewSettings::settings_changed, el, &QgToolPaletteElement::element_view_changed);

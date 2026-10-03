@@ -31,11 +31,11 @@
 void *
 view_select_tool_create()
 {
-    QIcon *obj_icon = new QIcon(QPixmap(":selective-tool.svg"));
+    QIcon obj_icon(QPixmap(":selective-tool.svg"));
 
     CADViewSelector *er = new CADViewSelector();
 
-    QgToolPaletteElement *el = new QgToolPaletteElement(obj_icon, er);
+    QgToolPaletteElement *el = new QgToolPaletteElement(&obj_icon, er);
 
     QObject::connect(er, &CADViewSelector::view_changed, el, &QgToolPaletteElement::element_view_changed);
     QObject::connect(el, &QgToolPaletteElement::element_view_update, er, &CADViewSelector::do_view_update);

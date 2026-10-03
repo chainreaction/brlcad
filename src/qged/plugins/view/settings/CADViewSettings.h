@@ -40,27 +40,27 @@ class CADViewSettings : public QWidget
 	~CADViewSettings();
 
 	/* Top-level faceplate toggles */
-	QCheckBox *acsg_ckbx;
-	QCheckBox *amesh_ckbx;
-	QCheckBox *adc_ckbx;
-	QCheckBox *cdot_ckbx;
-	QCheckBox *grid_ckbx;
-	QCheckBox *mdlaxes_ckbx;
-	QCheckBox *scale_ckbx;
-	QCheckBox *viewaxes_ckbx;
+	QCheckBox *acsg_ckbx = nullptr;
+	QCheckBox *amesh_ckbx = nullptr;
+	QCheckBox *adc_ckbx = nullptr;
+	QCheckBox *cdot_ckbx = nullptr;
+	QCheckBox *grid_ckbx = nullptr;
+	QCheckBox *mdlaxes_ckbx = nullptr;
+	QCheckBox *scale_ckbx = nullptr;
+	QCheckBox *viewaxes_ckbx = nullptr;
 
 	/* Framebuffer mode: index 0=off, 1=overlay, 2=underlay */
-	QComboBox *fb_mode_combo;
+	QComboBox *fb_mode_combo = nullptr;
 
 	/* View parameters group */
-	QGroupBox *params_grp;
-	QCheckBox *params_ckbx;
-	QCheckBox *params_size_ckbx;
-	QCheckBox *params_center_ckbx;
-	QCheckBox *params_az_ckbx;
-	QCheckBox *params_el_ckbx;
-	QCheckBox *params_tw_ckbx;
-	QCheckBox *params_fps_ckbx;
+	QGroupBox *params_grp = nullptr;
+	QCheckBox *params_ckbx = nullptr;
+	QCheckBox *params_size_ckbx = nullptr;
+	QCheckBox *params_center_ckbx = nullptr;
+	QCheckBox *params_az_ckbx = nullptr;
+	QCheckBox *params_el_ckbx = nullptr;
+	QCheckBox *params_tw_ckbx = nullptr;
+	QCheckBox *params_fps_ckbx = nullptr;
 
     signals:
 	void settings_changed(unsigned long long);

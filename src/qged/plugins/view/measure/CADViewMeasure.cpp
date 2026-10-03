@@ -87,8 +87,14 @@ CADViewMeasure::CADViewMeasure(QWidget *)
 
 CADViewMeasure::~CADViewMeasure()
 {
-    if (s)
+    if (s) {
 	bv_obj_put(s);
+	s = NULL;
+    }
+    delete f2d;
+    f2d = NULL;
+    delete f3d;
+    f3d = NULL;
 }
 
 void
@@ -96,12 +102,14 @@ CADViewMeasure::update_color()
 {
     if (!mf)
 	return;
-    if (measure_3d->isChecked()) {
-	mf->update_color(&color_3d->bc);
+    if (measure_3d && measure_3d->isChecked()) {
+	if (color_3d)
+	    mf->update_color(&color_3d->bc);
 	emit view_updated(QG_VIEW_REFRESH);
 	return;
     }
-    mf->update_color(&color_2d->bc);
+    if (color_2d)
+	mf->update_color(&color_2d->bc);
     emit view_updated(QG_VIEW_REFRESH);
 }
 
@@ -114,32 +122,33 @@ CADViewMeasure::adjust_text_db(void *)
 void
 CADViewMeasure::adjust_text()
 {
+    if (!qApp)
+	return;
     QgModel *m = ((QgEdApp *)qApp)->mdl;
     if (!m)
 	return;
     struct ged *gedp = m->gedp;
-    if (!gedp || !gedp->ged_gvp)
+    if (!gedp || !gedp->ged_gvp || !gedp->dbip || !mf)
 	return;
 
-
-    double angle;
-    if (report_radians->isChecked()) {
-	ma_label = new QLabel("Measured Angle (rad):");
-	angle = mf->angle(true);
-    } else {
-	ma_label = new QLabel("Measured Angle (deg):");
-	angle = mf->angle(false);
+    bool is_rad = (report_radians && report_radians->isChecked());
+    if (ma_label) {
+	ma_label->setText(is_rad ? "Measured Angle (rad):" : "Measured Angle (deg):");
     }
+    double angle = mf->angle(is_rad);
 
     struct bu_vls buffer = BU_VLS_INIT_ZERO;
     bu_vls_sprintf(&buffer, "%.15f %s", mf->length1()*gedp->dbip->dbi_base2local, bu_units_string(gedp->dbip->dbi_local2base));
-    length1_report->setText(bu_vls_cstr(&buffer));
+    if (length1_report)
+	length1_report->setText(bu_vls_cstr(&buffer));
 
     bu_vls_sprintf(&buffer, "%.15f %s", mf->length2()*gedp->dbip->dbi_base2local, bu_units_string(gedp->dbip->dbi_local2base));
-    length2_report->setText(bu_vls_cstr(&buffer));
+    if (length2_report)
+	length2_report->setText(bu_vls_cstr(&buffer));
 
     bu_vls_sprintf(&buffer, "%.15f", angle);
-    angle_report->setText(bu_vls_cstr(&buffer));
+    if (angle_report)
+	angle_report->setText(bu_vls_cstr(&buffer));
 
     bu_vls_free(&buffer);
 }
@@ -155,17 +164,23 @@ CADViewMeasure::do_filter_view_update()
 bool
 CADViewMeasure::eventFilter(QObject *, QEvent *e)
 {
+    if (!e || !qApp)
+	return false;
     QgModel *m = ((QgEdApp *)qApp)->mdl;
     if (!m)
 	return false;
     struct ged *gedp = m->gedp;
-    if (!gedp || !gedp->ged_gvp)
+    if (!gedp || !gedp->ged_gvp || !gedp->dbip)
 	return false;
     struct bview *v = gedp->ged_gvp;
+    if (!f2d || !f3d)
+	return false;
 
     f3d->dbip = gedp->dbip;
 
-    mf = (measure_3d->isChecked()) ? (QgMeasureFilter *)f3d : (QgMeasureFilter *)f2d;
+    mf = (measure_3d && measure_3d->isChecked()) ? (QgMeasureFilter *)f3d : (QgMeasureFilter *)f2d;
+    if (!mf)
+	return false;
 
     mf->s = s;
     mf->v = v;

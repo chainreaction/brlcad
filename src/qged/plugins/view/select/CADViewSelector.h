@@ -44,22 +44,22 @@ class CADViewSelector : public QWidget
 	CADViewSelector(QWidget *p = 0);
 	~CADViewSelector();
 
-	QRadioButton *use_pnt_select_button;
-	QRadioButton *use_rect_select_button;
+	QRadioButton *use_pnt_select_button = nullptr;
+	QRadioButton *use_rect_select_button = nullptr;
 
-	QCheckBox *use_ray_test_ckbx;
-	QCheckBox *select_all_depth_ckbx;
+	QCheckBox *use_ray_test_ckbx = nullptr;
+	QCheckBox *select_all_depth_ckbx = nullptr;
 
-	QRadioButton *erase_from_scene_button;
-	QRadioButton *add_to_group_button;
-	QRadioButton *rm_from_group_button;
+	QRadioButton *erase_from_scene_button = nullptr;
+	QRadioButton *add_to_group_button = nullptr;
+	QRadioButton *rm_from_group_button = nullptr;
 	//QComboBox *current_group;
-	QListWidget *group_contents;
+	QListWidget *group_contents = nullptr;
 	//QPushButton *add_new_group;
 	//QPushButton *rm_group;
 
-	QPushButton *draw_selections;
-	QPushButton *erase_selections;
+	QPushButton *draw_selections = nullptr;
+	QPushButton *erase_selections = nullptr;
 
 
 signals:
@@ -85,9 +85,9 @@ signals:
 	void erase_objs();
 
 	QgSelectFilter *cf = NULL;
-	QgSelectPntFilter *pf;
-	QgSelectBoxFilter *bf;
-	QgSelectRayFilter *rf;
+	QgSelectPntFilter *pf = nullptr;
+	QgSelectBoxFilter *bf = nullptr;
+	QgSelectRayFilter *rf = nullptr;
 
 	struct ged *gedp = NULL;
 	unsigned long long ohash = 0;

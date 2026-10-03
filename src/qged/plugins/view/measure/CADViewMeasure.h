@@ -26,7 +26,6 @@
 #include <QCheckBox>
 #include <QLabel>
 #include <QLineEdit>
-#include <QLineEdit>
 #include "bv.h"
 #include "ged.h"
 #include "qtcad/QgColorRGB.h"
@@ -40,17 +39,17 @@ class CADViewMeasure : public QWidget
 	CADViewMeasure(QWidget *p = 0);
 	~CADViewMeasure();
 
-	QCheckBox *measure_3d;
+	QCheckBox *measure_3d = nullptr;
 
-	QLineEdit *length1_report;
-	QLineEdit *length2_report;
+	QLineEdit *length1_report = nullptr;
+	QLineEdit *length2_report = nullptr;
 
-	QCheckBox *report_radians;
-	QLabel *ma_label;
-	QLineEdit *angle_report;
+	QCheckBox *report_radians = nullptr;
+	QLabel *ma_label = nullptr;
+	QLineEdit *angle_report = nullptr;
 
-	QgColorRGB *color_2d;
-	QgColorRGB *color_3d;
+	QgColorRGB *color_2d = nullptr;
+	QgColorRGB *color_3d = nullptr;
 
     signals:
 	void view_updated(unsigned long long);

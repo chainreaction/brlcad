@@ -41,6 +41,8 @@
 static void
 set_ckbx(QCheckBox *cb, int val)
 {
+    if (!cb)
+	return;
     cb->blockSignals(true);
     cb->setCheckState(val ? Qt::Checked : Qt::Unchecked);
     cb->blockSignals(false);
@@ -50,6 +52,8 @@ set_ckbx(QCheckBox *cb, int val)
 static int
 ckbx_val(QCheckBox *cb)
 {
+    if (!cb)
+	return 0;
     return (cb->checkState() == Qt::Checked) ? 1 : 0;
 }
 
@@ -181,6 +185,8 @@ CADViewSettings::view_update_int(int)
 void
 CADViewSettings::checkbox_refresh(unsigned long long)
 {
+    if (!qApp)
+	return;
     QgModel *m = ((QgEdApp *)qApp)->mdl;
     if (!m)
 	return;
@@ -188,7 +194,7 @@ CADViewSettings::checkbox_refresh(unsigned long long)
     if (!gedp)
 	return;
     struct bview *v = gedp->ged_gvp;
-    if (!v)
+    if (!v || !v->gv_s)
 	return;
 
     /* Top-level faceplate elements */
@@ -203,12 +209,14 @@ CADViewSettings::checkbox_refresh(unsigned long long)
 
     /* Framebuffer mode (0=off, 1=overlay, 2=underlay) maps directly to
      * combo index. Clamp to a valid range in case of unexpected values. */
-    int fb_mode = v->gv_s->gv_fb_mode;
-    if (fb_mode < 0 || fb_mode > 2)
-	fb_mode = 0;
-    fb_mode_combo->blockSignals(true);
-    fb_mode_combo->setCurrentIndex(fb_mode);
-    fb_mode_combo->blockSignals(false);
+    if (fb_mode_combo) {
+	int fb_mode = v->gv_s->gv_fb_mode;
+	if (fb_mode < 0 || fb_mode > 2)
+	    fb_mode = 0;
+	fb_mode_combo->blockSignals(true);
+	fb_mode_combo->setCurrentIndex(fb_mode);
+	fb_mode_combo->blockSignals(false);
+    }
 
     /* Parameters group: master draw toggle + per-element sub-flags */
     struct bv_params_state *pst = &v->gv_s->gv_view_params;
@@ -226,6 +234,8 @@ CADViewSettings::checkbox_refresh(unsigned long long)
 void
 CADViewSettings::view_refresh(unsigned long long)
 {
+    if (!qApp)
+	return;
     QgModel *m = ((QgEdApp *)qApp)->mdl;
     if (!m)
 	return;
@@ -233,7 +243,7 @@ CADViewSettings::view_refresh(unsigned long long)
     if (!gedp)
 	return;
     struct bview *v = gedp->ged_gvp;
-    if (!v)
+    if (!v || !v->gv_s)
 	return;
 
     /* Top-level faceplate elements */
@@ -247,7 +257,8 @@ CADViewSettings::view_refresh(unsigned long long)
     v->gv_s->gv_view_axes.draw     = ckbx_val(viewaxes_ckbx);
 
     /* Framebuffer mode: combo index maps directly to gv_fb_mode (0/1/2) */
-    v->gv_s->gv_fb_mode = fb_mode_combo->currentIndex();
+    if (fb_mode_combo)
+	v->gv_s->gv_fb_mode = fb_mode_combo->currentIndex();
 
     /* Parameters: master draw flag + per-element sub-flags */
     struct bv_params_state *pst = &v->gv_s->gv_view_params;
