@@ -56,6 +56,9 @@ make_face(struct rt_nurb_internal *s, fastf_t *a, fastf_t *b, fastf_t *c, fastf_
     struct face_g_snurb *srf = NULL;
     point_t ab, bc, cd, da, center, lift;
 
+    if (!s || !a || !b || !c || !d || order != 2)
+	return;
+
     /*
      * Build an (order x order) clamped, uniform NURBS surface with a
      * full, non-degenerate control mesh.  For a B-spline surface the
@@ -79,6 +82,8 @@ make_face(struct rt_nurb_internal *s, fastf_t *a, fastf_t *b, fastf_t *c, fastf_
 			    nknots, nknots,		/* # knots */
 			    ncpts, ncpts,		/* mesh rows/cols */
 			    RT_NURB_MAKE_PT_TYPE(3, RT_NURB_PT_XYZ, RT_NURB_PT_NONRAT));
+    if (!srf)
+	return;
 
     /* Build both (identical) knot vectors: clamped at the ends with
      * 'order' repeated knots, and a uniformly increasing sequence of
@@ -141,8 +146,9 @@ make_face(struct rt_nurb_internal *s, fastf_t *a, fastf_t *b, fastf_t *c, fastf_
 
 
 void
-printusage(char *argv[]) {
-    bu_log("Usage: %s [filename, default to spltest.g]\n", argv[0]);
+printusage(const char *pn, int exit_code) {
+    bu_log("Usage: %s [filename, default to spltest.g]\n", pn ? pn : "spltest");
+    bu_exit(exit_code, NULL);
 }
 
 
@@ -153,20 +159,16 @@ main(int argc, char *argv[])
     struct rt_wdb *fp;
     struct rt_nurb_internal *si;
     const char *filename = "spltest.g";
-    int helpflag;
 
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
 
-    if (argc < 1 || argc > 2) {
-    	printusage(argv);
-	bu_exit(1,NULL);
+    if (argc == 2 && (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help"))) {
+	printusage((argv && argv[0]) ? argv[0] : "spltest", 0);
     }
 
-    helpflag = (argc == 2 && ( BU_STR_EQUAL(argv[1],"-h") || BU_STR_EQUAL(argv[1],"-?")));
-    if (helpflag) {
-    	printusage(argv);
-	if (helpflag)
-		bu_exit(1,NULL);
+    if (argc < 1 || argc > 2) {
+	printusage((argv && argv[0]) ? argv[0] : "spltest", 1);
     }
 
     if (argc == 2)
@@ -193,10 +195,10 @@ main(int argc, char *argv[])
 
     make_face(si, a, b, c, d, 2);
 
-    /* wdb_export */
+    /* wdb_export takes ownership and frees si */
     mk_export_fwrite(fp, "spltest", (void *)si, ID_BSPLINE);
 
-    db_close(fp->dbip);
+    wdb_close(fp);
     bu_log(" done.\n");
 
     return 0;

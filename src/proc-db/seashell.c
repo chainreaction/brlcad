@@ -103,6 +103,9 @@ superformula(double m, double n1, double n2, double n3, double phi)
     double t2 = fabs(sin(m * phi / 4.0));
     double s;
 
+    if (ZERO(n1))
+	return 0.0;
+
     t1 = pow(t1, n2);
     t2 = pow(t2, n3);
     s = t1 + t2;
@@ -505,13 +508,14 @@ static const int nspecies = (int)(sizeof(species) / sizeof(species[0]));
 
 
 static void
-usage(const char *pn)
+usage(const char *pn, int exit_code)
 {
-    bu_exit(1,
+    bu_log(
 	"Usage: %s output.g [--mode collection|nautilus|conch|turret|snail]\n"
 	"                 [--turns n] [--expand f] [--res n]\n"
 	"  With no --mode (or --mode collection) a shelf of shells is built.\n",
-	pn);
+	pn ? pn : "seashell");
+    bu_exit(exit_code, NULL);
 }
 
 
@@ -526,23 +530,37 @@ main(int argc, char **argv)
     int res_ov = 0;
     int i;
 
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
 
     if (argc < 2)
-	usage(argv[0]);
+	usage(argv ? argv[0] : "seashell", 1);
+
+    if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help"))
+	usage(argv ? argv[0] : "seashell", 0);
+
     fname = argv[1];
 
     for (i = 2; i < argc; i++) {
-	if (BU_STR_EQUAL(argv[i], "--mode") && i + 1 < argc)
+	if (BU_STR_EQUAL(argv[i], "-h") || BU_STR_EQUAL(argv[i], "-?") || BU_STR_EQUAL(argv[i], "--help")) {
+	    usage(argv ? argv[0] : "seashell", 0);
+	} else if (BU_STR_EQUAL(argv[i], "--mode") && i + 1 < argc) {
 	    mode = argv[++i];
-	else if (BU_STR_EQUAL(argv[i], "--turns") && i + 1 < argc)
-	    turns_ov = atof(argv[++i]);
-	else if (BU_STR_EQUAL(argv[i], "--expand") && i + 1 < argc)
-	    expand_ov = atof(argv[++i]);
-	else if (BU_STR_EQUAL(argv[i], "--res") && i + 1 < argc)
-	    res_ov = atoi(argv[++i]);
-	else
+	} else if (BU_STR_EQUAL(argv[i], "--turns") && i + 1 < argc) {
+	    if (bu_sscanf(argv[++i], "%lf", &turns_ov) != 1 || turns_ov < 0.1 || turns_ov > 50.0) {
+		bu_exit(1, "ERROR: --turns must be between 0.1 and 50.0\n");
+	    }
+	} else if (BU_STR_EQUAL(argv[i], "--expand") && i + 1 < argc) {
+	    if (bu_sscanf(argv[++i], "%lf", &expand_ov) != 1 || expand_ov <= 1.0 || expand_ov > 100.0) {
+		bu_exit(1, "ERROR: --expand must be between 1.0 and 100.0\n");
+	    }
+	} else if (BU_STR_EQUAL(argv[i], "--res") && i + 1 < argc) {
+	    if (bu_sscanf(argv[++i], "%d", &res_ov) != 1 || res_ov < 4 || res_ov > 2000) {
+		bu_exit(1, "ERROR: --res must be between 4 and 2000\n");
+	    }
+	} else {
 	    bu_log("seashell: ignoring unknown option \"%s\"\n", argv[i]);
+	}
     }
 
     if ((db_fp = wdb_fopen(fname)) == NULL) {
@@ -630,8 +648,9 @@ main(int argc, char **argv)
 	    if (BU_STR_EQUAL(mode, species[i].name)) { found = i; break; }
 	if (found < 0) {
 	    bu_log("seashell: unknown mode \"%s\"\n", mode);
-	    db_close(db_fp->dbip);
-	    usage(argv[0]);
+	    mk_freemembers(&all_hd.l);
+	    wdb_close(db_fp);
+	    usage(argv ? argv[0] : "seashell", 1);
 	}
 	sp = species[found];
 	if (turns_ov > 0.0) sp.turns = turns_ov;
@@ -640,7 +659,8 @@ main(int argc, char **argv)
 
 	VSETALL(off, 0.0);
 	if (emit_shell(db_fp, &sp, off, &all_hd) != 0) {
-	    db_close(db_fp->dbip);
+	    mk_freemembers(&all_hd.l);
+	    wdb_close(db_fp);
 	    return 3;
 	}
 	bu_log("seashell: wrote a single %s\n", sp.name);
@@ -648,11 +668,13 @@ main(int argc, char **argv)
 
     if (mk_lcomb(db_fp, "all", &all_hd, 0, NULL, NULL, NULL, 0) != 0) {
 	bu_log("seashell: failed to write group \"all\"\n");
-	db_close(db_fp->dbip);
+	mk_freemembers(&all_hd.l);
+	wdb_close(db_fp);
 	return 4;
     }
+    mk_freemembers(&all_hd.l);
 
-    db_close(db_fp->dbip);
+    wdb_close(db_fp);
     bu_log("seashell: done, wrote %s\n", fname);
     return 0;
 }

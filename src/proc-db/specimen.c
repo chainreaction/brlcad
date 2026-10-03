@@ -112,6 +112,7 @@ shelf_region(struct rt_wdb *db_fp, struct bu_list *all_hd,
     mk_lcomb(db_fp, region, &reg_hd, 1,
 	     "plastic", "di=0.7 sp=0.3",
 	     rgb, 0);
+    mk_freemembers(&reg_hd.l);
 
     /* fold the finished region into the overall assembly */
     (void)mk_addmember(region, all_hd, NULL, WMOP_UNION);
@@ -135,10 +136,17 @@ main(int ac, char *av[])
     vect_t xv, yv, zv;
     vect_t hv, aav, bv, cv, dv;
 
-    bu_setprogname(av[0]);
+    if (av && av[0])
+	bu_setprogname(av[0]);
+
+    if (ac == 2 && (BU_STR_EQUAL(av[1], "-h") || BU_STR_EQUAL(av[1], "-?") || BU_STR_EQUAL(av[1], "--help"))) {
+	bu_log("Usage: %s output.g [--spacing mm]\n", (av && av[0]) ? av[0] : "specimen");
+	return 0;
+    }
 
     if (ac < 2) {
-	bu_exit(1, "Usage: %s output.g [--spacing mm]\n", av[0]);
+	bu_log("Usage: %s output.g [--spacing mm]\n", (av && av[0]) ? av[0] : "specimen");
+	return 1;
     }
 
     /* Optional arguments.  The only knob is --spacing, the grid pitch;
@@ -147,14 +155,17 @@ main(int ac, char *av[])
      */
     for (i = 2; i < ac; i++) {
 	if (BU_STR_EQUAL(av[i], "--spacing") && (i + 1) < ac) {
-	    spacing = atof(av[i + 1]);
-	    i++;
-	    if (spacing < 100.0) {
-		bu_log("spacing %g too small, clamping to 100\n", spacing);
+	    if (bu_sscanf(av[i + 1], "%lf", &spacing) != 1 || spacing < 100.0) {
+		bu_log("spacing %s too small or invalid, clamping to 100\n", av[i + 1]);
 		spacing = 100.0;
 	    }
+	    i++;
+	} else if (BU_STR_EQUAL(av[i], "-h") || BU_STR_EQUAL(av[i], "-?") || BU_STR_EQUAL(av[i], "--help")) {
+	    bu_log("Usage: %s output.g [--spacing mm]\n", (av && av[0]) ? av[0] : "specimen");
+	    return 0;
 	} else {
-	    bu_exit(1, "Usage: %s output.g [--spacing mm]\n", av[0]);
+	    bu_log("Usage: %s output.g [--spacing mm]\n", (av && av[0]) ? av[0] : "specimen");
+	    return 1;
 	}
     }
 
@@ -384,6 +395,7 @@ main(int ac, char *av[])
 	VSET(rgb, 90, 90, 90);
 	mk_lcomb(db_fp, "ground.r", &gnd_hd, 1,
 		 "plastic", "di=0.8 sp=0.1", rgb, 0);
+	mk_freemembers(&gnd_hd.l);
 	(void)mk_addmember("ground.r", &all_hd.l, NULL, WMOP_UNION);
     }
 
@@ -407,6 +419,7 @@ main(int ac, char *av[])
 	VSET(rgb, 255, 255, 255);
 	mk_lcomb(db_fp, "light.r", &lt_hd, 1,
 		 "light", "inten=1.0 shadows=1", rgb, 0);
+	mk_freemembers(&lt_hd.l);
 	(void)mk_addmember("light.r", &all_hd.l, NULL, WMOP_UNION);
     }
 
@@ -418,11 +431,12 @@ main(int ac, char *av[])
      */
     mk_lcomb(db_fp, "all", &all_hd, 0,
 	     (char *)NULL, (char *)NULL, (unsigned char *)NULL, 0);
+    mk_freemembers(&all_hd.l);
 
     bu_log("Placed %d specimens plus ground and light under group \"all\"\n",
 	   idx);
 
-    db_close(db_fp->dbip);
+    wdb_close(db_fp);
 
     return 0;
 }

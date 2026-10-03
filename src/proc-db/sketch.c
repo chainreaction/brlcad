@@ -78,15 +78,16 @@ main(int argc, char **argv)
     struct wmember all_head;
     unsigned char rgb[3] = {32, 128, 192};
 
-    bu_setprogname(argv[0]);
-
-    if (argc > 1)
-	bu_exit(0, "Usage: %s\n", argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
 
     if (argc > 1) {
-	if ( BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?"))
-	    bu_exit(1, NULL);
-	bu_log("Warning - ignored unsupported argument \"%s\"\n", argv[1]);
+	if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help")) {
+	    bu_log("Usage: %s\n", (argv && argv[0]) ? argv[0] : "sketch");
+	    return 0;
+	}
+	bu_log("Usage: %s\n", (argv && argv[0]) ? argv[0] : "sketch");
+	return 1;
     }
 
     bu_log("Writing out geometry to file [sketch.g] ...");
@@ -144,6 +145,9 @@ main(int argc, char **argv)
 
     /* write the sketch out */
     outfp = wdb_fopen("sketch.g");
+    if (!outfp) {
+	bu_exit(1, "ERROR: failed to open sketch.g for writing\n");
+    }
     mk_id(outfp, "sketch test");
     mk_sketch(outfp, "test_sketch", &skt);
 
@@ -156,23 +160,31 @@ main(int argc, char **argv)
      * first vertex.
      */
     VSET(h, 0.0, 0.0, 250.0);
-    if (mk_extrusion(outfp, "test_extrude.s", "test_sketch", V, h, u_vec, v_vec, 0) < 0)
+    if (mk_extrusion(outfp, "test_extrude.s", "test_sketch", V, h, u_vec, v_vec, 0) < 0) {
+	wdb_close(outfp);
 	bu_exit(1, "Failed to extrude sketch\n");
+    }
 
     /* wrap the extrusion in a colored plastic region */
     if (mk_region1(outfp, "test_extrude.r", "test_extrude.s",
-		   "plastic", "di=0.8 sp=0.2", rgb) < 0)
+		   "plastic", "di=0.8 sp=0.2", rgb) < 0) {
+	wdb_close(outfp);
 	bu_exit(1, "Failed to make extrusion region\n");
+    }
 
     /* collect everything under a single renderable top-level group */
     BU_LIST_INIT(&all_head.l);
     (void)mk_addmember("test_extrude.r", &all_head.l, NULL, WMOP_UNION);
     if (mk_lcomb(outfp, "all", &all_head, 0,
-		 (char *)NULL, (char *)NULL, (unsigned char *)NULL, 0) < 0)
+		 (char *)NULL, (char *)NULL, (unsigned char *)NULL, 0) < 0) {
+	mk_freemembers(&all_head.l);
+	wdb_close(outfp);
 	bu_exit(1, "Failed to make top-level group 'all'\n");
+    }
+    mk_freemembers(&all_head.l);
 
     /* cleanup */
-    db_close(outfp->dbip);
+    wdb_close(outfp);
 
     bu_log(" done.\n");
 
