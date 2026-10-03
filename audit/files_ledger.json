@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1427,
-    "pending_files": 2066,
-    "last_updated": "2026-10-03T08:18:56Z",
-    "total_issues": 327,
-    "reviewed_count": 1427
+    "reviewed_files": 1445,
+    "pending_files": 2048,
+    "last_updated": "2026-10-03T08:35:18Z",
+    "total_issues": 330,
+    "reviewed_count": 1445
   },
   "files": [
     {
@@ -34846,38 +34846,44 @@
       "path": "src/qged/plugins/edit/ell/QEll.cpp",
       "subsystem": "src/qged",
       "lines": 301,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:35:04Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0309"
+      ]
     },
     {
       "id": 3287,
       "path": "src/qged/plugins/edit/ell/QEll.h",
       "subsystem": "src/qged",
       "lines": 86,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:35:04Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0309"
+      ]
     },
     {
       "id": 3288,
       "path": "src/qged/plugins/edit/ell/ell_tool.cpp",
       "subsystem": "src/qged",
       "lines": 75,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:35:04Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0309"
+      ]
     },
     {
       "id": 3289,
       "path": "src/qged/plugins/plugin.h",
       "subsystem": "src/qged",
       "lines": 73,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:35:04Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -34956,18 +34962,20 @@
       "path": "src/qged/plugins/view/info/CADViewModel.cpp",
       "subsystem": "src/qged",
       "lines": 112,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:35:04Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0309"
+      ]
     },
     {
       "id": 3298,
       "path": "src/qged/plugins/view/info/CADViewModel.h",
       "subsystem": "src/qged",
       "lines": 62,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:35:04Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -34976,10 +34984,12 @@
       "path": "src/qged/plugins/view/info/view_info.cpp",
       "subsystem": "src/qged",
       "lines": 68,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:35:04Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0309"
+      ]
     },
     {
       "id": 3300,
@@ -36926,5 +36936,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-10-03T08:18:56Z"
+  "last_updated": "2026-10-03T08:35:18Z"
 }
