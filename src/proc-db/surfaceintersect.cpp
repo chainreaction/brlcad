@@ -29,7 +29,7 @@
 #include <assert.h>
 #include "bu/app.h"
 
-#define SI_MIN(a, b) (((a) > (b)) ? (a) : (b))
+#define SI_MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 
 /**
@@ -73,7 +73,8 @@ Step(
     ON_3dVector Norm2 = surf2->NormalAt(*s2, *t2);
     ON_3dVector step = ON_CrossProduct(Norm1, Norm2);
     double Magnitude = ON_ArrayMagnitude(3, step);
-    /* double vec[3] = {0.0, 0.0, 0.0}; */
+    if (ZERO(Magnitude))
+	return;
     ON_3dVector stepscaled;
     ON_ArrayScale(3, stepsize/Magnitude, step, stepscaled);
     Push(surf1, s1, t1, stepscaled);
@@ -323,31 +324,31 @@ CurveCurveIntersect(
     } else {
 	ON_Interval domain1 = curve1->Domain(), domain2 = curve2->Domain();
 	if (bbox1.Diagonal().Length() + bbox2.Diagonal().Length() > tol) {
-	    ON_Curve *left1, *right1, *left2, *right2;
-	    curve1->Split(domain1.Mid(), left1, right1), curve2->Split(domain2.Mid(), left2, right2);
-	    rv += CurveCurveIntersect(left1, left2, x, tol);
-	    rv += CurveCurveIntersect(left1, right2, x, tol);
-	    rv += CurveCurveIntersect(right1, left2, x, tol);
-	    rv += CurveCurveIntersect(right2, right2, x, tol);
+	    ON_Curve *left1 = NULL, *right1 = NULL, *left2 = NULL, *right2 = NULL;
+	    curve1->Split(domain1.Mid(), left1, right1);
+	    curve2->Split(domain2.Mid(), left2, right2);
+	    if (left1 && left2)
+		rv += CurveCurveIntersect(left1, left2, x, tol);
+	    if (left1 && right2)
+		rv += CurveCurveIntersect(left1, right2, x, tol);
+	    if (right1 && left2)
+		rv += CurveCurveIntersect(right1, left2, x, tol);
+	    if (right1 && right2)
+		rv += CurveCurveIntersect(right1, right2, x, tol);
+	    delete left1;
+	    delete right1;
+	    delete left2;
+	    delete right2;
 	} else {
 	    /* the curves are contained within a bounding box that's smaller than the tolerance */
-	    ON_X_EVENT *newx = new ON_X_EVENT();
-	    newx->m_type = newx->ccx_point;
-	    newx->m_A[0] = curve1->PointAt(domain1.Mid());
-	    newx->m_B[0] = curve2->PointAt(domain2.Mid());
-	    newx->m_a[0] = domain1.Mid();
-	    newx->m_b[0] = domain2.Mid();
+	    ON_X_EVENT newx;
+	    newx.m_type = newx.ccx_point;
+	    newx.m_A[0] = curve1->PointAt(domain1.Mid());
+	    newx.m_B[0] = curve2->PointAt(domain2.Mid());
+	    newx.m_a[0] = domain1.Mid();
+	    newx.m_b[0] = domain2.Mid();
 
-	    /* Documentation for these routines being what it is for these intersections
-	     * it's not really clear what these should be
-	     newx.m_cnodeA[0] = ;
-	     newx.m_nodeA_t[0] = ;
-	     newx.m_cnodeB[0] = ;
-	     newx.m_nodeB_t[0] = ;
-	     newx.m_x_eventsn = ; this one we could do, but it doesn't seem worth the trouble.
-	    */
-	    x.Append(*newx);
-	    delete newx;
+	    x.Append(newx);
 	    rv++;
 	}
     }
@@ -367,14 +368,14 @@ SetCurveCurveIntersectionDir(
     ON_3dVector N,
     int xcount,
     ON_X_EVENT* xevent,
-    ON_Curve *curve1,
-    ON_Curve *curve2
+    const ON_Curve *curve1,
+    const ON_Curve *curve2
     )
 {
     bool rv = true;
     int i;
     for (i = 0; i < xcount; i++) {
-	ON_X_EVENT event = xevent[i];
+	ON_X_EVENT &event = xevent[i];
 	if (event.m_type != event.ccx_point) {
 	    continue;
 	}
@@ -387,11 +388,11 @@ SetCurveCurveIntersectionDir(
 	    event.m_dirA[1] = event.to_below_dir;
 	    event.m_dirB[0] = event.from_below_dir;
 	    event.m_dirB[1] = event.to_above_dir;
-	} else if (dot > 0) {
+	} else if (dot < 0) {
 	    event.m_dirA[0] = event.from_below_dir;
 	    event.m_dirA[1] = event.to_above_dir;
 	    event.m_dirB[0] = event.from_above_dir;
-	    event.m_dirB[0] = event.to_below_dir;
+	    event.m_dirB[1] = event.to_below_dir;
 	} else {
 	    event.m_dirA[0] = event.no_x_dir;
 	    event.m_dirA[1] = event.no_x_dir;
@@ -443,7 +444,7 @@ Face_X_Event::Get_ON_X_Events(double tol)
 		    out[l].m_user.i = i;
 		}
 
-		SetCurveCurveIntersectionDir(ON_3dVector(0.0, 0.0, 1.0), new_xs, out.Array(), curves[0], curves[1]);
+		SetCurveCurveIntersectionDir(ON_3dVector(0.0, 0.0, 1.0), new_xs, out.Array(), curves[i], trim->TrimCurveOf());
 		x.Append(new_xs, out.Array());
 	    }
 	}
@@ -593,9 +594,11 @@ WalkIntersection(
      */
     for (passes = 0; passes < 2; passes++) {
 	while (surf1->Domain(0).Includes(s1, true) && surf1->Domain(1).Includes(t1, true) && surf2->Domain(0).Includes(s2, true) && surf2->Domain(1).Includes(t2, true) && !(IsClosed(intersectionPoints1, stepsize) && IsClosed(intersectionPoints2, stepsize))) {
+	    int max_jiggle = 100;
+	    int jiggle_cnt = 0;
 	    do {
 		distance = Jiggle(surf1, surf2, &s1, &s2, &t1, &t2);
-	    } while (distance > tol);
+	    } while (distance > tol && ++jiggle_cnt < max_jiggle);
 
 	    intersectionPoints1.Append(ON_2dPoint(s1, t1));
 	    intersectionPoints2.Append(ON_2dPoint(s2, t2));
@@ -655,9 +658,11 @@ GetStartPointsInternal(
     } else if (surf1->IsPlanar(NULL, tol) && surf2->IsPlanar(NULL, tol)) {
 	if (!surf1->BoundingBox().IsDisjoint(surf2->BoundingBox())) {
 	    double distance, s1 = surf1->Domain(0).Mid(), s2 = surf2->Domain(0).Mid(), t1 = surf1->Domain(1).Mid(), t2 = surf2->Domain(1).Mid();
+	    int max_jiggle = 100;
+	    int jiggle_cnt = 0;
 	    do {
 		distance = Jiggle(surf1, surf2, &s1, &s2, &t1, &t2);
-	    } while (distance > tol);
+	    } while (distance > tol && ++jiggle_cnt < max_jiggle);
 
 	    start_points1.Append(ON_2dPoint(s1, t1));
 	    start_points2.Append(ON_2dPoint(s2, t2));
@@ -666,21 +671,34 @@ GetStartPointsInternal(
 	    return_value = false;
 	}
     } else {
-	ON_Surface *N1, *S1, *N2, *S2, *Parts1[4], *Parts2[4]; /* = {SW, SE, NW, NE} */
+	ON_Surface *N1 = NULL, *S1 = NULL, *N2 = NULL, *S2 = NULL;
+	ON_Surface *Parts1[4] = {NULL, NULL, NULL, NULL};
+	ON_Surface *Parts2[4] = {NULL, NULL, NULL, NULL};
 
 	surf1->Split(0, surf1->Domain(0).Mid(), S1, N1);
 	surf2->Split(0, surf2->Domain(0).Mid(), S2, N2);
-	S1->Split(1, S1->Domain(1).Mid(), Parts1[0], Parts1[1]);
-	N1->Split(1, N1->Domain(1).Mid(), Parts1[2], Parts1[3]);
-	S2->Split(1, S2->Domain(1).Mid(), Parts2[0], Parts2[1]);
-	N2->Split(1, N2->Domain(1).Mid(), Parts2[2], Parts2[3]);
+	if (S1) S1->Split(1, S1->Domain(1).Mid(), Parts1[0], Parts1[1]);
+	if (N1) N1->Split(1, N1->Domain(1).Mid(), Parts1[2], Parts1[3]);
+	if (S2) S2->Split(1, S2->Domain(1).Mid(), Parts2[0], Parts2[1]);
+	if (N2) N2->Split(1, N2->Domain(1).Mid(), Parts2[2], Parts2[3]);
 
 	int i, j;
 	return_value = false;
 	for (i = 0; i < 4; i++) {
 	    for (j = 0; j < 4; j++) {
-		return_value &= GetStartPointsInternal(Parts1[i], Parts2[j], start_points1, start_points2, tol);
+		if (Parts1[i] && Parts2[j]) {
+		    bool got = GetStartPointsInternal(Parts1[i], Parts2[j], start_points1, start_points2, tol);
+		    return_value = return_value || got;
+		}
 	    }
+	}
+	delete S1;
+	delete N1;
+	delete S2;
+	delete N2;
+	for (i = 0; i < 4; i++) {
+	    delete Parts1[i];
+	    delete Parts2[i];
 	}
     }
     return return_value;
@@ -952,10 +970,14 @@ BrepBrepIntersect(
 	MakeLoops(&brep2->m_F[i], intersection_curves2[i], trim_curves2[i], tol);
     }
 
-    /* FIXME: we allocated a lot of entities and stashed them in our
-     * 'x' Face_X_Face array, but never delete them (and there's no
-     * destructor).  The memory needs to be released before returning.
-     */
+    for (i = 0; i < x.Count(); i++) {
+	delete x[i].curve1;
+	delete x[i].curve2;
+	for (j = 0; j < x[i].new_curves1.Count(); j++)
+	    delete x[i].new_curves1[j];
+	for (j = 0; j < x[i].new_curves2.Count(); j++)
+	    delete x[i].new_curves2[j];
+    }
 
     /* XXX - unused */
     return false;
@@ -1038,14 +1060,21 @@ main(int argc, const char **argv)
     int do_intersect = 0;
     int i;
 
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
 
     /* Parse args: the first non-flag argument is the output path; -x /
      * --intersect enables the (experimental) surface-surface intersection.
      */
     for (i = 1; i < argc; i++) {
-	if (BU_STR_EQUAL(argv[i], "-x") || BU_STR_EQUAL(argv[i], "--intersect")) {
+	if (BU_STR_EQUAL(argv[i], "-h") || BU_STR_EQUAL(argv[i], "-?") || BU_STR_EQUAL(argv[i], "--help")) {
+	    bu_log("Usage: %s [output.g] [-x|--intersect]\n", (argv && argv[0]) ? argv[0] : "surfaceintersect");
+	    return 0;
+	} else if (BU_STR_EQUAL(argv[i], "-x") || BU_STR_EQUAL(argv[i], "--intersect")) {
 	    do_intersect = 1;
+	} else if (argv[i][0] == '-') {
+	    bu_log("Usage: %s [output.g] [-x|--intersect]\n", (argv && argv[0]) ? argv[0] : "surfaceintersect");
+	    return 1;
 	} else {
 	    output = argv[i];
 	}
@@ -1110,8 +1139,9 @@ main(int argc, const char **argv)
     (void)mk_addmember("surfA.r", &all.l, NULL, WMOP_UNION);
     (void)mk_addmember("surfB.r", &all.l, NULL, WMOP_UNION);
     mk_lfcomb(db_fp, "all", &all, 0);
+    mk_freemembers(&all.l);
 
-    db_close(db_fp->dbip);
+    wdb_close(db_fp);
 
     delete curve1;
     delete curve2;

@@ -39,7 +39,7 @@ typedef struct {
 typedef int pt[DEGREE][DEGREE];
 
 
-dt ducks[DUCK_COUNT] = {
+static const dt ducks[DUCK_COUNT] = {
     {1.4, 0.0, 2.4},
     {1.4, -0.784, 2.4},
     {0.784, -1.4, 2.4},
@@ -349,7 +349,7 @@ dt ducks[DUCK_COUNT] = {
 };
 
 
-pt patches[PATCH_COUNT] = {
+static const pt patches[PATCH_COUNT] = {
     {{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}, {13, 14, 15, 16}},
     {{4, 17, 18, 19}, {8, 20, 21, 22}, {12, 23, 24, 25}, {16, 26, 27, 28}},
     {{19, 29, 30, 31}, {22, 32, 33, 34}, {25, 35, 36, 37}, {28, 38, 39, 40}},

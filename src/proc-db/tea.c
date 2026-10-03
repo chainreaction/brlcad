@@ -43,7 +43,7 @@
  * and output it to a BRL-CAD binary format.
  */
 void
-dump_patch(struct face_g_snurb **surfp, pt patch)
+dump_patch(struct face_g_snurb **surfp, const pt patch)
 {
     struct face_g_snurb *b_patch;
     int i, j, pt_type;
@@ -59,6 +59,10 @@ dump_patch(struct face_g_snurb **surfp, pt patch)
     pt_type = RT_NURB_MAKE_PT_TYPE(3, 2, 0); /* see nurb.h for details */
 
     b_patch = (struct face_g_snurb *) nmg_nurb_new_snurb(4, 4, 8, 8, 4, 4, pt_type);
+    if (!b_patch) {
+	*surfp = NULL;
+	return;
+    }
     *surfp = b_patch;
 
     /* Now fill in the pieces */
@@ -78,11 +82,18 @@ dump_patch(struct face_g_snurb **surfp, pt patch)
 
     mesh_pointer = b_patch->ctl_points;
 
-    for (i = 0; i< 4; i++) {
+    for (i = 0; i < 4; i++) {
 	for (j = 0; j < 4; j++) {
-	    *mesh_pointer = ducks[patch[i][j]-1].x * 1000;
-	    *(mesh_pointer+1) = ducks[patch[i][j]-1].y * 1000;
-	    *(mesh_pointer+2) = ducks[patch[i][j]-1].z * 1000;
+	    int idx = patch[i][j] - 1;
+	    if (idx >= 0 && idx < DUCK_COUNT) {
+		*mesh_pointer = ducks[idx].x * 1000;
+		*(mesh_pointer+1) = ducks[idx].y * 1000;
+		*(mesh_pointer+2) = ducks[idx].z * 1000;
+	    } else {
+		*mesh_pointer = 0.0;
+		*(mesh_pointer+1) = 0.0;
+		*(mesh_pointer+2) = 0.0;
+	    }
 	    mesh_pointer += 3;
 	}
     }
@@ -99,19 +110,27 @@ main(int argc, char **argv)
     struct rt_wdb *outfp;
     struct face_g_snurb **surfaces;
 
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
 
-    while ((i=bu_getopt(argc, argv, "h?")) != -1) {
+    while ((i = bu_getopt(argc, argv, "h?")) != -1) {
 	switch (i) {
+	    case 'h':
+	    case '?':
+		bu_log("Usage: %s\n", (argv && argv[0]) ? argv[0] : "tea");
+		return 0;
 	    default:
-		bu_log("Usage: %s\n", *argv);
-		bu_exit(-1, NULL);
+		bu_log("Usage: %s\n", (argv && argv[0]) ? argv[0] : "tea");
+		return 1;
 	}
     }
 
     bu_log("Writing out geometry to file [teapot.g] ...");
 
     outfp = wdb_fopen("teapot.g");
+    if (!outfp) {
+	bu_exit(1, "ERROR: unable to open teapot.g for writing\n");
+    }
 
     /* Setup information
      * Database header record
@@ -125,7 +144,7 @@ main(int argc, char **argv)
     /* Step through each patch and create a B_SPLINE surface
      * representing the patch then dump them out.
      */
-    surfaces = (struct face_g_snurb **)bu_calloc(PATCH_COUNT+2, sizeof(struct face_g_snurb *), "surfaces");
+    surfaces = (struct face_g_snurb **)bu_calloc(PATCH_COUNT + 2, sizeof(struct face_g_snurb *), "surfaces");
 
     for (i = 0; i < PATCH_COUNT; i++) {
 	dump_patch(&surfaces[i], patches[i]);
@@ -134,7 +153,7 @@ main(int argc, char **argv)
 
     mk_bspline(outfp, tea_name, surfaces);
 
-    db_close(outfp->dbip);
+    wdb_close(outfp);
     bu_log(" done.\n");
 
     return 0;

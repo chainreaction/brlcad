@@ -50,7 +50,7 @@ static struct bn_tol tol;
  * and output it to a BRL-CAD binary format.
  */
 void
-dump_patch(int (*patch)[4])
+dump_patch(const int (*patch)[4])
 {
     struct vertex *verts[4];
     struct faceuse *fu;
@@ -104,10 +104,15 @@ dump_patch(int (*patch)[4])
 		break;
 	}
 
-	VSET(pnt ,
-	     ducks[patch[k][j]-1].x * 1000 ,
-	     ducks[patch[k][j]-1].y * 1000 ,
-	     ducks[patch[k][j]-1].z * 1000);
+	int duck_idx = patch[k][j] - 1;
+	if (duck_idx >= 0 && duck_idx < DUCK_COUNT) {
+	    VSET(pnt,
+		 ducks[duck_idx].x * 1000,
+		 ducks[duck_idx].y * 1000,
+		 ducks[duck_idx].z * 1000);
+	} else {
+	    VSETALL(pnt, 0.0);
+	}
 	nmg_vertex_gv(verts[i], pnt);
 
 	for (BU_LIST_FOR(vu, vertexuse, &verts[i]->vu_hd))
@@ -124,11 +129,18 @@ dump_patch(int (*patch)[4])
 
     /* Copy the control points */
 
-    for (i = 0; i< 4; i++) {
+    for (i = 0; i < 4; i++) {
 	for (j = 0; j < 4; j++) {
-	    *mesh = ducks[patch[i][j]-1].x * 1000;
-	    *(mesh+1) = ducks[patch[i][j]-1].y * 1000;
-	    *(mesh+2) = ducks[patch[i][j]-1].z * 1000;
+	    int duck_idx = patch[i][j] - 1;
+	    if (duck_idx >= 0 && duck_idx < DUCK_COUNT) {
+		*mesh = ducks[duck_idx].x * 1000;
+		*(mesh+1) = ducks[duck_idx].y * 1000;
+		*(mesh+2) = ducks[duck_idx].z * 1000;
+	    } else {
+		*mesh = 0.0;
+		*(mesh+1) = 0.0;
+		*(mesh+2) = 0.0;
+	    }
 	    mesh += 3;
 	}
     }
@@ -168,7 +180,8 @@ main(int argc, char **argv)
     int i;
     struct rt_wdb *outfp;
 
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
 
     tol.magic = BN_TOL_MAGIC;
     tol.dist = 0.0005;
@@ -178,11 +191,15 @@ main(int argc, char **argv)
 
     rt_debug |= RT_DEBUG_ALLRAYS;	/* Cause core dumps on bu_bomb(), but no extra messages */
 
-    while ((i=bu_getopt(argc, argv, "h?")) != -1) {
+    while ((i = bu_getopt(argc, argv, "h?")) != -1) {
 	switch (i) {
+	    case 'h':
+	    case '?':
+		bu_log("Usage: %s\n", (argv && argv[0]) ? argv[0] : "tea_nmg");
+		return 0;
 	    default:
-		fprintf(stderr,"Usage: %s\n", *argv);
-		return -1;
+		bu_log("Usage: %s\n", (argv && argv[0]) ? argv[0] : "tea_nmg");
+		return 1;
 	}
     }
 
@@ -191,10 +208,17 @@ main(int argc, char **argv)
     struct bu_list *vlfree = &rt_vlfree;
 
     outfp = wdb_fopen("tea_nmg.g");
+    if (!outfp) {
+	bu_exit(1, "ERROR: unable to open tea_nmg.g for writing\n");
+    }
 
     mk_id(outfp, id_name);
 
     m = nmg_mm();
+    if (!m) {
+	wdb_close(outfp);
+	bu_exit(1, "ERROR: unable to allocate NMG model\n");
+    }
     NMG_CK_MODEL(m);
     r = nmg_mrsv(m);
     NMG_CK_REGION(r);
@@ -219,21 +243,25 @@ main(int argc, char **argv)
      */
     (void)nmg_vertex_fuse(&m->magic, vlfree, &tol);
 
-    /* write NMG to output file */
-    (void)mk_nmg(outfp, tea_name, m);
-    db_close(outfp->dbip);
-
-    /* Make a vlist drawing of the model */
+    /* Make a vlist drawing of the model BEFORE exporting, because
+     * mk_nmg/wdb_export takes ownership and frees m.
+     */
     BU_LIST_INIT(&vhead);
     nmg_m_to_vlist(&vhead, m, 0, vlfree);
 
     /* Make a UNIX plot file from this vlist */
-    if ((fp=fopen(uplot_name, "w")) == NULL) {
+    if ((fp = fopen(uplot_name, "w")) == NULL) {
 	bu_log("Cannot open plot3 file: %s\n", uplot_name);
 	perror("teapot_nmg");
     } else {
 	bv_vlist_to_uplot(fp, &vhead);
+	fclose(fp);
     }
+    BV_FREE_VLIST(vlfree, &vhead);
+
+    /* write NMG to output file (wdb_export frees m) */
+    (void)mk_nmg(outfp, tea_name, m);
+    wdb_close(outfp);
 
     bu_log(" done.\n");
 
