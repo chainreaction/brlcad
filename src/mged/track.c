@@ -50,15 +50,16 @@ static struct track_solid
     fastf_t s_values[24];
 } sol;
 
-void crname(struct mged_state *s, char *name, int pos, int maxlen);
-void slope(struct mged_state *s, fastf_t *wh1, fastf_t *wh2, fastf_t *t);
-void crdummy(fastf_t *w, fastf_t *t, int flag);
-void trcurve(fastf_t *wh, fastf_t *t);
-void bottom(fastf_t *vec1, fastf_t *vec2, fastf_t *t);
-void top(fastf_t *vec1, fastf_t *vec2, fastf_t *t);
-void crregion(struct mged_state *s, char *region, char *op, const int *members, int number, char *solidname, int maxlen, int los_default, int mat_default);
-static void track_itoa(struct mged_state *s, int n, char *cs, int w);
-int wrobj(struct mged_state *s, char name[], int flags);
+static void crname(struct mged_state *s, char *name, int pos, int maxlen);
+static void slope(struct mged_state *s, fastf_t *wh1, fastf_t *wh2, fastf_t *t);
+static void crdummy(fastf_t *w, fastf_t *t, int flag);
+static void trcurve(fastf_t *wh, fastf_t *t);
+static void bottom(fastf_t *vec1, fastf_t *vec2, fastf_t *t);
+static void top(fastf_t *vec1, fastf_t *vec2, fastf_t *t);
+static void crregion(struct mged_state *s, char *region, char *op, const int *members, int number, char *solidname, int maxlen, int los_default, int mat_default);
+static void track_itoa(struct mged_state *s, int n, char *cs, int maxlen);
+static int wrobj(struct mged_state *s, char name[], int flags);
+static void tancir(struct mged_state *s, fastf_t *cir1, fastf_t *cir2);
 
 /*
  * adds track given "wheel" info
@@ -66,9 +67,15 @@ int wrobj(struct mged_state *s, char name[], int flags);
 int
 f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 {
+    if (!clientData || !interp)
+	return TCL_ERROR;
+
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
     struct mged_state *s = ctp->s;
+
+    if (!s || !s->dbip || !s->wdbp)
+	return TCL_ERROR;
 
     // TODO - need to confirm the actual intent of this code is to have the
     // assignments to default made in subsequent function logic persist beyond
@@ -78,9 +85,9 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     static int los_default = 100;	/* Line-of-sight estimate */
 
     fastf_t fw[3], lw[3], iw[3], dw[3], tr[3];
-    char solname[12], regname[12], grpname[9], oper[3];
-    int i, j, memb[4];
-    char temp[4];
+    char solname[32], regname[32], grpname[32], oper[4];
+    int i, memb[4];
+    char temp[16];
     vect_t temp1, temp2;
     int item, mat, los;
     int arg;
@@ -96,7 +103,7 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help track");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -109,6 +116,7 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 
     oper[0] = oper[2] = WMOP_INTERSECT;
     oper[1] = WMOP_SUBTRACT;
+    oper[3] = '\0';
 
     arg = 1;
 
@@ -119,7 +127,12 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	edit_result = TCL_ERROR;
 	goto end;
     }
-    fw[0] = atof(argv[arg]) * s->dbip->dbi_local2base;
+    if (bu_sscanf(argv[arg], "%lf", &fw[0]) != 1) {
+	Tcl_AppendResult(interp, "Invalid numeric value: ", argv[arg], "\n", (char *)NULL);
+	edit_result = TCL_ERROR;
+	goto end;
+    }
+    fw[0] *= s->dbip->dbi_local2base;
     ++arg;
 
     if (argc < arg+1) {
@@ -128,7 +141,12 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	edit_result = TCL_ERROR;
 	goto end;
     }
-    lw[0] = atof(argv[arg]) * s->dbip->dbi_local2base;
+    if (bu_sscanf(argv[arg], "%lf", &lw[0]) != 1) {
+	Tcl_AppendResult(interp, "Invalid numeric value: ", argv[arg], "\n", (char *)NULL);
+	edit_result = TCL_ERROR;
+	goto end;
+    }
+    lw[0] *= s->dbip->dbi_local2base;
     ++arg;
 
     if (fw[0] <= lw[0]) {
@@ -143,7 +161,13 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	edit_result = TCL_ERROR;
 	goto end;
     }
-    fw[1] = lw[1] = atof(argv[arg]) * s->dbip->dbi_local2base;
+    if (bu_sscanf(argv[arg], "%lf", &fw[1]) != 1) {
+	Tcl_AppendResult(interp, "Invalid numeric value: ", argv[arg], "\n", (char *)NULL);
+	edit_result = TCL_ERROR;
+	goto end;
+    }
+    fw[1] *= s->dbip->dbi_local2base;
+    lw[1] = fw[1];
     ++arg;
 
     if (argc < arg+1) {
@@ -152,7 +176,13 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	edit_result = TCL_ERROR;
 	goto end;
     }
-    fw[2] = lw[2] = atof(argv[arg]) * s->dbip->dbi_local2base;
+    if (bu_sscanf(argv[arg], "%lf", &fw[2]) != 1) {
+	Tcl_AppendResult(interp, "Invalid numeric value: ", argv[arg], "\n", (char *)NULL);
+	edit_result = TCL_ERROR;
+	goto end;
+    }
+    fw[2] *= s->dbip->dbi_local2base;
+    lw[2] = fw[2];
     ++arg;
     if (fw[2] <= 0) {
 	Tcl_AppendResult(interp, "Radius <= 0 - STOP\n", (char *)NULL);
@@ -167,7 +197,12 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	edit_result = TCL_ERROR;
 	goto end;
     }
-    dw[0] = atof(argv[arg]) * s->dbip->dbi_local2base;
+    if (bu_sscanf(argv[arg], "%lf", &dw[0]) != 1) {
+	Tcl_AppendResult(interp, "Invalid numeric value: ", argv[arg], "\n", (char *)NULL);
+	edit_result = TCL_ERROR;
+	goto end;
+    }
+    dw[0] *= s->dbip->dbi_local2base;
     ++arg;
     if (dw[0] >= lw[0]) {
 	Tcl_AppendResult(interp, "DRIVE wheel not in the rear - STOP \n", (char *)NULL);
@@ -181,7 +216,12 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	edit_result = TCL_ERROR;
 	goto end;
     }
-    dw[1] = atof(argv[arg]) * s->dbip->dbi_local2base;
+    if (bu_sscanf(argv[arg], "%lf", &dw[1]) != 1) {
+	Tcl_AppendResult(interp, "Invalid numeric value: ", argv[arg], "\n", (char *)NULL);
+	edit_result = TCL_ERROR;
+	goto end;
+    }
+    dw[1] *= s->dbip->dbi_local2base;
     ++arg;
 
     if (argc < arg+1) {
@@ -190,7 +230,12 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	edit_result = TCL_ERROR;
 	goto end;
     }
-    dw[2] = atof(argv[arg]) * s->dbip->dbi_local2base;
+    if (bu_sscanf(argv[arg], "%lf", &dw[2]) != 1) {
+	Tcl_AppendResult(interp, "Invalid numeric value: ", argv[arg], "\n", (char *)NULL);
+	edit_result = TCL_ERROR;
+	goto end;
+    }
+    dw[2] *= s->dbip->dbi_local2base;
     ++arg;
     if (dw[2] <= 0) {
 	Tcl_AppendResult(interp, "Radius <= 0 - STOP\n", (char *)NULL);
@@ -205,7 +250,12 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	edit_result = TCL_ERROR;
 	goto end;
     }
-    iw[0] = atof(argv[arg]) * s->dbip->dbi_local2base;
+    if (bu_sscanf(argv[arg], "%lf", &iw[0]) != 1) {
+	Tcl_AppendResult(interp, "Invalid numeric value: ", argv[arg], "\n", (char *)NULL);
+	edit_result = TCL_ERROR;
+	goto end;
+    }
+    iw[0] *= s->dbip->dbi_local2base;
     ++arg;
     if (iw[0] <= fw[0]) {
 	Tcl_AppendResult(interp, "IDLER wheel not in the front - STOP \n", (char *)NULL);
@@ -219,7 +269,12 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	edit_result = TCL_ERROR;
 	goto end;
     }
-    iw[1] = atof(argv[arg]) * s->dbip->dbi_local2base;
+    if (bu_sscanf(argv[arg], "%lf", &iw[1]) != 1) {
+	Tcl_AppendResult(interp, "Invalid numeric value: ", argv[arg], "\n", (char *)NULL);
+	edit_result = TCL_ERROR;
+	goto end;
+    }
+    iw[1] *= s->dbip->dbi_local2base;
     ++arg;
 
     if (argc < arg+1) {
@@ -228,7 +283,12 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	edit_result = TCL_ERROR;
 	goto end;
     }
-    iw[2] = atof(argv[arg]) * s->dbip->dbi_local2base;
+    if (bu_sscanf(argv[arg], "%lf", &iw[2]) != 1) {
+	Tcl_AppendResult(interp, "Invalid numeric value: ", argv[arg], "\n", (char *)NULL);
+	edit_result = TCL_ERROR;
+	goto end;
+    }
+    iw[2] *= s->dbip->dbi_local2base;
     ++arg;
     if (iw[2] <= 0) {
 	Tcl_AppendResult(interp, "Radius <= 0 - STOP\n", (char *)NULL);
@@ -243,7 +303,13 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	edit_result = TCL_ERROR;
 	goto end;
     }
-    tr[2] = tr[0] = atof(argv[arg]) * s->dbip->dbi_local2base;
+    if (bu_sscanf(argv[arg], "%lf", &tr[0]) != 1) {
+	Tcl_AppendResult(interp, "Invalid numeric value: ", argv[arg], "\n", (char *)NULL);
+	edit_result = TCL_ERROR;
+	goto end;
+    }
+    tr[0] *= s->dbip->dbi_local2base;
+    tr[2] = tr[0];
     ++arg;
 
     if (argc < arg+1) {
@@ -252,7 +318,12 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	edit_result = TCL_ERROR;
 	goto end;
     }
-    tr[1] = atof(argv[arg]) * s->dbip->dbi_local2base;
+    if (bu_sscanf(argv[arg], "%lf", &tr[1]) != 1) {
+	Tcl_AppendResult(interp, "Invalid numeric value: ", argv[arg], "\n", (char *)NULL);
+	edit_result = TCL_ERROR;
+	goto end;
+    }
+    tr[1] *= s->dbip->dbi_local2base;
     ++arg;
     if (EQUAL(tr[0], tr[1])) {
 	Tcl_AppendResult(interp, "MIN == MAX ... STOP\n", (char *)NULL);
@@ -271,7 +342,12 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	edit_result = TCL_ERROR;
 	goto end;
     }
-    tr[2] = atof(argv[arg]) * s->dbip->dbi_local2base;
+    if (bu_sscanf(argv[arg], "%lf", &tr[2]) != 1) {
+	Tcl_AppendResult(interp, "Invalid numeric value: ", argv[arg], "\n", (char *)NULL);
+	edit_result = TCL_ERROR;
+	goto end;
+    }
+    tr[2] *= s->dbip->dbi_local2base;
     ++arg;
     if (tr[2] <= 0) {
 	Tcl_AppendResult(interp, "Track thickness <= 0 - STOP\n", (char *)NULL);
@@ -279,41 +355,14 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	goto end;
     }
 
-    solname[0] = regname[0] = grpname[0] = 't';
-    solname[1] = regname[1] = grpname[1] = 'r';
-    solname[2] = regname[2] = grpname[2] = 'a';
-    solname[3] = regname[3] = grpname[3] = 'c';
-    solname[4] = regname[4] = grpname[4] = 'k';
-    solname[5] = regname[5] = '.';
-    solname[6] = 's';
-    regname[6] = 'r';
-    solname[7] = regname[7] = '.';
-    grpname[5] = solname[8] = regname[8] = '\0';
-    grpname[8] = solname[11] = regname[11] = '\0';
-/*
-  bu_log("\nX of first road wheel  %10.4f\n", fw[0]);
-  bu_log("X of last road wheel   %10.4f\n", lw[0]);
-  bu_log("Z of road wheels       %10.4f\n", fw[1]);
-  bu_log("radius of road wheels  %10.4f\n", fw[2]);
-  bu_log("\nX of drive wheel       %10.4f\n", dw[0]);
-  bu_log("Z of drive wheel       %10.4f\n", dw[1]);
-  bu_log("radius of drive wheel  %10.4f\n", dw[2]);
-  bu_log("\nX of idler wheel       %10.4f\n", iw[0]);
-  bu_log("Z of idler wheel       %10.4f\n", iw[1]);
-  bu_log("radius of idler wheel  %10.4f\n", iw[2]);
-  bu_log("\nY MIN of track         %10.4f\n", tr[0]);
-  bu_log("Y MAX of track         %10.4f\n", tr[1]);
-  bu_log("thickness of track     %10.4f\n", tr[2]);
-*/
-
-/* Check for names to use:
- * 1.  start with track.s.1->10 and track.r.1->10
- * 2.  if bad, increment count by 10 and try again
- */
+    bu_strlcpy(solname, "track.s.", sizeof(solname));
+    bu_strlcpy(regname, "track.r.", sizeof(regname));
+    bu_strlcpy(grpname, "track", sizeof(grpname));
 
  tryagain:	/* sent here to try next set of names */
 
     for (i=0; i<11; i++) {
+	solname[8] = regname[8] = '\0';
 	crname(s, solname, i, sizeof(solname));
 	crname(s, regname, i, sizeof(regname));
 	if ((db_lookup(s->dbip, solname, LOOKUP_QUIET) != RT_DIR_NULL)	||
@@ -341,7 +390,7 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     slope(s, fw, iw, tr);
     VMOVE(temp2, &sol.s_values[0]);
     crname(s, solname, 1, sizeof(solname));
-    bu_strlcpy(sol.s_name, solname, NAMESIZE+1);
+    bu_strlcpy(sol.s_name, solname, sizeof(sol.s_name));
     sol.s_type = ID_ARB8;
     if (wrobj(s, solname, RT_DIR_SOLID))
 	return TCL_ERROR;
@@ -354,7 +403,7 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     sol.s_type = ID_TGC;
     trcurve(iw, tr);
     crname(s, solname, 2, sizeof(solname));
-    bu_strlcpy(sol.s_name, solname, NAMESIZE+1);
+    bu_strlcpy(sol.s_name, solname, sizeof(sol.s_name));
     if (wrobj(s, solname, RT_DIR_SOLID))
 	return TCL_ERROR;
     solname[8] = '\0';
@@ -364,7 +413,7 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     VMOVE(&sol.s_values[12], &sol.s_values[6]);
     VMOVE(&sol.s_values[15], &sol.s_values[9]);
     crname(s, solname, 3, sizeof(solname));
-    bu_strlcpy(sol.s_name, solname, NAMESIZE+1);
+    bu_strlcpy(sol.s_name, solname, sizeof(sol.s_name));
     if (wrobj(s, solname, RT_DIR_SOLID))
 	return TCL_ERROR;
     solname[8] = '\0';
@@ -373,7 +422,7 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     for (i=0; i<24; i++)
 	sol.s_values[i] = 0.0;
     crname(s, solname, 4, sizeof(solname));
-    bu_strlcpy(sol.s_name, solname, NAMESIZE+1);
+    bu_strlcpy(sol.s_name, solname, sizeof(sol.s_name));
     sol.s_type = ID_ARB8;
     crdummy(iw, tr, 1);
     if (wrobj(s, solname, RT_DIR_SOLID))
@@ -386,7 +435,7 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     slope(s, lw, dw, tr);
     VMOVE(temp1, &sol.s_values[0]);
     crname(s, solname, 5, sizeof(solname));
-    bu_strlcpy(sol.s_name, solname, NAMESIZE+1);
+    bu_strlcpy(sol.s_name, solname, sizeof(sol.s_name));
     if (wrobj(s, solname, RT_DIR_SOLID))
 	return TCL_ERROR;
     solname[8] = '\0';
@@ -397,7 +446,7 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     sol.s_type = ID_TGC;
     trcurve(dw, tr);
     crname(s, solname, 6, sizeof(solname));
-    bu_strlcpy(sol.s_name, solname, NAMESIZE+1);
+    bu_strlcpy(sol.s_name, solname, sizeof(sol.s_name));
     if (wrobj(s, solname, RT_DIR_SOLID))
 	return TCL_ERROR;
     solname[8] = '\0';
@@ -408,7 +457,7 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     VMOVE(&sol.s_values[12], &sol.s_values[6]);
     VMOVE(&sol.s_values[15], &sol.s_values[9]);
     crname(s, solname, 7, sizeof(solname));
-    bu_strlcpy(sol.s_name, solname, NAMESIZE+1);
+    bu_strlcpy(sol.s_name, solname, sizeof(sol.s_name));
     if (wrobj(s, solname, RT_DIR_SOLID))
 	return TCL_ERROR;
     solname[8] = '\0';
@@ -417,7 +466,7 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     for (i=0; i<24; i++)
 	sol.s_values[i] = 0.0;
     crname(s, solname, 8, sizeof(solname));
-    bu_strlcpy(sol.s_name, solname, NAMESIZE+1);
+    bu_strlcpy(sol.s_name, solname, sizeof(sol.s_name));
     sol.s_type = ID_ARB8;
     crdummy(dw, tr, 2);
     if (wrobj(s, solname, RT_DIR_SOLID))
@@ -428,7 +477,7 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     temp1[1] = temp2[1] = tr[0];
     bottom(temp1, temp2, tr);
     crname(s, solname, 9, sizeof(solname));
-    bu_strlcpy(sol.s_name, solname, NAMESIZE+1);
+    bu_strlcpy(sol.s_name, solname, sizeof(sol.s_name));
     if (wrobj(s, solname, RT_DIR_SOLID))
 	return TCL_ERROR;
     solname[8] = '\0';
@@ -441,7 +490,7 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     temp2[2] = iw[1] + iw[2];
     top(temp1, temp2, tr);
     crname(s, solname, 10, sizeof(solname));
-    bu_strlcpy(sol.s_name, solname, NAMESIZE+1);
+    bu_strlcpy(sol.s_name, solname, sizeof(sol.s_name));
     if (wrobj(s, solname, RT_DIR_SOLID))
 	return TCL_ERROR;
     solname[8] = '\0';
@@ -501,13 +550,11 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     solname[8] = regname[8] = '\0';
 
     /* group all the track regions */
-    j = 1;
-    if ((i = Trackpos / 10 + 1) > 9)
-	j = 2;
-    track_itoa(s, i, temp, j);
+    i = Trackpos / 10 + 1;
+    track_itoa(s, i, temp, sizeof(temp));
     bu_strlcat(grpname, temp, sizeof(grpname));
     for (i=1; i<11; i++) {
-	if (i == 3 || i ==4 || i == 7 || i == 8)
+	if (i == 3 || i == 4 || i == 7 || i == 8)
 	    continue;
 	regname[8] = '\0';
 	crname(s, regname, i, sizeof(regname));
@@ -554,41 +601,41 @@ f_amtrack(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 }
 
 
-void
+static void
 crname(struct mged_state *s, char *name, int pos, int maxlen)
 {
-    int i, j;
-    char temp[4];
+    int i;
+    char temp[16];
 
-    j=1;
-    if ((i = Trackpos + pos) > 9)
-	j = 2;
-    if (i > 99)
-	j = 3;
-    track_itoa(s, i, temp, j);
+    if (!name || maxlen <= 0)
+	return;
+
+    i = Trackpos + pos;
+    track_itoa(s, i, temp, sizeof(temp));
     bu_strlcat(name, temp, maxlen);
-    return;
 }
 
 
-int
+static int
 wrobj(struct mged_state *s, char name[], int flags)
 {
     struct directory *tdp;
     struct rt_db_internal intern;
     int i;
 
-    if (s->dbip == DBI_NULL)
+    if (!s || s->dbip == DBI_NULL)
 	return 0;
 
     if (db_lookup(s->dbip, name, LOOKUP_QUIET) != RT_DIR_NULL) {
-	Tcl_AppendResult(s->interp, "track naming error: ", name,
-			 " already exists\n", (char *)NULL);
+	if (s->interp)
+	    Tcl_AppendResult(s->interp, "track naming error: ", name,
+			     " already exists\n", (char *)NULL);
 	return -1;
     }
 
     if (flags != RT_DIR_SOLID) {
-	Tcl_AppendResult(s->interp, "wrobj can only write solids, aborting\n");
+	if (s->interp)
+	    Tcl_AppendResult(s->interp, "wrobj can only write solids, aborting\n", (char *)NULL);
 	return -1;
     }
 
@@ -634,49 +681,63 @@ wrobj(struct mged_state *s, char name[], int flags)
 	    }
 	    break;
 	default:
-	    Tcl_AppendResult(s->interp, "Unrecognized solid type in 'wrobj', aborting\n", (char *)NULL);
+	    if (s->interp)
+		Tcl_AppendResult(s->interp, "Unrecognized solid type in 'wrobj', aborting\n", (char *)NULL);
 	    return -1;
     }
 
     if ((tdp = db_diradd(s->dbip, name, -1L, 0, flags, (void *)&intern.idb_type)) == RT_DIR_NULL) {
 	rt_db_free_internal(&intern);
-	Tcl_AppendResult(s->interp, "Cannot add '", name, "' to directory, aborting\n", (char *)NULL);
+	if (s->interp)
+	    Tcl_AppendResult(s->interp, "Cannot add '", name, "' to directory, aborting\n", (char *)NULL);
 	return -1;
     }
 
     if (rt_db_put_internal(tdp, s->dbip, &intern) < 0) {
 	rt_db_free_internal(&intern);
-	Tcl_AppendResult(s->interp, "wrobj(", name, "):  write error\n", (char *)NULL);
-	Tcl_AppendResult(s->interp, ERROR_RECOVERY_SUGGESTION, (char *)NULL);
+	if (s->interp) {
+	    Tcl_AppendResult(s->interp, "wrobj(", name, "):  write error\n", (char *)NULL);
+	    Tcl_AppendResult(s->interp, ERROR_RECOVERY_SUGGESTION, (char *)NULL);
+	}
 	return -1;
     }
     return 0;
 }
 
 
-void
+static void
 tancir(struct mged_state *s, fastf_t *cir1, fastf_t *cir2)
 {
-    static fastf_t mag;
     vect_t work;
+    fastf_t mag;
     fastf_t f;
-    static fastf_t temp, tempp, ang, angc;
+    fastf_t temp, tempp, ang, angc;
+    fastf_t cos_val;
 
     work[0] = cir2[0] - cir1[0];
     work[2] = cir2[1] - cir1[1];
     work[1] = 0.0;
     mag = MAGNITUDE(work);
-    if (mag > 1.0e-20 || mag < -1.0e-20) {
+    if (fabs(mag) > 1.0e-20) {
 	f = 1.0/mag;
     } else {
-	Tcl_AppendResult(s->interp, "tancir():  0-length vector!\n", (char *)NULL);
+	if (s && s->interp)
+	    Tcl_AppendResult(s->interp, "tancir():  0-length vector!\n", (char *)NULL);
 	return;
     }
     VSCALE(work, work, f);
-    temp = acos(work[0]);
+    cos_val = work[0];
+    if (cos_val > 1.0) cos_val = 1.0;
+    else if (cos_val < -1.0) cos_val = -1.0;
+    temp = acos(cos_val);
     if (work[2] < 0.0)
-	temp = 6.28318512717958646 - temp;
-    tempp = acos((cir1[2] - cir2[2]) * f);
+	temp = 2.0 * M_PI - temp;
+
+    cos_val = (cir1[2] - cir2[2]) * f;
+    if (cos_val > 1.0) cos_val = 1.0;
+    else if (cos_val < -1.0) cos_val = -1.0;
+    tempp = acos(cos_val);
+
     ang = temp + tempp;
     angc = temp - tempp;
     if ((cir1[1] + cir1[2] * sin(ang)) >
@@ -686,12 +747,10 @@ tancir(struct mged_state *s, fastf_t *cir1, fastf_t *cir2)
     plano[1] = cir1[1] + cir1[2] * sin(ang);
     plant[0] = cir2[0] + cir2[2] * cos(ang);
     plant[1] = cir2[1] + cir2[2] * sin(ang);
-
-    return;
 }
 
 
-void
+static void
 slope(struct mged_state *s, fastf_t *wh1, fastf_t *wh2, fastf_t *t)
 {
     int i, j, switches;
@@ -728,12 +787,25 @@ slope(struct mged_state *s, fastf_t *wh1, fastf_t *wh2, fastf_t *t)
     del[0] = plano[0] - plant[0];
     del[2] = plano[1] - plant[1];
     mag = MAGNITUDE(del);
+    if (ZERO(mag)) {
+	if (s && s->interp)
+	    Tcl_AppendResult(s->interp, "slope: degenerate wheel vector\n", (char *)NULL);
+	return;
+    }
     work[0] = -1.0 * t[2] * del[2] / mag;
     if (del[0] < 0.0)
 	work[0] *= -1.0;
     work[1] = 0.0;
     work[2] = t[2] * fabs(del[0]) / mag;
-    b = (plano[1] - work[2]) - (del[2]/del[0]*(plano[0] - work[0]));
+
+    if (ZERO(del[0])) {
+	del[0] = (del[0] < 0.0) ? -SMALL_FASTF : SMALL_FASTF;
+    }
+    fastf_t sl = del[2] / del[0];
+    if (ZERO(sl)) {
+	sl = (sl < 0.0) ? -SMALL_FASTF : SMALL_FASTF;
+    }
+    b = (plano[1] - work[2]) - (sl * (plano[0] - work[0]));
     z = wh1[1];
     r = wh1[2];
     if (wh1[1] >= wh2[1]) {
@@ -742,7 +814,7 @@ slope(struct mged_state *s, fastf_t *wh1, fastf_t *wh2, fastf_t *t)
     }
     sol.s_values[2] = z - r - t[2];
     sol.s_values[1] = t[0];
-    sol.s_values[0] = (sol.s_values[2] - b) / (del[2] / del[0]);
+    sol.s_values[0] = (sol.s_values[2] - b) / sl;
     sol.s_values[3] = plano[0] + (del[0]/mag) - work[0] - sol.s_values[0];
     sol.s_values[4] = 0.0;
     sol.s_values[5] = plano[1] + (del[2]/mag) - work[2] - sol.s_values[2];
@@ -755,16 +827,15 @@ slope(struct mged_state *s, fastf_t *wh1, fastf_t *wh2, fastf_t *t)
 	j = i + 12;
 	VADD2(&sol.s_values[j], &sol.s_values[i], work);
     }
-
-    return;
 }
 
 
-void
+static void
 crdummy(fastf_t *w, fastf_t *t, int flag)
 {
     fastf_t temp;
     vect_t vec;
+    fastf_t denom;
     int i, j;
 
     vec[1] = 0.0;
@@ -777,13 +848,16 @@ crdummy(fastf_t *w, fastf_t *t, int flag)
     }
 
     vec[0] = w[2] + t[2] + 1.0;
-    vec[2] = ((plano[1] - w[1]) * vec[0]) / (plano[0] - w[0]);
+    denom = plano[0] - w[0];
+    if (ZERO(denom))
+	denom = (denom < 0.0) ? -SMALL_FASTF : SMALL_FASTF;
+    vec[2] = ((plano[1] - w[1]) * vec[0]) / denom;
     if (flag > 1)
 	vec[0] *= -1.0;
     if (vec[2] >= 0.0)
 	vec[2] *= -1.0;
     sol.s_values[0] = w[0];
-    sol.s_values[1] = t[0] -1.0;
+    sol.s_values[1] = t[0] - 1.0;
     sol.s_values[2] = w[1];
     VMOVE(&sol.s_values[3], vec);
     vec[2] = w[2] + t[2] + 1.0;
@@ -797,13 +871,10 @@ crdummy(fastf_t *w, fastf_t *t, int flag)
 	j = i + 12;
 	VADD2(&sol.s_values[j], &sol.s_values[i], vec);
     }
-
-    return;
-
 }
 
 
-void
+static void
 trcurve(fastf_t *wh, fastf_t *t)
 {
     sol.s_values[0] = wh[0];
@@ -817,7 +888,7 @@ trcurve(fastf_t *wh, fastf_t *t)
 }
 
 
-void
+static void
 bottom(fastf_t *vec1, fastf_t *vec2, fastf_t *t)
 {
     vect_t tvec;
@@ -842,7 +913,7 @@ bottom(fastf_t *vec1, fastf_t *vec2, fastf_t *t)
 }
 
 
-void
+static void
 top(fastf_t *vec1, fastf_t *vec2, fastf_t *t)
 {
     fastf_t tooch, mag;
@@ -854,6 +925,8 @@ top(fastf_t *vec1, fastf_t *vec2, fastf_t *t)
     del[1] = 0.0;
     del[2] = vec2[2] - vec1[2];
     mag = MAGNITUDE(del);
+    if (ZERO(mag))
+	return;
     VSCALE(tvec, del, tooch/mag);
     VSUB2(&sol.s_values[0], vec1, tvec);
     VADD2(del, del, tvec);
@@ -862,6 +935,8 @@ top(fastf_t *vec1, fastf_t *vec2, fastf_t *t)
     tvec[1] = t[1] - t[0];
     VCROSS(del, tvec, &sol.s_values[3]);
     mag = MAGNITUDE(del);
+    if (ZERO(mag))
+	return;
     if (del[2] < 0)
 	mag *= -1.0;
     VSCALE(&sol.s_values[9], del, t[2]/mag);
@@ -875,13 +950,13 @@ top(fastf_t *vec1, fastf_t *vec2, fastf_t *t)
 }
 
 
-void
+static void
 crregion(struct mged_state *s, char *region, char *op, const int *members, int number, char *solidname, int maxlen, int los_default, int mat_default)
 {
     int i;
     struct bu_list head;
 
-    if (s->dbip == DBI_NULL)
+    if (!s || s->dbip == DBI_NULL || !s->wdbp)
 	return;
 
     BU_LIST_INIT(&head);
@@ -890,8 +965,9 @@ crregion(struct mged_state *s, char *region, char *op, const int *members, int n
 	solidname[8] = '\0';
 	crname(s, solidname, members[i], maxlen);
 	if (db_lookup(s->dbip, solidname, LOOKUP_QUIET) == RT_DIR_NULL) {
-	    Tcl_AppendResult(s->interp, "region: ", region, " will skip member: ",
-			     solidname, "\n", (char *)NULL);
+	    if (s->interp)
+		Tcl_AppendResult(s->interp, "region: ", region, " will skip member: ",
+				 solidname, "\n", (char *)NULL);
 	    continue;
 	}
 	mk_addmember(solidname, &head, NULL, op[i]);
@@ -907,28 +983,12 @@ crregion(struct mged_state *s, char *region, char *op, const int *members, int n
  * convert integer to ascii wd format
  */
 static void
-track_itoa(struct mged_state *s, int n, char *cs, int w)
+track_itoa(struct mged_state *s, int n, char *cs, int maxlen)
 {
-    int c, i, j, sign;
-
-    if ((sign = n) < 0) n = -n;
-    i = 0;
-    do cs[i++] = n % 10 + '0';	while ((n /= 10) > 0);
-    if (sign < 0) cs[i++] = '-';
-
-    /* blank fill array
-     */
-    for (j = i; j < w; j++) cs[j] = ' ';
-    if (i > w)
-	Tcl_AppendResult(s->interp, "track_itoa: field length too small\n", (char *)NULL);
-    cs[w] = '\0';
-    /* reverse the array
-     */
-    for (i = 0, j = w - 1; i < j; i++, j--) {
-	c    = cs[i];
-	cs[i] = cs[j];
-	cs[j] =    c;
-    }
+    if (!cs || maxlen <= 0)
+	return;
+    snprintf(cs, (size_t)maxlen, "%d", n);
+    (void)s;
 }
 
 

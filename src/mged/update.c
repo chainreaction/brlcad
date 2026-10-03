@@ -43,7 +43,7 @@ extern int event_check(struct mged_state *s, int non_blocking);
 void
 mged_update(struct mged_state *s, int non_blocking)
 {
-    if (mged_shutting_down(s))
+    if (!s || mged_shutting_down(s))
 	return;
 
     if (non_blocking >= 0)
@@ -57,17 +57,23 @@ mged_update(struct mged_state *s, int non_blocking)
 int
 f_update(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 {
+    if (!clientData || !interp)
+	return TCL_ERROR;
+
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
     struct mged_state *s = ctp->s;
 
+    if (!s)
+	return TCL_ERROR;
+
     int non_blocking;
 
-    if (argc != 2 || sscanf(argv[1], "%d", &non_blocking) != 1) {
+    if (argc != 2 || !argv || !argv[1] || bu_sscanf(argv[1], "%d", &non_blocking) != 1) {
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "helpdevel mged_update");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 
 	return TCL_ERROR;
@@ -94,7 +100,8 @@ WaitVariableProc(ClientData clientData,	/* Pointer to integer to set to 1. */
 {
     int *donePtr = (int *) clientData;
 
-    *donePtr = 1;
+    if (donePtr)
+	*donePtr = 1;
     return (char *) NULL;
 }
 
@@ -107,6 +114,9 @@ WaitVisibilityProc(ClientData clientData,
 		   XEvent *eventPtr)
 {
     int *donePtr = (int *) clientData;
+
+    if (!donePtr || !eventPtr)
+	return;
 
     if (eventPtr->type == VisibilityNotify) {
 	*donePtr = 1;
@@ -127,6 +137,9 @@ WaitWindowProc(ClientData clientData,
 {
     int *donePtr = (int *) clientData;
 
+    if (!donePtr || !eventPtr)
+	return;
+
     if (eventPtr->type == DestroyNotify) {
 	*donePtr = 1;
     }
@@ -145,10 +158,19 @@ f_wait(ClientData clientData,	/* Main window associated with interpreter. */
        int argc,			/* Number of arguments. */
        const char *argv[])		/* Argument strings. */
 {
+    if (!interp)
+	return TCL_ERROR;
+
 #ifdef HAVE_TK
+    if (!clientData)
+	return TCL_ERROR;
+
     struct cmdtab *ctp = (struct cmdtab *)clientData;
     MGED_CK_CMD(ctp);
     struct mged_state *s = ctp->s;
+
+    if (!s)
+	return TCL_ERROR;
 
     int c;
     size_t length;
@@ -157,9 +179,10 @@ f_wait(ClientData clientData,	/* Main window associated with interpreter. */
     /* volatile to quell infinite loop warnings */
     volatile int done;
 
-    if (argc != 3) {
+    if (argc != 3 || !argv || !argv[0] || !argv[1] || !argv[2]) {
 	Tcl_AppendResult(interp, "wrong # args: should be \"",
-			 argv[0], " variable|visibility|window name\"", (char *) NULL);
+			 (argv && argv[0]) ? argv[0] : "wait",
+			 " variable|visibility|window name\"", (char *) NULL);
 	return TCL_ERROR;
     }
     c = argv[1][0];
