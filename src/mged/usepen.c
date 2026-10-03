@@ -23,10 +23,13 @@
 
 #include "common.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
 
+#include "bu/str.h"
+#include "bu/vls.h"
 #include "vmath.h"
 #include "bn.h"
 
@@ -48,21 +51,35 @@ int ipathpos = 0;	/* path index of illuminated element */
  * variable "illump" pointing at it.
  */
 static void
-illuminate(struct mged_state *s, int y) {
+illuminate(struct mged_state *s, int y)
+{
     struct display_list *gdlp;
     struct display_list *next_gdlp;
+    struct display_list *head;
     int count;
     struct bv_scene_obj *sp;
+
+    if (!s || !s->mged_curr_dm || !s->gedp)
+	return;
+
+    head = ged_dl(s->gedp);
+    if (!head)
+	return;
+
+    if (s->mged_curr_dm->dm_ndrawn <= 0)
+	return;
 
     /*
      * Divide the mouse into 's->mged_curr_dm->dm_ndrawn' VERTICAL
      * zones, and use the zone number as a sequential position among
      * solids which are drawn.
      */
-    count = ((fastf_t)y + BV_MAX) * s->mged_curr_dm->dm_ndrawn / BV_RANGE;
+    count = (int)(((fastf_t)y + BV_MAX) * s->mged_curr_dm->dm_ndrawn / BV_RANGE);
+    if (count < 0)
+	count = 0;
 
-    gdlp = BU_LIST_NEXT(display_list, (struct bu_list *)ged_dl(s->gedp));
-    while (BU_LIST_NOT_HEAD(gdlp, (struct bu_list *)ged_dl(s->gedp))) {
+    gdlp = BU_LIST_NEXT(display_list, (struct bu_list *)head);
+    while (BU_LIST_NOT_HEAD(gdlp, (struct bu_list *)head)) {
 	next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
 
 	for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
@@ -83,12 +100,13 @@ illuminate(struct mged_state *s, int y) {
     }
 
     s->update_views = 1;
-    dm_set_dirty(DMP, 1);
+    if (DMP)
+	dm_set_dirty(DMP, 1);
 }
 
 
 /*
- * advance illump or ipathpos
+ * Advance illump or ipathpos
  */
 int
 f_aip(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
@@ -98,21 +116,25 @@ f_aip(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
     struct mged_state *s = ctp->s;
 
     struct display_list *gdlp;
+    struct display_list *head;
     struct bv_scene_obj *sp;
     struct ged_bv_data *bdata = NULL;
+
+    if (!s || !s->mged_curr_dm || !s->gedp || !interp)
+	return TCL_ERROR;
 
     if (argc < 1 || 2 < argc) {
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "helpdevel aip");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
 
     if (!(s->mged_curr_dm->dm_ndrawn)) {
 	return TCL_OK;
-    } else if (s->global_editing_state != ST_S_PICK && s->global_editing_state != ST_O_PICK  && s->global_editing_state != ST_O_PATH) {
+    } else if (s->global_editing_state != ST_S_PICK && s->global_editing_state != ST_O_PICK && s->global_editing_state != ST_O_PATH) {
 	return TCL_OK;
     }
 
@@ -120,41 +142,44 @@ f_aip(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	bdata = (struct ged_bv_data *)illump->s_u_data;
 
     if (s->global_editing_state == ST_O_PATH && bdata) {
-	if (argc == 1 || *argv[1] == 'f') {
+	if (argc == 1 || (argv[1] && *argv[1] == 'f')) {
 	    ++ipathpos;
 	    if ((size_t)ipathpos >= bdata->s_fullpath.fp_len)
 		ipathpos = 0;
-	} else if (*argv[1] == 'b') {
+	} else if (argv[1] && *argv[1] == 'b') {
 	    --ipathpos;
 	    if (ipathpos < 0)
-		ipathpos = bdata->s_fullpath.fp_len-1;
+		ipathpos = (int)bdata->s_fullpath.fp_len - 1;
 	} else {
-	    Tcl_AppendResult(interp, "aip: bad parameter - ", argv[1], "\n", (char *)NULL);
+	    Tcl_AppendResult(interp, "aip: bad parameter - ", (argv[1] ? argv[1] : ""), "\n", (char *)NULL);
 	    return TCL_ERROR;
 	}
     } else {
-	if (illump == NULL)
+	if (illump == NULL || illum_gdlp == NULL)
 	    return TCL_ERROR;
+	head = ged_dl(s->gedp);
+	if (!head)
+	    return TCL_ERROR;
+
 	gdlp = illum_gdlp;
 	sp = illump;
 	sp->s_iflag = DOWN;
-	if (argc == 1 || *argv[1] == 'f') {
+	if (argc == 1 || (argv[1] && *argv[1] == 'f')) {
 	    if (BU_LIST_NEXT_IS_HEAD(sp, &gdlp->dl_head_scene_obj)) {
 		/* Advance the gdlp (i.e. display list) */
-		if (BU_LIST_NEXT_IS_HEAD(gdlp, (struct bu_list *)ged_dl(s->gedp)))
-		    gdlp = BU_LIST_NEXT(display_list, (struct bu_list *)ged_dl(s->gedp));
+		if (BU_LIST_NEXT_IS_HEAD(gdlp, (struct bu_list *)head))
+		    gdlp = BU_LIST_NEXT(display_list, (struct bu_list *)head);
 		else
 		    gdlp = BU_LIST_PNEXT(display_list, gdlp);
-
 
 		sp = BU_LIST_NEXT(bv_scene_obj, &gdlp->dl_head_scene_obj);
 	    } else
 		sp = BU_LIST_PNEXT(bv_scene_obj, sp);
-	} else if (*argv[1] == 'b') {
+	} else if (argv[1] && *argv[1] == 'b') {
 	    if (BU_LIST_PREV_IS_HEAD(sp, &gdlp->dl_head_scene_obj)) {
 		/* Advance the gdlp (i.e. display list) */
-		if (BU_LIST_PREV_IS_HEAD(gdlp, (struct bu_list *)ged_dl(s->gedp)))
-		    gdlp = BU_LIST_PREV(display_list, (struct bu_list *)ged_dl(s->gedp));
+		if (BU_LIST_PREV_IS_HEAD(gdlp, (struct bu_list *)head))
+		    gdlp = BU_LIST_PREV(display_list, (struct bu_list *)head);
 		else
 		    gdlp = BU_LIST_PLAST(display_list, gdlp);
 
@@ -162,7 +187,7 @@ f_aip(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	    } else
 		sp = BU_LIST_PLAST(bv_scene_obj, sp);
 	} else {
-	    Tcl_AppendResult(interp, "aip: bad parameter - ", argv[1], "\n", (char *)NULL);
+	    Tcl_AppendResult(interp, "aip: bad parameter - ", (argv[1] ? argv[1] : ""), "\n", (char *)NULL);
 	    return TCL_ERROR;
 	}
 
@@ -172,7 +197,8 @@ f_aip(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
     }
 
     s->update_views = 1;
-    dm_set_dirty(DMP, 1);
+    if (DMP)
+	dm_set_dirty(DMP, 1);
     return TCL_OK;
 }
 
@@ -184,7 +210,10 @@ f_aip(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 void
 wrt_view(struct mged_state *s, mat_t out, const mat_t change, const mat_t in)
 {
-    static mat_t t1, t2;
+    mat_t t1, t2;
+
+    if (!s || !out || !change || !in || !view_state || !view_state->vs_gvp)
+	return;
 
     bn_mat_mul(t1, view_state->vs_gvp->gv_center, in);
     bn_mat_mul(t2, change, t1);
@@ -204,6 +233,9 @@ void
 wrt_point(mat_t out, const mat_t change, const mat_t in, const point_t point)
 {
     mat_t t;
+
+    if (!out || !change || !in || !point)
+	return;
 
     bn_mat_xform_about_pnt(t, change, point);
 
@@ -234,8 +266,8 @@ f_matpick(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 
     struct display_list *gdlp;
     struct display_list *next_gdlp;
+    struct display_list *head;
     struct bv_scene_obj *sp;
-    char *cp;
     size_t j;
     int illum_only = 0;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
@@ -243,22 +275,25 @@ f_matpick(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 
     CHECK_DBI_NULL;
 
+    if (!s || !s->gedp || !interp || argc < 1 || !argv)
+	return TCL_ERROR;
+
     if (argc < 2 || 3 < argc) {
 	bu_vls_printf(&vls, "help matpick");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
 
-    if (BU_STR_EQUAL("-n", argv[1])) {
+    if (argc > 1 && argv[1] && BU_STR_EQUAL("-n", argv[1])) {
 	illum_only = 1;
 	--argc;
 	++argv;
     }
 
-    if (argc != 2) {
+    if (argc != 2 || !argv[1]) {
 	bu_vls_printf(&vls, "help matpick");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -266,23 +301,32 @@ f_matpick(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     if (not_state(s, ST_O_PATH, "Object Edit matrix pick"))
 	return TCL_ERROR;
 
-    if (!illump->s_u_data)
+    if (!illump || !illump->s_u_data)
 	return TCL_ERROR;
 
     bdata = (struct ged_bv_data *)illump->s_u_data;
 
-    if ((cp = strchr(argv[1], '/')) != NULL) {
+    if (strchr(argv[1], '/')) {
+	char arcpath[1024];
+	char *slash;
 	struct directory *d0, *d1;
-	if ((d1 = db_lookup(s->dbip, cp+1, LOOKUP_NOISY)) == RT_DIR_NULL)
+
+	bu_strlcpy(arcpath, argv[1], sizeof(arcpath));
+	slash = strchr(arcpath, '/');
+	if (!slash)
 	    return TCL_ERROR;
-	*cp = '\0';		/* modifies argv[1] */
-	if ((d0 = db_lookup(s->dbip, argv[1], LOOKUP_NOISY)) == RT_DIR_NULL)
+	*slash = '\0';
+
+	if ((d1 = db_lookup(s->dbip, slash + 1, LOOKUP_NOISY)) == RT_DIR_NULL)
 	    return TCL_ERROR;
+	if ((d0 = db_lookup(s->dbip, arcpath, LOOKUP_NOISY)) == RT_DIR_NULL)
+	    return TCL_ERROR;
+
 	/* Find arc on illump path which runs from d0 to d1 */
-	for (j=1; j < bdata->s_fullpath.fp_len; j++) {
-	    if (DB_FULL_PATH_GET(&bdata->s_fullpath, j-1) != d0) continue;
-	    if (DB_FULL_PATH_GET(&bdata->s_fullpath, j-0) != d1) continue;
-	    ipathpos = j;
+	for (j = 1; j < bdata->s_fullpath.fp_len; j++) {
+	    if (DB_FULL_PATH_GET(&bdata->s_fullpath, j - 1) != d0) continue;
+	    if (DB_FULL_PATH_GET(&bdata->s_fullpath, j) != d1) continue;
+	    ipathpos = (int)j;
 	    goto got;
 	}
 	Tcl_AppendResult(interp, "matpick: unable to find arc ", d0->d_namep,
@@ -293,31 +337,34 @@ f_matpick(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
 	ipathpos = atoi(argv[1]);
 	if (ipathpos < 0) ipathpos = 0;
 	else if ((size_t)ipathpos >= bdata->s_fullpath.fp_len)
-	    ipathpos = bdata->s_fullpath.fp_len-1;
+	    ipathpos = (int)bdata->s_fullpath.fp_len - 1;
     }
  got:
     /* Include all solids with same tree top */
-    gdlp = BU_LIST_NEXT(display_list, (struct bu_list *)ged_dl(s->gedp));
-    while (BU_LIST_NOT_HEAD(gdlp, (struct bu_list *)ged_dl(s->gedp))) {
-	next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
+    head = ged_dl(s->gedp);
+    if (head) {
+	gdlp = BU_LIST_NEXT(display_list, (struct bu_list *)head);
+	while (BU_LIST_NOT_HEAD(gdlp, (struct bu_list *)head)) {
+	    next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
 
-	for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
-	    if (!sp->s_u_data)
-		continue;
-	    struct ged_bv_data *bdatas = (struct ged_bv_data *)sp->s_u_data;
-	    for (j = 0; j <= (size_t)ipathpos; j++) {
-		if (DB_FULL_PATH_GET(&bdatas->s_fullpath, j) !=
-		    DB_FULL_PATH_GET(&bdata->s_fullpath, j))
-		    break;
+	    for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
+		if (!sp->s_u_data)
+		    continue;
+		struct ged_bv_data *bdatas = (struct ged_bv_data *)sp->s_u_data;
+		for (j = 0; j <= (size_t)ipathpos; j++) {
+		    if (DB_FULL_PATH_GET(&bdatas->s_fullpath, j) !=
+			DB_FULL_PATH_GET(&bdata->s_fullpath, j))
+			break;
+		}
+		/* Only accept if top of tree is identical */
+		if (j == (size_t)ipathpos + 1)
+		    sp->s_iflag = UP;
+		else
+		    sp->s_iflag = DOWN;
 	    }
-	    /* Only accept if top of tree is identical */
-	    if (j == (size_t)ipathpos+1)
-		sp->s_iflag = UP;
-	    else
-		sp->s_iflag = DOWN;
-	}
 
-	gdlp = next_gdlp;
+	    gdlp = next_gdlp;
+	}
     }
 
     if (!illum_only) {
@@ -332,7 +379,8 @@ f_matpick(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[
     }
 
     s->update_views = 1;
-    dm_set_dirty(DMP, 1);
+    if (DMP)
+	dm_set_dirty(DMP, 1);
     return TCL_OK;
 }
 
@@ -384,11 +432,12 @@ f_mouse(
     int xpos;
     int ypos;
 
-    if (argc < 4 || 4 < argc) {
+    if (!s || !interp || argc < 4 || 4 < argc || !argv[1] || !argv[2] || !argv[3]) {
 	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	bu_vls_printf(&vls, "help M");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	if (interp)
+	    Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 
 	return TCL_ERROR;
@@ -406,7 +455,7 @@ f_mouse(
     mousevec[Y] =  ypos * INV_BV;
     mousevec[Z] = 0;
 
-    if (mged_variables->mv_faceplate && mged_variables->mv_orig_gui && up) {
+    if (mged_variables && mged_variables->mv_faceplate && mged_variables->mv_orig_gui && up) {
 	/*
 	 * If mouse press is in scroll area, see if scrolling, and if so,
 	 * divert this mouse press.
@@ -483,10 +532,10 @@ f_mouse(
 	     * Convert DT position to path element select
 	     */
 	    isave = ipathpos;
-	    if (bdata)
-		ipathpos = bdata->s_fullpath.fp_len-1 - (
-			(ypos+(int)BV_MAX) * (bdata->s_fullpath.fp_len) / (int)BV_RANGE);
-	    if (ipathpos != isave)
+	    if (bdata && bdata->s_fullpath.fp_len > 0)
+		ipathpos = (int)bdata->s_fullpath.fp_len - 1 - (
+			(ypos + (int)BV_MAX) * ((int)bdata->s_fullpath.fp_len) / (int)BV_RANGE);
+	    if (ipathpos != isave && view_state)
 		view_state->vs_flag = 1;
 	    return TCL_OK;
 
@@ -495,7 +544,7 @@ f_mouse(
 	case ST_VIEW:
 	    /*
 	     * Use the DT for moving view center.  Make indicated
-	     * point be new view center (NEW).
+	       point be new view center (NEW).
 	     */
 	    slewview(s, mousevec);
 	    return TCL_OK;
@@ -503,17 +552,19 @@ f_mouse(
 	case ST_O_PICK:
 	    ipathpos = 0;
 	    (void)chg_state(s, ST_O_PICK, ST_O_PATH, "mouse press");
-	    view_state->vs_flag = 1;
+	    if (view_state)
+		view_state->vs_flag = 1;
 	    return TCL_OK;
 
 	case ST_S_PICK:
 	    /* Check details, Init menu, set state */
 	    init_sedit(s);		/* does chg_state */
-	    view_state->vs_flag = 1;
+	    if (view_state)
+		view_state->vs_flag = 1;
 	    return TCL_OK;
 
 	case ST_S_EDIT:
-	    if ((SEDIT_TRAN || SEDIT_SCALE || SEDIT_PICK) && mged_variables->mv_transform == 'e')
+	    if ((SEDIT_TRAN || SEDIT_SCALE || SEDIT_PICK) && mged_variables && mged_variables->mv_transform == 'e')
 		sedit_mouse(s, mousevec);
 	    else
 		slewview(s, mousevec);
@@ -530,8 +581,8 @@ f_mouse(
 	     */
 	    {
 		const char *av[3];
-		char num[8];
-		(void)sprintf(num, "%d", ipathpos);
+		char num[32];
+		(void)snprintf(num, sizeof(num), "%d", ipathpos);
 		av[0] = "matpick";
 		av[1] = num;
 		av[2] = (char *)NULL;
@@ -539,17 +590,8 @@ f_mouse(
 		return f_matpick(clientData, interp, 2, av);
 	    }
 
-	/* ST_S_VPICK was a separate state in vanilla MGED for NURBS vertex
-	 * picking.  In the reworked architecture, VPICK is handled entirely
-	 * within the ft_edit_xy callback (ECMD_SPLINE_VPICK case in
-	 * rt_edit_bspline_edit_xy): it stores the cursor position in b->v_pos
-	 * and then ft_edit calls sedit_vpick() internally.  The ST_S_VPICK
-	 * state is no longer needed and the code below is retained only for
-	 * historical reference. */
-	/* case ST_S_VPICK:  sedit_vpick(MEDIT(s)); return TCL_OK; */
-
 	case ST_O_EDIT:
-	    if ((OEDIT_TRAN || OEDIT_SCALE) && mged_variables->mv_transform == 'e')
+	    if ((OEDIT_TRAN || OEDIT_SCALE) && mged_variables && mged_variables->mv_transform == 'e')
 		objedit_mouse(s, mousevec);
 	    else
 		slewview(s, mousevec);

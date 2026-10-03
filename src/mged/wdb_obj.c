@@ -31,6 +31,7 @@
 
 #include "common.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
@@ -40,12 +41,15 @@
 
 #include "tcl.h"
 
-
 #include "bu/cmd.h"
 #include "bu/getopt.h"
+#include "bu/hook.h"
+#include "bu/log.h"
 #include "bu/path.h"
 #include "bu/sort.h"
+#include "bu/str.h"
 #include "bu/units.h"
+#include "bu/vls.h"
 #include "bn.h"
 #include "vmath.h"
 #include "rt/db4.h"
@@ -64,23 +68,28 @@
 #endif
 
 #define WDB_TCL_CHECK_READ_ONLY \
-    if ((Tcl_Interp *)wdbp->wdb_interp) { \
-	if (wdbp->dbip->dbi_read_only) { \
+    if (wdbp && (Tcl_Interp *)wdbp->wdb_interp) { \
+	if (wdbp->dbip && wdbp->dbip->dbi_read_only) { \
 	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "Sorry, this database is READ-ONLY\n", (char *)NULL); \
 	    return TCL_ERROR; \
 	} \
-    } else { \
+    } else if (wdbp && wdbp->dbip && wdbp->dbip->dbi_read_only) { \
 	bu_log("Sorry, this database is READ-ONLY\n"); \
     }
 
 static int
 wdb_decode_dbip(const char *dbip_string, struct db_i **dbipp)
 {
-    if (sscanf(dbip_string, "%p", (void **)dbipp) != 1) {
+    if (!dbip_string || !dbipp)
+	return BRLCAD_ERROR;
+
+    if (bu_sscanf(dbip_string, "%p", (void **)dbipp) != 1) {
 	return BRLCAD_ERROR;
     }
 
-    /* Could core dump */
+    if (!*dbipp)
+	return BRLCAD_ERROR;
+
     RT_CK_DBI(*dbipp);
 
     return TCL_OK;
@@ -96,32 +105,31 @@ wdb_prep_dbip(const char *filename)
 {
     struct db_i *dbip;
 
+    if (!filename || filename[0] == '\0')
+	return DBI_NULL;
+
     /* open database */
     if (((dbip = db_open(filename, DB_OPEN_READWRITE)) == DBI_NULL) &&
-	    ((dbip = db_open(filename, DB_OPEN_READONLY)) == DBI_NULL)) {
+	((dbip = db_open(filename, DB_OPEN_READONLY)) == DBI_NULL)) {
 
 	/*
 	 * Check to see if we can access the database
 	 */
 	if (bu_file_exists(filename, NULL) && !bu_file_readable(filename)) {
 	    bu_log("wdb_prep_dbip: %s is not readable\n", filename);
-
 	    return DBI_NULL;
 	}
 
 	/* db_create does a db_dirbuild */
 	if ((dbip = db_create(filename, BRLCAD_DB_FORMAT_LATEST)) == DBI_NULL) {
 	    bu_log("wdb_prep_dbip: failed to create %s\n", filename);
-
-	    if (dbip == DBI_NULL)
-		bu_log("wdb_prep_dbip: no database is currently opened!");
-
+	    bu_log("wdb_prep_dbip: no database is currently opened!\n");
 	    return DBI_NULL;
 	}
-    } else
+    } else {
 	/* --- Scan geometry database and build in-memory directory --- */
 	db_dirbuild(dbip);
-
+    }
 
     return dbip;
 }
@@ -131,16 +139,18 @@ wdb_stub_cmd(struct rt_wdb *wdbp,
 	int argc,
 	const char *argv[])
 {
+    if (!wdbp || !wdbp->wdb_interp || argc < 1 || !argv || !argv[0])
+	return TCL_ERROR;
+
     if (argc != 1) {
-	struct bu_vls vls;
-	bu_vls_init(&vls);
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 	bu_vls_printf(&vls, "helplib_alias wdb_%s %s", argv[0], argv[0]);
-	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls));
+	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
 
-    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "%s: no database is currently opened!", argv[0], (char *)NULL);
+    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, argv[0], ": no database is currently opened!", (char *)NULL);
     return TCL_ERROR;
 }
 
@@ -157,8 +167,10 @@ wdb_stub_tcl(void *clientData,
 	const char *argv[])
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
+    if (!wdbp || argc < 2 || !argv)
+	return TCL_ERROR;
 
-    return wdb_stub_cmd(wdbp, argc-1, argv+1);
+    return wdb_stub_cmd(wdbp, argc - 1, argv + 1);
 }
 
 static void
@@ -173,6 +185,9 @@ wdb_find_ref(struct db_i *UNUSED(dbip),
     char *obj_name;
     char *comb_name;
     Tcl_Interp *interp = (Tcl_Interp *)user_ptr3;
+
+    if (!comb_leaf || !object || !comb_name_ptr || !interp)
+	return;
 
     RT_CK_TREE(comb_leaf);
 
@@ -193,15 +208,18 @@ wdb_find_cmd(struct rt_wdb *wdbp,
     int k;
     struct directory *dp;
     struct rt_db_internal intern;
-    struct rt_comb_internal *comb=(struct rt_comb_internal *)NULL;
+    struct rt_comb_internal *comb = (struct rt_comb_internal *)NULL;
     struct bu_vls vls;
     int c;
     int aflag = 0;		/* look at all objects */
 
+    if (!wdbp || !wdbp->dbip || !wdbp->wdb_interp || argc < 1 || !argv)
+	return TCL_ERROR;
+
     if (argc < 2) {
 	bu_vls_init(&vls);
 	bu_vls_printf(&vls, "helplib_alias wdb_find %s", argv[0]);
-	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls));
+	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -215,7 +233,7 @@ wdb_find_cmd(struct rt_wdb *wdbp,
 	    default:
 		bu_vls_init(&vls);
 		bu_vls_printf(&vls, "Unrecognized option - %c", c);
-		Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+		Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 		bu_vls_free(&vls);
 		return TCL_ERROR;
 	}
@@ -262,8 +280,10 @@ static int
 wdb_find_tcl(void *clientData, int argc, const char *argv[])
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
+    if (!wdbp || argc < 2 || !argv)
+	return TCL_ERROR;
 
-    return wdb_find_cmd(wdbp, argc-1, argv+1);
+    return wdb_find_cmd(wdbp, argc - 1, argv + 1);
 }
 
 /**
@@ -276,8 +296,10 @@ wdb_importFg4Section_tcl(void *clientData,
 			 const char *argv[])
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
+    if (!wdbp || argc < 2 || !argv)
+	return TCL_ERROR;
 
-    return wdb_importFg4Section_cmd(wdbp, argc-1, argv+1);
+    return wdb_importFg4Section_cmd(wdbp, argc - 1, argv + 1);
 }
 
 static int
@@ -294,14 +316,15 @@ wdb_make_bb_cmd(struct rt_wdb *wdbp,
     int use_air = 0;
     struct ged ged; // Use a local ged struct to avoid needing global MGED state
 
+    if (!wdbp || !wdbp->dbip || !wdbp->wdb_interp || argc < 1 || !argv)
+	return TCL_ERROR;
+
     WDB_TCL_CHECK_READ_ONLY;
 
     if (argc < 3) {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 	bu_vls_printf(&vls, "helplib_alias wdb_make_bb %s", argv[0]);
-	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls));
+	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -312,39 +335,43 @@ wdb_make_bb_cmd(struct rt_wdb *wdbp,
     i = 1;
 
     /* look for a USEAIR option */
-    if (BU_STR_EQUAL(argv[i], "-u")) {
+    if (i < argc && BU_STR_EQUAL(argv[i], "-u")) {
 	use_air = 1;
 	i++;
+    }
+
+    if (i >= argc) {
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "make_bb: missing bounding box name\n", (char *)NULL);
+	ged_free(&ged);
+	return TCL_ERROR;
     }
 
     /* Since arguments may be paths, make sure first argument isn't */
     if (strchr(argv[i], '/')) {
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "Do not use '/' in solid names: ", argv[i], "\n", (char *)NULL);
-
-	/* release any allocated memory */
 	ged_free(&ged);
-
 	return TCL_ERROR;
     }
 
     new_name = argv[i++];
+
+    if (i >= argc) {
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "make_bb: no objects specified to bound\n", (char *)NULL);
+	ged_free(&ged);
+	return TCL_ERROR;
+    }
+
     if (db_lookup(wdbp->dbip, new_name, LOOKUP_QUIET) != RT_DIR_NULL) {
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, new_name, " already exists\n", (char *)NULL);
-
-	/* release any allocated memory */
 	ged_free(&ged);
-
 	return TCL_ERROR;
     }
 
-    if (rt_obj_bounds(ged.ged_result_str, ged.dbip, argc-2, (const char **)argv+2, use_air, rpp_min, rpp_max) == TCL_ERROR) {
-	/* release any allocated memory */
+    if (rt_obj_bounds(ged.ged_result_str, ged.dbip, argc - i, (const char **)argv + i, use_air, rpp_min, rpp_max) == TCL_ERROR) {
 	ged_free(&ged);
-
 	return TCL_ERROR;
     }
 
-    /* release any allocated memory */
     ged_free(&ged);
 
     /* build bounding RPP */
@@ -368,6 +395,7 @@ wdb_make_bb_cmd(struct rt_wdb *wdbp,
 
     dp = db_diradd(wdbp->dbip, new_name, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&new_intern.idb_type);
     if (dp == RT_DIR_NULL) {
+	rt_db_free_internal(&new_intern);
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "Cannot add ", new_name, " to directory\n", (char *)NULL);
 	return TCL_ERROR;
     }
@@ -375,7 +403,6 @@ wdb_make_bb_cmd(struct rt_wdb *wdbp,
     if (rt_db_put_internal(dp, wdbp->dbip, &new_intern) < 0) {
 	rt_db_free_internal(&new_intern);
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "Database write error, aborting.\n", (char *)NULL);
-
 	return TCL_ERROR;
     }
 
@@ -397,8 +424,10 @@ wdb_make_bb_tcl(void *clientData,
 		const char *argv[])
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
+    if (!wdbp || argc < 2 || !argv)
+	return TCL_ERROR;
 
-    return wdb_make_bb_cmd(wdbp, argc-1, argv+1);
+    return wdb_make_bb_cmd(wdbp, argc - 1, argv + 1);
 }
 
 static int
@@ -416,18 +445,18 @@ wdb_move_arb_edge_cmd(struct rt_wdb *wdbp,
     double scan[3];
     struct bu_vls error_msg;
 
+    if (!wdbp || !wdbp->wdb_interp || argc < 1 || !argv)
+	return TCL_ERROR;
+
     if (argc != 4) {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 	bu_vls_printf(&vls, "helplib_alias wdb_move_arb_edge %s", argv[0]);
-	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls));
+	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
-
 	return TCL_ERROR;
     }
 
-    if (wdbp->dbip == 0) {
+    if (!wdbp->dbip) {
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp,
 			 "db does not support lookup operations",
 			 (char *)NULL);
@@ -441,32 +470,25 @@ wdb_move_arb_edge_cmd(struct rt_wdb *wdbp,
 	intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_ARB8) {
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "Object not an ARB", (char *)NULL);
 	rt_db_free_internal(&intern);
-
 	return TCL_ERROR;
     }
 
-    if (sscanf(argv[2], "%d", &edge) != 1) {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
+    if (bu_sscanf(argv[2], "%d", &edge) != 1) {
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 	bu_vls_printf(&vls, "bad edge - %s", argv[2]);
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
 	rt_db_free_internal(&intern);
-
 	return TCL_ERROR;
     }
     edge -= 1;
 
-    if (sscanf(argv[3], "%lf %lf %lf", &scan[X], &scan[Y], &scan[Z]) != 3) {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
+    if (bu_sscanf(argv[3], "%lf %lf %lf", &scan[X], &scan[Y], &scan[Z]) != 3) {
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 	bu_vls_printf(&vls, "bad point - %s", argv[3]);
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
 	rt_db_free_internal(&intern);
-
 	return TCL_ERROR;
     }
     /* convert double to fastf_t */
@@ -502,46 +524,38 @@ wdb_move_arb_edge_cmd(struct rt_wdb *wdbp,
 	default:
 	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "unrecognized arb type", (char *)NULL);
 	    rt_db_free_internal(&intern);
-
 	    return TCL_ERROR;
     }
 
     /* check the edge id */
     if (bad_edge_id) {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 	bu_vls_printf(&vls, "bad edge - %s", argv[2]);
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
 	rt_db_free_internal(&intern);
-
 	return TCL_ERROR;
     }
 
     bu_vls_init(&error_msg);
     if (rt_arb_calc_planes(&error_msg, arb, arb_type, planes, &wdbp->wdb_tol)) {
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&error_msg), (char *)0);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&error_msg), (char *)0);
 	rt_db_free_internal(&intern);
 	bu_vls_free(&error_msg);
-
 	return TCL_ERROR;
     }
 
     if (rt_arb_edit(&error_msg, arb, NULL, arb_type, edge, RT_ARB_EDIT_DEFAULT, pt, planes, &wdbp->wdb_tol)) {
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&error_msg), (char *)0);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&error_msg), (char *)0);
 	rt_db_free_internal(&intern);
 	bu_vls_free(&error_msg);
-
 	return TCL_ERROR;
     }
     bu_vls_free(&error_msg);
 
     {
 	int i;
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	for (i = 0; i < 8; ++i) {
 	    bu_vls_printf(&vls, "V%d {%g %g %g} ",
@@ -551,7 +565,7 @@ wdb_move_arb_edge_cmd(struct rt_wdb *wdbp,
 			  arb->pt[i][Z]);
 	}
 
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
     }
 
@@ -573,8 +587,10 @@ wdb_move_arb_edge_tcl(void *clientData,
 		      const char *argv[])
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
+    if (!wdbp || argc < 2 || !argv)
+	return TCL_ERROR;
 
-    return wdb_move_arb_edge_cmd(wdbp, argc-1, argv+1);
+    return wdb_move_arb_edge_cmd(wdbp, argc - 1, argv + 1);
 }
 
 
@@ -593,18 +609,18 @@ wdb_move_arb_face_cmd(struct rt_wdb *wdbp,
     /* intentionally double for scan */
     double pt[3];
 
+    if (!wdbp || !wdbp->wdb_interp || argc < 1 || !argv)
+	return TCL_ERROR;
+
     if (argc != 4) {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 	bu_vls_printf(&vls, "helplib_alias wdb_move_arb_face %s", argv[0]);
-	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls));
+	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
-
 	return TCL_ERROR;
     }
 
-    if (wdbp->dbip == 0) {
+    if (!wdbp->dbip) {
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp,
 			 "db does not support lookup operations",
 			 (char *)NULL);
@@ -618,45 +634,35 @@ wdb_move_arb_face_cmd(struct rt_wdb *wdbp,
 	intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_ARB8) {
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "Object not an ARB", (char *)NULL);
 	rt_db_free_internal(&intern);
-
-	return TCL_OK;
-    }
-
-    if (sscanf(argv[2], "%d", &face) != 1) {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
-	bu_vls_printf(&vls, "bad face - %s", argv[2]);
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
-	bu_vls_free(&vls);
-	rt_db_free_internal(&intern);
-
 	return TCL_ERROR;
     }
 
-    /*XXX need better checking of the face */
+    if (bu_sscanf(argv[2], "%d", &face) != 1) {
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
+	bu_vls_printf(&vls, "bad face - %s", argv[2]);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
+	bu_vls_free(&vls);
+	rt_db_free_internal(&intern);
+	return TCL_ERROR;
+    }
+
+    /* check face index */
     face -= 1;
     if (face < 0 || 5 < face) {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 	bu_vls_printf(&vls, "bad face - %s", argv[2]);
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
 	rt_db_free_internal(&intern);
-
 	return TCL_ERROR;
     }
 
-    if (sscanf(argv[3], "%lf %lf %lf", &pt[X], &pt[Y], &pt[Z]) != 3) {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
+    if (bu_sscanf(argv[3], "%lf %lf %lf", &pt[X], &pt[Y], &pt[Z]) != 3) {
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 	bu_vls_printf(&vls, "bad point - %s", argv[3]);
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
 	rt_db_free_internal(&intern);
-
 	return TCL_ERROR;
     }
 
@@ -667,10 +673,9 @@ wdb_move_arb_face_cmd(struct rt_wdb *wdbp,
 
     bu_vls_init(&error_msg);
     if (rt_arb_calc_planes(&error_msg, arb, arb_type, planes, &wdbp->wdb_tol)) {
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&error_msg), (char *)0);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&error_msg), (char *)0);
 	rt_db_free_internal(&intern);
 	bu_vls_free(&error_msg);
-
 	return TCL_ERROR;
     }
     bu_vls_free(&error_msg);
@@ -683,9 +688,7 @@ wdb_move_arb_face_cmd(struct rt_wdb *wdbp,
 
     {
 	int i;
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	for (i = 0; i < 8; ++i) {
 	    bu_vls_printf(&vls, "V%d {%g %g %g} ",
@@ -695,7 +698,7 @@ wdb_move_arb_face_cmd(struct rt_wdb *wdbp,
 			  arb->pt[i][Z]);
 	}
 
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
     }
 
@@ -717,8 +720,10 @@ wdb_move_arb_face_tcl(void *clientData,
 		      const char *argv[])
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
+    if (!wdbp || argc < 2 || !argv)
+	return TCL_ERROR;
 
-    return wdb_move_arb_face_cmd(wdbp, argc-1, argv+1);
+    return wdb_move_arb_face_cmd(wdbp, argc - 1, argv + 1);
 }
 
 static int
@@ -734,18 +739,21 @@ wdb_nmg_collapse_cmd(struct rt_wdb *wdbp,
     struct face *fp;
     long count;
     char count_str[32];
+    double tol_scan = 0.0;
+    double angle_scan = 0.0;
     fastf_t tol_coll;
     fastf_t min_angle;
     struct bu_list *vlfree = &rt_vlfree;
 
+    if (!wdbp || !wdbp->dbip || !wdbp->wdb_interp || argc < 1 || !argv)
+	return TCL_ERROR;
+
     WDB_TCL_CHECK_READ_ONLY;
 
     if (argc < 4) {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 	bu_vls_printf(&vls, "helplib_alias wdb_nmg_collapse %s", argv[0]);
-	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls));
+	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -782,20 +790,34 @@ wdb_nmg_collapse_cmd(struct rt_wdb *wdbp,
 	return TCL_ERROR;
     }
 
-    tol_coll = atof(argv[3]) * wdbp->dbip->dbi_local2base;
-    if (tol_coll <= 0.0) {
+    if (bu_sscanf(argv[3], "%lf", &tol_scan) != 1) {
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "Invalid tolerance distance\n", (char *)NULL);
+	rt_db_free_internal(&intern);
+	return TCL_ERROR;
+    }
+
+    tol_coll = (fastf_t)tol_scan * wdbp->dbip->dbi_local2base;
+    if (tol_coll <= 0.0 || ZERO(tol_coll)) {
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "tolerance distance too small\n", (char *)NULL);
+	rt_db_free_internal(&intern);
 	return TCL_ERROR;
     }
 
     if (argc == 5) {
-	min_angle = atof(argv[4]);
-	if (min_angle < 0.0) {
-	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "Minimum angle cannot be less than zero\n", (char *)NULL);
+	if (bu_sscanf(argv[4], "%lf", &angle_scan) != 1) {
+	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "Invalid minimum angle\n", (char *)NULL);
+	    rt_db_free_internal(&intern);
 	    return TCL_ERROR;
 	}
-    } else
+	min_angle = (fastf_t)angle_scan;
+	if (min_angle < 0.0) {
+	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "Minimum angle cannot be less than zero\n", (char *)NULL);
+	    rt_db_free_internal(&intern);
+	    return TCL_ERROR;
+	}
+    } else {
 	min_angle = 0.0;
+    }
 
     m = (struct model *)intern.idb_ptr;
     NMG_CK_MODEL(m);
@@ -807,6 +829,7 @@ wdb_nmg_collapse_cmd(struct rt_wdb *wdbp,
 	    bu_ptbl_free(&faces);
 	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, argv[0], " cannot be applied to \"", argv[1],
 			     "\" because it has non-planar faces\n", (char *)NULL);
+	    rt_db_free_internal(&intern);
 	    return TCL_ERROR;
 	}
     }
@@ -833,7 +856,7 @@ wdb_nmg_collapse_cmd(struct rt_wdb *wdbp,
 
     rt_db_free_internal(&intern);
 
-    sprintf(count_str, "%ld", count);
+    snprintf(count_str, sizeof(count_str), "%ld", count);
     Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, count_str, " edges collapsed\n", (char *)NULL);
 
     return TCL_OK;
@@ -850,8 +873,10 @@ wdb_nmg_collapse_tcl(void *clientData,
 		     const char *argv[])
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
+    if (!wdbp || argc < 2 || !argv)
+	return TCL_ERROR;
 
-    return wdb_nmg_collapse_cmd(wdbp, argc-1, argv+1);
+    return wdb_nmg_collapse_cmd(wdbp, argc - 1, argv + 1);
 }
 
 static int
@@ -859,12 +884,12 @@ wdb_observer_cmd(struct rt_wdb *wdbp,
 		 int argc,
 		 const char *argv[])
 {
-    if (argc < 2) {
+    if (!wdbp || argc < 2 || !argv) {
 	bu_log("ERROR: expecting two or more arguments\n");
 	return TCL_ERROR;
     }
 
-    return bu_observer_cmd((ClientData)&wdbp->wdb_observers, argc-1, (const char **)argv+1);
+    return bu_observer_cmd((ClientData)&wdbp->wdb_observers, argc - 1, (const char **)argv + 1);
 }
 
 
@@ -882,8 +907,10 @@ wdb_observer_tcl(void *clientData,
 		 const char *argv[])
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
+    if (!wdbp || argc < 2 || !argv)
+	return TCL_ERROR;
 
-    return wdb_observer_cmd(wdbp, argc-1, argv+1);
+    return wdb_observer_cmd(wdbp, argc - 1, argv + 1);
 }
 
 static int
@@ -893,6 +920,9 @@ wdb_reopen_cmd(struct rt_wdb *wdbp,
 {
     struct db_i *dbip;
     struct bu_vls vls;
+
+    if (!wdbp || !wdbp->dbip || !wdbp->wdb_interp || argc < 1 || !argv)
+	return TCL_ERROR;
 
     /* get database filename */
     if (argc == 1) {
@@ -906,16 +936,9 @@ wdb_reopen_cmd(struct rt_wdb *wdbp,
 	    return TCL_ERROR;
 	}
 
-	// Stash wdb type and interp
-	int wdb_type = wdbp->type;
-	void *interp = wdbp->wdb_interp;
-
 	/* close current database */
 	db_close(wdbp->dbip);
-
-	/* get the appropriate type for the new dbip */
-	wdbp = wdb_dbopen(dbip, wdb_type);
-	wdbp->wdb_interp = interp;
+	wdbp->dbip = dbip;
 
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, wdbp->dbip->dbi_filename, (char *)NULL);
 	return TCL_OK;
@@ -923,7 +946,7 @@ wdb_reopen_cmd(struct rt_wdb *wdbp,
 
     bu_vls_init(&vls);
     bu_vls_printf(&vls, "helplib_alias wdb_reopen %s", argv[0]);
-    Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls));
+    Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls));
     bu_vls_free(&vls);
     return TCL_ERROR;
 }
@@ -940,8 +963,10 @@ wdb_reopen_tcl(void *clientData,
 	       const char *argv[])
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
+    if (!wdbp || argc < 2 || !argv)
+	return TCL_ERROR;
 
-    return wdb_reopen_cmd(wdbp, argc-1, argv+1);
+    return wdb_reopen_cmd(wdbp, argc - 1, argv + 1);
 }
 
 
@@ -970,10 +995,13 @@ wdb_rmap_cmd(struct rt_wdb *wdbp,
     struct wdb_id_names *inp;
     struct bu_vls vls;
 
+    if (!wdbp || !wdbp->dbip || !wdbp->wdb_interp || argc < 1 || !argv)
+	return TCL_ERROR;
+
     if (argc != 1) {
 	bu_vls_init(&vls);
 	bu_vls_printf(&vls, "helplib_alias wdb_rmap %s", argv[0]);
-	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls));
+	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -981,7 +1009,7 @@ wdb_rmap_cmd(struct rt_wdb *wdbp,
     if (db_version(wdbp->dbip) < 5) {
 	bu_vls_init(&vls);
 	bu_vls_printf(&vls, "%s is not available prior to version 5 of the .g file format\n", argv[0]);
-	Tcl_SetResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), TCL_VOLATILE);
+	Tcl_SetResult((Tcl_Interp *)wdbp->wdb_interp, (char *)bu_vls_cstr(&vls), TCL_VOLATILE);
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -999,7 +1027,7 @@ wdb_rmap_cmd(struct rt_wdb *wdbp,
 	if (rt_db_get_internal(&intern, dp, wdbp->dbip, (fastf_t *)NULL) < 0) {
 	    bu_vls_init(&vls);
 	    bu_vls_strcat(&vls, "Database read error, aborting");
-	    Tcl_SetResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), TCL_VOLATILE);
+	    Tcl_SetResult((Tcl_Interp *)wdbp->wdb_interp, (char *)bu_vls_cstr(&vls), TCL_VOLATILE);
 	    bu_vls_free(&vls);
 	    return TCL_ERROR;
 	}
@@ -1049,10 +1077,10 @@ wdb_rmap_cmd(struct rt_wdb *wdbp,
 	/* start sublist of names associated with this id */
 	while (BU_LIST_WHILE (inp, wdb_id_names, &itnp->headName.l)) {
 	    /* add the this name to this sublist */
-	    if (strchr(bu_vls_addr(&inp->name), ' ')) {
-		bu_vls_printf(&vls, "\"%s\" ", bu_vls_addr(&inp->name));
+	    if (strchr(bu_vls_cstr(&inp->name), ' ')) {
+		bu_vls_printf(&vls, "\"%s\" ", bu_vls_cstr(&inp->name));
 	    } else {
-		bu_vls_printf(&vls, "%s ", bu_vls_addr(&inp->name));
+		bu_vls_printf(&vls, "%s ", bu_vls_cstr(&inp->name));
 	    }
 
 	    BU_LIST_DEQUEUE(&inp->l);
@@ -1067,7 +1095,7 @@ wdb_rmap_cmd(struct rt_wdb *wdbp,
     }
     bu_vls_trimspace(&vls);
 
-    Tcl_SetResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), TCL_VOLATILE);
+    Tcl_SetResult((Tcl_Interp *)wdbp->wdb_interp, (char *)bu_vls_cstr(&vls), TCL_VOLATILE);
     bu_vls_free(&vls);
 
     return TCL_OK;
@@ -1082,8 +1110,10 @@ static int
 wdb_rmap_tcl(void *clientData, int argc, const char *argv[])
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
+    if (!wdbp || argc < 2 || !argv)
+	return TCL_ERROR;
 
-    return wdb_rmap_cmd(wdbp, argc-1, argv+1);
+    return wdb_rmap_cmd(wdbp, argc - 1, argv + 1);
 }
 
 static int
@@ -1104,18 +1134,18 @@ wdb_rotate_arb_face_cmd(struct rt_wdb *wdbp,
     /* intentionally double for scan */
     double pt[3];
 
+    if (!wdbp || !wdbp->wdb_interp || argc < 1 || !argv)
+	return TCL_ERROR;
+
     if (argc != 5) {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
-	bu_vls_printf(&vls, "helplib_alias wdb_move_arb_face %s", argv[0]);
-	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls));
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
+	bu_vls_printf(&vls, "helplib_alias wdb_rotate_arb_face %s", argv[0]);
+	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
-
 	return TCL_ERROR;
     }
 
-    if (wdbp->dbip == 0) {
+    if (!wdbp->dbip) {
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp,
 			 "db does not support lookup operations",
 			 (char *)NULL);
@@ -1129,72 +1159,55 @@ wdb_rotate_arb_face_cmd(struct rt_wdb *wdbp,
 	intern.idb_minor_type != DB5_MINORTYPE_BRLCAD_ARB8) {
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "Object not an ARB", (char *)NULL);
 	rt_db_free_internal(&intern);
-
-	return TCL_OK;
-    }
-
-    if (sscanf(argv[2], "%d", &face) != 1) {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
-	bu_vls_printf(&vls, "bad face - %s", argv[2]);
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
-	bu_vls_free(&vls);
-	rt_db_free_internal(&intern);
-
 	return TCL_ERROR;
     }
 
-    /*XXX need better checking of the face */
+    if (bu_sscanf(argv[2], "%d", &face) != 1) {
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
+	bu_vls_printf(&vls, "bad face - %s", argv[2]);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
+	bu_vls_free(&vls);
+	rt_db_free_internal(&intern);
+	return TCL_ERROR;
+    }
+
+    /* check face index */
     face -= 1;
     if (face < 0 || 5 < face) {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 	bu_vls_printf(&vls, "bad face - %s", argv[2]);
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
 	rt_db_free_internal(&intern);
-
 	return TCL_ERROR;
     }
 
-    if (sscanf(argv[3], "%d", &vi) != 1) {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
-	bu_vls_printf(&vls, "bad vertex index - %s", argv[2]);
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+    if (bu_sscanf(argv[3], "%d", &vi) != 1) {
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
+	bu_vls_printf(&vls, "bad vertex index - %s", argv[3]);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
 	rt_db_free_internal(&intern);
-
 	return TCL_ERROR;
     }
 
-
-    /*XXX need better checking of the vertex index */
+    /* check vertex index */
     vi -= 1;
     if (vi < 0 || 7 < vi) {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
-	bu_vls_printf(&vls, "bad vertex - %s", argv[2]);
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
+	bu_vls_printf(&vls, "bad vertex - %s", argv[3]);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
 	rt_db_free_internal(&intern);
-
 	return TCL_ERROR;
     }
 
-    if (sscanf(argv[4], "%lf %lf %lf", &pt[X], &pt[Y], &pt[Z]) != 3) {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
-	bu_vls_printf(&vls, "bad point - %s", argv[3]);
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+    if (bu_sscanf(argv[4], "%lf %lf %lf", &pt[X], &pt[Y], &pt[Z]) != 3) {
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
+	bu_vls_printf(&vls, "bad point - %s", argv[4]);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
 	rt_db_free_internal(&intern);
-
 	return TCL_ERROR;
     }
 
@@ -1205,10 +1218,9 @@ wdb_rotate_arb_face_cmd(struct rt_wdb *wdbp,
 
     bu_vls_init(&error_msg);
     if (rt_arb_calc_planes(&error_msg, arb, arb_type, planes, &wdbp->wdb_tol)) {
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&error_msg), (char *)0);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&error_msg), (char *)0);
 	rt_db_free_internal(&intern);
 	bu_vls_free(&error_msg);
-
 	return TCL_ERROR;
     }
     bu_vls_free(&error_msg);
@@ -1221,7 +1233,7 @@ wdb_rotate_arb_face_cmd(struct rt_wdb *wdbp,
     }
 
     /* special case for arb7 */
-    if (arb_type == ARB7  && pnt5)
+    if (arb_type == ARB7 && pnt5)
 	vi = 4;
 
     {
@@ -1241,16 +1253,14 @@ wdb_rotate_arb_face_cmd(struct rt_wdb *wdbp,
 	VMOVE(tempvec, arb->pt[vi]);
 
 	/* set D of planar equation to anchor at fixed vertex */
-	planes[face][3]=VDOT(plane, tempvec);
+	planes[face][3] = VDOT(plane, tempvec);
     }
 
     /* calculate new points for the arb */
     (void)rt_arb_calc_points(arb, arb_type, (const plane_t *)planes, &wdbp->wdb_tol);
 
     {
-	struct bu_vls vls;
-
-	bu_vls_init(&vls);
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
 	for (i = 0; i < 8; ++i) {
 	    bu_vls_printf(&vls, "V%d {%g %g %g} ",
@@ -1260,7 +1270,7 @@ wdb_rotate_arb_face_cmd(struct rt_wdb *wdbp,
 			  arb->pt[i][Z]);
 	}
 
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
     }
 
@@ -1282,13 +1292,15 @@ wdb_rotate_arb_face_tcl(void *clientData,
 			const char *argv[])
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
+    if (!wdbp || argc < 2 || !argv)
+	return TCL_ERROR;
 
-    return wdb_rotate_arb_face_cmd(wdbp, argc-1, argv+1);
+    return wdb_rotate_arb_face_cmd(wdbp, argc - 1, argv + 1);
 }
 
 
 /**
- *@brief
+ * @brief
  * Called when the named proc created by rt_gettrees() is destroyed.
  */
 static void
@@ -1297,12 +1309,20 @@ wdb_deleteProc_rt(void *clientData)
     struct application *ap = (struct application *)clientData;
     struct rt_i *rtip;
 
+    if (!ap)
+	return;
+
     RT_AP_CHECK(ap);
     rtip = ap->a_rt_i;
     RT_CK_RTI(rtip);
 
     rt_i_destroy(rtip);
     ap->a_rt_i = (struct rt_i *)NULL;
+
+    if (ap->a_resource) {
+	bu_free(ap->a_resource, "struct resource");
+	ap->a_resource = (struct resource *)NULL;
+    }
 
     bu_free((void *)ap, "struct application");
 }
@@ -1314,18 +1334,20 @@ wdb_rt_gettrees_cmd(struct rt_wdb *wdbp,
 {
     struct rt_i *rtip;
     struct application *ap;
+    struct resource *resp;
     const char *newprocname;
-    static struct resource resp = RT_RESOURCE_INIT_ZERO;
+
+    if (!wdbp || !wdbp->dbip || !wdbp->wdb_interp || argc < 1 || !argv)
+	return TCL_ERROR;
 
     RT_CK_WDB(wdbp);
     RT_CK_DBI(wdbp->dbip);
 
     if (argc < 3) {
-	struct bu_vls vls;
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-	bu_vls_init(&vls);
 	bu_vls_printf(&vls, "helplib_alias wdb_rt_gettrees %s", argv[0]);
-	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls));
+	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -1352,13 +1374,14 @@ wdb_rt_gettrees_cmd(struct rt_wdb *wdbp,
 	break;
     }
 
-    if (argc-2 < 1) {
+    if (argc - 2 < 1) {
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp,
 			 "rt_gettrees(): no geometry has been specified ", (char *)NULL);
+	rt_i_destroy(rtip);
 	return TCL_ERROR;
     }
 
-    if (rt_gettrees(rtip, argc-2, (const char **)&argv[2], 1) < 0) {
+    if (rt_gettrees(rtip, argc - 2, (const char **)&argv[2], 1) < 0) {
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp,
 			 "rt_gettrees() returned error", (char *)NULL);
 	rt_i_destroy(rtip);
@@ -1369,23 +1392,17 @@ wdb_rt_gettrees_cmd(struct rt_wdb *wdbp,
     rtip->rti_hasty_prep = 1;	/* Tcl isn't going to fire many rays */
 
     /*
-     * In case of multiple instances of the library, make sure that
-     * each instance has a separate resource structure,
-     * because the bit vector lengths depend on # of solids.
-     *
-     * And the "overwrite" sequence in Tcl is to create the new
-     * proc before running the Tcl_CmdDeleteProc on the old one,
-     * which in this case would trash rt_uniresource. (TODO - is rt_uniresource still involved here?)
-     *
+     * Allocate separate resource structure per instance.
      * Once on the rti_resources list, rt_clean() will clean 'em up.
      */
-    rt_init_resource(&resp, 0, rtip);
+    BU_ALLOC(resp, struct resource);
+    rt_init_resource(resp, 0, rtip);
     BU_ASSERT(BU_PTBL_GET(&rtip->rti_resources, 0) != NULL);
 
     BU_ALLOC(ap, struct application);
     RT_APPLICATION_INIT(ap);
     ap->a_magic = RT_AP_MAGIC;
-    ap->a_resource = &resp;
+    ap->a_resource = resp;
     ap->a_rt_i = rtip;
     ap->a_purpose = "Conquest!";
 
@@ -1404,7 +1421,7 @@ wdb_rt_gettrees_cmd(struct rt_wdb *wdbp,
 
 
 /**
- *@brief
+ * @brief
  * Given an instance of a database and the name of some treetops,
  * create a named "ray-tracing" object (proc) which will respond to
  * subsequent operations.
@@ -1419,8 +1436,10 @@ wdb_rt_gettrees_tcl(void *clientData,
 		    const char *argv[])
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
+    if (!wdbp || argc < 2 || !argv)
+	return TCL_ERROR;
 
-    return wdb_rt_gettrees_cmd(wdbp, argc-1, argv+1);
+    return wdb_rt_gettrees_cmd(wdbp, argc - 1, argv + 1);
 }
 
 static int
@@ -1431,23 +1450,28 @@ wdb_tol_cmd(struct rt_wdb *wdbp,
     struct bu_vls vls;
     double f;
 
-    if (argc < 1 || ((argc-1)%2 != 0)) {
+    if (!wdbp || !wdbp->wdb_interp || argc < 1 || !argv)
+	return TCL_ERROR;
+
+    if (argc < 1 || (argc != 2 && ((argc - 1) % 2 != 0))) {
 	bu_vls_init(&vls);
 	bu_vls_printf(&vls, "helplib_alias wdb_tol %s", argv[0]);
-	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls));
+	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
 
     /* print all tolerance settings */
     if (argc == 1) {
+	fastf_t p;
+
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "Current tolerance settings are:\n", (char *)NULL);
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "Tessellation tolerances:\n", (char *)NULL);
 
 	if (wdbp->wdb_ttol.abs > 0.0) {
 	    bu_vls_init(&vls);
 	    bu_vls_printf(&vls, "\tabs %g mm\n", wdbp->wdb_ttol.abs);
-	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	    bu_vls_free(&vls);
 	} else {
 	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "\tabs None\n", (char *)NULL);
@@ -1457,7 +1481,7 @@ wdb_tol_cmd(struct rt_wdb *wdbp,
 	    bu_vls_init(&vls);
 	    bu_vls_printf(&vls, "\trel %g (%g%%)\n",
 			  wdbp->wdb_ttol.rel, wdbp->wdb_ttol.rel * 100.0);
-	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	    bu_vls_free(&vls);
 	} else {
 	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "\trel None\n", (char *)NULL);
@@ -1476,7 +1500,7 @@ wdb_tol_cmd(struct rt_wdb *wdbp,
 
 	    bu_vls_printf(&vls, "\tnorm %g degrees (%d deg %d min %g sec)\n",
 			  wdbp->wdb_ttol.norm * RAD2DEG, deg, min, sec);
-	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	    bu_vls_free(&vls);
 	} else {
 	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, "\tnorm None\n", (char *)NULL);
@@ -1484,11 +1508,14 @@ wdb_tol_cmd(struct rt_wdb *wdbp,
 
 	bu_vls_init(&vls);
 	bu_vls_printf(&vls, "Calculational tolerances:\n");
+	p = wdbp->wdb_tol.perp;
+	if (p > 1.0) p = 1.0;
+	else if (p < -1.0) p = -1.0;
 	bu_vls_printf(&vls,
 		      "\tdistance = %g mm\n\tperpendicularity = %g (cosine of %g degrees)",
 		      wdbp->wdb_tol.dist, wdbp->wdb_tol.perp,
-		      acos(wdbp->wdb_tol.perp)*RAD2DEG);
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+		      acos(p) * RAD2DEG);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
 
 	return TCL_OK;
@@ -1531,7 +1558,7 @@ wdb_tol_cmd(struct rt_wdb *wdbp,
 		break;
 	}
 
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
 	return status;
     }
@@ -1544,10 +1571,10 @@ wdb_tol_cmd(struct rt_wdb *wdbp,
     while (argc > 0) {
 
 	/* set the specified tolerance(s) */
-	if (sscanf(argv[1], "%lf", &f) != 1) {
+	if (bu_sscanf(argv[1], "%lf", &f) != 1) {
 	    bu_vls_init(&vls);
 	    bu_vls_printf(&vls, "bad tolerance - %s", argv[1]);
-	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+	    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	    bu_vls_free(&vls);
 
 	    return TCL_ERROR;
@@ -1565,7 +1592,7 @@ wdb_tol_cmd(struct rt_wdb *wdbp,
 		if (f < wdbp->wdb_tol.dist) {
 		    bu_vls_init(&vls);
 		    bu_vls_printf(&vls, "absolute tolerance cannot be less than distance tolerance, clamped to %f\n", wdbp->wdb_tol.dist);
-		    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+		    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 		    bu_vls_free(&vls);
 		}
 		wdbp->wdb_ttol.abs = f;
@@ -1610,14 +1637,14 @@ wdb_tol_cmd(struct rt_wdb *wdbp,
 	    default:
 		bu_vls_init(&vls);
 		bu_vls_printf(&vls, "unrecognized tolerance type - %s", argv[0]);
-		Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+		Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 		bu_vls_free(&vls);
 
 		return TCL_ERROR;
 	}
 
-	argc-=2;
-	argv+=2;
+	argc -= 2;
+	argv += 2;
     }
 
     return TCL_OK;
@@ -1641,8 +1668,10 @@ wdb_tol_tcl(void *clientData,
 	    const char *argv[])
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
+    if (!wdbp || argc < 2 || !argv)
+	return TCL_ERROR;
 
-    return wdb_tol_cmd(wdbp, argc-1, argv+1);
+    return wdb_tol_cmd(wdbp, argc - 1, argv + 1);
 }
 
 static int
@@ -1654,7 +1683,7 @@ wdb_track_cmd(void *data,
     struct rt_wdb *wdbp = (struct rt_wdb *)data;
     int retval;
 
-    if (argc != 15) {
+    if (!wdbp || !argv || argc != 15) {
 	bu_log("ERROR: expecting 15 arguments\n");
 	return TCL_ERROR;
     }
@@ -1662,8 +1691,9 @@ wdb_track_cmd(void *data,
     retval = ged_track2(&log_str, wdbp, argv);
 
     if (bu_vls_strlen(&log_str) > 0) {
-	bu_log("%s", bu_vls_addr(&log_str));
+	bu_log("%s", bu_vls_cstr(&log_str));
     }
+    bu_vls_free(&log_str);
 
     switch (retval) {
 	case BRLCAD_OK:
@@ -1683,10 +1713,13 @@ wdb_track_cmd(void *data,
 static int
 wdb_track_tcl(void *clientData,
 	      int argc,
-	      const char *argv[]) {
+	      const char *argv[])
+{
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
+    if (!wdbp || argc < 2 || !argv)
+	return TCL_ERROR;
 
-    return wdb_track_cmd(wdbp, argc-1, argv+1);
+    return wdb_track_cmd(wdbp, argc - 1, argv + 1);
 }
 
 static int
@@ -1699,10 +1732,13 @@ wdb_units_cmd(struct rt_wdb *wdbp,
     const char *str;
     int sflag = 0;
 
+    if (!wdbp || !wdbp->dbip || !wdbp->wdb_interp || argc < 1 || !argv)
+	return TCL_ERROR;
+
     bu_vls_init(&vls);
     if (argc < 1 || 2 < argc) {
 	bu_vls_printf(&vls, "helplib_alias wdb_units %s", argv[0]);
-	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls));
+	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
@@ -1724,13 +1760,14 @@ wdb_units_cmd(struct rt_wdb *wdbp,
 	    bu_vls_printf(&vls, "You are editing in '%s'.  1 %s = %g mm \n",
 			  str, str, wdbp->dbip->dbi_local2base);
 
-	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
 	return TCL_OK;
     }
 
     /* Allow inputs of the form "25cm" or "3ft" */
-    if ((loc2mm = bu_mm_value(argv[1])) <= 0) {
+    loc2mm = bu_mm_value(argv[1]);
+    if (ZERO(loc2mm) || loc2mm <= 0.0) {
 	Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, argv[1], ": unrecognized unit\n",
 			 "valid units: <um|mm|cm|m|km|in|ft|yd|mi>\n", (char *)NULL);
 	bu_vls_free(&vls);
@@ -1750,7 +1787,7 @@ wdb_units_cmd(struct rt_wdb *wdbp,
     if (!str) str = "Unknown_unit";
     bu_vls_printf(&vls, "You are now editing in '%s'.  1 %s = %g mm \n",
 		  str, str, wdbp->dbip->dbi_local2base);
-    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)NULL);
+    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)NULL);
     bu_vls_free(&vls);
 
     return TCL_OK;
@@ -1758,7 +1795,7 @@ wdb_units_cmd(struct rt_wdb *wdbp,
 
 
 /**
- *@brief
+ * @brief
  * Set/get the database units.
  *
  * Usage:
@@ -1770,8 +1807,10 @@ wdb_units_tcl(void *clientData,
 	      const char *argv[])
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
+    if (!wdbp || argc < 2 || !argv)
+	return TCL_ERROR;
 
-    return wdb_units_cmd(wdbp, argc-1, argv+1);
+    return wdb_units_cmd(wdbp, argc - 1, argv + 1);
 }
 
 static int
@@ -1781,17 +1820,20 @@ wdb_version_cmd(struct rt_wdb *wdbp,
 {
     struct bu_vls vls;
 
+    if (!wdbp || !wdbp->dbip || !wdbp->wdb_interp || argc < 1 || !argv)
+	return TCL_ERROR;
+
     bu_vls_init(&vls);
 
     if (argc != 1) {
 	bu_vls_printf(&vls, "helplib_alias wdb_version %s", argv[0]);
-	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls));
+	Tcl_Eval((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return TCL_ERROR;
     }
 
     bu_vls_printf(&vls, "%d", db_version(wdbp->dbip));
-    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_addr(&vls), (char *)0);
+    Tcl_AppendResult((Tcl_Interp *)wdbp->wdb_interp, bu_vls_cstr(&vls), (char *)0);
     bu_vls_free(&vls);
 
     return TCL_OK;
@@ -1808,8 +1850,10 @@ wdb_version_tcl(void *clientData,
 		const char *argv[])
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
+    if (!wdbp || argc < 2 || !argv)
+	return TCL_ERROR;
 
-    return wdb_version_cmd(wdbp, argc-1, argv+1);
+    return wdb_version_cmd(wdbp, argc - 1, argv + 1);
 }
 
 
@@ -1935,7 +1979,7 @@ do_nothing(void *UNUSED(nada1), void *UNUSED(nada2))
 
 
 /**
- *@brief
+ * @brief
  * Generic interface for database commands.
  *
  * @par Usage:
@@ -1947,10 +1991,14 @@ int
 wdb_cmd(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
-    RT_CHECK_WDB(wdbp);
     struct ged ged; // Use a local ged struct to avoid needing global MGED state
     struct bu_hook_list save_hook_list = BU_HOOK_LIST_INIT_ZERO;
     int ret;
+
+    if (!clientData || !interp || argc < 1 || !argv)
+	return TCL_ERROR;
+
+    RT_CHECK_WDB(wdbp);
 
     /* look for the new libged commands before trying one of the old ones */
     ged_init(&ged);
@@ -1964,8 +2012,8 @@ wdb_cmd(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
      */
     bu_log_add_hook(do_nothing, NULL);
 
-    if (bu_cmd(wdb_newcmds, argc-1, argv+1, 0, (ClientData)&ged, &ret) == BRLCAD_OK) {
-	Tcl_SetResult(interp, bu_vls_addr(ged.ged_result_str), TCL_VOLATILE);
+    if (bu_cmd(wdb_newcmds, argc - 1, argv + 1, 0, (ClientData)&ged, &ret) == BRLCAD_OK) {
+	Tcl_SetResult(interp, (char *)bu_vls_cstr(ged.ged_result_str), TCL_VOLATILE);
 	ged_free(&ged);
 	/* unsuppress bu_log output */
 	bu_log_hook_restore_all(&save_hook_list);
@@ -1994,11 +2042,17 @@ wdb_deleteProc(ClientData clientData)
 {
     struct rt_wdb *wdbp = (struct rt_wdb *)clientData;
 
+    if (!wdbp)
+	return;
+
     /* free observers */
     bu_observer_free(&wdbp->wdb_observers);
 
     /* close up shop */
-    db_close(wdbp->dbip);
+    if (wdbp->dbip) {
+	db_close(wdbp->dbip);
+	wdbp->dbip = DBI_NULL;
+    }
 }
 
 
@@ -2011,7 +2065,7 @@ static int
 wdb_create_cmd(struct rt_wdb *wdbp,	/* pointer to object */
 	       const char *oname)	/* object name */
 {
-    if (wdbp == RT_WDB_NULL) {
+    if (wdbp == RT_WDB_NULL || !wdbp->wdb_interp || !oname) {
 	return TCL_ERROR;
     }
 
@@ -2037,8 +2091,9 @@ wdb_init_obj(Tcl_Interp *interp,
 	     struct rt_wdb *wdbp,	/* pointer to object */
 	     const char *oname)	/* object name */
 {
-    if (wdbp == RT_WDB_NULL) {
-	Tcl_AppendResult(interp, "wdb_open ", oname, " failed (wdb_init_obj)", NULL);
+    if (!interp || wdbp == RT_WDB_NULL || !oname) {
+	if (interp)
+	    Tcl_AppendResult(interp, "wdb_open ", (oname ? oname : "(null)"), " failed (wdb_init_obj)", NULL);
 	return TCL_ERROR;
     }
 
@@ -2056,7 +2111,7 @@ wdb_init_obj(Tcl_Interp *interp,
 
 
 /**
- *@brief
+ * @brief
  * A TCL interface to wdb_fopen() and wdb_dbopen().
  *
  * @par Implicit return -
@@ -2069,12 +2124,12 @@ wdb_init_obj(Tcl_Interp *interp,
  *
  * @par Example -
  * set wdbp [wdb_open .inmem inmem $dbip]
- *@n	.inmem get box.s
- *@n	.inmem close
+ * @n	.inmem get box.s
+ * @n	.inmem close
  *
- *@n wdb_open db file "bob.g"
- *@n db get white.r
- *@n db close
+ * @n wdb_open db file "bob.g"
+ * @n db get white.r
+ * @n db close
  */
 static int
 wdb_open_tcl(ClientData UNUSED(clientData),
@@ -2085,10 +2140,13 @@ wdb_open_tcl(ClientData UNUSED(clientData),
     struct rt_wdb *wdbp;
     int ret;
 
+    if (!interp || argc < 1 || !argv)
+	return TCL_ERROR;
+
     if (argc == 1) {
 	/* get list of database objects */
 	for (BU_LIST_FOR (wdbp, rt_wdb, &rtg_headwdb.l))
-	    Tcl_AppendResult(interp, bu_vls_addr(&wdbp->wdb_name), " ", (char *)NULL);
+	    Tcl_AppendResult(interp, bu_vls_cstr(&wdbp->wdb_name), " ", (char *)NULL);
 
 	return TCL_OK;
     }
@@ -2161,6 +2219,9 @@ Usage: wdb_open\n\
 int
 Wdb_Init(Tcl_Interp *interp)
 {
+    if (!interp)
+	return TCL_ERROR;
+
     (void)Tcl_CreateCommand(interp, (const char *)"wdb_open", wdb_open_tcl,
 			    (ClientData)NULL, (Tcl_CmdDeleteProc *)NULL);
 
