@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1407,
-    "pending_files": 2086,
-    "last_updated": "2026-10-03T05:09:22Z",
-    "total_issues": 323,
-    "reviewed_count": 1407
+    "reviewed_files": 1412,
+    "pending_files": 2081,
+    "last_updated": "2026-10-03T05:15:35Z",
+    "total_issues": 324,
+    "reviewed_count": 1412
   },
   "files": [
     {
@@ -34482,50 +34482,60 @@
       "path": "src/proc-db/seashell.c",
       "subsystem": "src/proc-db",
       "lines": 669,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T05:15:35Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0303"
+      ]
     },
     {
       "id": 3256,
       "path": "src/proc-db/sketch.c",
       "subsystem": "src/proc-db",
       "lines": 191,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T05:15:35Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0303"
+      ]
     },
     {
       "id": 3257,
       "path": "src/proc-db/specimen.c",
       "subsystem": "src/proc-db",
       "lines": 439,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T05:15:35Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0303"
+      ]
     },
     {
       "id": 3258,
       "path": "src/proc-db/sphflake.c",
       "subsystem": "src/proc-db",
       "lines": 593,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T05:15:35Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0303"
+      ]
     },
     {
       "id": 3259,
       "path": "src/proc-db/spltest.c",
       "subsystem": "src/proc-db",
       "lines": 214,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T05:15:35Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0303"
+      ]
     },
     {
       "id": 3260,
