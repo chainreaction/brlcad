@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1459,
-    "pending_files": 2034,
-    "last_updated": "2026-10-03T08:44:00Z",
-    "total_issues": 332,
-    "reviewed_count": 1459
+    "reviewed_files": 1461,
+    "pending_files": 2032,
+    "last_updated": "2026-10-03T08:48:00Z",
+    "total_issues": 333,
+    "reviewed_count": 1461
   },
   "files": [
     {
@@ -34916,20 +34916,24 @@
       "path": "src/qged/plugins/polygon/QPolyMod.cpp",
       "subsystem": "src/qged",
       "lines": 998,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:48:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0312"
+      ]
     },
     {
       "id": 3293,
       "path": "src/qged/plugins/polygon/QPolyMod.h",
       "subsystem": "src/qged",
       "lines": 126,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:48:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0312"
+      ]
     },
     {
       "id": 3294,
