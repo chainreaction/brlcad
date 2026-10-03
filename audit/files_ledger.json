@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1372,
-    "pending_files": 2121,
-    "last_updated": "2026-10-02T23:00:00Z",
-    "total_issues": 316,
-    "reviewed_count": 1372
+    "reviewed_files": 1378,
+    "pending_files": 2115,
+    "last_updated": "2026-10-03T04:14:00Z",
+    "total_issues": 317,
+    "reviewed_count": 1378
   },
   "files": [
     {
@@ -34062,60 +34062,72 @@
       "path": "src/proc-db/bottest.c",
       "subsystem": "src/proc-db",
       "lines": 344,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-10-03T04:14:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0296"
+      ]
     },
     {
       "id": 3221,
       "path": "src/proc-db/brep_cobb.cpp",
       "subsystem": "src/proc-db",
       "lines": 343,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-10-03T04:14:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0296"
+      ]
     },
     {
       "id": 3222,
       "path": "src/proc-db/brep_cube.cpp",
       "subsystem": "src/proc-db",
       "lines": 308,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-10-03T04:14:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0296"
+      ]
     },
     {
       "id": 3223,
       "path": "src/proc-db/brep_invalid.cpp",
       "subsystem": "src/proc-db",
       "lines": 446,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-10-03T04:14:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0296"
+      ]
     },
     {
       "id": 3224,
       "path": "src/proc-db/brep_simple.cpp",
       "subsystem": "src/proc-db",
       "lines": 310,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-10-03T04:14:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0296"
+      ]
     },
     {
       "id": 3225,
       "path": "src/proc-db/brep_surface.cpp",
       "subsystem": "src/proc-db",
       "lines": 259,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-10-03T04:14:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0296"
+      ]
     },
     {
       "id": 3226,
