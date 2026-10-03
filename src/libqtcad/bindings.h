@@ -23,6 +23,9 @@
  *
  */
 
+#ifndef QTCAD_BINDINGS_H
+#define QTCAD_BINDINGS_H
+
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QWheelEvent>
@@ -38,4 +41,6 @@ int CADmouseReleaseEvent(struct bview *v, double x_press, double y_press, int x_
 int CADmouseMoveEvent(struct bview *v, int x_prev, int y_prev, QMouseEvent *e, int mode);
 
 int CADwheelEvent(struct bview *v, QWheelEvent *e);
+
+#endif /* QTCAD_BINDINGS_H */
 

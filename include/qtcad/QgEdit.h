@@ -48,33 +48,33 @@ class QTCAD_EXPORT QgNameEdit: public QLineEdit
     Q_OBJECT
 
     public:
-	QgNameEdit(QWidget *p = NULL, struct db_i *e_dbip = NULL, int e_type = DB5_MINORTYPE_RESERVED);
+	explicit QgNameEdit(QWidget *p = nullptr, struct db_i *e_dbip = nullptr, int e_type = DB5_MINORTYPE_RESERVED);
 	~QgNameEdit();
 
 	int n_state = 1;
 
     private:
-	struct db_i *dbip = NULL;
+	struct db_i *dbip = nullptr;
 	// Minor type from rt/db5.h
 	int expected_type = DB5_MINORTYPE_RESERVED;
-}
+};
 
 /* 3D point/vector input */
-class QTCAD_EXPORT QVectEdit: public QWidget
+class QTCAD_EXPORT QgVectEdit: public QWidget
 {
     Q_OBJECT
 
     public:
-	QgVectEdit(QWidget *p = NULL);
+	explicit QgVectEdit(QWidget *p = nullptr);
 	~QgVectEdit();
 
 	// QDoubleValidator inputs for each value
-	QLineEdit *vx;
-	QLineEdit *vy;
-	QLineEdit *vz;
+	QLineEdit *vx = nullptr;
+	QLineEdit *vy = nullptr;
+	QLineEdit *vz = nullptr;
 
 	vect_t v = VINIT_ZERO;
-}
+};
 
 
 /* Need a "pre-packaged" one line palette of controls for standard operations
@@ -105,9 +105,6 @@ class QTCAD_EXPORT QVectEdit: public QWidget
  * ways... We would probably need to upgrade the signal/slot channels to
  * be able to convey the extra information, but on the larger scale it would
  * collapse the current View/Instance/Edit paradigm in qged to just View/Edit. */
-
-
-/* Need to consider whether
 
 #endif //QGEDIT_H
 

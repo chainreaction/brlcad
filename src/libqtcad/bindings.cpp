@@ -73,7 +73,7 @@ restore_drag_bounds_update(struct bview *v, int refresh_bounds)
 int CADkeyPressEvent(struct bview *v, int UNUSED(x_prev), int UNUSED(y_prev), QKeyEvent *k)
 {
     QTCAD_EVENT("keyPress", 1);
-    if (!v)
+    if (!v || !k)
 	return 0;
 #if 0
     QString kstr = QKeySequence(k->key()).toString();
@@ -81,13 +81,16 @@ int CADkeyPressEvent(struct bview *v, int UNUSED(x_prev), int UNUSED(y_prev), QK
 #endif
     switch (k->key()) {
 	case 'A':
-	    v->gv_s->gv_adc.draw = !v->gv_s->gv_adc.draw;
+	    if (v->gv_s)
+		v->gv_s->gv_adc.draw = !v->gv_s->gv_adc.draw;
 	    return 1;
 	case 'M':
-	    v->gv_s->gv_model_axes.draw = !v->gv_s->gv_model_axes.draw;
+	    if (v->gv_s)
+		v->gv_s->gv_model_axes.draw = !v->gv_s->gv_model_axes.draw;
 	    return 1;
 	case 'V':
-	    v->gv_s->gv_view_axes.draw = !v->gv_s->gv_view_axes.draw;
+	    if (v->gv_s)
+		v->gv_s->gv_view_axes.draw = !v->gv_s->gv_view_axes.draw;
 	    return 1;
 	case '2':
 	    bn_decode_vect(v->gv_aet, "35 -25 0");
@@ -158,7 +161,7 @@ int CADmousePressEvent(struct bview *v, int UNUSED(x_prev), int UNUSED(y_prev), 
 {
     QTCAD_EVENT("mousePress", 1);
 
-    if (!v)
+    if (!v || !e)
 	return 0;
 
     // If we're intending the mouse motion to do the work,
@@ -189,7 +192,7 @@ int CADmouseReleaseEvent(struct bview *v, double x_press, double y_press, int UN
 {
     QTCAD_EVENT("mouseRelease", 1);
 
-    if (!v)
+    if (!v || !e)
 	return 0;
 
     restore_drag_bounds_update(v, 1);
@@ -259,7 +262,7 @@ int CADmouseMoveEvent(struct bview *v, int x_prev, int y_prev, QMouseEvent *e, i
 {
     QTCAD_EVENT("mouseMove", 2);
 
-    if (!v)
+    if (!v || !e)
 	return 0;
 
     unsigned long long view_flags = BV_IDLE;
@@ -323,7 +326,8 @@ int CADmouseMoveEvent(struct bview *v, int x_prev, int y_prev, QMouseEvent *e, i
 	// Build in some sensitivity to how much the mouse moved when doing
 	// a motion based scale
 	int mdelta = (abs(dx) > abs(dy)) ? dx : -dy;
-	int f = (int)(2*100*(double)abs(mdelta)/(double)v->gv_height);
+	double vh = (v->gv_height > 0) ? (double)v->gv_height : 1.0;
+	int f = (int)(2*100*(double)abs(mdelta) / vh);
 
 	if (mdelta > 0) {
 	    dy = 101 + f;
@@ -354,7 +358,7 @@ int CADwheelEvent(struct bview *v, QWheelEvent *e)
 {
     QTCAD_EVENT("mouseWheel", 1);
 
-    if (!v)
+    if (!v || !e)
 	return 0;
 
     QPoint delta = e->angleDelta();

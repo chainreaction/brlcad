@@ -34,11 +34,8 @@
 void noMessageOutput(QtMsgType, const QMessageLogContext&, const QString&) {}
 
 QConsoleListener::QConsoleListener(int fd, struct ged_subprocess *p, bu_process_io_t t, ged_io_func_t c, void *d)
+    : process(p), callback(c), type(t), data(d), m_notifier(nullptr)
 {
-    this->process = p;
-    this->callback = c;
-    this->data = d;
-    this->type = t;
     QObject::connect(
 	    this, &QConsoleListener::finishedGetLine,
 	    this, &QConsoleListener::on_finishedGetLine,
@@ -60,11 +57,11 @@ QConsoleListener::QConsoleListener(int fd, struct ged_subprocess *p, bu_process_
     QObject::connect(m_notifier, &QSocketNotifier::activated, m_notifier,
 #endif
 	[this]() {
-	if (callback) {
+	if (callback && process && process->gedp && process->gedp->ged_result_str) {
 	  size_t s1 = bu_vls_strlen(process->gedp->ged_result_str);
 	  (*callback)(data, (int)type);
 	  size_t s2 = bu_vls_strlen(process->gedp->ged_result_str);
-	  if (s1 != s2) {
+	  if (s2 > s1) {
 	    struct bu_vls nstr = BU_VLS_INIT_ZERO;
 	    bu_vls_substr(&nstr, process->gedp->ged_result_str, s1, s2 - s1);
 	    QString strLine = QString::fromStdString(std::string(bu_vls_cstr(&nstr)));
@@ -77,7 +74,10 @@ QConsoleListener::QConsoleListener(int fd, struct ged_subprocess *p, bu_process_
 
 QConsoleListener::~QConsoleListener()
 {
-    m_notifier->disconnect();
+    if (m_notifier) {
+	m_notifier->setEnabled(false);
+	m_notifier->disconnect();
+    }
 }
 
 void QConsoleListener::on_finishedGetLine(const QString &strNewLine)
@@ -87,7 +87,8 @@ void QConsoleListener::on_finishedGetLine(const QString &strNewLine)
 
 void QConsoleListener::on_finished()
 {
-    Q_EMIT this->is_finished(this->process, (int)this->type);
+    if (this->process)
+	Q_EMIT this->is_finished(this->process, (int)this->type);
 }
 
 // Local Variables:

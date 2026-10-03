@@ -24,7 +24,8 @@
  * Originally from https://github.com/juangburgos/QConsoleListener
  */
 
-#pragma once
+#ifndef QGCONSOLELISTENER_H
+#define QGCONSOLELISTENER_H
 
 #include "common.h"
 
@@ -48,25 +49,25 @@ class QTCAD_EXPORT QConsoleListener : public QObject
     Q_OBJECT
 
     public:
-	QConsoleListener(int fd = -1,
-		struct ged_subprocess *p = NULL,
+	explicit QConsoleListener(int fd = -1,
+		struct ged_subprocess *p = nullptr,
 		bu_process_io_t t = BU_PROCESS_STDIN,
-		ged_io_func_t c = NULL,
-		void *d = NULL);
-	~QConsoleListener();
+		ged_io_func_t c = nullptr,
+		void *d = nullptr);
+	~QConsoleListener() override;
 
 	// Called by client code when it is done with the process
 	void on_finished();
 
-	struct ged_subprocess *process = NULL;
-	ged_io_func_t callback;
-	bu_process_io_t type;
-	void *data;
+	struct ged_subprocess *process = nullptr;
+	ged_io_func_t callback = nullptr;
+	bu_process_io_t type = BU_PROCESS_STDIN;
+	void *data = nullptr;
 
 #ifdef Q_OS_WIN
-	QWinEventNotifier *m_notifier;
+	QWinEventNotifier *m_notifier = nullptr;
 #else
-	QSocketNotifier *m_notifier;
+	QSocketNotifier *m_notifier = nullptr;
 #endif
 
 Q_SIGNALS:
@@ -82,6 +83,8 @@ Q_SIGNALS:
     private Q_SLOTS:
 	void on_finishedGetLine(const QString &strNewLine);
 };
+
+#endif /* QGCONSOLELISTENER_H */
 
 // Local Variables:
 // tab-width: 8

@@ -31,6 +31,8 @@ get_arb_type(struct directory *dp, struct db_i *dbip)
     int type;
     const struct bn_tol arb_tol = BN_TOL_INIT_TOL;
     struct rt_db_internal intern;
+    RT_DB_INTERNAL_INIT(&intern);
+    if (!dp || !dbip) return 0;
     if (rt_db_get_internal(&intern, dp, dbip, (fastf_t *)NULL) < 0) return 0;
     type = rt_arb_std_type(&intern, &arb_tol);
     rt_db_free_internal(&intern);
@@ -43,7 +45,7 @@ db_find_subregion(int *ret, union tree *tp, struct db_i *dbip, int *depth, int m
 	void (*traverse_func) (int *ret, struct directory *, struct db_i *, int *, int))
 {
     struct directory *dp;
-    if (!tp) return;
+    if (!tp || !ret || !depth || !traverse_func || !dbip) return;
     if (*ret) return;
     RT_CHECK_DBI(dbip);
     RT_CK_TREE(tp);
@@ -66,6 +68,10 @@ db_find_subregion(int *ret, union tree *tp, struct db_i *dbip, int *depth, int m
 	    (*depth)--;
 	    break;
 	case OP_DB_LEAF:
+	    if (!tp->tr_l.tl_name) {
+		(*depth)--;
+		return;
+	    }
 	    if ((dp=db_lookup(dbip, tp->tr_l.tl_name, LOOKUP_QUIET)) == RT_DIR_NULL) {
 		(*depth)--;
 		return;
@@ -78,8 +84,9 @@ db_find_subregion(int *ret, union tree *tp, struct db_i *dbip, int *depth, int m
 	    }
 
 	default:
-	    bu_log("db_functree_subtree: unrecognized operator %d\n", tp->tr_op);
-	    bu_bomb("db_functree_subtree: unrecognized operator\n");
+	    bu_log("db_find_subregion: unrecognized operator %d\n", tp->tr_op);
+	    (*depth)--;
+	    return;
     }
     return;
 }
@@ -87,6 +94,8 @@ db_find_subregion(int *ret, union tree *tp, struct db_i *dbip, int *depth, int m
 static void
 db_find_region(int *ret, struct directory *search, struct db_i *dbip, int *depth, int max_depth)
 {
+    if (!ret || !search || !dbip || !depth) return;
+    if (*ret) return;
 
     /* If we have a match, we need look no further */
     if (search->d_flags & RT_DIR_REGION) {
@@ -98,11 +107,14 @@ db_find_region(int *ret, struct directory *search, struct db_i *dbip, int *depth
     if (search->d_flags & RT_DIR_COMB) {
 	struct rt_db_internal in;
 	struct rt_comb_internal *comb;
+	RT_DB_INTERNAL_INIT(&in);
 
 	if (rt_db_get_internal(&in, search, dbip, NULL) < 0) return;
 
 	comb = (struct rt_comb_internal *)in.idb_ptr;
-	db_find_subregion(ret, comb->tree, dbip, depth, max_depth, db_find_region);
+	if (comb) {
+	    db_find_subregion(ret, comb->tree, dbip, depth, max_depth, db_find_region);
+	}
 	rt_db_free_internal(&in);
     }
     return;
@@ -111,11 +123,16 @@ db_find_region(int *ret, struct directory *search, struct db_i *dbip, int *depth
 int
 QgCombType(struct directory *dp, struct db_i *dbip)
 {
+    if (!dp || !dbip)
+	return G_STANDARD_OBJ;
+
     struct bu_attribute_value_set avs;
     int region_flag = 0;
     int air_flag = 0;
     int region_id_flag = 0;
     int assembly_flag = 0;
+    int res = G_STANDARD_OBJ;
+
     if (dp->d_flags & RT_DIR_REGION) {
 	region_flag = 1;
     }
@@ -138,12 +155,20 @@ QgCombType(struct directory *dp, struct db_i *dbip)
 	if (search_results) assembly_flag = 1;
     }
 
-    if (region_flag && !air_flag) return G_REGION;
-    if (!region_id_flag && air_flag) return G_AIR;
-    if (region_id_flag && air_flag) return G_AIR_REGION;
-    if (assembly_flag) return G_ASSEMBLY;
+    if (region_flag && !air_flag) {
+	res = G_REGION;
+    } else if (!region_id_flag && air_flag) {
+	res = G_AIR;
+    } else if (region_id_flag && air_flag) {
+	res = G_AIR_REGION;
+    } else if (assembly_flag) {
+	res = G_ASSEMBLY;
+    } else {
+	res = G_STANDARD_OBJ;
+    }
 
-    return G_STANDARD_OBJ;
+    bu_avs_free(&avs);
+    return res;
 }
 
 QImage

@@ -37,17 +37,17 @@
 #include "qtcad/defines.h"
 
 class QTCAD_EXPORT QgKeyValNode
-  {
-  public:
-      QgKeyValNode(QgKeyValNode *aParent=0);
-      ~QgKeyValNode();
+{
+public:
+    explicit QgKeyValNode(QgKeyValNode *aParent = nullptr);
+    ~QgKeyValNode();
 
-      QString name;
-      QString value;
-      int attr_type;
+    QString name;
+    QString value;
+    int attr_type = 0;
 
-      QgKeyValNode *parent;
-      QList<QgKeyValNode*> children;
+    QgKeyValNode *parent = nullptr;
+    QList<QgKeyValNode*> children;
 };
 
 class QTCAD_EXPORT QgKeyValModel : public QAbstractItemModel
@@ -55,23 +55,23 @@ class QTCAD_EXPORT QgKeyValModel : public QAbstractItemModel
     Q_OBJECT
 
     public:
-	QgKeyValModel(QObject *p = NULL);
-	~QgKeyValModel();
+	explicit QgKeyValModel(QObject *p = nullptr);
+	~QgKeyValModel() override;
 
-	QModelIndex index(int row, int column, const QModelIndex &parent) const;
-	QModelIndex parent(const QModelIndex &child) const;
-	int rowCount(const QModelIndex &child) const;
-	int columnCount(const QModelIndex &child) const;
+	QModelIndex index(int row, int column, const QModelIndex &parent) const override;
+	QModelIndex parent(const QModelIndex &child) const override;
+	int rowCount(const QModelIndex &child) const override;
+	int columnCount(const QModelIndex &child) const override;
 
 	void setRootNode(QgKeyValNode *root);
 	QgKeyValNode* rootNode();
 
-	QVariant headerData(int section, Qt::Orientation orientation, int role) const;
+	QVariant headerData(int section, Qt::Orientation orientation, int role) const override;
 
-	QVariant data(const QModelIndex & index, int role = Qt::DisplayRole) const;
-	bool setData(const QModelIndex & index, const QVariant & value, int role = Qt::EditRole);
+	QVariant data(const QModelIndex & index, int role = Qt::DisplayRole) const override;
+	bool setData(const QModelIndex & index, const QVariant & value, int role = Qt::EditRole) override;
 
-	QgKeyValNode *m_root;
+	QgKeyValNode *m_root = nullptr;
 	QModelIndex NodeIndex(QgKeyValNode *node) const;
 	QgKeyValNode *IndexNode(const QModelIndex &index) const;
 
@@ -85,10 +85,10 @@ class QTCAD_EXPORT QgKeyValDelegate : public QStyledItemDelegate
     Q_OBJECT
 
     public:
-	QgKeyValDelegate(QWidget *pparent = 0) : QStyledItemDelegate(pparent) {}
+	explicit QgKeyValDelegate(QWidget *pparent = nullptr) : QStyledItemDelegate(pparent) {}
 
-	void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const;
-	QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const;
+	void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
+	QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override;
 };
 
 class QTCAD_EXPORT QgKeyValView : public QTreeView
@@ -96,8 +96,8 @@ class QTCAD_EXPORT QgKeyValView : public QTreeView
     Q_OBJECT
 
     public:
-	QgKeyValView(QWidget *pparent, int decorate_tree = 0);
-	~QgKeyValView() {};
+	explicit QgKeyValView(QWidget *pparent = nullptr, int decorate_tree = 0);
+	~QgKeyValView() override {}
 };
 
 

@@ -56,7 +56,7 @@ extern QTCAD_EXPORT QImage
 QgIcon(struct directory *dp, struct db_i *dbip);
 
 
-#endif //QGUTIL_H
+#endif /* QGUTIL_H */
 
 // Local Variables:
 // tab-width: 8
