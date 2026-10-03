@@ -57,11 +57,12 @@ struct channel
 static void
 usage(const char *s)
 {
-    if (s)
+    if (s && s[0] != '\0')
 	bu_log("%s\n", s);
-    bu_exit(1, "Usage: %s %s\n%s\n",
+    bu_log("Usage: %s %s\n%s\n",
 	    "cchannel", "-l length -d diameter -x X coordinate -y Y coordinate \n-z Z coordinate -H hole radius",
 	    "-t thickness -s slope -r corner-radius -R top-radius \n-u conversion factor from millimeters -f filename");
+    bu_exit(s ? 1 : 0, NULL);
 }
 
 static void
@@ -71,45 +72,56 @@ parseArgs(int argc, char **argv, const char* options, struct channel *parameters
     while ((c=bu_getopt(argc, argv, options)) != -1) {
 	switch (c) {
 	    case('l'):
-		sscanf(bu_optarg, "%lf", &(parameters->length));
+		if (bu_sscanf(bu_optarg, "%lf", &(parameters->length)) != 1)
+		    usage("error: invalid length");
 		break;
 	    case('d'):
-		sscanf(bu_optarg, "%lf", &(parameters->diameter));
+		if (bu_sscanf(bu_optarg, "%lf", &(parameters->diameter)) != 1)
+		    usage("error: invalid diameter");
 		break;
 	    case('x'):
-		sscanf(bu_optarg, "%lf", &(parameters->x));
+		if (bu_sscanf(bu_optarg, "%lf", &(parameters->x)) != 1)
+		    usage("error: invalid x coordinate");
 		break;
 	    case('y'):
-		sscanf(bu_optarg, "%lf", &(parameters->y));
+		if (bu_sscanf(bu_optarg, "%lf", &(parameters->y)) != 1)
+		    usage("error: invalid y coordinate");
 		break;
 	    case('z'):
-		sscanf(bu_optarg, "%lf", &(parameters->z));
+		if (bu_sscanf(bu_optarg, "%lf", &(parameters->z)) != 1)
+		    usage("error: invalid z coordinate");
 		break;
 	    case('t'):
-		sscanf(bu_optarg, "%lf", &(parameters->thickness));
+		if (bu_sscanf(bu_optarg, "%lf", &(parameters->thickness)) != 1)
+		    usage("error: invalid thickness");
 		break;
 	    case('s'):
-		sscanf(bu_optarg, "%lf", &(parameters->slope));
+		if (bu_sscanf(bu_optarg, "%lf", &(parameters->slope)) != 1)
+		    usage("error: invalid slope");
 		break;
 	    case('r'):
-		sscanf(bu_optarg, "%lf", &(parameters->radius));
+		if (bu_sscanf(bu_optarg, "%lf", &(parameters->radius)) != 1)
+		    usage("error: invalid corner radius");
 		break;
 	    case('H'):
-		sscanf(bu_optarg, "%lf", &(parameters->holeR));
+		if (bu_sscanf(bu_optarg, "%lf", &(parameters->holeR)) != 1)
+		    usage("error: invalid hole radius");
 		parameters->holes = 1;
 		break;
 	    case('R'):
-		sscanf(bu_optarg, "%lf", &(parameters->topR));
+		if (bu_sscanf(bu_optarg, "%lf", &(parameters->topR)) != 1)
+		    usage("error: invalid top radius");
 		break;
 	    case('f'):
 		parameters->filename = bu_optarg;
 		break;
 	    case('u'):
-		sscanf(bu_optarg, "%lf", &(parameters->conversionFactor));
+		if (bu_sscanf(bu_optarg, "%lf", &(parameters->conversionFactor)) != 1)
+		    usage("error: invalid conversion factor");
 		break;
 	    case('h'):
 	    case('?'):
-		usage("");
+		usage(NULL);
 		break;
 	    default:
 		usage("error: default option reached");
@@ -117,7 +129,7 @@ parseArgs(int argc, char **argv, const char* options, struct channel *parameters
     }
     if (parameters->slope<.50 || parameters->slope > 1)
 	usage("error: slope cannot be less than fifty percent or more than one hundred percent");
-    if (parameters->topR < .5*parameters->thickness || EQUAL(parameters->thickness, 0))
+    if (parameters->topR < .5*parameters->thickness || ZERO(parameters->thickness))
 	usage("error: top radius cannot be less than half the thickness");
     if (parameters->radius > .5*parameters->diameter)
 	usage("error: corner radius cannot be more than one half the diameter");
@@ -135,14 +147,18 @@ addHoles(struct rt_wdb *db, struct channel parameters)
     int i = 0;
     int z2 = parameters.z + .5 * parameters.diameter;
     point_t pts[2];
-    int dist = parameters.diameter;
+    double dist = parameters.diameter;
+    double step = dist + .5 * parameters.holeR;
     char name[64];
     struct wmember holeC;
     BU_LIST_INIT(&holeC.l);
 
-    while (i * (dist + .5 * parameters.holeR) < parameters.length) {
-	sprintf(name, "hole_%d", i);
-	VSET(pts[0], parameters.x + parameters.thickness, parameters.y + .5 * parameters.diameter - .5 * parameters.thickness, z2 + i * (dist + .5 * parameters.holeR));
+    if (step <= 0.0)
+	return;
+
+    while (i * step < parameters.length) {
+	snprintf(name, sizeof(name), "hole_%d", i);
+	VSET(pts[0], parameters.x + parameters.thickness, parameters.y + .5 * parameters.diameter - .5 * parameters.thickness, z2 + i * step);
 	VSET(pts[1], -1 * parameters.diameter - parameters.thickness * 2, 0, 0);
 	mk_rcc(db, name, pts[0], pts[1], parameters.holeR);
 	(void)mk_addmember(name, &holeC.l, NULL, WMOP_UNION);
@@ -192,7 +208,7 @@ main (int argc, char **argv)
     double center;
     point_t pts[8];
     point_t temp1, temp2;
-    const char* options = "l:d:x:y:z:t:s:r:R:H:f:u:h:?:";
+    const char* options = "l:d:x:y:z:t:s:r:R:H:f:u:h?";
     struct wmember sub1;
     struct wmember sub2;
     struct wmember sub2a;
@@ -201,7 +217,8 @@ main (int argc, char **argv)
     struct rt_wdb *db;
     struct channel parameters;
 
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv[0])
+	bu_setprogname(argv[0]);
 
     parameters.length = 12;
     parameters.diameter = 1;
@@ -219,7 +236,13 @@ main (int argc, char **argv)
     parseArgs(argc, argv, options, &parameters);
     convert(0, 1, &parameters);
     db = wdb_fopen(parameters.filename);
-    center = sqrt(pow(parameters.topR,2) - pow(.5*parameters.thickness,2));
+    if (!db) {
+	bu_exit(1, "Failed to open output database file '%s'\n", parameters.filename);
+    }
+    {
+	double rad_diff = pow(parameters.topR, 2) - pow(.5 * parameters.thickness, 2);
+	center = (rad_diff > 0.0) ? sqrt(rad_diff) : 0.0;
+    }
 
     makeArb(db, parameters.x, parameters.y, parameters.z, parameters.thickness, parameters.diameter, parameters.length, "arb_1");
     /* first wall */
@@ -322,7 +345,7 @@ main (int argc, char **argv)
     /* make final region */
     mk_lcomb(db, "channel.r", &channel, 1, NULL, NULL, NULL, 1);
 
-    db_close(db->dbip);
+    wdb_close(db);
 
     return 0;
 }

@@ -547,6 +547,8 @@ static ON_Brep* MakeBrepFace(double thickness = 0.0)
     };
 
     ON_Brep* brep = new ON_Brep();
+    if (!brep)
+	return NULL;
 
     /* create four vertices of the outer edges */
     int vi;
@@ -625,16 +627,27 @@ int main(int argc, char *argv[])
     const char* geom_name = "brep_trimmed.s";
     fastf_t thickness = 0.0;
 
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
 
     if (argc > 1) {
+	if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help")) {
+	    usage(argv[0]);
+	    return 0;
+	}
 	if (BU_STR_EQUAL(argv[1], "-H")) {
-	    if (argc == 3)
-		thickness = (fastf_t)atof(argv[2]);
-	    else {
+	    if (argc == 3) {
+		if (bu_sscanf(argv[2], "%lf", &thickness) != 1) {
+		    usage(argv[0]);
+		    bu_exit(1, "ERROR: invalid thickness specified\n");
+		}
+	    } else {
 		usage(argv[0]);
-		bu_exit(1, "ERROR: unable to parse the arguments");
+		bu_exit(1, "ERROR: unable to parse the arguments\n");
 	    }
+	} else {
+	    usage(argv[0]);
+	    bu_exit(1, "ERROR: unknown option\n");
 	}
     }
 
@@ -643,16 +656,23 @@ int main(int argc, char *argv[])
     /* export brep to file */
     bu_log("Writing a b-rep surface...\n");
     outfp = wdb_fopen("brep_trimmed.g");
+    if (!outfp) {
+	ON::End();
+	bu_exit(1, "ERROR: unable to open brep_trimmed.g for writing\n");
+    }
     mk_id(outfp, id_name);
 
     brep = MakeBrepFace(thickness);
-    mk_brep(outfp, geom_name, brep);
+    if (brep) {
+	mk_brep(outfp, geom_name, brep);
 
-    unsigned char rgb[] = {50, 255, 50};
-    mk_region1(outfp, "brep_trimmed.r", geom_name, "plastic", "", rgb);
+	unsigned char rgb[] = {50, 255, 50};
+	mk_region1(outfp, "brep_trimmed.r", geom_name, "plastic", "", rgb);
 
-    db_close(outfp->dbip);
-    delete brep;
+	delete brep;
+    }
+
+    wdb_close(outfp);
 
     ON::End();
 

@@ -37,7 +37,12 @@
 static ON_Brep *
 generate_brep(int count, ON_3dPoint *points)
 {
+    if (!points || count < 8)
+	return NULL;
+
     ON_Brep *brep = new ON_Brep();
+    if (!brep)
+	return NULL;
 
     /* make an arb8 */
 
@@ -387,7 +392,7 @@ generate_brep(int count, ON_3dPoint *points)
 static void
 printusage(void)
 {
-    fprintf(stderr,"Usage: breplicator (takes no arguments)\n");
+    bu_log("Usage: breplicator (takes no arguments)\n");
 }
 
 
@@ -399,14 +404,15 @@ main(int argc, char *argv[])
     ON_Brep *brep = NULL;
     int ret;
 
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
 
-    if ( BU_STR_EQUAL(argv[1],"-h") || BU_STR_EQUAL(argv[1],"-?")) {
-    	printusage();
-    	return 0;
-    }
     if (argc > 1) {
-    	printusage();
+	if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help")) {
+	    printusage();
+	    return 0;
+	}
+	printusage();
 	return 1;
     }
 
@@ -451,14 +457,14 @@ main(int argc, char *argv[])
     ret = mk_brep(wdbp, name, (void *)brep);
     if (ret) {
 	delete brep;
-	db_close(wdbp->dbip);
+	wdb_close(wdbp);
 	bu_exit(3, "ERROR: Unable to export %s\n", name);
     }
 
     bu_log("Done.\n");
 
     delete brep;
-    db_close(wdbp->dbip);
+    wdb_close(wdbp);
 
     return 0;
 }

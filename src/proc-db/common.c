@@ -66,6 +66,8 @@ void
 get_rgb(unsigned char *rgb)
 {
     struct colors *cp;
+    if (!rgb)
+	return;
     if (++curcolor >= ncolors) curcolor = 0;
     cp = &colortab[curcolor];
     rgb[0] = cp->c_pixel[0];
@@ -92,14 +94,26 @@ do_light(const char *name, fastf_t *pos, fastf_t *dir_at, int da_flag, double r,
     vect_t from;
     vect_t dir;
 
+    if (!name || !pos || !dir_at || !headp || !outfp)
+	return;
+
     if (da_flag) {
 	VSUB2(dir, dir_at, pos);
-	VUNITIZE(dir);
+	if (MAGSQ(dir) < VUNITIZE_TOL) {
+	    VSET(dir, 0, 0, -1);
+	} else {
+	    VUNITIZE(dir);
+	}
     } else {
 	VMOVE(dir, dir_at);
+	if (MAGSQ(dir) < VUNITIZE_TOL) {
+	    VSET(dir, 0, 0, -1);
+	} else {
+	    VUNITIZE(dir);
+	}
     }
 
-    snprintf(nbuf, 64, "%s.s", name);
+    snprintf(nbuf, sizeof(nbuf), "%s.s", name);
     VSETALL(center, 0);
     mk_sph(outfp, nbuf, center, r);
 

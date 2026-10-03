@@ -32,6 +32,7 @@
 
 #include "bu/app.h"
 #include "bu/getopt.h"
+#include "bu/log.h"
 #include "bu/units.h"
 #include "bu/exit.h"
 #include "vmath.h"
@@ -75,7 +76,7 @@ usage(const char *s)
 		   "  -w brick_width -n brick_height -d brick_depth -B brick_name",
 		   "  -W wall_width -N wall_height\n  > mged_commands \n");
 
-    bu_exit(1, NULL);
+    bu_exit(s ? 1 : 0, NULL);
 }
 
 
@@ -86,6 +87,9 @@ parse_args(int ac, char **av)
     double d;
     int red, grn, blu;
 
+    if (!av || !*av)
+	return -1;
+
     if (! (progname=strrchr(*av, '/')))
 	progname = *av;
     else
@@ -95,15 +99,15 @@ parse_args(int ac, char **av)
     while ((c=bu_getopt(ac, av, options)) != -1)
 	switch (c) {
 	    case 'c':
-		c = sscanf(bu_optarg, "%d/%d/%d", &red, &grn, &blu);
+		c = bu_sscanf(bu_optarg, "%d/%d/%d", &red, &grn, &blu);
 		if (c == 3)
-		    (void)sprintf(color, "%d %d %d", red&0x0ff,
+		    (void)snprintf(color, sizeof(color), "%d %d %d", red&0x0ff,
 				  grn&0x0ff, blu&0x0ff);
 		break;
 	    case 'C':
-		c = sscanf(bu_optarg, "%d/%d/%d", &red, &grn, &blu);
+		c = bu_sscanf(bu_optarg, "%d/%d/%d", &red, &grn, &blu);
 		if (c == 3)
-		    (void)sprintf(mortar_color, "%d %d %d",
+		    (void)snprintf(mortar_color, sizeof(mortar_color), "%d %d %d",
 				  red&0x0ff, grn&0x0ff, blu&0x0ff);
 
 		break;
@@ -112,38 +116,34 @@ parse_args(int ac, char **av)
 		break;
 	    case 'u':
 		units_conv = bu_units_conversion(bu_optarg);
+		if (ZERO(units_conv) || units_conv < 0.0)
+		    units_conv = 25.4;
 		break;
 	    case 'D':
 		debug = !debug;
 		break;
 	    case 't':
-		d=atof(bu_optarg);
-		if (!ZERO(d))
+		if (bu_sscanf(bu_optarg, "%lf", &d) == 1 && !ZERO(d))
 		    tol = d;
 		break;
 	    case 'w':
-		d=atof(bu_optarg);
-		if (!ZERO(d))
+		if (bu_sscanf(bu_optarg, "%lf", &d) == 1 && !ZERO(d))
 		    brick_width = d;
 		break;
 	    case 'n':
-		d=atof(bu_optarg);
-		if (!ZERO(d))
+		if (bu_sscanf(bu_optarg, "%lf", &d) == 1 && !ZERO(d))
 		    brick_height = d;
 		break;
 	    case 'd':
-		d=atof(bu_optarg);
-		if (!ZERO(d))
+		if (bu_sscanf(bu_optarg, "%lf", &d) == 1 && !ZERO(d))
 		    brick_depth = d;
 		break;
 	    case 'W':
-		d=atof(bu_optarg);
-		if (!ZERO(d))
+		if (bu_sscanf(bu_optarg, "%lf", &d) == 1 && !ZERO(d))
 		    wall_width = d;
 		break;
 	    case 'N':
-		d=atof(bu_optarg);
-		if (!ZERO(d))
+		if (bu_sscanf(bu_optarg, "%lf", &d) == 1 && !ZERO(d))
 		    wall_height = d;
 		break;
 	    case 'B':
@@ -151,6 +151,10 @@ parse_args(int ac, char **av)
 		break;
 	    case 's':
 		standalone = !standalone;
+		break;
+	    case 'h':
+	    case '?':
+		usage(NULL);
 		break;
 	    default:
 		usage("\n");
@@ -323,7 +327,8 @@ int main(int ac, char **av)
     double horiz_spacing;
     double vert_spacing;
 
-    bu_setprogname(av[0]);
+    if (av && av[0])
+	bu_setprogname(av[0]);
 
     if (ac == 1 && isatty(fileno(stdin)) && isatty(fileno(stdout)))
 	usage("\n");
@@ -356,9 +361,13 @@ int main(int ac, char **av)
     }
 
     if (standalone) {
-	horiz_spacing =
-	    (wall_width - horiz_bricks * brick_width) /
-	    (horiz_bricks - 1);
+	if (horiz_bricks > 1) {
+	    horiz_spacing =
+		(wall_width - horiz_bricks * brick_width) /
+		(horiz_bricks - 1);
+	} else {
+	    horiz_spacing = 0.0;
+	}
     } else {
 	horiz_spacing =
 	    (wall_width - (horiz_bricks * brick_width + brick_depth))/

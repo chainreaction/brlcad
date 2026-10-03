@@ -90,22 +90,34 @@ main(int argc, char **argv)
     double height, maxheight, minheight;
     struct wmember head;
 
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv[0])
+	bu_setprogname(argv[0]);
+
+    if (argc > 1) {
+	if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "--help") || BU_STR_EQUAL(argv[1], "-?")) {
+	    bu_log("Usage: %s\nGenerates procedural clutter geometry into clutter.g\n", (argc > 0 && argv[0]) ? argv[0] : "clutter");
+	    return 0;
+	}
+	bu_exit(1, "Usage: %s\n", (argc > 0 && argv[0]) ? argv[0] : "clutter");
+    }
 
     bu_debug = BU_DEBUG_COREDUMP;
     rbuf = bn_unif_init(0, 0);
+    if (!rbuf) {
+	bu_exit(1, "Failed to initialize random distribution\n");
+    }
 
 #define rand_num(p)	(BN_UNIF_DOUBLE(p)+0.5)
-
-    if (argc > 1) {
-	bu_exit(1, "Usage: %s\n", argv[0]);
-    }
 
     BU_LIST_INIT(&head.l);
 
     sin60 = sin(60.0 * DEG2RAD);
 
     outfp = wdb_fopen("clutter.g");
+    if (!outfp) {
+	bn_unif_free(rbuf);
+	bu_exit(1, "Failed to open output database 'clutter.g'\n");
+    }
     mk_id(outfp, "Procedural Clutter");
 
     /* Create the underpinning */
@@ -128,11 +140,11 @@ main(int argc, char **argv)
 	x = base + ix*size;
 	for (iy=quant-1; iy>=0; iy--) {
 	    y = base + iy*size;
-	    sprintf(name, "Bx%dy%d", ix, iy);
+	    snprintf(name, sizeof(name), "Bx%dy%d", ix, iy);
 	    do_plate(name, x, y, size);
 	    (void)mk_addmember(name, &head.l, NULL, WMOP_UNION);
 
-	    sprintf(name, "x%dy%d", ix, iy);
+	    snprintf(name, sizeof(name), "x%dy%d", ix, iy);
 	    (void)mk_addmember(name, &head.l, NULL, WMOP_UNION);
 	    n = rand() & 03;
 	    switch (n) {
@@ -174,7 +186,8 @@ main(int argc, char **argv)
     /* Build the overall combination */
     mk_lfcomb(outfp, "clut", &head, 0);
 
-    db_close(outfp->dbip);
+    wdb_close(outfp);
+    bn_unif_free(rbuf);
 
     return 0;
 }
