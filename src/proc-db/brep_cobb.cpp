@@ -227,49 +227,30 @@ ON_Brep *
 Cobb_Sphere(double UNUSED(radius), ON_3dPoint *UNUSED(origin))
 {
     ON_Brep *b = ON_Brep::New();
+    if (!b)
+	return NULL;
 
-    // Patch 1 of 6
-    ON_BezierSurface *b1 = ON_CobbSphereFace(0, 0);
-    ON_NurbsSurface *p1_nurb = ON_NurbsSurface::New();
-    b1->GetNurbForm(*p1_nurb);
-    b->NewFace(*p1_nurb);
-    delete b1;
+    static const struct {
+	double rx;
+	double rz;
+    } faces[6] = {
+	{0.0, 0.0},
+	{90.0, 0.0},
+	{180.0, 0.0},
+	{270.0, 0.0},
+	{90.0, 90.0},
+	{90.0, 270.0}
+    };
 
-    // Patch 2 of 6
-    ON_BezierSurface *b2 = ON_CobbSphereFace(90, 0);
-    ON_NurbsSurface *p2_nurb = ON_NurbsSurface::New();
-    b2->GetNurbForm(*p2_nurb);
-    b->NewFace(*p2_nurb);
-    delete b2;
-
-    // Patch 3 of 6
-    ON_BezierSurface *b3 = ON_CobbSphereFace(180, 0);
-    ON_NurbsSurface *p3_nurb = ON_NurbsSurface::New();
-    b3->GetNurbForm(*p3_nurb);
-    b->NewFace(*p3_nurb);
-    delete b3;
-
-    // Patch 4 of 6
-    ON_BezierSurface *b4 = ON_CobbSphereFace(270, 0);
-    ON_NurbsSurface *p4_nurb = ON_NurbsSurface::New();
-    b4->GetNurbForm(*p4_nurb);
-    b->NewFace(*p4_nurb);
-    delete b4;
-
-    // Patch 5 of 6
-    ON_BezierSurface *b5 = ON_CobbSphereFace(90, 90);
-    ON_NurbsSurface *p5_nurb = ON_NurbsSurface::New();
-    b5->GetNurbForm(*p5_nurb);
-    b->NewFace(*p5_nurb);
-    delete b5;
-
-    // Patch 6 of 6
-    ON_BezierSurface *b6 = ON_CobbSphereFace(90, 270);
-    ON_NurbsSurface *p6_nurb = ON_NurbsSurface::New();
-    b6->GetNurbForm(*p6_nurb);
-    b->NewFace(*p6_nurb);
-    delete b6;
-
+    for (size_t i = 0; i < 6; i++) {
+	ON_BezierSurface *bz = ON_CobbSphereFace(faces[i].rx, faces[i].rz);
+	if (bz) {
+	    ON_NurbsSurface nurb;
+	    bz->GetNurbForm(nurb);
+	    b->NewFace(nurb);
+	    delete bz;
+	}
+    }
 
     b->Standardize();
     b->Compact();
@@ -288,10 +269,11 @@ main(int argc, char** argv)
     const char* geom_name = "cobb.s";
     const char* db_name = "brep_cobb.g";
 
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
 
     if (argc > 1) {
-	if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?")) {
+	if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help")) {
 	    bu_log("Usage: %s [output.g]\n", argv[0]);
 	    return 0;
 	}
@@ -316,14 +298,17 @@ main(int argc, char** argv)
 
 
     brep = Cobb_Sphere(1, &origin);
-    mk_brep(outfp, geom_name, (void *)brep);
+    if (brep) {
+	mk_brep(outfp, geom_name, (void *)brep);
 
-    //mk_comb1(outfp, "cube.r", geom_name, 1);
-    unsigned char rgb[] = {50, 255, 50};
-    mk_region1(outfp, "cobb.r", geom_name, "plastic", "", rgb);
+	//mk_comb1(outfp, "cube.r", geom_name, 1);
+	unsigned char rgb[] = {50, 255, 50};
+	mk_region1(outfp, "cobb.r", geom_name, "plastic", "", rgb);
 
-    db_close(outfp->dbip);
-    delete brep;
+	delete brep;
+    }
+
+    wdb_close(outfp);
 
     ON::End();
 

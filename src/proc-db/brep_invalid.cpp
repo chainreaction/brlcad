@@ -127,6 +127,8 @@ Cobb_InnerTrimmingLoop(ON_Brep& brep, ON_BrepFace& face,
 
     for (int side = 0; side < 4; side++) {
 	c2 = Cobb_InnerTrimmingCurve(srf, side);
+	if (!c2)
+	    continue;
 	c2i = brep.m_C2.Count();
 	brep.m_C2.Append(c2);
 
@@ -343,19 +345,26 @@ ON_Brep *
 Cobb_Sphere(double UNUSED(radius), ON_3dPoint *UNUSED(origin), fastf_t thickness = 0.0)
 {
     ON_Brep *b = ON_Brep::New();
+    if (!b)
+	return NULL;
 
     ON_BezierSurface *b1 = ON_CobbSphereFace(0, 0);
-    ON_NurbsSurface *p1_nurb = ON_NurbsSurface::New();
-    b1->GetNurbForm(*p1_nurb);
-    b->NewFace(*p1_nurb);
+    if (b1) {
+	ON_NurbsSurface p1_nurb;
+	b1->GetNurbForm(p1_nurb);
+	b->NewFace(p1_nurb);
+	delete b1;
+    }
 
     /* create inner loop and trim cause the face defined above already contains outer loop and trim*/
-    Cobb_InnerTrimmingEdge(*b, b->m_F[0]);
-    Cobb_InnerTrimmingLoop(*b, b->m_F[0], 0, 1, 2, 3,
-			   4, 1,
-			   5, 1,
-			   6, 1,
-			   7, 1);
+    if (b->m_F.Count() > 0) {
+	Cobb_InnerTrimmingEdge(*b, b->m_F[0]);
+	Cobb_InnerTrimmingLoop(*b, b->m_F[0], 0, 1, 2, 3,
+			       4, 1,
+			       5, 1,
+			       6, 1,
+			       7, 1);
+    }
 
     /* assign thickness value to the whole brep */
     if (!NEAR_ZERO(thickness, 0.001) && b->m_F.Count() && !b->IsSolid()) {
@@ -398,16 +407,27 @@ main(int argc, char** argv)
     const char* geom_name = "brep_invalid.s";
     fastf_t thickness = 0.0;
 
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
 
     if (argc > 1) {
+	if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help")) {
+	    usage(argv[0]);
+	    return 0;
+	}
 	if (BU_STR_EQUAL(argv[1], "-H")) {
 	    if (argc == 3) {
-		thickness = (fastf_t)atof(argv[2]);
+		if (bu_sscanf(argv[2], "%lf", &thickness) != 1) {
+		    usage(argv[0]);
+		    bu_exit(1, "ERROR: invalid thickness specified\n");
+		}
 	    } else {
 		usage(argv[0]);
-		bu_exit(1, "ERROR: unable to parse the arguments");
+		bu_exit(1, "ERROR: unable to parse the arguments\n");
 	    }
+	} else {
+	    usage(argv[0]);
+	    bu_exit(1, "ERROR: unknown option\n");
 	}
     }
 
@@ -416,17 +436,23 @@ main(int argc, char** argv)
     /* export brep to file */
     bu_log("Writing a b-rep surface...\n");
     outfp = wdb_fopen("brep_invalid.g");
+    if (!outfp) {
+	ON::End();
+	bu_exit(1, "ERROR: unable to open brep_invalid.g for writing\n");
+    }
     mk_id(outfp, id_name);
 
     brep = Cobb_Sphere(1, &origin, thickness);
+    if (brep) {
+	mk_brep(outfp, geom_name, brep);
 
-    mk_brep(outfp, geom_name, brep);
+	unsigned char rgb[] = {50, 255, 50};
+	mk_region1(outfp, "brep_invalid.r", geom_name, "plastic", "", rgb);
 
-    unsigned char rgb[] = {50, 255, 50};
-    mk_region1(outfp, "brep_invalid.r", geom_name, "plastic", "", rgb);
+	delete brep;
+    }
 
-    db_close(outfp->dbip);
-    delete brep;
+    wdb_close(outfp);
 
     ON::End();
 

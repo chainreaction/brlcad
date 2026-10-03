@@ -51,18 +51,23 @@ main(int argc, char **argv)
     struct bu_bitv *face_mode = NULL;
     static const char *filename = "bot-test.g";
 
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
 
-    if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?")) {
+    if (argc > 1 && (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help"))) {
 	printusage();
 	return 0;
-    }
-    else if (argc > 1)
+    } else if (argc > 1) {
 	filename = argv[1];
+    }
 
     bu_log("Writing out geometry to file [%s] ...", filename);
 
     outfp = wdb_fopen(filename);
+    if (!outfp) {
+	bu_log("\nFailed to open [%s] for writing\n", filename);
+	return 1;
+    }
     mk_id(outfp, "BOT test");
 
     VSET(vertices, 0.0, 0.0, 0.0);
@@ -323,9 +328,9 @@ main(int argc, char **argv)
 
     mk_bot(outfp, "bot_solid_dup_fs", RT_BOT_SOLID, RT_BOT_UNORIENTED, 0, 12, 5, vertices, faces, (fastf_t *)NULL, (struct bu_bitv *)NULL);
 
-    bu_free((char *)face_mode, "bottest: face_mode");
+    bu_bitv_free(face_mode);
 
-    db_close(outfp->dbip);
+    wdb_close(outfp);
 
     bu_log(" done.\n");
 

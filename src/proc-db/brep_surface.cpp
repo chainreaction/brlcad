@@ -60,6 +60,8 @@ brep_single_surf(fastf_t thickness = 0.0)
     };
 
     ON_Brep* b = ON_Brep::New();
+    if (!b)
+	return NULL;
     ON_TextLog error_log;
 
     // create vertices
@@ -147,15 +149,17 @@ brep_single_surf(fastf_t thickness = 0.0)
 	}
 
 	ON_Curve* c2d = new ON_LineCurve(from, to);
-	c2d->SetDomain(0.0, 1.0);
-	c2i = b->m_C2.Count();
-	b->m_C2.Append(c2d);
+	if (c2d) {
+	    c2d->SetDomain(0.0, 1.0);
+	    c2i = b->m_C2.Count();
+	    b->m_C2.Append(c2d);
 
-	ON_BrepTrim& t = b->NewTrim(b->m_E[side], 0, l, c2i);
-	t.m_iso = iso;
-	t.m_type = ON_BrepTrim::boundary;
-	t.m_tolerance[0] = 0.0;
-	t.m_tolerance[1] = 0.0;
+	    ON_BrepTrim& t = b->NewTrim(b->m_E[side], 0, l, c2i);
+	    t.m_iso = iso;
+	    t.m_type = ON_BrepTrim::boundary;
+	    t.m_tolerance[0] = 0.0;
+	    t.m_tolerance[1] = 0.0;
+	}
     }
 
     /* if brep is a solid model, set the thickness to 0 */
@@ -206,17 +210,28 @@ main(int argc, char** argv)
     const char* geom_name = "brep_surface.brep";
     fastf_t thickness = 0.0;
 
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
 
     /* parse the arguments */
     if (argc > 1) {
+	if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help")) {
+	    usage(argv[0]);
+	    return 0;
+	}
 	if (BU_STR_EQUAL(argv[1], "-H")) {
-	    if (argc == 3)
-		thickness = (fastf_t)atof(argv[2]);
-	    else {
+	    if (argc == 3) {
+		if (bu_sscanf(argv[2], "%lf", &thickness) != 1) {
+		    usage(argv[0]);
+		    bu_exit(1, "ERROR: invalid thickness specified\n");
+		}
+	    } else {
 		usage(argv[0]);
-		bu_exit(1, "ERROR: unable to parse the arguments");
+		bu_exit(1, "ERROR: unable to parse the arguments\n");
 	    }
+	} else {
+	    usage(argv[0]);
+	    bu_exit(1, "ERROR: unknown option\n");
 	}
     }
 
@@ -227,18 +242,25 @@ main(int argc, char** argv)
 
     bu_log("Writing a single surface to [%s]...\n", file_name);
     outfp = wdb_fopen(file_name);
+    if (!outfp) {
+	ON::End();
+	bu_exit(1, "ERROR: unable to open %s for writing\n", file_name);
+    }
     mk_id(outfp, id_name);
 
     brep = brep_single_surf(thickness);
-    if (!brep)
+    if (!brep) {
+	wdb_close(outfp);
+	ON::End();
 	bu_exit(1, "ERROR: unable to make the surface\n");
+    }
 
     mk_brep(outfp, geom_name, brep);
 
     unsigned char rgb[] = {255, 255, 255};
     mk_region1(outfp, regn_name, geom_name, "plastic", "", rgb);
 
-    db_close(outfp->dbip);
+    wdb_close(outfp);
     delete brep;
 
     ON::End();

@@ -172,6 +172,8 @@ MakeTwistedCube(ON_TextLog& error_log)
     };
 
     ON_Brep* brep = new ON_Brep();
+    if (!brep)
+	return NULL;
 
     // create eight vertices located at the eight points
     for (int i = 0; i < 8; i++) {
@@ -225,7 +227,7 @@ MakeTwistedCube(ON_TextLog& error_log)
 
 static void
 printusage(void) {
-    bu_exit(1, "Usage: brep_cube (takes no arguments)\n");
+    bu_log("Usage: brep_cube (takes no arguments)\n");
 }
 
 
@@ -238,14 +240,16 @@ main(int argc, char** argv)
     const char* id_name = "B-Rep Example";
     const char* geom_name = "cube.s";
 
-    bu_setprogname(argv[0]);
+    if (argv && argv[0])
+	bu_setprogname(argv[0]);
 
-    if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?")) {
-    	printusage();
-    	return 0;
-    }
     if (argc > 1) {
-    	printusage();
+	if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help")) {
+	    printusage();
+	    return 0;
+	}
+	printusage();
+	return 1;
     }
 
     ON::Begin();
@@ -253,11 +257,18 @@ main(int argc, char** argv)
     /* export brep to file */
     bu_log("Writing a twisted cube b-rep to [brep_cube.g]...\n");
     outfp = wdb_fopen("brep_cube.g");
+    if (!outfp) {
+	ON::End();
+	bu_exit(1, "ERROR: unable to open brep_cube.g for writing\n");
+    }
     mk_id(outfp, id_name);
 
     brep = MakeTwistedCube(error_log);
-    if (!brep)
+    if (!brep) {
+	wdb_close(outfp);
+	ON::End();
 	bu_exit(1, "ERROR: unable to make the cube\n");
+    }
 
     mk_brep(outfp, geom_name, (void *)brep);
 
@@ -265,13 +276,14 @@ main(int argc, char** argv)
     unsigned char rgb[] = {255, 255, 255};
     mk_region1(outfp, "cube.r", geom_name, "plastic", "", rgb);
 
-    db_close(outfp->dbip);
+    wdb_close(outfp);
     delete brep;
 
     /* reread from file to make sure brep import is working okay */
     bu_log("Reading a twisted cube b-rep...\n");
     struct db_i* dbip = db_open("brep_cube.g", DB_OPEN_READONLY);
     if (!dbip) {
+	ON::End();
 	bu_exit(1, "Unable to find brep_cube.g geometry database file.");
     }
     db_dirbuild(dbip);
@@ -282,9 +294,10 @@ main(int argc, char** argv)
 	mat_t mat;
 	MAT_IDN(mat);
 
-	if (rt_db_get_internal(&ip, dirp, dbip, mat) >= 0)
+	if (rt_db_get_internal(&ip, dirp, dbip, mat) >= 0) {
 	    printPoints((struct rt_brep_internal*)ip.idb_ptr);
-	else
+	    rt_db_free_internal(&ip);
+	} else
 	    bu_log("problem getting internal object rep\n");
 
     }
