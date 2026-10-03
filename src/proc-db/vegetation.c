@@ -202,6 +202,11 @@ findIntersectors(const growthSegment_t * const segment, const structure_t * cons
 
 	if (segList == NULL) {
 	    bu_log("segList is null?\n");
+	    if (bigList->segment) {
+		bu_free(bigList->segment, "bigList->segment");
+		bigList->segment = NULL;
+	    }
+	    bu_free(bigList, "bigList");
 	    return NULL;
 	}
 
@@ -219,11 +224,11 @@ findIntersectors(const growthSegment_t * const segment, const structure_t * cons
 
 	/* release the returned resource */
 	if (segList != NULL) {
-	    if (segList->capacity > 0) {
-		free(segList->segment);
+	    if (segList->segment) {
+		bu_free(segList->segment, "segList->segment");
 		segList->segment = NULL;
 	    }
-	    free(segList);
+	    bu_free(segList, "segList");
 	    segList = NULL;
 	}
     }
@@ -587,18 +592,17 @@ growPlant(plant_t *plant)
 		    }
 
 		    if (included != NULL) {
-			if (included->capacity > 0) {
-			    free(included->segment);
+			if (included->segment) {
+			    bu_free(included->segment, "included->segment");
 			    included->segment = (growthSegment_t **)NULL;
 			    included->capacity = 0;
 			}
 			if (included->count > 0) {
-			    free(included);
-			    included=(segmentList_t *)NULL;
+			    bu_free(included, "included");
+			    included = (segmentList_t *)NULL;
 			} else {
-			    /*
-			      printf("successful regrowth attempt\n");
-			    */
+			    bu_free(included, "included");
+			    included = (segmentList_t *)NULL;
 			    printf(".");
 			    break;
 			}
@@ -608,38 +612,23 @@ growPlant(plant_t *plant)
 	    }
 
 	    if (excluded != NULL) {
-		/*
-		  if (excluded->count > 0) {
-		  printf("found %d segments at start point\n", excluded->count);
-		  }
-		*/
-		if (excluded->capacity > 0) {
-		    free(excluded->segment);
+		if (excluded->segment) {
+		    bu_free(excluded->segment, "excluded->segment");
 		    excluded->segment = (growthSegment_t **)NULL;
 		    excluded->capacity = 0;
 		}
-		free(excluded);
-		excluded=(segmentList_t *)NULL;
+		bu_free(excluded, "excluded");
+		excluded = (segmentList_t *)NULL;
 	    }
-	    /*
-	      if (included != NULL) {
-	      if (included->capacity > 0) {
-	      free(included->segment);
-	      included->capacity = NULL;
-	      }
-	      if (included->count > 0) {
-	      free(included);
-	      included=NULL;
-
-	      point->alive = FALSE;
-	      continue;
-	      } else {
-	      free(included);
-	      included=NULL;
-	      }
-	      }
-
-	    */
+	    if (included != NULL) {
+		if (included->segment) {
+		    bu_free(included->segment, "included->segment");
+		    included->segment = (growthSegment_t **)NULL;
+		    included->capacity = 0;
+		}
+		bu_free(included, "included");
+		included = (segmentList_t *)NULL;
+	    }
 
 
 	    /* what if there is no structure yet? -- make one */
@@ -765,8 +754,10 @@ writeStructureToDisk(struct rt_wdb *fp, structure_t *structure, outputCounter_t 
     snprintf(oc->name, MAX_STRING_LENGTH, "branch%d.c", oc->combinations);
     if (mk_lcomb(fp, oc->name, &(oc->combination), 0, NULL, NULL, NULL, 0) != 0) {
 	fprintf(stderr, "Unable to write region to database\n");
+	mk_freemembers(&(oc->combination.l));
 	bu_exit(2, NULL);
     }
+    mk_freemembers(&(oc->combination.l));
     oc->combinations++;
 
     /* add combination to master region list */
@@ -800,10 +791,40 @@ writePlantToDisk(struct rt_wdb *fp, plant_t *plant)
 
     if (mk_lcomb(fp, oc.plantName, &(oc.region), 1, NULL, NULL, NULL, 0) != 0) {
 	fprintf(stderr, "Unable to write region to database\n");
+	mk_freemembers(&(oc.region.l));
 	bu_exit(2, NULL);
     }
+    mk_freemembers(&(oc.region.l));
 
     return 0;
+}
+
+
+static void
+freeStructure(structure_t *structure)
+{
+    size_t i;
+
+    if (!structure)
+	return;
+
+    if (structure->subStructure) {
+	for (i = 0; i < structure->subStructureCount; i++) {
+	    freeStructure(structure->subStructure[i]);
+	}
+	bu_free(structure->subStructure, "structure->subStructure");
+	structure->subStructure = NULL;
+    }
+
+    if (structure->segment) {
+	for (i = 0; i < structure->segmentCount; i++) {
+	    bu_free(structure->segment[i], "structure->segment[i]");
+	}
+	bu_free(structure->segment, "structure->segment");
+	structure->segment = NULL;
+    }
+
+    bu_free(structure, "structure");
 }
 
 
@@ -815,41 +836,24 @@ destroyPlant(plant_t *plant)
     /* get rid of the plant structure properly */
     if (plant != NULL) {
 	if (plant->structure != NULL) {
-	    if (plant->structure->subStructureCount > 0) {
-		for (i=0; i < plant->structure->subStructureCount; i++) {
-		    free(plant->structure->subStructure[i]);
-		}
-		free(plant->structure->subStructure);
-	    }
-	    plant->structure->subStructure = NULL;
-
-	    if (plant->structure->segmentCount > 0) {
-		for (i=0; i < plant->structure->segmentCount; i++) {
-		    free(plant->structure->segment[i]);
-		}
-		free(plant->structure->segment);
-	    }
-	    plant->structure->segment = NULL;
-
-	    free(plant->structure);
+	    freeStructure(plant->structure);
 	    plant->structure = NULL;
 	}
 	if (plant->growth != NULL) {
-	    if (plant->growth->count > 0) {
-		for (i=0; i < plant->growth->count; i++) {
+	    if (plant->growth->point != NULL) {
+		for (i = 0; i < plant->growth->count; i++) {
 		    plant->growth->point[i]->structure = NULL;
-		    free(plant->growth->point[i]);
+		    bu_free(plant->growth->point[i], "plant->growth->point[i]");
 		}
-		free(plant->growth->point);
+		bu_free(plant->growth->point, "plant->growth->point");
+		plant->growth->point = NULL;
 	    }
-	    plant->growth->point = NULL;
-	    free(plant->growth);
+	    bu_free(plant->growth, "plant->growth");
 	    plant->growth = NULL;
 	}
-	free(plant);
+	bu_free(plant, "plant");
 	plant = NULL;
     }
-
 }
 
 
@@ -899,50 +903,74 @@ main(int argc, char *argv[])
     double branchingRate = 0.1;  /* 0->1 probability to branch per iteration */
     long seed;
 
+    if (!argv || !argv[0]) {
+	bu_exit(1, "vegetation: Invalid argument list\n");
+    }
     bu_setprogname(argv[0]);
+
+    if (argc > 1) {
+	if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help")) {
+	    bu_log("Usage: %s [iterations [height [trunk_radius [branching_rate [seed]]]]]\n", argv[0]);
+	    return 0;
+	}
+    }
 
     printf("Vegetation generator\n");
     printf("====================\n");
 
-    if (argc > 1)
-	age = atoi(argv[1]);
+    if (argc > 1) {
+	if (bu_sscanf(argv[1], "%u", &age) != 1)
+	    age = 20;
+    }
 
     if (age == 0)
 	age = 1;
-    else if (age > UINT32_MAX)
-	age = UINT32_MAX;
+    else if (age > 200)
+	age = 200;
 
     printf("Growing for %d years\n", age);
-    if (argc > 2)
-	height = atof(argv[2]);
+    if (argc > 2) {
+	if (bu_sscanf(argv[2], "%lf", &height) != 1)
+	    height = 30000.0;
+    }
 
     if (height < (SMALL_FASTF * 1000.0))
 	height = (SMALL_FASTF * 1000.0);
 
     printf("Growing to about %f meters in height\n", height / 1000);
-    if (argc > 3)
-	trunkRadius = atof(argv[3]);
+    if (argc > 3) {
+	if (bu_sscanf(argv[3], "%lf", &trunkRadius) != 1)
+	    trunkRadius = 300.0;
+    }
 
     if (trunkRadius < (SMALL_FASTF * 1000.0))
 	trunkRadius = (SMALL_FASTF * 1000.0);
 
     printf("Growing from a base width of %f meters\n", trunkRadius / 1000);
-    if (argc > 4)
-	branchingRate = atof(argv[4]);
+    if (argc > 4) {
+	if (bu_sscanf(argv[4], "%lf", &branchingRate) != 1)
+	    branchingRate = 0.1;
+    }
 
     if (branchingRate < SMALL_FASTF)
 	branchingRate = SMALL_FASTF;
+    if (branchingRate > 1.0)
+	branchingRate = 1.0;
 
     if (argc > 5) {
-	seed = atol(argv[5]);
+	if (bu_sscanf(argv[5], "%ld", &seed) != 1)
+	    seed = (long)time(0);
     } else {
-	seed=time(0);
+	seed = (long)time(0);
     }
     bn_randmt_seed(seed);
     /* report the seed just in case we want to know it */
     printf("Vegetation seed is %ld\n", seed);
 
-    fp=wdb_fopen("vegetation.g");
+    fp = wdb_fopen("vegetation.g");
+    if (!fp) {
+	bu_exit(1, "vegetation: failed to open vegetation.g for writing\n");
+    }
 
     mk_id_units(fp, "Vegetation", "mm");
 
@@ -982,11 +1010,13 @@ main(int argc, char *argv[])
 
     if (invalidCharacteristics(&c)) {
 	fprintf(stderr, "Invalid plant characteristics\n");
+	wdb_close(fp);
 	bu_exit(3, NULL);
     }
 
     if ((plant = createPlant(age, position, trunkRadius, direction, &c)) == NULL) {
 	fprintf(stderr, "Unable to create plant\n");
+	wdb_close(fp);
 	bu_exit(1, NULL);
     }
 
@@ -994,12 +1024,14 @@ main(int argc, char *argv[])
 
     if (writePlantToDisk(fp, plant) != 0) {
 	fprintf(stderr, "Unable to write plant to disk\n");
+	destroyPlant(plant);
+	wdb_close(fp);
 	bu_exit(1, NULL);
     }
 
     destroyPlant(plant);
 
-    db_close(fp->dbip);
+    wdb_close(fp);
     return 0;
 }
 

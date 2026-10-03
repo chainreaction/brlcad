@@ -235,10 +235,18 @@ main(int ac, char *av[])
     int i;
     fastf_t span;
 
+    if (!av || !av[0]) {
+	bu_exit(1, "voxelize: Invalid argument list\n");
+    }
     bu_setprogname(av[0]);
 
+    if (ac == 2 && (BU_STR_EQUAL(av[1], "-h") || BU_STR_EQUAL(av[1], "-?") || BU_STR_EQUAL(av[1], "--help"))) {
+	bu_log("Usage: %s output.g [--field gyroid|metaball|mandel] [--res N] [--lo B] [--hi B]\n", (av && av[0]) ? av[0] : "voxelize");
+	return 0;
+    }
+
     if (ac < 2) {
-	bu_exit(1, "Usage: %s output.g [--field gyroid|metaball|mandel] [--res N] [--lo B] [--hi B]\n", av[0]);
+	bu_exit(1, "Usage: %s output.g [--field gyroid|metaball|mandel] [--res N] [--lo B] [--hi B]\n", (av && av[0]) ? av[0] : "voxelize");
     }
 
     /* Very small, dependency-free argument parser.  Every option is
@@ -251,11 +259,14 @@ main(int ac, char *av[])
 	    if (field < 0)
 		bu_exit(1, "Unknown --field '%s' (use gyroid, metaball, or mandel)\n", av[i]);
 	} else if (BU_STR_EQUAL(av[i], "--res") && i + 1 < ac) {
-	    res = atoi(av[++i]);
+	    if (bu_sscanf(av[++i], "%d", &res) != 1)
+		bu_log("Warning: invalid --res '%s'\n", av[i]);
 	} else if (BU_STR_EQUAL(av[i], "--lo") && i + 1 < ac) {
-	    lo = atoi(av[++i]);
+	    if (bu_sscanf(av[++i], "%d", &lo) != 1)
+		bu_log("Warning: invalid --lo '%s'\n", av[i]);
 	} else if (BU_STR_EQUAL(av[i], "--hi") && i + 1 < ac) {
-	    hi = atoi(av[++i]);
+	    if (bu_sscanf(av[++i], "%d", &hi) != 1)
+		bu_log("Warning: invalid --hi '%s'\n", av[i]);
 	} else {
 	    bu_exit(1, "Unrecognized argument '%s'\n", av[i]);
 	}
@@ -370,24 +381,38 @@ main(int ac, char *av[])
     fp = fopen(volfile, "wb");
     if (!fp) {
 	perror(volfile);
+	bu_free(voldata, "voldata");
+	bu_free(ebmdata, "ebmdata");
+	wdb_close(db_fp);
 	bu_exit(3, "voxelize: could not open vol data file for writing\n");
     }
     written = fwrite(voldata, sizeof(unsigned char), nvox, fp);
     fclose(fp);
-    if (written != nvox)
+    if (written != nvox) {
+	bu_free(voldata, "voldata");
+	bu_free(ebmdata, "ebmdata");
+	wdb_close(db_fp);
 	bu_exit(3, "voxelize: short write to %s\n", volfile);
+    }
     bu_log("voxelize: wrote %lu bytes to %s\n", (unsigned long)nvox, volfile);
 
     /* Write the sidecar .ebm file (x-fastest, then y). */
     fp = fopen(ebmfile, "wb");
     if (!fp) {
 	perror(ebmfile);
+	bu_free(voldata, "voldata");
+	bu_free(ebmdata, "ebmdata");
+	wdb_close(db_fp);
 	bu_exit(3, "voxelize: could not open ebm data file for writing\n");
     }
     written = fwrite(ebmdata, sizeof(unsigned char), xdim * ydim, fp);
     fclose(fp);
-    if (written != xdim * ydim)
+    if (written != xdim * ydim) {
+	bu_free(voldata, "voldata");
+	bu_free(ebmdata, "ebmdata");
+	wdb_close(db_fp);
 	bu_exit(3, "voxelize: short write to %s\n", ebmfile);
+    }
     bu_log("voxelize: wrote %lu bytes to %s\n",
 	   (unsigned long)(xdim * ydim), ebmfile);
 
@@ -406,6 +431,9 @@ main(int ac, char *av[])
      */
     if (mk_vol(db_fp, "vol.s", RT_VOL_SRC_FILE, volbase,
 	       xdim, ydim, zdim, (size_t)lo, (size_t)hi, cellsize, mat) < 0) {
+	bu_free(voldata, "voldata");
+	bu_free(ebmdata, "ebmdata");
+	wdb_close(db_fp);
 	bu_exit(4, "voxelize: mk_vol() failed\n");
     }
 
@@ -414,6 +442,9 @@ main(int ac, char *av[])
      */
     tallness = span * 0.5;
     if (mk_ebm(db_fp, "ebm.s", ebmbase, xdim, ydim, tallness, mat) < 0) {
+	bu_free(voldata, "voldata");
+	bu_free(ebmdata, "ebmdata");
+	wdb_close(db_fp);
 	bu_exit(4, "voxelize: mk_ebm() failed\n");
     }
 
@@ -442,6 +473,7 @@ main(int ac, char *av[])
 	     "di=0.7 sp=0.4 sh=12",
 	     rgb,
 	     0);
+    mk_freemembers(&region_hd.l);
 
     /* Build the ebm region, offset off to the side along +X so it sits
      * next to the volume rather than overlapping it.  The ebm grows in
@@ -466,6 +498,7 @@ main(int ac, char *av[])
 		 "di=0.6 sp=0.5 sh=20",
 		 rgb,
 		 0);
+	mk_freemembers(&ebm_hd.l);
     }
 
     /* Assemble the top-level group "all" so that 'tops' returns a
@@ -482,6 +515,7 @@ main(int ac, char *av[])
 	     (char *)0,
 	     (unsigned char *)0,
 	     0);
+    mk_freemembers(&all_hd.l);
 
     bu_log("voxelize: wrote database %s (top-level group 'all')\n", av[1]);
 
@@ -489,7 +523,7 @@ main(int ac, char *av[])
     bu_free(ebmdata, "ebmdata");
 
     /* Close the database file. */
-    db_close(db_fp->dbip);
+    wdb_close(db_fp);
 
     return 0;
 }

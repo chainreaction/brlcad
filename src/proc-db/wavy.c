@@ -61,7 +61,7 @@ interpolate_data(fastf_t *grid)
 static void
 printusage(void)
 {
-    bu_log("Usage: wavy [-d] [-H hscale]\n");
+    bu_log("Usage: %s [-H hscale]\n", bu_getprogname());
 }
 
 
@@ -76,6 +76,9 @@ main(int argc, char **argv)
     fastf_t grid[10][10][3];
     struct face_g_snurb **surfaces;
 
+    if (!argv || !argv[0]) {
+	bu_exit(1, "wavy: Invalid argument list\n");
+    }
     bu_setprogname(argv[0]);
 
     hscale = 2.5;
@@ -83,17 +86,28 @@ main(int argc, char **argv)
     while ((i=bu_getopt(argc, argv, "H:h?")) != -1) {
 	switch (i) {
 	    case 'H':
-		hscale = atof(bu_optarg);
+		if (bu_sscanf(bu_optarg, "%lf", &hscale) != 1) {
+		    bu_log("wavy: invalid hscale '%s'\n", bu_optarg);
+		    printusage();
+		    return 1;
+		}
 		break;
+	    case 'h':
+	    case '?':
+		printusage();
+		return 0;
 	    default:
 		printusage();
-		bu_exit(1, NULL);
+		return 1;
 	}
     }
 
-    bu_log("Writing out geometry to file [wavy.g] ...");
-
     outfp = wdb_fopen("wavy.g");
+    if (!outfp) {
+	bu_exit(1, "wavy: failed to open wavy.g for writing\n");
+    }
+
+    bu_log("Writing out geometry to file [wavy.g] ...");
 
     /* Create the database header record.  This solid will consist of
      * three surfaces: a top surface, bottom surface, and the sides (so
@@ -117,8 +131,9 @@ main(int argc, char **argv)
     surfaces = interpolate_data(&grid[0][0][0]);
 
     mk_bspline(outfp, nurb_name, surfaces);
+    /* Note: mk_bspline/wdb_export takes ownership and frees surfaces via rt_nurb_ifree */
 
-    db_close(outfp->dbip);
+    wdb_close(outfp);
 
     bu_log(" done.\n");
 

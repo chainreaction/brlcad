@@ -51,10 +51,18 @@ main(int ac, char *av[])
     unsigned char rgb[3];
     struct wmember wm_hd; /* defined in wdb.h */
 
+    if (!av || !av[0]) {
+	bu_exit(1, "wdb_example: Invalid argument list\n");
+    }
     bu_setprogname(av[0]);
 
+    if (ac == 2 && (BU_STR_EQUAL(av[1], "-h") || BU_STR_EQUAL(av[1], "-?") || BU_STR_EQUAL(av[1], "--help"))) {
+	bu_log("Usage: %s db_file.g\n", (av && av[0]) ? av[0] : "wdb_example");
+	return 0;
+    }
+
     if (ac != 2) {
-	bu_exit(1, "Usage: %s db_file.g\n", av[0]);
+	bu_exit(1, "Usage: %s db_file.g\n", (av && av[0]) ? av[0] : "wdb_example");
     }
 
     /* Open/Create the database file for writing. */
@@ -133,9 +141,10 @@ main(int ac, char *av[])
 	     "di=.8 sp=.2",  /* shader parameters */
 	     rgb,            /* item color */
 	     0);             /* inherit (override) flag */
+    mk_freemembers(&wm_hd.l);
 
     /* Close the database file. */
-    db_close(db_fp->dbip);
+    wdb_close(db_fp);
 
     return 0;
 }

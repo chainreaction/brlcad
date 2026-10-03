@@ -137,7 +137,7 @@ typedef struct characteristic {
 
 
 } characteristic_t;
-#define INIT_CHARACTERISTIC_T(_i) { (_i)->totalHeight = (_i)->totalRadius = (_i)->minLength = (_i)->minRadius = (_i)->lengthMinVariation = (_i)->lengthMaxVariation = (_i)->radiusMinVariation = (_i)->radiusMaxVariation = 0.0; VSETALL((_i)->dirMinVariation, 0.0); VSETALL((_i)->dirMaxVariation, 0.0); (_i)->branchingRate = (_i)->branchAtEndpointRate = 0.0, (_i)->minBranchingAge = (_i)->maxBranchingAge = (_i)->regrowthAttempts = (_i)->growthEnergy = 0; VSETALL((_i)->branchMinVariation, 0.0); VSETALL((_i)->dirMaxVariation, 0.0); (_i)->dyingRate = 0.0, (_i)->dyingAge = 0; (_i)->lengthDecayRate = (_i)->radiusDecayRate = 0.0; }
+#define INIT_CHARACTERISTIC_T(_i) { (_i)->totalHeight = (_i)->totalRadius = (_i)->minLength = (_i)->minRadius = (_i)->lengthMinVariation = (_i)->lengthMaxVariation = (_i)->radiusMinVariation = (_i)->radiusMaxVariation = 0.0; VSETALL((_i)->dirMinVariation, 0.0); VSETALL((_i)->dirMaxVariation, 0.0); (_i)->branchingRate = (_i)->branchAtEndpointRate = 0.0, (_i)->minBranchingAge = (_i)->maxBranchingAge = (_i)->regrowthAttempts = (_i)->growthEnergy = 0; VSETALL((_i)->branchMinVariation, 0.0); VSETALL((_i)->branchMaxVariation, 0.0); (_i)->dyingRate = 0.0, (_i)->dyingAge = 0; (_i)->lengthDecayRate = (_i)->radiusDecayRate = 0.0; }
 
 
 typedef struct plant {
@@ -169,7 +169,7 @@ typedef struct outputCounter {
     struct wmember region;
     char plantName[MAX_STRING_LENGTH];
 } outputCounter_t;
-#define INIT_OUTPUTCOUNTER_T(_i) { (_i)->primitives=0; (_i)->combinations=0; BU_LIST_INIT(&((_i)->combination).l); sprintf((_i)->name, "XXX"); BU_LIST_INIT(&((_i)->region).l); snprintf((_i)->plantName, MAX_STRING_LENGTH, "plant.r"); }
+#define INIT_OUTPUTCOUNTER_T(_i) { (_i)->primitives=0; (_i)->combinations=0; BU_LIST_INIT(&((_i)->combination).l); bu_strlcpy((_i)->name, "XXX", MAX_STRING_LENGTH); BU_LIST_INIT(&((_i)->region).l); snprintf((_i)->plantName, MAX_STRING_LENGTH, "plant.r"); }
 
 
 #endif /* PROC_DB_VEGETATION_H */
