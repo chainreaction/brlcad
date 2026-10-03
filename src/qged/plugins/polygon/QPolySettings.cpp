@@ -28,8 +28,8 @@
 #include "bg/polygon.h"
 #include "QPolySettings.h"
 
-QPolySettings::QPolySettings()
-    : QWidget()
+QPolySettings::QPolySettings(QWidget *parent)
+    : QWidget(parent)
 {
     QVBoxLayout *l = new QVBoxLayout;
     l->setAlignment(Qt::AlignTop);
@@ -147,7 +147,7 @@ QPolySettings::~QPolySettings()
 bool
 QPolySettings::uniq_obj_name(struct bu_vls *oname, struct bview *v)
 {
-    if (!v || !oname)
+    if (!v || !view_name)
 	return false;
 
     char *vname = NULL;
@@ -160,13 +160,19 @@ QPolySettings::uniq_obj_name(struct bu_vls *oname, struct bview *v)
 	vname = bu_strdup(view_name->text().toLocal8Bit().data());
     }
 
+    if (!vname)
+	return false;
+
     // See if the supplied name will collide.  If it will, then reject.  If we want
     // an output name, fail with a message box
     struct bu_vls ovname = BU_VLS_INIT_ZERO;
     bv_uniq_obj_name(&ovname, vname, v);
     if (!BU_STR_EQUAL(bu_vls_cstr(&ovname), vname)) {
-	if (!oname)
+	if (!oname) {
+	    bu_vls_free(&ovname);
+	    bu_free(vname, "vname");
 	    return false;
+	}
 	QMessageBox msgBox;
 	msgBox.setText("Proposed object name already exists in view.");
 	msgBox.exec();
@@ -179,12 +185,17 @@ QPolySettings::uniq_obj_name(struct bu_vls *oname, struct bview *v)
     if (oname)
 	bu_vls_sprintf(oname, "%s", vname);
 
+    bu_vls_free(&ovname);
+    bu_free(vname, "vname");
     return true;
 }
 
 void
 QPolySettings::sketch_sync_toggled(bool)
 {
+    if (!sketch_sync || !sketch_name)
+	return;
+
     if (sketch_sync->isChecked()) {
 	if (sketch_name->placeholderText() == QString("Enable to save sketch"))
 	    sketch_name->setPlaceholderText("");
@@ -207,12 +218,16 @@ QPolySettings::do_settings_changed()
 void
 QPolySettings::do_line_snapping_changed()
 {
+    if (!line_snapping)
+	return;
     emit line_snapping_changed(line_snapping->isChecked());
 }
 
 void
 QPolySettings::do_grid_snapping_changed()
 {
+    if (!grid_snapping)
+	return;
     emit grid_snapping_changed(grid_snapping->isChecked());
 }
 
@@ -220,9 +235,12 @@ QPolySettings::do_grid_snapping_changed()
 void
 QPolySettings::settings_sync(struct bv_scene_obj *p)
 {
-    if (!p)
+    if (!p || !p->s_i_data)
 	return;
 
+    if (!edge_color || !edge_color->rgbtext || !fill_color || !fill_color->rgbtext ||
+	!fill_slope_x || !fill_slope_y || !fill_density || !fill_poly || !vZ)
+	return;
 
     struct bv_polygon *ip = (struct bv_polygon *)p->s_i_data;
 

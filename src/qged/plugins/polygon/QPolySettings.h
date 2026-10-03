@@ -35,24 +35,24 @@ class QPolySettings : public QWidget
     Q_OBJECT
 
     public:
-	QPolySettings();
+	explicit QPolySettings(QWidget *parent = nullptr);
 	~QPolySettings();
 
-	QgColorRGB *edge_color;
-	QCheckBox *fill_poly;
-	QgColorRGB *fill_color;
-	QLineEdit *fill_slope_x;
-	QLineEdit *fill_slope_y;
-	QLineEdit *fill_density;
+	QgColorRGB *edge_color = nullptr;
+	QCheckBox *fill_poly = nullptr;
+	QgColorRGB *fill_color = nullptr;
+	QLineEdit *fill_slope_x = nullptr;
+	QLineEdit *fill_slope_y = nullptr;
+	QLineEdit *fill_density = nullptr;
 
-	QLineEdit *view_name;
-	QLineEdit *sketch_name;
-	QCheckBox *sketch_sync;
+	QLineEdit *view_name = nullptr;
+	QLineEdit *sketch_name = nullptr;
+	QCheckBox *sketch_sync = nullptr;
 
-	QLineEdit *vZ;
+	QLineEdit *vZ = nullptr;
 
-	QCheckBox *line_snapping;
-	QCheckBox *grid_snapping;
+	QCheckBox *line_snapping = nullptr;
+	QCheckBox *grid_snapping = nullptr;
 
 	bool uniq_obj_name(struct bu_vls *oname, struct bview *v);
 

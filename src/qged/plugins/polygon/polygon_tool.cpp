@@ -29,12 +29,12 @@
 void *
 polygon_tool_create()
 {
-    QIcon *obj_icon = new QIcon(QPixmap(":poly_create.svg"));
+    QIcon obj_icon(QPixmap(":poly_create.svg"));
 
     QPolyCreate *poly_create = new QPolyCreate();
     poly_create->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
 
-    QgToolPaletteElement *el = new QgToolPaletteElement(obj_icon, poly_create);
+    QgToolPaletteElement *el = new QgToolPaletteElement(&obj_icon, poly_create);
 
     // These creates may change the view - connect the internal widget signal
     // to the QgToolPaletteElement slot so the application can get the word when
@@ -53,12 +53,12 @@ polygon_tool_create()
 void *
 polygon_tool_modify()
 {
-    QIcon *obj_icon = new QIcon(QPixmap(":poly_modify.svg"));
+    QIcon obj_icon(QPixmap(":poly_modify.svg"));
 
     QPolyMod *poly_mod = new QPolyMod();
     poly_mod->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
 
-    QgToolPaletteElement *el = new QgToolPaletteElement(obj_icon, poly_mod);
+    QgToolPaletteElement *el = new QgToolPaletteElement(&obj_icon, poly_mod);
 
     // These mods may change the view - connect the internal widget signal
     // to the QgToolPaletteElement slot so the application can get the word when

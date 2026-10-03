@@ -41,33 +41,33 @@ class QPolyCreate : public QWidget
     Q_OBJECT
 
     public:
-	QPolyCreate();
+	explicit QPolyCreate(QWidget *parent = nullptr);
 	~QPolyCreate();
 
 	// Boolean Operation Mode
-	QComboBox *csg_modes;
+	QComboBox *csg_modes = nullptr;
 
 	// Adding polygons
-	QRadioButton *circle_mode;
-	QRadioButton *ellipse_mode;
-	QRadioButton *square_mode;
-	QRadioButton *rectangle_mode;
-	QRadioButton *general_mode;
+	QRadioButton *circle_mode = nullptr;
+	QRadioButton *ellipse_mode = nullptr;
+	QRadioButton *square_mode = nullptr;
+	QRadioButton *rectangle_mode = nullptr;
+	QRadioButton *general_mode = nullptr;
 
 	// Draw default settings
 	// Default edge color
-	QPolySettings *ps;
+	QPolySettings *ps = nullptr;
 
 	// Modifying polygons
-	QCheckBox *close_general_poly;
+	QCheckBox *close_general_poly = nullptr;
 
 	// Existing view polygon copy
-	QLineEdit *vpoly_name;
-	QPushButton *vpoly_copy;
+	QLineEdit *vpoly_name = nullptr;
+	QPushButton *vpoly_copy = nullptr;
 
 	// Sketch import
-	QLineEdit *import_name;
-	QPushButton *import_sketch;
+	QLineEdit *import_name = nullptr;
+	QPushButton *import_sketch = nullptr;
 
     signals:
 	void poly_added();
@@ -98,11 +98,11 @@ class QPolyCreate : public QWidget
     private:
 	bg_clip_t op = bg_Union;
 	int poly_cnt = 0;
-	struct bv_scene_obj *p = NULL;
+	struct bv_scene_obj *p = nullptr;
 	bool do_bool = false;
 
-	QgPolyFilter *cf = NULL;
-	QPolyCreateFilter *pcf;
+	QgPolyFilter *cf = nullptr;
+	QPolyCreateFilter *pcf = nullptr;
 };
 
 #endif //QPOLYCREATE_H
