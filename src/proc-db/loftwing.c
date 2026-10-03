@@ -93,6 +93,9 @@
 static void
 naca_eval(double x, double m, double p, double tt, double *yc, double *dyc, double *yt)
 {
+    if (x < 0.0)
+	x = 0.0;
+
     /* Standard NACA 4-digit half-thickness distribution.  The final
      * coefficient is adjusted to -0.1036 (instead of the open-trailing-
      * edge -0.1015) so the upper and lower surfaces meet at a sharp,
@@ -104,7 +107,7 @@ naca_eval(double x, double m, double p, double tt, double *yc, double *dyc, doub
 		      + 0.2843 * x * x * x
 		      - 0.1036 * x * x * x * x);
 
-    if (p <= 0.0 || m <= 0.0) {
+    if (p <= 0.0 || m <= 0.0 || p >= 1.0 || EQUAL(p, 1.0)) {
 	/* symmetric airfoil: no camber */
 	*yc = 0.0;
 	*dyc = 0.0;
@@ -146,6 +149,9 @@ naca_outline(int naca, size_t npts, double *outx, double *outz)
     double x, beta;
     size_t nupper, nlower, i, idx;
 
+    if (npts < 4 || !outx || !outz)
+	return;
+
     /* Decode the 4-digit code into camber/position/thickness. */
     m  = ((naca / 1000) % 10) / 100.0;
     p  = ((naca / 100) % 10) / 10.0;
@@ -164,6 +170,8 @@ naca_outline(int naca, size_t npts, double *outx, double *outz)
      */
     nupper = (npts - 1) / 2;        /* upper run, TE..(just before LE) */
     nlower = (npts - 1) - nupper;   /* lower run, (after LE)..TE */
+    if (nupper < 1 || nlower < 1)
+	return;
 
     /* Upper surface: trailing edge (x=1) forward to leading edge (x=0). */
     for (i = 0; i < nupper; i++) {
@@ -220,6 +228,9 @@ build_loft(struct rt_wdb *db_fp, const char *name,
     size_t ncurves;             /* stations + root cap + tip pole */
     size_t c, k;
     int ret;
+
+    if (!db_fp || !name || !base_x || !base_z || stations < 1 || ppc < 4)
+	return -1;
 
     /* Total curves: a duplicate root ring (flat cap), the interior
      * station rings, and a collapsed tip pole.
@@ -378,11 +389,17 @@ main(int ac, char *av[])
     size_t ppc;                 /* points per curve */
     int i;
 
-    bu_setprogname(av[0]);
+    if (av && av[0])
+	bu_setprogname(av[0]);
 
     if (ac < 2) {
+	usage(av ? av[0] : "loftwing");
+	bu_exit(1, "Usage: %s output.g [params]\n", av ? av[0] : "loftwing");
+    }
+
+    if (BU_STR_EQUAL(av[1], "-h") || BU_STR_EQUAL(av[1], "-?") || BU_STR_EQUAL(av[1], "--help")) {
 	usage(av[0]);
-	bu_exit(1, "Usage: %s output.g [params]\n", av[0]);
+	return 0;
     }
 
     /* Parse the optional arguments.  av[1] is always the output path. */
@@ -394,34 +411,44 @@ main(int ac, char *av[])
 	    else
 		mode = MODE_WING;
 	} else if (BU_STR_EQUAL(av[i], "--naca") && i + 1 < ac) {
-	    naca = atoi(av[++i]);
+	    if (bu_sscanf(av[++i], "%d", &naca) != 1 || naca < 0) {
+		bu_log("Warning: invalid naca '%s'\n", av[i]);
+	    }
 	} else if (BU_STR_EQUAL(av[i], "--stations") && i + 1 < ac) {
-	    stations = atoi(av[++i]);
+	    if (bu_sscanf(av[++i], "%d", &stations) != 1) {
+		bu_log("Warning: invalid stations '%s'\n", av[i]);
+	    }
 	} else if (BU_STR_EQUAL(av[i], "--points") && i + 1 < ac) {
-	    points = atoi(av[++i]);
+	    if (bu_sscanf(av[++i], "%d", &points) != 1) {
+		bu_log("Warning: invalid points '%s'\n", av[i]);
+	    }
 	} else if (BU_STR_EQUAL(av[i], "--span") && i + 1 < ac) {
-	    span = atof(av[++i]);
-	    set_span = 1;
+	    if (bu_sscanf(av[++i], "%lf", &span) == 1 && span > 0.0)
+		set_span = 1;
 	} else if (BU_STR_EQUAL(av[i], "--root-chord") && i + 1 < ac) {
-	    root_chord = atof(av[++i]);
-	    set_root_chord = 1;
+	    if (bu_sscanf(av[++i], "%lf", &root_chord) == 1 && root_chord > 0.0)
+		set_root_chord = 1;
 	} else if (BU_STR_EQUAL(av[i], "--tip-chord") && i + 1 < ac) {
-	    tip_chord = atof(av[++i]);
-	    set_tip_chord = 1;
+	    if (bu_sscanf(av[++i], "%lf", &tip_chord) == 1 && tip_chord > 0.0)
+		set_tip_chord = 1;
 	} else if (BU_STR_EQUAL(av[i], "--twist") && i + 1 < ac) {
-	    twist_deg = atof(av[++i]);
-	    set_twist = 1;
+	    if (bu_sscanf(av[++i], "%lf", &twist_deg) == 1)
+		set_twist = 1;
 	} else if (BU_STR_EQUAL(av[i], "--sweep") && i + 1 < ac) {
-	    sweep_deg = atof(av[++i]);
-	    set_sweep = 1;
+	    if (bu_sscanf(av[++i], "%lf", &sweep_deg) == 1)
+		set_sweep = 1;
 	} else if (BU_STR_EQUAL(av[i], "--dihedral") && i + 1 < ac) {
-	    dihedral_deg = atof(av[++i]);
-	    set_dihedral = 1;
+	    if (bu_sscanf(av[++i], "%lf", &dihedral_deg) == 1)
+		set_dihedral = 1;
 	} else if (BU_STR_EQUAL(av[i], "--blades") && i + 1 < ac) {
-	    blades = atoi(av[++i]);
+	    if (bu_sscanf(av[++i], "%d", &blades) != 1) {
+		bu_log("Warning: invalid blades '%s'\n", av[i]);
+	    }
 	} else if (BU_STR_EQUAL(av[i], "--seed") && i + 1 < ac) {
-	    seed = atoi(av[++i]);
-	} else if (BU_STR_EQUAL(av[i], "-h") || BU_STR_EQUAL(av[i], "--help")) {
+	    if (bu_sscanf(av[++i], "%d", &seed) != 1) {
+		bu_log("Warning: invalid seed '%s'\n", av[i]);
+	    }
+	} else if (BU_STR_EQUAL(av[i], "-h") || BU_STR_EQUAL(av[i], "-?") || BU_STR_EQUAL(av[i], "--help")) {
 	    usage(av[0]);
 	    return 0;
 	} else {
@@ -445,7 +472,7 @@ main(int ac, char *av[])
 	    sweep_deg = 6.0;
 	if (!set_dihedral)
 	    dihedral_deg = 0.0;
-	if (NEAR_EQUAL(naca, DEF_NACA, SMALL_FASTF))
+	if (naca == DEF_NACA)
 	    naca = 4412;            /* fatter, draggier propeller section */
 	if (!set_root_chord)
 	    root_chord = 140.0;
@@ -458,10 +485,22 @@ main(int ac, char *av[])
     /* Sanity-clamp counts so the ARS is always valid. */
     if (points < 8)
 	points = 8;
+    if (points > 10000)
+	points = 10000;
     if (stations < 2)
 	stations = 2;
+    if (stations > 10000)
+	stations = 10000;
     if (blades < 1)
 	blades = 1;
+    if (blades > 1000)
+	blades = 1000;
+    if (span <= 0.0)
+	span = DEF_SPAN;
+    if (root_chord <= 0.0)
+	root_chord = DEF_ROOT_CHORD;
+    if (tip_chord <= 0.0)
+	tip_chord = DEF_TIP_CHORD;
 
     /* The closed airfoil ring has 'points' entries (last == first). */
     ppc = (size_t)points;
@@ -494,6 +533,9 @@ main(int ac, char *av[])
 	if (build_loft(db_fp, "wing.s", base_x, base_z, ppc,
 		       stations, span, root_chord, tip_chord,
 		       twist_deg, sweep_deg, dihedral_deg) != 0) {
+	    bu_free(base_x, "base_x");
+	    bu_free(base_z, "base_z");
+	    wdb_close(db_fp);
 	    bu_exit(1, "loftwing: mk_ars failed building the wing\n");
 	}
 
@@ -507,11 +549,13 @@ main(int ac, char *av[])
 	VSET(rgb, 170, 175, 185);   /* brushed-aluminum gray */
 	mk_lcomb(db_fp, "wing.r", &wm_hd, 1,
 		 "plastic", "di=0.5 sp=0.7 sh=24", rgb, 0);
+	mk_freemembers(&wm_hd.l);
 
 	/* Top-level group named "all". */
 	BU_LIST_INIT(&wm_hd.l);
 	(void)mk_addmember("wing.r", &wm_hd.l, NULL, WMOP_UNION);
 	mk_lcomb(db_fp, "all", &wm_hd, 0, NULL, NULL, NULL, 0);
+	mk_freemembers(&wm_hd.l);
 
 	bu_log("loftwing: wrote %s (top-level group 'all')\n", av[1]);
     } else {
@@ -533,6 +577,9 @@ main(int ac, char *av[])
 	if (build_loft(db_fp, "blade.s", base_x, base_z, ppc,
 		       stations, span, root_chord, tip_chord,
 		       twist_deg, sweep_deg, dihedral_deg) != 0) {
+	    bu_free(base_x, "base_x");
+	    bu_free(base_z, "base_z");
+	    wdb_close(db_fp);
 	    bu_exit(1, "loftwing: mk_ars failed building the blade\n");
 	}
 
@@ -547,6 +594,7 @@ main(int ac, char *av[])
 	VSET(hub_base, 0.0, 0.0, -hub_half);
 	VSET(hub_apex, 0.0, 0.0, 2.0 * hub_half);
 	if (mk_rcc(db_fp, "hub.s", hub_base, hub_apex, hub_radius) != 0) {
+	    wdb_close(db_fp);
 	    bu_exit(1, "loftwing: mk_rcc failed building the hub\n");
 	}
 
@@ -556,6 +604,7 @@ main(int ac, char *av[])
 	VSET(rgb, 60, 60, 65);
 	mk_lcomb(db_fp, "hub.r", &wm_hd, 1,
 		 "plastic", "di=0.6 sp=0.3 sh=10", rgb, 0);
+	mk_freemembers(&wm_hd.l);
 
 	/* Blade region: brushed-aluminum plastic, shared by all instances. */
 	BU_LIST_INIT(&wm_hd.l);
@@ -563,6 +612,7 @@ main(int ac, char *av[])
 	VSET(rgb, 170, 175, 185);
 	mk_lcomb(db_fp, "blade.r", &wm_hd, 1,
 		 "plastic", "di=0.5 sp=0.7 sh=24", rgb, 0);
+	mk_freemembers(&wm_hd.l);
 
 	/* Top-level propeller group: the hub plus N rotated blade
 	 * instances.  Each blade is first stood up so its span points
@@ -595,18 +645,22 @@ main(int ac, char *av[])
 	    bn_mat_mul(place, spin, orient);
 
 	    wm = mk_addmember("blade.r", &wm_hd.l, place, WMOP_UNION);
-	    if (wm == NULL)
+	    if (wm == NULL) {
+		mk_freemembers(&wm_hd.l);
+		wdb_close(db_fp);
 		bu_exit(1, "loftwing: failed to instance blade %d\n", b);
+	    }
 	}
 
 	mk_lcomb(db_fp, "all", &wm_hd, 0, NULL, NULL, NULL, 0);
+	mk_freemembers(&wm_hd.l);
 
 	bu_log("loftwing: wrote %s (%d-blade propeller, top-level group 'all')\n",
 	       av[1], blades);
     }
 
     /* Close the database file. */
-    db_close(db_fp->dbip);
+    wdb_close(db_fp);
 
     return 0;
 }

@@ -125,9 +125,9 @@ void usage(const char *s)
 void
 set_translate(char *s)
 {
-    double dx, dy, dz;
+    double dx = 0.0, dy = 0.0, dz = 0.0;
 
-    if (sscanf(s, "%lf/%lf/%lf", &dx, &dy, &dz) != 3)
+    if (!s || bu_sscanf(s, "%lf/%lf/%lf", &dx, &dy, &dz) != 3)
 	usage("translation option problem\n");
 
     if (!trans_matrix) {
@@ -201,9 +201,9 @@ buildHrot(matp_t mat, double alpha, double beta, double ggamma)
 void
 set_rotate(char *s)
 {
-    double rx, ry, rz;
+    double rx = 0.0, ry = 0.0, rz = 0.0;
 
-    if (sscanf(s, "%lf/%lf/%lf", &rx, &ry, &rz) != 3)
+    if (!s || bu_sscanf(s, "%lf/%lf/%lf", &rx, &ry, &rz) != 3)
 	usage("rotation option problem\n");
 
     if (!trans_matrix) {
@@ -220,8 +220,8 @@ parse_args(int ac, char **av)
 {
     int c;
     struct opening *op;
-    double dx, dy, width, height;
-    int R, G, B;
+    double dx = 0.0, dy = 0.0, width = 0.0, height = 0.0;
+    int R = 0, G = 0, B = 0;
     int units_lock=0;
     FILE *logfile;
 
@@ -234,7 +234,11 @@ parse_args(int ac, char **av)
 	static char base_buf[64];
 	struct bu_vls base = BU_VLS_INIT_ZERO;
 
-	bu_path_component(&base, *av, BU_PATH_BASENAME_EXTLESS);
+	if (av && *av)
+	    bu_path_component(&base, *av, BU_PATH_BASENAME_EXTLESS);
+	else
+	    bu_vls_strcpy(&base, "masonry");
+
 	bu_strlcpy(base_buf, bu_vls_cstr(&base), sizeof(base_buf));
 	bu_vls_free(&base);
 
@@ -255,8 +259,9 @@ parse_args(int ac, char **av)
 		set_rotate(bu_optarg);
 		break;
 	    case 'b':
-		if (sscanf(bu_optarg, "%lf, %lf, %lf", &width, &height, &dy) != 3)
-			usage("error parsing -b option\n");
+		if (bu_sscanf(bu_optarg, "%lf, %lf, %lf", &width, &height, &dy) != 3 ||
+		    width <= 0.0 || height <= 0.0 || dy <= 0.0)
+		    usage("error parsing -b option\n");
 
 		brick_width = width * unit_conv;
 		brick_height = height * unit_conv;
@@ -264,7 +269,7 @@ parse_args(int ac, char **av)
 		units_lock = 1;
 		break;
 	    case 'c':
-		if (sscanf(bu_optarg, "%d %d %d", &R, &G, &B) == 3) {
+		if (bu_sscanf(bu_optarg, "%d %d %d", &R, &G, &B) == 3) {
 		    color = def_color;
 		    color[0] = R & 0x0ff;
 		    color[1] = G & 0x0ff;
@@ -278,7 +283,7 @@ parse_args(int ac, char **av)
 		log_cmds = !log_cmds;
 		break;
 	    case 'm':
-		if ((dx=atof(bu_optarg)) <= 0.0)
+		if (bu_sscanf(bu_optarg, "%lf", &dx) != 1 || dx <= 0.0)
 		    usage("error parsing -m option\n");
 
 		min_mortar = dx * unit_conv;
@@ -292,7 +297,7 @@ parse_args(int ac, char **av)
 	    case 'o':
 		if (ZERO(ol_hd.ex))
 		    usage("set wall dimensions (-w) ahead of openings (-o)\n");
-		if (sscanf(bu_optarg, "%lf, %lf, %lf, %lf", &dx, &dy, &width, &height) != 4)
+		if (bu_sscanf(bu_optarg, "%lf, %lf, %lf, %lf", &dx, &dy, &width, &height) != 4)
 		    usage("error parsing -o option\n");
 
 		BU_ALLOC(op, struct opening);
@@ -332,12 +337,25 @@ parse_args(int ac, char **av)
 		units = bu_optarg;
 		break;
 	    case 'w':
-		if (sscanf(bu_optarg, "%lf, %lf", &width, &height) != 2)
+		if (bu_sscanf(bu_optarg, "%lf, %lf", &width, &height) != 2 ||
+		    width <= 0.0 || height <= 0.0)
 		    usage("error parsing -w (wall dimensions)\n");
 
 		WALL_WIDTH = width * unit_conv;
 		WALL_HEIGHT = height * unit_conv;
 		units_lock = 1;
+		break;
+	    case 'h':
+	    case '?':
+		bu_log("Usage: %s %s\n%s\n%s\n%s\n%s\n",
+		       progname,
+		       "[-u units] [-w(all) width, height] [-o(pening) lx, lz, hx, hz]",
+		       " [-n name_mged_object] [-d(ebug)] [-t {frame|brick|block|sheetrock}] [-c R/G/B]",
+		       " [-l(og_commands)] [-R(otate) rx/ry/rz] [-T(ranslate) dx/dy/dz]",
+		       " (brick options:) [-r(and_color)] [-b width, height, depth] [-m min_mortar_width]",
+		       " (default units=mm)"
+		);
+		bu_exit(0, NULL);
 		break;
 	    default:
 		usage((char *)NULL);
@@ -584,25 +602,28 @@ frame_opening(struct rt_wdb *fd, struct wmember *wm_hd, struct opening *op)
 		span = op->ex - op->sx;
 		span -= bd_thin*2.0;
 
-		studs = (int) (span/stud_spacing);
+		if (span > 0.0 && stud_spacing > 0.0) {
+		    studs = (int) (span/stud_spacing);
+		    if (studs > 0) {
+			dx = span / ((double)studs+1.0);
 
-		dx = span / ((double)studs+1.0);
+			if (debug)
+			    bu_log("making %d xtra studs, spacing %g on span %g\n",
+				   studs, dx / unit_conv,
+				   span / unit_conv);
 
-		if (debug)
-		    bu_log("making %d xtra studs, spacing %g on span %g\n",
-			   studs, dx / unit_conv,
-			   span / unit_conv);
+			for (pos=op->sx+dx; studs > 0; pos+=dx, studs--) {
+			    if (debug)
+				bu_log("making xtra stud @ %g\n",
+				       pos / unit_conv);
 
-		for (pos=op->sx+dx; studs; pos+=dx, studs--) {
-		    if (debug)
-			bu_log("making xtra stud @ %g\n",
-			       pos / unit_conv);
-
-		    mk_v_rpp(fd,	wm_hd,
-			     pos,	pos+bd_thin,
-			     0.0,	bd_thick,
-			     bd_thin,
-			     op->sz-bd_thin);
+			    mk_v_rpp(fd,	wm_hd,
+				     pos,	pos+bd_thin,
+				     0.0,	bd_thick,
+				     bd_thin,
+				     op->sz-bd_thin);
+			}
+		    }
 		}
 	    }
 	}
@@ -646,15 +667,19 @@ frame_opening(struct rt_wdb *fd, struct wmember *wm_hd, struct opening *op)
 	    span = op->ex - op->sx;
 	    span -= bd_thin*2.0;
 
-	    studs = (int) (span/stud_spacing);
-	    dx = span / ((double)studs+1.0);
+	    if (span > 0.0 && stud_spacing > 0.0) {
+		studs = (int) (span/stud_spacing);
+		if (studs > 0) {
+		    dx = span / ((double)studs+1.0);
 
-	    for (pos=op->sx+dx; studs--; pos += dx) {
-		mk_v_rpp(fd, wm_hd,
-			 pos, pos+bd_thin,
-			 0.0, bd_thick,
-			 op->ez+bd_thin,
-			 WALL_HEIGHT-bd_thin-beam_height);
+		    for (pos=op->sx+dx; studs > 0; pos += dx, studs--) {
+			mk_v_rpp(fd, wm_hd,
+				 pos, pos+bd_thin,
+				 0.0, bd_thick,
+				 op->ez+bd_thin,
+				 WALL_HEIGHT-bd_thin-beam_height);
+		    }
+		}
 	    }
 
 	    frame_o_sides(fd, wm_hd, op,
@@ -750,6 +775,7 @@ frame(struct rt_wdb *fd)
 	BU_LIST_DEQUEUE(&(seg->l));
 	bu_free((char *)seg, "seg_free 4");
     }
+    bu_free((char *)s_hd, "s_hd free");
 
     /* put in the vertical stud boards that are not a part of an
      * opening for a window or a door.
@@ -797,6 +823,7 @@ frame(struct rt_wdb *fd)
     /* put all the studding in a region */
     snprintf(sol_name, 64, "r.%s.studs", obj_name);
     mk_lcomb(fd, sol_name, &wm_hd, 1, stud_properties[0], stud_properties[1], color, 0);
+    mk_freemembers(&wm_hd.l);
 }
 
 
@@ -807,6 +834,11 @@ sheetrock(struct rt_wdb *fd)
     struct wmember wm_hd;
     struct opening *op;
     int i=0;
+
+    if (WALL_WIDTH <= 0.0 || WALL_HEIGHT <= 0.0) {
+	bu_log("wall width and height must be greater than zero for sheetrock.\n");
+	return;
+    }
 
     if (!color)
 	color = sheetrock_color;
@@ -846,6 +878,7 @@ sheetrock(struct rt_wdb *fd)
 
     snprintf(sol_name, 64, "r.%s.sr1", obj_name);
     mk_lcomb(fd, sol_name, &wm_hd, 1, (const char *)NULL, (const char *)NULL, color, 0);
+    mk_freemembers(&wm_hd.l);
 }
 
 
@@ -861,11 +894,26 @@ mortar_brick(struct rt_wdb *fd)
 
     bu_log("WARNING: the mortar brick type option is untested\n");
 
+    if (WALL_WIDTH <= brick_depth || WALL_HEIGHT <= 0.0 || (brick_width + min_mortar) <= 0.0 || (brick_height + min_mortar) <= 0.0) {
+	bu_log("Invalid wall or brick dimensions for mortar_brick\n");
+	return;
+    }
+
+    horiz_bricks = (int)((WALL_WIDTH-brick_depth) / (brick_width + min_mortar));
+    if (horiz_bricks <= 0) {
+	bu_log("Wall width too small for brick_depth and mortar\n");
+	return;
+    }
+
+    vert_bricks = (int)(WALL_HEIGHT / (brick_height+min_mortar));
+    if (vert_bricks <= 0) {
+	bu_log("Wall height too small for brick_height and mortar\n");
+	return;
+    }
+
     BU_LIST_INIT(&wm_hd.l);
 
     mk_id(fd, "A brick wall");
-
-    horiz_bricks = (WALL_WIDTH-brick_depth) / (brick_width + min_mortar);
 
     /* compute excess distance to be used in mortar */
     mortar_width = WALL_WIDTH -
@@ -873,10 +921,8 @@ mortar_brick(struct rt_wdb *fd)
 	 brick_depth);
     mortar_width = min_mortar + mortar_width / (double)horiz_bricks;
 
-    vert_bricks = WALL_HEIGHT / (brick_height+min_mortar);
-
     mortar_height = WALL_HEIGHT - vert_bricks * (brick_height+min_mortar);
-    mortar_height = min_mortar + mortar_height/vert_bricks;
+    mortar_height = min_mortar + mortar_height / (double)vert_bricks;
 
     /* make prototype brick */
 
@@ -900,6 +946,8 @@ mortar_brick(struct rt_wdb *fd)
 	mk_lcomb(fd, sol_name, &wm_hd, 1, (const char *)NULL, (const char *)NULL, (const unsigned char *)NULL, 0);
     else
 	mk_lcomb(fd, sol_name, &wm_hd, 1, (const char *)NULL, (const char *)NULL, brick_color, 0);
+    mk_freemembers(&wm_hd.l);
+    BU_LIST_INIT(&wm_hd.l);
 
 
     /* make prototype mortar upon which brick will sit */
@@ -919,6 +967,8 @@ mortar_brick(struct rt_wdb *fd)
     (void)mk_addmember(sol_name, &wm_hd.l, NULL, WMOP_UNION);
     *sol_name = 'r';
     mk_lcomb(fd, sol_name, &wm_hd, 1, (const char *)NULL, (const char *)NULL, mortar_color, 0);
+    mk_freemembers(&wm_hd.l);
+    BU_LIST_INIT(&wm_hd.l);
 
 
     /* make the mortar that goes between
@@ -940,6 +990,7 @@ mortar_brick(struct rt_wdb *fd)
     (void)mk_addmember(sol_name, &wm_hd.l, NULL, WMOP_UNION);
     *sol_name = 'r';
     mk_lcomb(fd, sol_name, &wm_hd, 1, (const char *)NULL, (const char *)NULL, mortar_color, 0);
+    mk_freemembers(&wm_hd.l);
 }
 
 
@@ -982,6 +1033,7 @@ brick(struct rt_wdb *fd)
     *proto_brick = 'r';
 
     mk_lcomb(fd, proto_brick, &wm_hd, 1, (const char *)NULL, (const char *)NULL, (const unsigned char *)NULL, 0);
+    mk_freemembers(&wm_hd.l);
 }
 
 
@@ -994,19 +1046,40 @@ int main(int ac, char **av)
     struct opening *op;
     struct rt_wdb *db_fd;
 
-    bu_setprogname(av[0]);
+    if (av && av[0])
+	bu_setprogname(av[0]);
 
     ol_hd.ex = ol_hd.ez = 0.0;
 
-    if ((parse_args(ac, av)) < ac)
-	usage("excess command line arguments\n");
+    if (ac > 1 && (BU_STR_EQUAL(av[1], "-h") || BU_STR_EQUAL(av[1], "-?") || BU_STR_EQUAL(av[1], "--help"))) {
+	bu_log("Usage: %s %s\n%s\n%s\n%s\n%s\n",
+	       progname,
+	       "[-u units] [-w(all) width, height] [-o(pening) lx, lz, hx, hz]",
+	       " [-n name_mged_object] [-d(ebug)] [-t {frame|brick|block|sheetrock}] [-c R/G/B]",
+	       " [-l(og_commands)] [-R(otate) rx/ry/rz] [-T(ranslate) dx/dy/dz]",
+	       " (brick options:) [-r(and_color)] [-b width, height, depth] [-m min_mortar_width]",
+	       " (default units=mm)"
+	);
+	return 0;
+    }
 
     if (ac < 2)
 	usage((char *)NULL);
 
+    if ((parse_args(ac, av)) < ac)
+	usage("excess command line arguments\n");
+
     snprintf(sol_name, 64, "%s.g", progname);
     if ((db_fd = wdb_fopen(sol_name)) == (struct rt_wdb *)NULL) {
 	perror(sol_name);
+	while (BU_LIST_WHILE(op, opening, &ol_hd.l)) {
+	    BU_LIST_DEQUEUE(&(op->l));
+	    bu_free(op, "opening");
+	}
+	if (trans_matrix) {
+	    bu_free(trans_matrix, "trans_matrix");
+	    trans_matrix = NULL;
+	}
 	return -1;
     }
     bu_log("Have created file %s.g .\n",progname);
@@ -1032,7 +1105,17 @@ int main(int ac, char **av)
 	    brick(db_fd);
     }
 
-    db_close(db_fd->dbip);
+    wdb_close(db_fd);
+
+    while (BU_LIST_WHILE(op, opening, &ol_hd.l)) {
+	BU_LIST_DEQUEUE(&(op->l));
+	bu_free(op, "opening");
+    }
+    if (trans_matrix) {
+	bu_free(trans_matrix, "trans_matrix");
+	trans_matrix = NULL;
+    }
+
     return 0;
 }
 

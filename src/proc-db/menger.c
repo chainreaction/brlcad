@@ -63,7 +63,7 @@ slice(struct rt_wdb *fp, point_t origin, fastf_t depth, fastf_t width, fastf_t h
     vect_t cell[27];
     point_t minpt, maxpt;
 
-    if (!fp || depth < SMALL_FASTF || width < SMALL_FASTF)
+    if (!fp || !comb || depth < SMALL_FASTF || width < SMALL_FASTF || height < SMALL_FASTF)
 	return;
 
     if (level > 0) {
@@ -267,23 +267,28 @@ static struct bu_vls *
 mengerize(struct rt_wdb *fp, point_t origin, fastf_t extent, axes xyz, const char *pattern, size_t repeat)
 {
     size_t i, j;
+    size_t patlen;
     struct bu_vls *comb = NULL;
     struct wmember **levels = NULL;
     struct wmember *final = NULL;
     struct bu_vls cut = BU_VLS_INIT_ZERO;
 
-    if (!fp || !pattern || extent < SMALL_FASTF || xyz == 0)
+    if (!fp || !pattern || extent < SMALL_FASTF || xyz == 0 || repeat == 0)
 	return NULL; /* nothing to do */
 
+    patlen = strlen(pattern);
+    if (patlen == 0)
+	return NULL;
+
     /* initialize */
-    levels = (struct wmember **)bu_calloc(repeat * strlen(pattern), sizeof(struct wmember *), "alloc uts array");
+    levels = (struct wmember **)bu_calloc(repeat * patlen, sizeof(struct wmember *), "alloc uts array");
     BU_ALLOC(final, struct wmember);
     BU_LIST_INIT(&(final->l));
 
     /* do the pattern */
     for (i = 0; i < repeat; i++) {
-	for (j = 0; j < strlen(pattern); j++) {
-	    const int slot = (i * strlen(pattern)) + j;
+	for (j = 0; j < patlen; j++) {
+	    const int slot = (i * patlen) + j;
 
 	    BU_ALLOC(levels[slot], struct wmember);
 	    BU_LIST_INIT(&(levels[slot]->l));
@@ -308,6 +313,7 @@ mengerize(struct rt_wdb *fp, point_t origin, fastf_t extent, axes xyz, const cha
 	    mk_addmember(bu_vls_addr(&cut), &(final->l), NULL, WMOP_UNION);
 
 	    /* clean up */
+	    mk_freemembers(&(levels[slot]->l));
 	    bu_free(levels[slot], "free cut");
 	    levels[slot] = NULL;
 	}
@@ -320,6 +326,7 @@ mengerize(struct rt_wdb *fp, point_t origin, fastf_t extent, axes xyz, const cha
     mk_comb(fp, bu_vls_addr(comb), &(final->l), 0, NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0);
 
     /* clean up */
+    mk_freemembers(&(final->l));
     bu_vls_free(&cut);
     bu_free(levels, "free sponge levels");
     bu_free(final, "free final");
@@ -350,7 +357,8 @@ main(int ac, char *av[])
     struct rt_wdb *fp = NULL;
     struct bu_vls *boxes = NULL;
 
-    bu_setprogname(av[0]);
+    if (av && av[0])
+	bu_setprogname(av[0]);
 
     bu_optind = 1;
 
@@ -400,18 +408,21 @@ main(int ac, char *av[])
 	    }
 	    case 'r':
 	    case 'R': {
+		long val;
 		if (!bu_optarg)
 		    bu_exit(3, "ERROR: missing repeat count after -r option\n");
 
-		long val = strtol(bu_optarg, NULL, 0);
+		val = strtol(bu_optarg, NULL, 0);
 		if (val <= 0)
 		    bu_exit(3, "ERROR: invalid repeat specification [%ld <= 0]\n", val);
+		if (val > 5)
+		    bu_exit(3, "ERROR: repeat count too large [%ld > 5]\n", val);
 
 		repeat = (size_t)val;
 		break;
 	    }
 	    default:
-		usage(av[0]);
+		usage(av ? av[0] : "menger");
 		bu_exit(0, NULL);
 	}
     }
@@ -449,8 +460,12 @@ main(int ac, char *av[])
 
     /* DO IT! */
     boxes = mengerize(fp, origin, EXTENT, xyz, bu_vls_addr(&pattern), repeat);
-    if (!boxes)
+    if (!boxes) {
+	wdb_close(fp);
+	bu_vls_free(&filename);
+	bu_vls_free(&pattern);
 	bu_exit(7, "ERROR: Unable to create sponge\n");
+    }
 
     /* make the top-level scene:
      *
@@ -475,27 +490,21 @@ main(int ac, char *av[])
 	point_t dir = VINIT_ZERO;
 	unsigned char rgb[3];
 
-	struct wmember *menger = NULL;
-	struct wmember *ground = NULL;
-	struct wmember *light0 = NULL;
-	struct wmember *light1 = NULL;
-	struct wmember *sponge = NULL;
+	struct wmember menger;
+	struct wmember ground;
+	struct wmember light0;
+	struct wmember light1;
+	struct wmember sponge;
 
-	BU_ALLOC(menger, struct wmember);
-	BU_ALLOC(ground, struct wmember);
-	BU_ALLOC(light0, struct wmember);
-	BU_ALLOC(light1, struct wmember);
-	BU_ALLOC(sponge, struct wmember);
-
-	BU_LIST_INIT(&(menger->l));
-	BU_LIST_INIT(&(ground->l));
-	BU_LIST_INIT(&(light0->l));
-	BU_LIST_INIT(&(light1->l));
-	BU_LIST_INIT(&(sponge->l));
+	BU_LIST_INIT(&(menger.l));
+	BU_LIST_INIT(&(ground.l));
+	BU_LIST_INIT(&(light0.l));
+	BU_LIST_INIT(&(light1.l));
+	BU_LIST_INIT(&(sponge.l));
 
 	/* make the sponge */
-	mk_addmember(bu_vls_addr(boxes), &(sponge->l), NULL, WMOP_UNION);
-	mk_comb(fp, "sponge.r", &(sponge->l),
+	mk_addmember(bu_vls_addr(boxes), &(sponge.l), NULL, WMOP_UNION);
+	mk_comb(fp, "sponge.r", &(sponge.l),
 		1,         /* region */
 		"plastic", /* shader name */
 		NULL,      /* shader args */
@@ -513,8 +522,8 @@ main(int ac, char *av[])
 	rgb[RED] = 255; rgb[GRN] = 255; rgb[BLU] = 255;
 	VSET(pos, 0.0, 0.0, EXTENT * 2.0);
 	mk_sph(fp, "light0.sph", pos, EXTENT * 0.01);
-	mk_addmember("light0.sph", &(light0->l), NULL, WMOP_UNION);
-	mk_comb(fp, "light0.r", &(light0->l), 1, "light", NULL, rgb, 1000, 0, 0, 100, 0, 0, 0);
+	mk_addmember("light0.sph", &(light0.l), NULL, WMOP_UNION);
+	mk_comb(fp, "light0.r", &(light0.l), 1, "light", NULL, rgb, 1000, 0, 0, 100, 0, 0, 0);
 
 	/* red light centered inside the shape if first pattern is an
 	 * inside cut, otherwise positioned on the opposite side.
@@ -526,38 +535,41 @@ main(int ac, char *av[])
 	    VSET(pos, EXTENT * 3.0, EXTENT * 3.0, EXTENT * 3.0);
 	}
 	mk_sph(fp, "light1.sph", pos, EXTENT * 0.01);
-	mk_addmember("light1.sph", &(light1->l), NULL, WMOP_UNION);
-	mk_comb(fp, "light1.r", &(light1->l), 1, "light", NULL, rgb, 1000, 0, 0, 100, 0, 0, 0);
+	mk_addmember("light1.sph", &(light1.l), NULL, WMOP_UNION);
+	mk_comb(fp, "light1.r", &(light1.l), 1, "light", NULL, rgb, 1000, 0, 0, 100, 0, 0, 0);
 
 	/* make a checker ground plane
 	 * TODO: stack checker
 	 */
 	VSET(dir, 0.0, 0.0, 1.0);
 	mk_half(fp, "ground.half", dir, 0.0);
-	mk_addmember("ground.half", &(ground->l), NULL, WMOP_UNION);
-	mk_comb(fp, "ground.r", &(ground->l), 1, "plastic", NULL, rgb, 1000, 0, 0, 100, 0, 0, 0);
+	mk_addmember("ground.half", &(ground.l), NULL, WMOP_UNION);
+	mk_comb(fp, "ground.r", &(ground.l), 1, "plastic", NULL, rgb, 1000, 0, 0, 100, 0, 0, 0);
 
 	/* put the scene together */
-	mk_addmember("ground.r", &(menger->l), NULL, WMOP_UNION);
-	mk_addmember("light0.r", &(menger->l), NULL, WMOP_UNION);
-	mk_addmember("light1.r", &(menger->l), NULL, WMOP_UNION);
-	mk_addmember("sponge.r", &(menger->l), NULL, WMOP_UNION);
-	mk_comb(fp, "menger", &(menger->l), 0, NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0);
+	mk_addmember("ground.r", &(menger.l), NULL, WMOP_UNION);
+	mk_addmember("light0.r", &(menger.l), NULL, WMOP_UNION);
+	mk_addmember("light1.r", &(menger.l), NULL, WMOP_UNION);
+	mk_addmember("sponge.r", &(menger.l), NULL, WMOP_UNION);
+	mk_comb(fp, "menger", &(menger.l), 0, NULL, NULL, NULL, 0, 0, 0, 0, 0, 0, 0);
 
 	/* clean up after ourselves */
-	bu_free(menger, "free menger");
-	bu_free(ground, "free ground");
-	bu_free(light0, "free light0");
-	bu_free(light1, "free light1");
-	bu_free(sponge, "free sponge");
+	mk_freemembers(&(menger.l));
+	mk_freemembers(&(ground.l));
+	mk_freemembers(&(light0.l));
+	mk_freemembers(&(light1.l));
+	mk_freemembers(&(sponge.l));
     }
 
-    db_close(fp->dbip);
+    wdb_close(fp);
     bu_vls_free(&filename);
     bu_vls_free(&pattern);
-    bu_vls_free(boxes);
+    if (boxes) {
+	bu_vls_free(boxes);
+	bu_free(boxes, "boxes");
+    }
 
-    bu_log("\n%s: Done\n", av0);
+    bu_log("\n%s: Done\n", av0 ? av0 : "menger");
 
     return 0;
 }
