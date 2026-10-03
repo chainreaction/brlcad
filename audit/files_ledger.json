@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1417,
-    "pending_files": 2076,
-    "last_updated": "2026-10-03T08:06:07Z",
-    "total_issues": 325,
-    "reviewed_count": 1417
+    "reviewed_files": 1422,
+    "pending_files": 2071,
+    "last_updated": "2026-10-03T08:12:58Z",
+    "total_issues": 326,
+    "reviewed_count": 1422
   },
   "files": [
     {
@@ -34602,48 +34602,56 @@
       "path": "src/proc-db/terragen.c",
       "subsystem": "src/proc-db",
       "lines": 417,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:12:58Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0305"
+      ]
     },
     {
       "id": 3266,
       "path": "src/proc-db/torii.c",
       "subsystem": "src/proc-db",
       "lines": 222,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:12:58Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0305"
+      ]
     },
     {
       "id": 3267,
       "path": "src/proc-db/tube.c",
       "subsystem": "src/proc-db",
       "lines": 543,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:12:58Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0305"
+      ]
     },
     {
       "id": 3268,
       "path": "src/proc-db/twistedcube.cpp",
       "subsystem": "src/proc-db",
       "lines": 221,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:12:58Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0305"
+      ]
     },
     {
       "id": 3269,
       "path": "src/proc-db/twistedcube.h",
       "subsystem": "src/proc-db",
       "lines": 71,
-      "status": "PENDING",
-      "reviewed_at": null,
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:12:58Z",
       "issues_count": 0,
       "issue_ids": []
     },
@@ -36892,5 +36900,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-10-03T05:09:22Z"
+  "last_updated": "2026-10-03T08:12:58Z"
 }
