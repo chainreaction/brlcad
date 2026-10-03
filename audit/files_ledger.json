@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 635,
-    "pending_files": 2215,
-    "last_updated": "2026-10-02T05:10:00Z",
-    "total_issues": 298,
-    "reviewed_count": 635
+    "reviewed_files": 1372,
+    "pending_files": 2121,
+    "last_updated": "2026-10-02T23:00:00Z",
+    "total_issues": 316,
+    "reviewed_count": 1372
   },
   "files": [
     {
@@ -33990,40 +33990,48 @@
       "path": "src/mged/usepen.c",
       "subsystem": "src/mged",
       "lines": 576,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-10-02T23:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0295"
+      ]
     },
     {
       "id": 3215,
       "path": "src/mged/utility1.c",
       "subsystem": "src/mged",
       "lines": 302,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-10-02T23:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0295"
+      ]
     },
     {
       "id": 3216,
       "path": "src/mged/vparse.c",
       "subsystem": "src/mged",
       "lines": 92,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-10-02T23:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0295"
+      ]
     },
     {
       "id": 3217,
       "path": "src/mged/wdb_obj.c",
       "subsystem": "src/mged",
       "lines": 2179,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED_VULNERABILITIES_FIXED",
+      "reviewed_at": "2026-10-02T23:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0295"
+      ]
     },
     {
       "id": 3218,
@@ -36794,5 +36802,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-10-02T05:10:00Z"
+  "last_updated": "2026-10-02T23:00:00Z"
 }
