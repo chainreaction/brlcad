@@ -41,10 +41,10 @@ class QTCAD_EXPORT QgAccordionObject : public QWidget
     Q_OBJECT
 
     public:
-	QgAccordionObject(QWidget *pparent = 0, QWidget *object = 0, QString header_title = QString(""));
+	explicit QgAccordionObject(QWidget *pparent = nullptr, QWidget *object = nullptr, const QString &header_title = QString());
 	~QgAccordionObject();
-	QPushButton *toggle;
-	QScrollArea *objscrollarea;
+	QPushButton *toggle = nullptr;
+	QScrollArea *objscrollarea = nullptr;
 
     signals:
 	void select(QgAccordionObject *);
@@ -53,7 +53,7 @@ class QTCAD_EXPORT QgAccordionObject : public QWidget
 	void toggleVisibility();
 
     private:
-	QVBoxLayout *objlayout;
+	QVBoxLayout *objlayout = nullptr;
 	QString title;
 };
 
@@ -62,7 +62,7 @@ class QTCAD_EXPORT QgAccordion : public QWidget
     Q_OBJECT
 
     public:
-	QgAccordion(QWidget *pparent = 0);
+	explicit QgAccordion(QWidget *pparent = nullptr);
 	~QgAccordion();
 	void addObject(QgAccordionObject *object);
 
@@ -71,8 +71,8 @@ class QTCAD_EXPORT QgAccordion : public QWidget
 
     private:
         QSet<QgAccordionObject *> objs;
-        QgAccordionObject *selected = NULL;
-        QVBoxLayout *mlayout;
+        QgAccordionObject *selected = nullptr;
+        QVBoxLayout *mlayout = nullptr;
 };
 
 #endif /* QGACCORDIANWIDGET_H */

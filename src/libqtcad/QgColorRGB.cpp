@@ -30,29 +30,27 @@
 #include "bu/str.h"
 #include "qtcad/QgColorRGB.h"
 
-QgColorRGB::QgColorRGB(QWidget *p, QString lstr, QColor dcolor) : QWidget(p)
+QgColorRGB::QgColorRGB(QWidget *p, const QString &lstr, const QColor &dcolor)
+    : QWidget(p), rgbtext(nullptr), rgbcolor(nullptr), mlayout(nullptr), qc(dcolor)
 {
-    mlayout = new QHBoxLayout();
+    memset(&bc, 0, sizeof(bc));
+    mlayout = new QHBoxLayout(this);
     mlayout->setSpacing(0);
     mlayout->setContentsMargins(1,1,1,1);
 
     QString lstrm = QString("<font face=\"monospace\">%1</font>").arg(lstr);
-    QLabel *clbl = new QLabel(lstrm);
+    QLabel *clbl = new QLabel(lstrm, this);
 
-
-    rgbcolor = new QPushButton("");
+    rgbcolor = new QPushButton("", this);
     rgbcolor->setMinimumWidth(30);
     rgbcolor->setMaximumWidth(30);
     rgbcolor->setMinimumHeight(30);
     rgbcolor->setMaximumHeight(30);
 
-
-    qc = dcolor;
-
     QFont f("");
     f.setStyleHint(QFont::Monospace);
     QString rgbstr = QString("%1/%2/%3").arg(qc.red()).arg(qc.green()).arg(qc.blue());
-    rgbtext = new QLineEdit(rgbstr);
+    rgbtext = new QLineEdit(rgbstr, this);
     rgbtext->setFont(f);
     set_color_from_text();
 
@@ -74,8 +72,10 @@ void
 QgColorRGB::set_color_from_button()
 {
     QTCAD_SLOT("QgColorRGB::set_color_from_button", 1);
+    if (!rgbtext || !rgbcolor)
+	return;
 
-    QColor nc = QColorDialog::getColor(qc);
+    QColor nc = QColorDialog::getColor(qc, this);
     if (nc.isValid() && nc != qc) {
 	qc = nc;
 	QString rgbstr = QString("%1/%2/%3").arg(qc.red()).arg(qc.green()).arg(qc.blue());
@@ -83,11 +83,13 @@ QgColorRGB::set_color_from_button()
 	QString qss = QString("background-color: rgb(%1, %2, %3);").arg(qc.red()).arg(qc.green()).arg(qc.blue());
 	rgbcolor->setStyleSheet(qss);
 
-	// Sync bu_color
-	QString colstr = rgbtext->text();
-	char *ccstr = bu_strdup(colstr.toLocal8Bit().data());
-	bu_opt_color(NULL, 1, (const char **)&ccstr, (void *)&bc);
-	bu_free(ccstr, "ccstr");
+	// Sync bu_color directly from chosen RGB components
+	unsigned char rgb[3] = {
+	    (unsigned char)qc.red(),
+	    (unsigned char)qc.green(),
+	    (unsigned char)qc.blue()
+	};
+	bu_color_from_rgb_chars(&bc, rgb);
 
 	emit color_changed(&bc);
     }
@@ -97,14 +99,19 @@ void
 QgColorRGB::set_color_from_text()
 {
     QTCAD_SLOT("QgColorRGB::set_color_from_text", 1);
+    if (!rgbtext || !rgbcolor)
+	return;
 
     QString colstr = rgbtext->text();
-    if (!colstr.length())
+    if (colstr.isEmpty())
 	return;
 
     // We need a C string to send into the libbu routines - directly referencing
     // QString data isn't stable.  Also, split into argv array, in case of spaces
-    char *ccstr = bu_strdup(colstr.toLocal8Bit().data());
+    QByteArray ba = colstr.toLocal8Bit();
+    char *ccstr = bu_strdup(ba.constData());
+    if (!ccstr)
+	return;
     char **av = (char **)bu_calloc(strlen(ccstr) + 1, sizeof(char *), "argv array");
     int nargs = bu_argv_from_string(av, strlen(ccstr), ccstr);
     int acnt = bu_opt_color(NULL, nargs, (const char **)av, (void *)&bc);
@@ -114,7 +121,7 @@ QgColorRGB::set_color_from_text()
     if (acnt != 1)
 	return;
 
-    int rgb[3];
+    int rgb[3] = {0, 0, 0};
     if (!bu_color_to_rgb_ints(&bc, &rgb[0], &rgb[1], &rgb[2]))
 	return;
 

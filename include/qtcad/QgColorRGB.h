@@ -43,11 +43,11 @@ class QTCAD_EXPORT QgColorRGB: public QWidget
     Q_OBJECT
 
     public:
-	QgColorRGB(QWidget *p = NULL, QString lstr = QString("Color:"), QColor dcolor = QColor(Qt::red));
+	explicit QgColorRGB(QWidget *p = nullptr, const QString &lstr = QString("Color:"), const QColor &dcolor = QColor(Qt::red));
 	~QgColorRGB();
 
-	QLineEdit *rgbtext;
-	QPushButton *rgbcolor;
+	QLineEdit *rgbtext = nullptr;
+	QPushButton *rgbcolor = nullptr;
 	struct bu_color bc;
 
     signals:
@@ -60,12 +60,11 @@ class QTCAD_EXPORT QgColorRGB: public QWidget
 	void set_color_from_button();
 
     private:
-	QColorDialog *d;
-        QHBoxLayout *mlayout;
+        QHBoxLayout *mlayout = nullptr;
 	QColor qc;
 };
 
-#endif /* QACCORDIANWIDGET_H */
+#endif /* QGCOLORRGB_H */
 
 /*
  * Local Variables:

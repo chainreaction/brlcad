@@ -41,7 +41,7 @@ class QTCAD_EXPORT QgAttributesModel : public QgKeyValModel
     Q_OBJECT
 
     public:  // "standard" custom tree model functions
-	explicit QgAttributesModel(QObject *parent = 0, struct db_i *dbip = DBI_NULL, struct directory *dp = RT_DIR_NULL, int show_std = 0, int show_user = 0);
+	explicit QgAttributesModel(QObject *parent = nullptr, struct db_i *dbip = DBI_NULL, struct directory *dp = RT_DIR_NULL, int show_std = 0, int show_user = 0);
 	~QgAttributesModel();
 
 	bool hasChildren(const QModelIndex &parent) const;
@@ -61,14 +61,14 @@ class QTCAD_EXPORT QgAttributesModel : public QgKeyValModel
 
     private:
 	void add_Children(const char *name, QgKeyValNode *curr_node);
-	struct db_i *current_dbip;
-	struct directory *current_dp;
-	struct bu_attribute_value_set *avs;
-	int std_visible;
-	int user_visible;
+	struct db_i *current_dbip = nullptr;
+	struct directory *current_dp = nullptr;
+	struct bu_attribute_value_set *avs = nullptr;
+	int std_visible = 0;
+	int user_visible = 0;
 };
 
-#endif /* QGATTRIBUTESMODEL */
+#endif /* QGATTRIBUTESMODEL_H */
 
 // Local Variables:
 // tab-width: 8

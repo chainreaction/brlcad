@@ -21,8 +21,6 @@
  *
  */
 
-#include <map>
-#include <set>
 #include <QEvent>
 #include <QMouseEvent>
 #include <QRect>
@@ -54,13 +52,16 @@ QgDockWidget::toWindow(bool floating)
 bool
 QgDockWidget::event(QEvent *e)
 {
+    if (!e)
+	return false;
+
     if (e->type() == QEvent::MouseMove) {
 	moving = true;
 	return QDockWidget::event(e);
     }
     if (e->type() != QEvent::MouseButtonRelease)
 	return QDockWidget::event(e);
-    QMouseEvent *m_e = (QMouseEvent *)e;
+    auto *m_e = static_cast<QMouseEvent *>(e);
     if (moving) {
 	moving = false;
 	return QDockWidget::event(e);

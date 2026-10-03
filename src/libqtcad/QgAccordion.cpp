@@ -27,20 +27,21 @@
 
 #include "qtcad/QgAccordion.h"
 
-QgAccordionObject::QgAccordionObject(QWidget *pparent, QWidget *object, QString header_title)
-    : QWidget(pparent)
+QgAccordionObject::QgAccordionObject(QWidget *pparent, QWidget *object, const QString &header_title)
+    : QWidget(pparent), toggle(nullptr), objscrollarea(nullptr), objlayout(nullptr), title(header_title)
 {
-    title = header_title;
     toggle = new QPushButton(title, this);
     toggle->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
-    objscrollarea= new QScrollArea();
+    objscrollarea = new QScrollArea(this);
     objscrollarea->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Expanding);
     objlayout = new QVBoxLayout(this);
     objlayout->setSpacing(0);
     objlayout->setContentsMargins(0,0,0,0);
     objlayout->setAlignment(Qt::AlignTop);
     objlayout->addWidget(toggle);
-    objscrollarea->setWidget(object);
+    if (object) {
+	objscrollarea->setWidget(object);
+    }
     objscrollarea->setWidgetResizable(true);
     objlayout->addWidget(objscrollarea);
     this->setLayout(objlayout);
@@ -60,9 +61,10 @@ QgAccordionObject::toggleVisibility()
 }
 
 
-QgAccordion::QgAccordion(QWidget *pparent) : QWidget(pparent)
+QgAccordion::QgAccordion(QWidget *pparent)
+    : QWidget(pparent), selected(nullptr), mlayout(nullptr)
 {
-    mlayout = new QVBoxLayout();
+    mlayout = new QVBoxLayout(this);
     mlayout->setSpacing(0);
     mlayout->setContentsMargins(1,1,1,1);
     this->setLayout(mlayout);
@@ -75,30 +77,39 @@ QgAccordion::~QgAccordion()
 void
 QgAccordion::addObject(QgAccordionObject *o)
 {
+    if (!o || objs.contains(o)) {
+	return;
+    }
     if (!selected) {
 	selected = o;
     }
     objs.insert(o);
     foreach(QgAccordionObject *obj, objs) {
+	if (!obj || !obj->objscrollarea)
+	    continue;
 	if (obj == selected) {
 	    obj->objscrollarea->show();
 	} else {
 	    obj->objscrollarea->hide();
 	}
     }
-    mlayout->addWidget(o);
+    if (mlayout) {
+	mlayout->addWidget(o);
+    }
     QObject::connect(o, &QgAccordionObject::select, this, &QgAccordion::open);
 }
 
 void
 QgAccordion::open(QgAccordionObject *o)
 {
-    if (selected == o)
+    if (!o || selected == o)
 	return;
 
     selected = o;
 
     foreach(QgAccordionObject *obj, objs) {
+	if (!obj || !obj->objscrollarea)
+	    continue;
 	if (obj == selected) {
 	    obj->objscrollarea->show();
 	} else {

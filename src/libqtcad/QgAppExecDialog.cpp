@@ -30,34 +30,49 @@
 #include <QTextStream>
 #include "qtcad/QgAppExecDialog.h"
 
-QgAppExecDialog::QgAppExecDialog(QWidget *pparent, QString executable, QStringList args, QString lfile) : QDialog(pparent)
+QgAppExecDialog::QgAppExecDialog(QWidget *pparent, const QString &executable, const QStringList &args, const QString &lfile)
+    : QDialog(pparent), logfile(nullptr), console(nullptr), proc(nullptr), buttonBox(nullptr)
 {
-    QVBoxLayout *dlayout = new QVBoxLayout;
-    buttonBox = new QDialogButtonBox(QDialogButtonBox::Cancel);
+    QVBoxLayout *dlayout = new QVBoxLayout(this);
+    buttonBox = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
     QObject::connect(buttonBox, &QDialogButtonBox::rejected, this, &QgAppExecDialog::process_abort);
     console = new QgConsole(this);
     console->prompt("");
     setLayout(dlayout);
     dlayout->addWidget(console);
     dlayout->addWidget(buttonBox);
-    logfile = NULL;
-    if (lfile.length() > 0) {
-	logfile = new QFile(lfile);
+    if (!lfile.isEmpty()) {
+	logfile = new QFile(lfile, this);
 	if (!logfile->open(QIODevice::Append | QIODevice::Text)) {
-	    logfile = NULL;
-	    return;
+	    delete logfile;
+	    logfile = nullptr;
+	} else {
+	    QTextStream log_stream(logfile);
+	    log_stream << executable << " " << args.join(" ") << "\n";
 	}
-	QTextStream log_stream(logfile);
-	log_stream << executable << " " << args.join(" ") << "\n";
+    }
+}
+
+QgAppExecDialog::~QgAppExecDialog()
+{
+    if (logfile) {
+	if (logfile->isOpen()) {
+	    logfile->close();
+	}
+	delete logfile;
+	logfile = nullptr;
     }
 }
 
 void QgAppExecDialog::read_stdout()
 {
     QTCAD_SLOT("QgAppExecDialog::read_stdout", 1);
+    if (!proc)
+	return;
     QString std_output = proc->readAllStandardOutput();
-    console->printString(std_output);
-    if (logfile) {
+    if (console)
+	console->printString(std_output);
+    if (logfile && logfile->isOpen()) {
 	QTextStream log_stream(logfile);
 	log_stream << std_output;
 	logfile->flush();
@@ -67,9 +82,12 @@ void QgAppExecDialog::read_stdout()
 void QgAppExecDialog::read_stderr()
 {
     QTCAD_SLOT("QgAppExecDialog::read_stderr", 1);
+    if (!proc)
+	return;
     QString err_output = proc->readAllStandardError();
-    console->printString(err_output);
-    if (logfile) {
+    if (console)
+	console->printString(err_output);
+    if (logfile && logfile->isOpen()) {
 	QTextStream log_stream(logfile);
 	log_stream << err_output;
 	logfile->flush();
@@ -79,9 +97,11 @@ void QgAppExecDialog::read_stderr()
 void QgAppExecDialog::process_abort()
 {
     QTCAD_SLOT("QgAppExecDialog::process_abort", 1);
-    proc->kill();
-    console->printString("\nAborted!\n");
-    if (logfile) {
+    if (proc)
+	proc->kill();
+    if (console)
+	console->printString("\nAborted!\n");
+    if (logfile && logfile->isOpen()) {
 	QTextStream log_stream(logfile);
 	log_stream << "\nAborted!\n";
 	logfile->flush();
@@ -92,10 +112,13 @@ void QgAppExecDialog::process_abort()
 void QgAppExecDialog::process_done(int , QProcess::ExitStatus)
 {
     QTCAD_SLOT("QgAppExecDialog::process_done", 1);
-    if (logfile) logfile->close();
-    buttonBox->clear();
-    buttonBox->addButton(QDialogButtonBox::Ok);
-    QObject::connect(buttonBox, &QDialogButtonBox::accepted, this, &QgAppExecDialog::accept);
+    if (logfile && logfile->isOpen())
+	logfile->close();
+    if (buttonBox) {
+	buttonBox->clear();
+	buttonBox->addButton(QDialogButtonBox::Ok);
+	QObject::connect(buttonBox, &QDialogButtonBox::accepted, this, &QgAppExecDialog::accept);
+    }
     setWindowTitle("Process Finished");
 }
 

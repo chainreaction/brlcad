@@ -75,8 +75,8 @@ class QTCAD_EXPORT QgFlowLayout : public QLayout
 	int smartSpacing(QStyle::PixelMetric pm) const;
 
 	QList<QLayoutItem *> itemList;
-	int m_hSpace;
-	int m_vSpace;
+	int m_hSpace = -1;
+	int m_vSpace = -1;
 };
 
 #endif // QgFLOWLAYOUTH

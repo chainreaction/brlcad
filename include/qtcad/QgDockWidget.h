@@ -35,10 +35,10 @@ class QTCAD_EXPORT QgDockWidget : public QDockWidget
     Q_OBJECT
 
     public:
-	QgDockWidget(const QString &title, QWidget *parent);
+	explicit QgDockWidget(const QString &title, QWidget *parent = nullptr);
 	bool event(QEvent *e);
 
-	QgModel *m = NULL;
+	QgModel *m = nullptr;
 
     signals:
 	void banner_click();

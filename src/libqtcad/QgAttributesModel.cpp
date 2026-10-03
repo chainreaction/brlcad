@@ -33,21 +33,14 @@
 #include "qtcad/QgModel.h"
 
 QgAttributesModel::QgAttributesModel(QObject *parentobj, struct db_i *dbip, struct directory *dp, int show_standard, int show_user)
-    : QgKeyValModel(parentobj)
+    : QgKeyValModel(parentobj),
+      current_dbip(dbip),
+      current_dp(dp),
+      avs(nullptr),
+      std_visible(show_standard ? 1 : 0),
+      user_visible(show_user ? 1 : 0)
 {
     int i = 0;
-    current_dbip = dbip;
-    current_dp = dp;
-    if (show_standard) {
-	std_visible = 1;
-    } else {
-	std_visible = 0;
-    }
-    if (show_user) {
-	user_visible = 1;
-    } else {
-	user_visible = 0;
-    }
     m_root = new QgKeyValNode();
     BU_GET(avs, struct bu_attribute_value_set);
     bu_avs_init_empty(avs);
@@ -64,14 +57,19 @@ QgAttributesModel::QgAttributesModel(QObject *parentobj, struct db_i *dbip, stru
 
 QgAttributesModel::~QgAttributesModel()
 {
-    bu_avs_free(avs);
-    BU_PUT(avs, struct bu_attribute_value_set);
+    delete m_root;
+    m_root = nullptr;
+    if (avs) {
+	bu_avs_free(avs);
+	BU_PUT(avs, struct bu_attribute_value_set);
+	avs = nullptr;
+    }
 }
 
 static int
 attr_children(const char *attr)
 {
-    if (BU_STR_EQUAL(attr, "color")) return 3;
+    if (attr && BU_STR_EQUAL(attr, "color")) return 3;
     return 0;
 }
 
@@ -79,11 +77,12 @@ attr_children(const char *attr)
 bool QgAttributesModel::canFetchMore(const QModelIndex &idx) const
 {
     QgKeyValNode *curr_node = IndexNode(idx);
-    if (curr_node == m_root) return false;
+    if (!curr_node || curr_node == m_root) return false;
     if (rowCount(idx)) {
 	return false;
     }
-    int cnt = attr_children(curr_node->name.toLocal8Bit());
+    QByteArray ba = curr_node->name.toLocal8Bit();
+    int cnt = attr_children(ba.constData());
     if (cnt > 0) return true;
     return false;
 }
@@ -91,30 +90,36 @@ bool QgAttributesModel::canFetchMore(const QModelIndex &idx) const
 void
 QgAttributesModel::add_Children(const char *name, QgKeyValNode *curr_node)
 {
+    if (!name || !curr_node || !avs)
+	return;
+    const char *val_str = bu_avs_get(avs, name);
     if (BU_STR_EQUAL(name, "color")) {
-	QString val(bu_avs_get(avs, name));
+	QString val(val_str ? val_str : "");
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 	QStringList vals = val.split(QRegExp("/"));
 #else
 	QStringList vals = val.split(QRegularExpression("/"));
 #endif
-	(void)add_pair("r", vals.at(0).toLocal8Bit(), curr_node, db5_standardize_attribute(name));
-	(void)add_pair("g", vals.at(1).toLocal8Bit(), curr_node, db5_standardize_attribute(name));
-	(void)add_pair("b", vals.at(2).toLocal8Bit(), curr_node, db5_standardize_attribute(name));
+	if (vals.size() >= 3) {
+	    (void)add_pair("r", vals.at(0).toLocal8Bit().constData(), curr_node, db5_standardize_attribute(name));
+	    (void)add_pair("g", vals.at(1).toLocal8Bit().constData(), curr_node, db5_standardize_attribute(name));
+	    (void)add_pair("b", vals.at(2).toLocal8Bit().constData(), curr_node, db5_standardize_attribute(name));
+	}
 	return;
     }
-    (void)add_pair(name, bu_avs_get(avs, name), curr_node, db5_standardize_attribute(name));
+    (void)add_pair(name, val_str ? val_str : "", curr_node, db5_standardize_attribute(name));
 }
 
 
 void QgAttributesModel::fetchMore(const QModelIndex &idx)
 {
     QgKeyValNode *curr_node = IndexNode(idx);
-    if (curr_node == m_root) return;
-    int cnt = attr_children(curr_node->name.toLocal8Bit());
-    if (cnt) { // && !idx.child(cnt-1, 0).isValid()) {
-	beginInsertRows(idx, 0, cnt);
-	add_Children(curr_node->name.toLocal8Bit(),curr_node);
+    if (!curr_node || curr_node == m_root) return;
+    QByteArray ba = curr_node->name.toLocal8Bit();
+    int cnt = attr_children(ba.constData());
+    if (cnt > 0) {
+	beginInsertRows(idx, 0, cnt - 1);
+	add_Children(ba.constData(), curr_node);
 	endInsertRows();
     }
 }
@@ -122,9 +127,11 @@ void QgAttributesModel::fetchMore(const QModelIndex &idx)
 bool QgAttributesModel::hasChildren(const QModelIndex &idx) const
 {
     QgKeyValNode *curr_node = IndexNode(idx);
+    if (!curr_node) return false;
     if (curr_node == m_root) return true;
-    if (curr_node->value == QString("")) return false;
-    int cnt = attr_children(curr_node->name.toLocal8Bit());
+    if (curr_node->value.isEmpty()) return false;
+    QByteArray ba = curr_node->name.toLocal8Bit();
+    int cnt = attr_children(ba.constData());
     if (cnt > 0) return true;
     return false;
 }
@@ -133,15 +140,15 @@ int QgAttributesModel::update(struct db_i *new_dbip, struct directory *new_dp)
 {
     current_dp = new_dp;
     current_dbip = new_dbip;
-    if (current_dbip != DBI_NULL && current_dp != RT_DIR_NULL) {
+    beginResetModel();
+    delete m_root;
+    m_root = new QgKeyValNode();
+
+    if (current_dbip != DBI_NULL && current_dp != RT_DIR_NULL && avs) {
 	QMap<QString, QgKeyValNode*> standard_nodes;
 	int i = 0;
-	m_root = new QgKeyValNode();
-	beginResetModel();
-	struct bu_attribute_value_pair *avpp;
-	for (BU_AVS_FOR(avpp, avs)) {
-	    bu_avs_remove(avs, avpp->name);
-	}
+	bu_avs_free(avs);
+	bu_avs_init_empty(avs);
 	(void)db5_get_attributes(current_dbip, avs, current_dp);
 
 	if (std_visible) {
@@ -149,6 +156,7 @@ int QgAttributesModel::update(struct db_i *new_dbip, struct directory *new_dp)
 		standard_nodes.insert(db5_standard_attribute(i), add_pair(db5_standard_attribute(i), "", m_root, i));
 		i++;
 	    }
+	    struct bu_attribute_value_pair *avpp;
 	    for (BU_AVS_FOR(avpp, avs)) {
 		if (db5_is_standard_attribute(avpp->name)) {
 		    if (standard_nodes.find(avpp->name) != standard_nodes.end()) {
@@ -162,18 +170,15 @@ int QgAttributesModel::update(struct db_i *new_dbip, struct directory *new_dp)
 	    }
 	}
 	if (user_visible) {
+	    struct bu_attribute_value_pair *avpp;
 	    for (BU_AVS_FOR(avpp, avs)) {
 		if (!db5_is_standard_attribute(avpp->name)) {
 		    add_pair(avpp->name, avpp->value, m_root, ATTR_NULL);
 		}
 	    }
 	}
-	endResetModel();
-    } else {
-	m_root = new QgKeyValNode();
-	beginResetModel();
-	endResetModel();
     }
+    endResetModel();
     return 0;
 }
 
@@ -181,6 +186,8 @@ void
 QgAttributesModel::refresh(const QModelIndex &idx)
 {
     QTCAD_SLOT("QgAttributesModel::refresh", 1);
+    if (!idx.isValid())
+	return;
     current_dp = (struct directory *)(idx.data(QgModel::DirectoryInternalRole).value<void *>());
     update(current_dbip, current_dp);
 }
@@ -197,9 +204,9 @@ QgAttributesModel::do_dbi_update(struct db_i *dbip)
 {
     QTCAD_SLOT("QgAttributesModel::do_dbi_update", 1);
     current_dbip = dbip;
-    m_root = new QgKeyValNode();
     beginResetModel();
-    endResetModel();
+    delete m_root;
+    m_root = new QgKeyValNode();
     if (std_visible) {
 	int i = 0;
 	while (i != ATTR_NULL) {
@@ -207,6 +214,7 @@ QgAttributesModel::do_dbi_update(struct db_i *dbip)
 	    i++;
 	}
     }
+    endResetModel();
 }
 
 // Local Variables:

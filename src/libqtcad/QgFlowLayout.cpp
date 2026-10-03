@@ -67,6 +67,8 @@ QgFlowLayout::~QgFlowLayout()
 
 void QgFlowLayout::addItem(QLayoutItem *item)
 {
+    if (!item)
+        return;
     itemList.append(item);
 }
 
@@ -113,7 +115,7 @@ QLayoutItem *QgFlowLayout::takeAt(int index)
     if (index >= 0 && index < itemList.size())
         return itemList.takeAt(index);
     else
-        return 0;
+        return nullptr;
 }
 
 Qt::Orientations QgFlowLayout::expandingDirections() const
@@ -147,8 +149,10 @@ QSize QgFlowLayout::minimumSize() const
 {
     QSize size;
     QLayoutItem *item;
-    foreach (item, itemList)
-        size = size.expandedTo(item->minimumSize());
+    foreach (item, itemList) {
+        if (item)
+            size = size.expandedTo(item->minimumSize());
+    }
 
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     // TODO - figure out the right Qt6 logic here...
@@ -168,15 +172,33 @@ int QgFlowLayout::doLayout(const QRect &rect, bool testOnly) const
 
     QLayoutItem *item;
     foreach (item, itemList) {
+        if (!item)
+            continue;
         QWidget *wid = item->widget();
         int spaceX = horizontalSpacing();
-        if (spaceX == -1)
-            spaceX = wid->style()->layoutSpacing(
-                QSizePolicy::PushButton, QSizePolicy::PushButton, Qt::Horizontal);
+        if (spaceX == -1) {
+            if (wid && wid->style()) {
+                spaceX = wid->style()->layoutSpacing(
+                    QSizePolicy::PushButton, QSizePolicy::PushButton, Qt::Horizontal);
+            } else {
+                spaceX = smartSpacing(QStyle::PM_LayoutHorizontalSpacing);
+            }
+        }
+        if (spaceX < 0)
+            spaceX = 0;
+
         int spaceY = verticalSpacing();
-        if (spaceY == -1)
-            spaceY = wid->style()->layoutSpacing(
-                QSizePolicy::PushButton, QSizePolicy::PushButton, Qt::Vertical);
+        if (spaceY == -1) {
+            if (wid && wid->style()) {
+                spaceY = wid->style()->layoutSpacing(
+                    QSizePolicy::PushButton, QSizePolicy::PushButton, Qt::Vertical);
+            } else {
+                spaceY = smartSpacing(QStyle::PM_LayoutVerticalSpacing);
+            }
+        }
+        if (spaceY < 0)
+            spaceY = 0;
+
         int nextX = x + item->sizeHint().width() + spaceX;
         if (nextX - spaceX > effectiveRect.right() && lineHeight > 0) {
             x = effectiveRect.x();
@@ -193,6 +215,7 @@ int QgFlowLayout::doLayout(const QRect &rect, bool testOnly) const
     }
     return y + lineHeight - rect.y() + bottom;
 }
+
 int QgFlowLayout::smartSpacing(QStyle::PixelMetric pm) const
 {
     QObject *pparent = this->parent();
@@ -200,7 +223,9 @@ int QgFlowLayout::smartSpacing(QStyle::PixelMetric pm) const
         return -1;
     } else if (pparent->isWidgetType()) {
         QWidget *pw = static_cast<QWidget *>(pparent);
-        return pw->style()->pixelMetric(pm, 0, pw);
+        if (pw->style())
+            return pw->style()->pixelMetric(pm, 0, pw);
+        return -1;
     } else {
         return static_cast<QLayout *>(pparent)->spacing();
     }

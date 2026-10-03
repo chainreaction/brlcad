@@ -56,34 +56,34 @@
 #include "bu/str.h"
 #define QTCAD_SUPPORT_ENV_SLOT_REPORTING 1
 #ifdef QTCAD_SUPPORT_ENV_SLOT_REPORTING
-#  define QTCAD_SLOT(slot_name, level) {\
+#  define QTCAD_SLOT(slot_name, level) do {\
     const char *qrsig = getenv("QTCAD_REPORT_SLOTS");\
     if (qrsig) {\
 	int qlev = atoi(qrsig);\
-	if (qlev == level) {\
-	    bu_log("%s\n", slot_name); \
+	if (qlev == level && (slot_name)) {\
+	    bu_log("%s\n", (slot_name)); \
 	} \
     }\
-}
+} while (0)
 #else
-#  define QTCAD_SLOT(slot_name, level)
+#  define QTCAD_SLOT(slot_name, level) do {} while (0)
 #endif
 
 // Uncomment to allow the env command to enable printouts
 // reporting on when libqtcad events are being called
 #define QTCAD_SUPPORT_ENV_EVENT_REPORTING 1
 #ifdef QTCAD_SUPPORT_ENV_EVENT_REPORTING
-#  define QTCAD_EVENT(event_name, level) {\
+#  define QTCAD_EVENT(event_name, level) do {\
     const char *qrsig = getenv("QTCAD_REPORT_EVENTS");\
     if (qrsig) {\
 	int qlev = atoi(qrsig);\
-	if (qlev == level) {\
-	    bu_log("%s\n", event_name); \
+	if (qlev == level && (event_name)) {\
+	    bu_log("%s\n", (event_name)); \
 	} \
     }\
-}
+} while (0)
 #else
-#  define QTCAD_EVENT(event_name, level)
+#  define QTCAD_EVENT(event_name, level) do {} while (0)
 #endif
 
 #endif  /* QTCAD_DEFINES_H */

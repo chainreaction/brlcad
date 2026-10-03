@@ -44,8 +44,8 @@ class QTCAD_EXPORT QgAppExecDialog : public QDialog
     Q_OBJECT
 
     public:
-	QgAppExecDialog(QWidget *pparent, QString executable, QStringList args, QString lfile = "");
-	~QgAppExecDialog() {}
+	explicit QgAppExecDialog(QWidget *pparent = nullptr, const QString &executable = QString(), const QStringList &args = QStringList(), const QString &lfile = QString());
+	~QgAppExecDialog();
 
     public slots:
 	void read_stdout();
@@ -54,10 +54,10 @@ class QTCAD_EXPORT QgAppExecDialog : public QDialog
 	void process_done(int, QProcess::ExitStatus);
 
     public:
-	QFile *logfile;
-        QgConsole *console;
-        QProcess *proc;
-        QDialogButtonBox *buttonBox;
+	QFile *logfile = nullptr;
+        QgConsole *console = nullptr;
+        QProcess *proc = nullptr;
+        QDialogButtonBox *buttonBox = nullptr;
 };
 
 #endif // QGAPPEXECDIALOG_H
