@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1388,
-    "pending_files": 2105,
-    "last_updated": "2026-10-03T04:33:07Z",
-    "total_issues": 319,
-    "reviewed_count": 1388
+    "reviewed_files": 1394,
+    "pending_files": 2099,
+    "last_updated": "2026-10-03T04:39:54Z",
+    "total_issues": 320,
+    "reviewed_count": 1394
   },
   "files": [
     {
@@ -34254,60 +34254,72 @@
       "path": "src/proc-db/globe.c",
       "subsystem": "src/proc-db",
       "lines": 191,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:39:54Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0299"
+      ]
     },
     {
       "id": 3237,
       "path": "src/proc-db/gtimes.c",
       "subsystem": "src/proc-db",
       "lines": 141,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:39:54Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0299"
+      ]
     },
     {
       "id": 3238,
       "path": "src/proc-db/helicoil.c",
       "subsystem": "src/proc-db",
       "lines": 393,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:39:54Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0299"
+      ]
     },
     {
       "id": 3239,
       "path": "src/proc-db/kurt.c",
       "subsystem": "src/proc-db",
       "lines": 298,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:39:54Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0299"
+      ]
     },
     {
       "id": 3240,
       "path": "src/proc-db/lattice.c",
       "subsystem": "src/proc-db",
       "lines": 542,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:39:54Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0299"
+      ]
     },
     {
       "id": 3241,
       "path": "src/proc-db/lens.c",
       "subsystem": "src/proc-db",
       "lines": 345,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:39:54Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0299"
+      ]
     },
     {
       "id": 3242,
@@ -36834,5 +36846,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-10-03T04:33:07Z"
+  "last_updated": "2026-10-03T04:39:54Z"
 }
