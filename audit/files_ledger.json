@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1378,
-    "pending_files": 2115,
-    "last_updated": "2026-10-03T04:14:00Z",
-    "total_issues": 317,
-    "reviewed_count": 1378
+    "reviewed_files": 1384,
+    "pending_files": 2109,
+    "last_updated": "2026-10-03T04:24:00Z",
+    "total_issues": 318,
+    "reviewed_count": 1384
   },
   "files": [
     {
@@ -34134,60 +34134,72 @@
       "path": "src/proc-db/brep_trimmed.cpp",
       "subsystem": "src/proc-db",
       "lines": 672,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:24:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0297"
+      ]
     },
     {
       "id": 3227,
       "path": "src/proc-db/breplicator.cpp",
       "subsystem": "src/proc-db",
       "lines": 474,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:24:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0297"
+      ]
     },
     {
       "id": 3228,
       "path": "src/proc-db/brickwall.c",
       "subsystem": "src/proc-db",
       "lines": 406,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:24:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0297"
+      ]
     },
     {
       "id": 3229,
       "path": "src/proc-db/cchannel.c",
       "subsystem": "src/proc-db",
       "lines": 338,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:24:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0297"
+      ]
     },
     {
       "id": 3230,
       "path": "src/proc-db/clutter.c",
       "subsystem": "src/proc-db",
       "lines": 516,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:24:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0297"
+      ]
     },
     {
       "id": 3231,
       "path": "src/proc-db/common.c",
       "subsystem": "src/proc-db",
       "lines": 129,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:24:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0297"
+      ]
     },
     {
       "id": 3232,
@@ -36814,5 +36826,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-10-02T23:00:00Z"
+  "last_updated": "2026-10-03T04:24:00Z"
 }
