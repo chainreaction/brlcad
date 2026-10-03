@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1394,
-    "pending_files": 2099,
-    "last_updated": "2026-10-03T04:39:54Z",
-    "total_issues": 320,
-    "reviewed_count": 1394
+    "reviewed_files": 1397,
+    "pending_files": 2096,
+    "last_updated": "2026-10-03T04:50:00Z",
+    "total_issues": 321,
+    "reviewed_count": 1397
   },
   "files": [
     {
@@ -34326,30 +34326,39 @@
       "path": "src/proc-db/loftwing.c",
       "subsystem": "src/proc-db",
       "lines": 623,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issues": [
+        "SEC-0300"
+      ]
     },
     {
       "id": 3243,
       "path": "src/proc-db/masonry.c",
       "subsystem": "src/proc-db",
       "lines": 1048,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issues": [
+        "SEC-0300"
+      ]
     },
     {
       "id": 3244,
       "path": "src/proc-db/menger.c",
       "subsystem": "src/proc-db",
       "lines": 574,
-      "status": "PENDING",
+      "status": "REVIEWED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "issues": [
+        "SEC-0300"
+      ]
     },
     {
       "id": 3245,
