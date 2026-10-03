@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1461,
-    "pending_files": 2032,
-    "last_updated": "2026-10-03T08:48:00Z",
-    "total_issues": 333,
-    "reviewed_count": 1461
+    "reviewed_files": 1475,
+    "pending_files": 2018,
+    "last_updated": "2026-10-03T08:55:00Z",
+    "total_issues": 334,
+    "reviewed_count": 1475
   },
   "files": [
     {
@@ -2286,40 +2286,48 @@
       "path": "include/qtcad/QgAccordion.h",
       "subsystem": "include",
       "lines": 89,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T08:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0313"
+      ]
     },
     {
       "id": 227,
       "path": "include/qtcad/QgAppExecDialog.h",
       "subsystem": "include",
       "lines": 75,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T08:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0313"
+      ]
     },
     {
       "id": 228,
       "path": "include/qtcad/QgAttributesModel.h",
       "subsystem": "include",
       "lines": 81,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T08:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0313"
+      ]
     },
     {
       "id": 229,
       "path": "include/qtcad/QgColorRGB.h",
       "subsystem": "include",
       "lines": 79,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T08:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0313"
+      ]
     },
     {
       "id": 230,
@@ -2346,10 +2354,12 @@
       "path": "include/qtcad/QgDockWidget.h",
       "subsystem": "include",
       "lines": 65,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T08:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0313"
+      ]
     },
     {
       "id": 233,
@@ -2366,10 +2376,12 @@
       "path": "include/qtcad/QgFlowLayout.h",
       "subsystem": "include",
       "lines": 94,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T08:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0313"
+      ]
     },
     {
       "id": 235,
@@ -2466,10 +2478,12 @@
       "path": "include/qtcad/QgSignalFlags.h",
       "subsystem": "include",
       "lines": 100,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T08:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0313"
+      ]
     },
     {
       "id": 245,
@@ -2546,10 +2560,12 @@
       "path": "include/qtcad/defines.h",
       "subsystem": "include",
       "lines": 99,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T08:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0313"
+      ]
     },
     {
       "id": 253,
@@ -28706,40 +28722,48 @@
       "path": "src/libqtcad/QgAccordion.cpp",
       "subsystem": "src/libqtcad",
       "lines": 120,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T08:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0313"
+      ]
     },
     {
       "id": 2702,
       "path": "src/libqtcad/QgAppExecDialog.cpp",
       "subsystem": "src/libqtcad",
       "lines": 112,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T08:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0313"
+      ]
     },
     {
       "id": 2703,
       "path": "src/libqtcad/QgAttributesModel.cpp",
       "subsystem": "src/libqtcad",
       "lines": 220,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T08:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0313"
+      ]
     },
     {
       "id": 2704,
       "path": "src/libqtcad/QgColorRGB.cpp",
       "subsystem": "src/libqtcad",
       "lines": 142,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T08:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0313"
+      ]
     },
     {
       "id": 2705,
@@ -28766,20 +28790,24 @@
       "path": "src/libqtcad/QgDockWidget.cpp",
       "subsystem": "src/libqtcad",
       "lines": 99,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T08:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0313"
+      ]
     },
     {
       "id": 2708,
       "path": "src/libqtcad/QgFlowLayout.cpp",
       "subsystem": "src/libqtcad",
       "lines": 207,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T08:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0313"
+      ]
     },
     {
       "id": 2709,

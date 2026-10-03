@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-10-03 08:48:00 UTC
+**Last Updated:** 2026-10-03 08:55:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 1461 (41.8%)
-- **Files Pending Review:** 2032
-- **Total Issues Identified:** 333
+- **Files Reviewed:** 1475 (42.2%)
+- **Files Pending Review:** 2018
+- **Total Issues Identified:** 334
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 258 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 259 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 52 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 333
+- **Fixed (Committed):** 334
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -25,7 +25,7 @@
 |:---|:---:|:---:|:---:|:---:|
 | `bench` | 5 | 5 | 100.0% | 1 |
 | `doc` | 19 | 0 | 0.0% | 0 |
-| `include` | 315 | 2 | 0.6% | 1 |
+| `include` | 315 | 10 | 3.2% | 2 |
 | `misc` | 55 | 0 | 0.0% | 0 |
 | `regress` | 21 | 0 | 0.0% | 0 |
 | `src/adrt` | 51 | 0 | 0.0% | 0 |
@@ -98,7 +98,7 @@
 | `src/liboptical` | 46 | 0 | 0.0% | 0 |
 | `src/libpc` | 6 | 6 | 100.0% | 1 |
 | `src/libpkg` | 10 | 10 | 100.0% | 3 |
-| `src/libqtcad` | 29 | 0 | 0.0% | 0 |
+| `src/libqtcad` | 29 | 6 | 20.7% | 1 |
 | `src/librt` | 373 | 0 | 0.0% | 0 |
 | `src/libtclcad` | 31 | 0 | 0.0% | 0 |
 | `src/libtermio` | 2 | 2 | 100.0% | 1 |
@@ -432,12 +432,4 @@
 | `SEC-0310` | **Sev 2** | Memory Leaks, Uninitialized Pointers, Argument Indexing Corruption, and NULL Pointer Dereferences | `src/qged (Batch 68: CADViewMeasure.cpp, CADViewMeasure.h, measure.cpp, CADViewSelector.cpp, CADViewSelector.h, select.cpp, CADViewSettings.cpp, CADViewSettings.h, view_settings.cpp)` | `FIXED` | In BRL-CAD qged Batch 68 (CADViewMeasure.cpp, CADViewMeasure.h, measure.cpp, CADViewSelector.cpp, CADViewSelector.h, select.cpp, CADViewSettings.cpp, CADViewSettings.h, view_settings.cpp, 1,374 lines): in CADViewMeasure.h, removed duplicate QLineEdit include and initialized pointer members to nullptr to avoid uninitialized memory reads (CWE-457); in CADViewMeasure.cpp, freed f2d and f3d filters in destructor to fix memory leak (CWE-401); in adjust_text, eliminated persistent memory leak of QLabel on every event by reusing ma_label instead of repeatedly reallocating new QLabel instances; guarded qApp, gedp->ged_gvp, gedp->dbip, mf, and reports against NULL dereferences; in update_color and eventFilter, guarded mf, measure_3d, color_3d, color_2d, and filters; in measure.cpp, converted heap-allocated QIcon to stack allocation to prevent memory leak (CWE-401); in CADViewSelector.h, initialized all pointer members (including filter pointers pf, bf, rf) to nullptr; in CADViewSelector.cpp, freed pf, bf, and rf in destructor to fix memory leak (CWE-401); in select_objs and deselect_objs, guarded gedp, dbi_state, cf, and scene object s against NULL; in erase_objs, fixed indexing bug in av array where NULL scene objects created holes in the argv vector passed to ged_exec_erase, and checked scnt > 1 before execution; in do_draw_selections, do_erase_selections, and do_view_update, guarded dbis->pathstr return before calling bu_strdup and constructing std::string; in eventFilter, added NULL guards on event e, qApp, filters, and checkboxes; in select.cpp, converted heap-allocated QIcon to stack allocation to prevent memory leak (CWE-401); in CADViewSettings.h, initialized all pointer members to nullptr; in CADViewSettings.cpp, added NULL checks on cb in set_ckbx and ckbx_val; in checkbox_refresh and view_refresh, guarded qApp, gedp, bview v, v->gv_s, and fb_mode_combo against NULL pointer dereferences; in view_settings.cpp, converted heap-allocated QIcon to stack allocation to eliminate memory leak (CWE-401). |
 | `SEC-0311` | **Sev 2** | Memory Leaks, Uninitialized Pointers, and NULL Pointer Dereferences | `src/qged (Batch 69: QPolyCreate.cpp, QPolyCreate.h, QPolySettings.cpp, QPolySettings.h, polygon_tool.cpp)` | `FIXED` | In BRL-CAD qged Batch 69 (QPolyCreate.cpp, QPolyCreate.h, QPolySettings.cpp, QPolySettings.h, polygon_tool.cpp, 1,239 lines): in QPolySettings.h, initialized all pointer member variables to nullptr to eliminate uninitialized pointer access (CWE-457); in QPolySettings.cpp, added explicit QWidget parent to constructor, fixed severe memory leak in uniq_obj_name where ovname and vname were leaked on both collision early exit and success paths (CWE-401), guarded sketch_sync and sketch_name against NULL in sketch_sync_toggled, checked line_snapping and grid_snapping in signal handlers, and guarded p, p->s_i_data, and all UI controls against NULL in settings_sync; in polygon_tool.cpp, stack-allocated QIcon objects in polygon_tool_create and polygon_tool_modify to eliminate heap allocation leaks (CWE-401); in QPolyCreate.h, initialized all pointer member variables to nullptr (CWE-457); in QPolyCreate.cpp, added explicit QWidget parent to constructor, freed pcf in destructor to prevent filter memory leak (CWE-401), guarded qApp, gedp, gedp->dbip, p->s_i_data, and sketch widgets in finalize, guarded qApp, gedp, gedp->ged_gvp, and ps in do_vpoly_copy, guarded qApp, gedp, gedp->dbip, and ps in do_import_sketch, guarded gedp->dbip and sketch controls in sketch_sync to prevent NULL pointer dereferences on uninitialized databases, guarded v->gv_s and scene objects in toggle_line_snapping, toggle_grid_snapping, and checkbox_refresh, and in eventFilter guarded event pointer e, qApp, gedp, pcf, p->s_i_data, and ps settings controls. |
 | `SEC-0312` | **Sev 2** | Memory Leaks, Uninitialized Pointers, and NULL Pointer Dereferences | `src/qged (Batch 70: QPolyMod.cpp, QPolyMod.h)` | `FIXED` | In BRL-CAD qged Batch 70 (QPolyMod.cpp, QPolyMod.h, 1,124 lines): completing all 34 files of src/qged (100% complete): in QPolyMod.h, initialized all pointer member variables to nullptr (ps, mod_names, select_mode, move_mode, update_mode, general_mode_opts, close_general_poly, append_pnt, select_pnt, csg_modes, apply_bool, viewsnap_poly, remove_poly, p, cf, puf, psf, ppf, pmf) to eliminate uninitialized pointer access (CWE-457); in QPolyMod.cpp, added explicit QWidget parent to constructor, freed mouse filter objects puf, psf, ppf, and pmf in destructor to eliminate memory leaks (CWE-401), guarded qApp and mod_names in mod_names_reset, guarded ip and all UI controls in poly_type_settings, guarded qApp, p, p->s_i_data, and ps settings controls in polygon_update_props, guarded qApp and gedp->ged_gvp in toplevel_config, guarded p and p->s_i_data in clear_pnt_selection, guarded qApp, gedp->ged_gvp, and ps in select, guarded p, p->s_i_data, close_general_poly, and boolean operation objects in toggle_closed_poly, guarded qApp, p, p->s_i_data, gedp->ged_gvp, and csg_modes in apply_bool_op, guarded qApp, p, p->s_i_data, and gedp->ged_gvp in align_to_poly, guarded qApp, p, p->s_i_data, and mod_names in delete_poly, guarded gedp->dbip and sketch controls in sketch_name_edit, checked existing sketch collision and guarded gedp->dbip in sketch_name_update, guarded qApp and ps in view_name_edit and view_name_update, guarded v->gv_s in toggle_line_snapping, toggle_grid_snapping, and checkbox_refresh, and in eventFilter guarded event pointer e, qApp, gedp, filters, p->s_i_data, and UI controls. |
-
-
-
-
-
-
-
-
-
+| `SEC-0313` | **Sev 2** | Memory Leaks, Uninitialized Pointers, Off-by-one, Missing Header Guard, and NULL Pointer Dereferences | `libqtcad & include/qtcad (Batch 71: 14 files)` | `FIXED` | In BRL-CAD libqtcad Batch 71 (14 files, 1,563 lines): in defines.h, wrapped QTCAD_SLOT and QTCAD_EVENT macro definitions in do-while(0) blocks for safe statement syntax and guarded slot_name and event_name against NULL; in QgSignalFlags.h, added missing #define QGSIGNALFLAGS_H include guard; in QgAccordion.h, made constructors explicit with default nullptr and initialized all pointer members to nullptr; in QgAccordion.cpp, reparented objscrollarea to this, guarded addObject against null pointers and prevented duplicate insertion and redundant signal-slot connections, and guarded against null objects in accordion display loop; in QgAppExecDialog.h, added explicit constructor and destructor declarations and initialized logfile, console, proc, and buttonBox to nullptr; in QgAppExecDialog.cpp, implemented destructor closing and deleting logfile to eliminate persistent memory leaks (CWE-401), deleted logfile on open failure, and guarded proc, console, and buttonBox in read_stdout, read_stderr, process_abort, and process_done to prevent NULL pointer dereferences (CWE-476); in QgAttributesModel.h, modernized constructors and initialized pointers; in QgAttributesModel.cpp, deleted m_root in destructor and prior to allocating a new root in update and do_dbi_update to eliminate severe memory leaks (CWE-401), replaced unsafe bu_avs_remove loop during iteration with canonical bu_avs_free and bu_avs_init_empty, fixed off-by-one error in beginInsertRows (inclusive cnt - 1 bound), guarded against out-of-bounds access in add_Children when color attribute has fewer than 3 components (CWE-125), guarded against NULL strings and nodes, properly nested data updates between beginResetModel and endResetModel, and validated QModelIndex in refresh; in QgColorRGB.h, removed unused dead member d and initialized pointers to nullptr; in QgColorRGB.cpp, reparented child widgets to this, zeroed bu_color structure, used bu_color_from_rgb_chars for direct color synchronization, and guarded against NULL text and button pointers; in QgDockWidget.h, initialized m to nullptr and made constructor explicit; in QgDockWidget.cpp, removed unused map and set headers, guarded event pointer against NULL in event() to prevent crash, and replaced C-style cast with static_cast; in QgFlowLayout.h, initialized spacing members; in QgFlowLayout.cpp, guarded addItem, minimumSize, and doLayout against NULL items, checked widget and style pointers before layoutSpacing to prevent NULL pointer dereference crashes (CWE-476), clamped negative spacing, and returned nullptr in takeAt. |
