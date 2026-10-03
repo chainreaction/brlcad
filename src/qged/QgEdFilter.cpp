@@ -33,8 +33,11 @@
 
 bool QgEdFilter::eventFilter(QObject *, QEvent *e)
 {
+    if (!e)
+	return false;
+
     QgEdApp *c = (QgEdApp *)qApp;
-    if (!c || !c->w)
+    if (!c || !c->w || !c->mdl)
 	return false;
 
     // TODO - look into QShortcut, see if it might be a better way to manage this
@@ -69,7 +72,7 @@ bool QgEdFilter::eventFilter(QObject *, QEvent *e)
 	return false;
     }
     QMouseEvent *m_e = (QMouseEvent *)e;
-    if (!c || !c->w)
+    if (!c || !c->w || !c->mdl)
 	return false;
 
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)

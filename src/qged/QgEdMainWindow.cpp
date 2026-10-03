@@ -92,10 +92,12 @@ QgEdMainWindow::QgEdMainWindow(int canvas_type, int quad_view)
     ConnectWidgets();
 
     // See if the user has requested a particular mode
-    if (quad_view) {
-	c4->changeToQuadFrame();
-    } else {
-	c4->changeToSingleFrame();
+    if (c4) {
+	if (quad_view) {
+	    c4->changeToQuadFrame();
+	} else {
+	    c4->changeToSingleFrame();
+	}
     }
 }
 
@@ -103,6 +105,8 @@ void
 QgEdMainWindow::CreateWidgets(int canvas_type)
 {
     QgEdApp *ap = (QgEdApp *)qApp;
+    if (!ap || !ap->mdl || !ap->mdl->gedp)
+	return;
     QgModel *m = ap->mdl;
     struct ged *gedp = m->gedp;
 
@@ -235,6 +239,8 @@ void
 QgEdMainWindow::ConnectWidgets()
 {
     QgEdApp *ap = (QgEdApp *)qApp;
+    if (!ap || !ap->mdl)
+	return;
     QgModel *m = ap->mdl;
 
     // If the model does something that it things should trigger a view update, let the app know
@@ -371,6 +377,8 @@ QgEdMainWindow::do_dm_init()
 {
     QTCAD_SLOT("QgEdMainWindow::do_dm_init", 1);
     QgEdApp *ap = (QgEdApp *)qApp;
+    if (!ap || !ap->mdl || !ap->mdl->gedp)
+	return;
     QgModel *m = ap->mdl;
     struct ged *gedp = m->gedp;
 
@@ -404,7 +412,7 @@ QgEdMainWindow::do_dm_init()
 bool
 QgEdMainWindow::isValid3D()
 {
-    return c4->isValid();
+    return c4 ? c4->isValid() : false;
 }
 
 void
@@ -433,6 +441,8 @@ QgEdMainWindow::closeEvent(QCloseEvent* e)
 static bool
 widget_active(QWidget *w)
 {
+    if (!w || !qApp)
+	return false;
     QWidget *fw = qApp->focusWidget();
     QWidget *cw = fw;
     while (cw) {
@@ -447,55 +457,60 @@ widget_active(QWidget *w)
 bool
 QgEdMainWindow::isDisplayActive()
 {
-    return widget_active(c4);
+    return c4 ? widget_active(c4) : false;
 }
 
 QgView *
 QgEdMainWindow::CurrentDisplay()
 {
-    return c4->get();
+    return c4 ? c4->get() : NULL;
 }
 
 struct bview *
 QgEdMainWindow::CurrentView()
 {
-    return c4->view();
+    return c4 ? c4->view() : NULL;
 }
 
 void
 QgEdMainWindow::DisplayCheckpoint()
 {
-    c4->stash_hashes();
+    if (c4)
+	c4->stash_hashes();
 }
 
 bool
 QgEdMainWindow::DisplayDiff()
 {
-    return c4->diff_hashes();
+    return c4 ? c4->diff_hashes() : false;
 }
 
 void
 QgEdMainWindow::QuadDisplay()
 {
-    c4->changeToQuadFrame();
+    if (c4)
+	c4->changeToQuadFrame();
 }
 
 void
 QgEdMainWindow::SingleDisplay()
 {
-    c4->changeToSingleFrame();
+    if (c4)
+	c4->changeToSingleFrame();
 }
 
 void
 QgEdMainWindow::IndicateRaytraceStart(int val)
 {
-    vcw->raytrace_start(val);
+    if (vcw)
+	vcw->raytrace_start(val);
 }
 
 void
 QgEdMainWindow::IndicateRaytraceDone()
 {
-    vcw->raytrace_done();
+    if (vcw)
+	vcw->raytrace_done();
 }
 
 int

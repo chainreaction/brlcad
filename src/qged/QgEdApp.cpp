@@ -90,6 +90,8 @@ qt_create_io_handler(struct ged_subprocess *p, bu_process_io_t t, ged_io_func_t 
 	return;
 
     QgEdApp *ca = (QgEdApp *)p->gedp->ged_io_data;
+    if (!ca || !ca->w || !ca->w->console)
+	return;
     QgConsole *c = ca->w->console;
     c->listen(fd, p, t, callback, data);
 
@@ -109,9 +111,10 @@ qt_create_io_handler(struct ged_subprocess *p, bu_process_io_t t, ged_io_func_t 
 extern "C" void
 qt_delete_io_handler(struct ged_subprocess *p, bu_process_io_t t)
 {
-    if (!p) return;
+    if (!p || !p->gedp || !p->gedp->ged_io_data) return;
 
     QgEdApp *ca = (QgEdApp *)p->gedp->ged_io_data;
+    if (!ca || !ca->w || !ca->w->console) return;
     QgConsole *c = ca->w->console;
 
     // Since these callbacks are invoked from the listener, we can't call
@@ -313,6 +316,10 @@ QgEdApp::~QgEdApp() {
     if (mdl && mdl->gedp)
 	ged_subprocesses_terminate(mdl->gedp);
     delete mdl;
+    for (size_t i = 0; i < tmp_av.size(); i++) {
+	bu_free(tmp_av[i], "tmp_av str");
+    }
+    tmp_av.clear();
     // TODO - free rt_vlfree?
 }
 
@@ -405,19 +412,23 @@ qged_view_update(struct ged *gedp)
 extern "C" int
 raytrace_start(int UNUSED(argc), const char **UNUSED(argv), void *valp, void *ctx)
 {
-    if (!valp)
+    if (!valp || !ctx)
 	return BRLCAD_OK;
     int val = *(int *)valp;
     QgEdApp *ap = (QgEdApp *)ctx;
-    ap->w->IndicateRaytraceStart(val);
+    if (ap->w)
+	ap->w->IndicateRaytraceStart(val);
     return BRLCAD_OK;
 }
 
 extern "C" int
 raytrace_done(int UNUSED(argc), const char **UNUSED(argv), void *UNUSED(valp), void *ctx)
 {
+    if (!ctx)
+	return BRLCAD_OK;
     QgEdApp *ap = (QgEdApp *)ctx;
-    ap->w->IndicateRaytraceDone();
+    if (ap->w)
+	ap->w->IndicateRaytraceDone();
     return BRLCAD_OK;
 }
 
@@ -436,10 +447,12 @@ QgEdApp::run_cmd(struct bu_vls *msg, int argc, const char **argv)
     select_hash = (ss) ? ss->state_hash() : 0;
 
     /* Set the local unit conversions */
-    if (gedp->dbip) {
+    if (gedp->dbip && w) {
 	struct bview *v = w->CurrentView();
-	v->gv_base2local = gedp->dbip->dbi_base2local;
-	v->gv_local2base = gedp->dbip->dbi_local2base;
+	if (v) {
+	    v->gv_base2local = gedp->dbip->dbi_base2local;
+	    v->gv_local2base = gedp->dbip->dbi_local2base;
+	}
     }
 
     if (!tmp_av.size()) {
@@ -447,7 +460,8 @@ QgEdApp::run_cmd(struct bu_vls *msg, int argc, const char **argv)
 	// If we're not in the middle of an incremental command,
 	// stash the view state(s) for later comparison and make
 	// sure our unit conversions are right
-	w->DisplayCheckpoint();
+	if (w)
+	    w->DisplayCheckpoint();
 	//select_hash = ged_selection_hash_sets(gedp->ged_selection_sets);
 
 	// If we need command-specific subprocess awareness for
@@ -476,6 +490,7 @@ QgEdApp::run_cmd(struct bu_vls *msg, int argc, const char **argv)
 	}
 	int ac = (int)tmp_av.size();
 	ret = mdl->run_cmd(msg, ac, (const char **)av);
+	bu_free(av, "argv array");
     }
 
     if (!(ret & GED_MORE)) {
@@ -488,7 +503,7 @@ QgEdApp::run_cmd(struct bu_vls *msg, int argc, const char **argv)
 	// TODO - there may be some utility in checking only the camera or only
 	// the who list, since we can set different update flags for each case...
 	// that's a complexity vs. performance trade-off determination
-	if (w->DisplayDiff())
+	if (w && w->DisplayDiff())
 	    view_flags |= QG_VIEW_DRAWN;
 
 	unsigned long long cs_hash = (ss) ? ss->state_hash() : 0;
@@ -509,7 +524,7 @@ QgEdApp::run_cmd(struct bu_vls *msg, int argc, const char **argv)
 		char *tstr = bu_strdup(argv[i]);
 		tmp_av.push_back(tstr);
 	    }
-	    QgConsole *console = w->console;
+	    QgConsole *console = w ? w->console : NULL;
 	    if (console)
 		history_mark_start = console->historyCount() - 2;
 	}
@@ -518,11 +533,11 @@ QgEdApp::run_cmd(struct bu_vls *msg, int argc, const char **argv)
 	if (tmp_av.size()) {
 	    // clear tmp_av
 	    for (size_t i = 0; i < tmp_av.size(); i++) {
-		delete tmp_av[i];
+		bu_free(tmp_av[i], "tmp_av str");
 	    }
 	    tmp_av.clear();
 	    // let the console know that we're done with MORE
-	    QgConsole *console = w->console;
+	    QgConsole *console = w ? w->console : NULL;
 	    if (console)
 		history_mark_end = console->historyCount() - 1;
 	}
@@ -610,7 +625,7 @@ void
 QgEdApp::element_selected(QgToolPaletteElement *el)
 {
     QTCAD_SLOT("QgEdApp::element_selected", 1);
-    if (!el->controls->isVisible()) {
+    if (!el || !el->controls || !el->controls->isVisible()) {
 	// Apparently this can happen when we have docked widgets
 	// closed and we click on the border between the view and
 	// the dock - need to avoid messing with the event filters
@@ -618,7 +633,11 @@ QgEdApp::element_selected(QgToolPaletteElement *el)
 	return;
     }
 
+    if (!w)
+	return;
     QgView *curr_view = w->CurrentDisplay();
+    if (!curr_view)
+	return;
 
     if (curr_view->curr_event_filter) {
 	curr_view->clear_event_filter(curr_view->curr_event_filter);

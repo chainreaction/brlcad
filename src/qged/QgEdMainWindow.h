@@ -49,7 +49,6 @@
 #include "qtcad/QgSignalFlags.h"
 #include "qtcad/QgTreeView.h"
 #include "qtcad/QgView.h"
-#include "qtcad/QgView.h"
 #include "qtcad/QgViewCtrl.h"
 
 #include "plugins/plugin.h"
@@ -61,7 +60,7 @@ class QgEdMainWindow : public QMainWindow
     public:
 	QgEdMainWindow(int canvas_type = 0, int quad_view = 0);
 
-	QgConsole *console;
+	QgConsole *console = NULL;
 
 	// Post-show methods for checking validity of OpenGL initialization
 	bool isValid3D();
@@ -108,10 +107,10 @@ class QgEdMainWindow : public QMainWindow
 	void SetupMenu();
 
 	// Menu actions
-	QAction *cad_open;
-	QAction *cad_save_settings;
-	//QAction *cad_save_image;
-	QAction *cad_exit;
+	QAction *cad_open = NULL;
+	QAction *cad_save_settings = NULL;
+	//QAction *cad_save_image = NULL;
+	QAction *cad_exit = NULL;
 
 	// Organizational widget
 	QWidget *cw = NULL;
