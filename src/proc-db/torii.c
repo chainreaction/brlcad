@@ -101,31 +101,58 @@ main(int ac, char *av[])
     int i, j;
     unsigned long serial = 0;
 
-    bu_setprogname(av[0]);
+    if (av && av[0])
+	bu_setprogname(av[0]);
+
+    if (ac == 2 && (BU_STR_EQUAL(av[1], "-h") || BU_STR_EQUAL(av[1], "-?") || BU_STR_EQUAL(av[1], "--help"))) {
+	bu_log("Usage: %s output.g [--rows n] [--cols n] [--major mm] [--minor mm]\n"
+	       "                 [--tilt deg] [--pitch mm] [--vary frac]\n", (av && av[0]) ? av[0] : "torii");
+	return 0;
+    }
 
     if (ac < 2) {
 	bu_exit(1, "Usage: %s output.g [--rows n] [--cols n] [--major mm] [--minor mm]\n"
-		   "                 [--tilt deg] [--pitch mm] [--vary frac]\n", av[0]);
+		   "                 [--tilt deg] [--pitch mm] [--vary frac]\n", (av && av[0]) ? av[0] : "torii");
     }
 
     fileName = av[1];
 
     /* tiny "--flag value" parser */
     for (i = 2; i + 1 < ac; i += 2) {
-	if (BU_STR_EQUAL(av[i], "--rows")) rows = atoi(av[i + 1]);
-	else if (BU_STR_EQUAL(av[i], "--cols")) cols = atoi(av[i + 1]);
-	else if (BU_STR_EQUAL(av[i], "--major")) major = atof(av[i + 1]);
-	else if (BU_STR_EQUAL(av[i], "--minor")) minor = atof(av[i + 1]);
-	else if (BU_STR_EQUAL(av[i], "--tilt")) tilt = atof(av[i + 1]);
-	else if (BU_STR_EQUAL(av[i], "--pitch")) pitch = atof(av[i + 1]);
-	else if (BU_STR_EQUAL(av[i], "--vary")) vary = atof(av[i + 1]);
-	else bu_log("Warning: ignoring unknown option '%s'\n", av[i]);
+	if (BU_STR_EQUAL(av[i], "--rows")) {
+	    if (bu_sscanf(av[i + 1], "%d", &rows) != 1)
+		bu_log("Warning: invalid --rows value '%s'\n", av[i + 1]);
+	} else if (BU_STR_EQUAL(av[i], "--cols")) {
+	    if (bu_sscanf(av[i + 1], "%d", &cols) != 1)
+		bu_log("Warning: invalid --cols value '%s'\n", av[i + 1]);
+	} else if (BU_STR_EQUAL(av[i], "--major")) {
+	    if (bu_sscanf(av[i + 1], "%lf", &major) != 1)
+		bu_log("Warning: invalid --major value '%s'\n", av[i + 1]);
+	} else if (BU_STR_EQUAL(av[i], "--minor")) {
+	    if (bu_sscanf(av[i + 1], "%lf", &minor) != 1)
+		bu_log("Warning: invalid --minor value '%s'\n", av[i + 1]);
+	} else if (BU_STR_EQUAL(av[i], "--tilt")) {
+	    if (bu_sscanf(av[i + 1], "%lf", &tilt) != 1)
+		bu_log("Warning: invalid --tilt value '%s'\n", av[i + 1]);
+	} else if (BU_STR_EQUAL(av[i], "--pitch")) {
+	    if (bu_sscanf(av[i + 1], "%lf", &pitch) != 1)
+		bu_log("Warning: invalid --pitch value '%s'\n", av[i + 1]);
+	} else if (BU_STR_EQUAL(av[i], "--vary")) {
+	    if (bu_sscanf(av[i + 1], "%lf", &vary) != 1)
+		bu_log("Warning: invalid --vary value '%s'\n", av[i + 1]);
+	} else {
+	    bu_log("Warning: ignoring unknown option '%s'\n", av[i]);
+	}
     }
 
     if (rows < 1) rows = 1;
+    else if (rows > 200) rows = 200;
     if (cols < 1) cols = 1;
+    else if (cols > 200) cols = 200;
     if (major < 1.0) major = 1.0;
+    else if (major > 100000.0) major = 100000.0;
     if (minor < 0.1) minor = 0.1;
+    else if (minor > 10000.0) minor = 10000.0;
     vary = clampd(vary, 0.0, 0.9);
 
     theta = tilt * DEG2RAD;
@@ -181,6 +208,8 @@ main(int ac, char *av[])
 
 	    if (mk_tor(db_fp, sname, center, normal, major, r) != 0) {
 		bu_log("Unable to write torus \"%s\"\n", sname);
+		mk_freemembers(&all_hd.l);
+		wdb_close(db_fp);
 		return 3;
 	    }
 
@@ -201,12 +230,15 @@ main(int ac, char *av[])
 
     if (mk_lcomb(db_fp, "all", &all_hd, 0, NULL, NULL, NULL, 0) != 0) {
 	bu_log("Unable to write the \"all\" group\n");
+	mk_freemembers(&all_hd.l);
+	wdb_close(db_fp);
 	return 4;
     }
 
     bu_log("torii: wrote %lu interlocking rings into group \"all\"\n", serial);
 
-    db_close(db_fp->dbip);
+    mk_freemembers(&all_hd.l);
+    wdb_close(db_fp);
     return 0;
 }
 

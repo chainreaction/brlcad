@@ -38,6 +38,8 @@ TwistedCubeEdgeCurve(const ON_3dPoint& from, const ON_3dPoint& to)
 void
 MakeTwistedCubeEdge(ON_Brep& brep, int from, int to, int curve)
 {
+    if (from < 0 || from >= brep.m_V.Count() || to < 0 || to >= brep.m_V.Count())
+	return;
     ON_BrepVertex& v0 = brep.m_V[from];
     ON_BrepVertex& v1 = brep.m_V[to];
     ON_BrepEdge& edge = brep.NewEdge(v0, v1, curve);
@@ -120,6 +122,9 @@ MakeTwistedCubeTrimmingLoop(ON_Brep& brep,
 			    int e2, int eo2,
 			    int e3, int eo3)
 {
+    if (face.m_si < 0 || face.m_si >= brep.m_S.Count() || !brep.m_S[face.m_si])
+	return -1;
+
     // get a reference to the surface
     const ON_Surface& srf = *brep.m_S[face.m_si];
 
@@ -161,6 +166,9 @@ MakeTwistedCubeTrimmingLoop(ON_Brep& brep,
 		iso = ON_Surface::W_iso;
 		break;
 	}
+
+	if (ei < 0 || ei >= brep.m_E.Count())
+	    continue;
 
 	ON_BrepTrim& trim = brep.NewTrim(brep.m_E[ei], bRev3d, loop, c2i);
 	trim.m_iso = iso;
@@ -206,6 +214,11 @@ MakeTwistedCubeFace(ON_Brep& brep,
 void
 printPoints(struct rt_brep_internal* bi)
 {
+    if (!bi) {
+	bu_log("bi was NULL!\n");
+	return;
+    }
+
     ON_TextLog tl(stdout);
     ON_Brep* brep = bi->brep;
 

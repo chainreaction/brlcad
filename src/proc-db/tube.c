@@ -125,22 +125,31 @@ main(int argc, char **argv)
     vect_t from, to;
     vect_t offset;
 
+    if (!argv || !argv[0]) {
+	bu_exit(1, "tube: Invalid argument list\n");
+    }
     bu_setprogname(argv[0]);
 
-    if (argc > 0) {
+    if (argc > 1) {
+	if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help")) {
+	    bu_log("Usage: %s\n", argv[0]);
+	    bu_log("       (Program expects ./pos.dat file to be present)\n");
+	    bu_log("       (Will generate file tube.g)\n");
+	    return 0;
+	}
 	bu_log("Usage: %s\n", argv[0]);
-    	bu_log("       (Program expects ./pos.dat file to be present)\n");
-    	bu_log("       (Will generate file tube.g)\n");
-    	if (argc == 2) {
-	    if ( BU_STR_EQUAL(argv[1],"-h") || BU_STR_EQUAL(argv[1],"-?"))
-		bu_exit(1,NULL);
-    	}
+	bu_log("       (Program expects ./pos.dat file to be present)\n");
+	bu_log("       (Will generate file tube.g)\n");
+	return 1;
     }
 
     BU_LIST_INIT(&head.l);
     BU_LIST_INIT(&ghead.l);
 
     outfp = wdb_fopen("tube.g");
+    if (!outfp) {
+	bu_exit(1, "tube: failed to open tube.g for writing\n");
+    }
     if ((pos_fp = fopen("pos.dat", "r")) == NULL)
 	perror("pos.dat");	/* Just warn */
 
@@ -154,6 +163,7 @@ main(int argc, char **argv)
     mk_lcomb(outfp, "bg.r", &head, 1,
 	     "texture", "file=movie128bw.pix w=128",
 	     (unsigned char *)0, 0);
+    mk_freemembers(&head.l);
 
 #ifdef never
     /* Numbers for a 105-mm M68 gun */
@@ -208,6 +218,7 @@ main(int argc, char **argv)
 	mk_lcomb(outfp, name, &head, 1,
 		 "plastic", "",
 		 (unsigned char *)0, 0);
+	mk_freemembers(&head.l);
 
 	/* Place the tube region and the ammo together.
 	 * The origin of the ammo is expected to be the center
@@ -236,10 +247,15 @@ main(int argc, char **argv)
 	sprintf(gname, "g%d", frame);
 	mk_lcomb(outfp, gname, &ghead, 0,
 		 (char *)0, "", (unsigned char *)0, 0);
+	mk_freemembers(&ghead.l);
 
 	fprintf(stderr, "frame %d\n", frame);  fflush(stderr);
     }
-    db_close(outfp->dbip);
+    wdb_close(outfp);
+    if (pos_fp) {
+	fclose(pos_fp);
+	pos_fp = NULL;
+    }
     fflush(stderr);
 
     return 0;
@@ -257,6 +273,9 @@ build_spline(char *name, int npts, double radius)
     int col;
     vect_t point;
 
+    if (npts <= 0)
+	return;
+
     /*
      * This spline will look like a cylinder.
      * In the mesh, the circular cross section will be presented
@@ -271,6 +290,8 @@ build_spline(char *name, int npts, double radius)
 			   N_CIRCLE_KNOTS,	npts+6,		/* u, v knot vector size */
 			   npts+2,		NCOLS,		/* nrows, ncols */
 			   RT_NURB_MAKE_PT_TYPE(4, 2, 1));
+    if (!bp)
+	return;
 
     /* Build the U knots */
     for (i=0; i<N_CIRCLE_KNOTS; i++)
@@ -382,7 +403,7 @@ read_frame(FILE *fp)
     /* Kurt's / Kathy's format, in inches */
     if (cur_time <= 0) {
 	/* Really should use Y and Z initial conditions, too */
-	for (nsamples=0; nsamples < (sizeof(dxtab)/sizeof(dxtab[0])); nsamples++) {
+	for (nsamples=0; nsamples < (sizeof(dxtab)/sizeof(dxtab[0])) && nsamples < 1024; nsamples++) {
 	    sample[nsamples][X] = dxtab[nsamples];
 	    sample[nsamples][Y] = sample[nsamples][Z] = 0;
 	}
@@ -397,7 +418,7 @@ read_frame(FILE *fp)
 	    return -1;
 	}
 	if (bu_strncmp(buf, "TIME", strlen("TIME")) != 0) continue;
-	if (sscanf(buf, "TIME %f", &last_read_time) < 1) {
+	if (bu_sscanf(buf, "TIME %f", &last_read_time) < 1) {
 	    fprintf(stderr, "bad TIME\n");
 	    return -1;
 	}
@@ -409,13 +430,18 @@ read_frame(FILE *fp)
 	float kx, ky, kz;
 	int nmassval;
 
+	if (nsamples >= 1022) {
+	    fprintf(stderr, "read_frame: sample array full\n");
+	    return -1;
+	}
+
 	buf[0] = '\0';
 	if (bu_fgets(buf, sizeof(buf), fp) == NULL) return -1;
 	/* center of mass #, +X, +Z, -Y (chg of coordinates) */
 	if (buf[0] == '\0' || buf[0] == '\n')
 	    break;		/* stop at a blank line */
-	i = sscanf(buf, "%d %f %f %f",
-		   &nmassval, &kx, &ky, &kz);
+	i = bu_sscanf(buf, "%d %f %f %f",
+		      &nmassval, &kx, &ky, &kz);
 	if (i != 4) {
 	    fprintf(stderr, "input line in error: %s\n", buf);
 	    return -1;
@@ -459,19 +485,20 @@ read_pos(FILE *fp)
 {
     static float last_read_time = -5;
     static float pos = 0;
-    int ret;
+    char line[256];
 
 /* Skip over needless intermediate time steps */
     while (last_read_time < cur_time) {
 	if (feof(fp))
 	    break;
-	ret = fscanf(fp, "%f %f", &last_read_time, &pos);
-	if (ret == -1)
-	    perror("fscanf");
+	if (bu_fgets(line, sizeof(line), fp) == NULL)
+	    break;
+	if (bu_sscanf(line, "%f %f", &last_read_time, &pos) < 2)
+	    continue;
 
 	/* HACK:  tmax[kathy]=6.155ms, tmax[kurt]=9.17 */
 	/* we just read a Kurt number, make it a Kathy number */
-	last_read_time = last_read_time / 9.17 * 6.155;
+	last_read_time = (float)((double)last_read_time / 9.17 * 6.155);
     }
 
 /* Kurt's data is in inches */
@@ -495,11 +522,12 @@ build_cyl(char *cname, int npts, double radius)
 	VSET(a, 0, radius, 0);
 	VSET(b, 0, 0, radius);
 
-	snprintf(name, 32, "%s%d", cname, i);
+	snprintf(name, sizeof(name), "%s%d", cname, i);
 	mk_tgc(outfp, name, v, h, a, b, a, b);
 	(void)mk_addmember(name, &head.l, NULL, WMOP_UNION);
     }
     mk_lfcomb(outfp, cname, &head, 0);
+    mk_freemembers(&head.l);
 }
 
 
@@ -512,6 +540,13 @@ xfinddir(fastf_t *dir, double x, fastf_t *loc)
 {
     size_t i;
     fastf_t ratio;
+    double denom;
+
+    if (nsamples < 2) {
+	VSETALL(dir, 0.0);
+	VSETALL(loc, 0.0);
+	return;
+    }
 
     for (i=0; i<nsamples-1; i++) {
 	if (x < sample[i][X])
@@ -524,7 +559,12 @@ xfinddir(fastf_t *dir, double x, fastf_t *loc)
     i = nsamples-2;
 out:
     VSUB2(dir, sample[i+1], sample[i]);
-    ratio = (x-sample[i][X]) / (sample[i+1][X]-sample[i][X]);
+    denom = sample[i+1][X] - sample[i][X];
+    if (ZERO(denom)) {
+	ratio = 0.0;
+    } else {
+	ratio = (x - sample[i][X]) / denom;
+    }
     VJOIN1(loc, sample[i], ratio, dir);
 
     VUNITIZE(dir);

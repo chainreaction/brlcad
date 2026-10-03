@@ -121,10 +121,16 @@ main(int ac, char *av[])
     mat_t dspmat;
     unsigned char rgb[3];
 
-    bu_setprogname(av[0]);
+    if (av && av[0])
+	bu_setprogname(av[0]);
+
+    if (ac == 2 && (BU_STR_EQUAL(av[1], "-h") || BU_STR_EQUAL(av[1], "-?") || BU_STR_EQUAL(av[1], "--help"))) {
+	bu_log("Usage: %s output.g [--size n] [--seed s] [--relief mm] [--sea frac]\n", (av && av[0]) ? av[0] : "terragen");
+	return 0;
+    }
 
     if (ac < 2) {
-	bu_exit(1, "Usage: %s output.g [--size n] [--seed s] [--relief mm] [--sea frac]\n", av[0]);
+	bu_exit(1, "Usage: %s output.g [--size n] [--seed s] [--relief mm] [--sea frac]\n", (av && av[0]) ? av[0] : "terragen");
     }
 
     /* Parse optional parameters.  Each is a "--flag value" pair; we scan
@@ -132,13 +138,17 @@ main(int ac, char *av[])
      */
     for (i = 2; i < ac - 1; i += 2) {
 	if (BU_STR_EQUAL(av[i], "--size")) {
-	    exponent = atoi(av[i + 1]);
+	    if (bu_sscanf(av[i + 1], "%d", &exponent) != 1)
+		bu_log("Warning: invalid --size '%s'\n", av[i + 1]);
 	} else if (BU_STR_EQUAL(av[i], "--seed")) {
-	    seed = (unsigned long)strtoul(av[i + 1], NULL, 10);
+	    if (bu_sscanf(av[i + 1], "%lu", &seed) != 1)
+		bu_log("Warning: invalid --seed '%s'\n", av[i + 1]);
 	} else if (BU_STR_EQUAL(av[i], "--relief")) {
-	    relief = atof(av[i + 1]);
+	    if (bu_sscanf(av[i + 1], "%lf", &relief) != 1)
+		bu_log("Warning: invalid --relief '%s'\n", av[i + 1]);
 	} else if (BU_STR_EQUAL(av[i], "--sea")) {
-	    sea = atof(av[i + 1]);
+	    if (bu_sscanf(av[i + 1], "%lf", &sea) != 1)
+		bu_log("Warning: invalid --sea '%s'\n", av[i + 1]);
 	} else {
 	    bu_log("Warning: ignoring unknown option '%s'\n", av[i]);
 	}
@@ -280,6 +290,9 @@ main(int ac, char *av[])
     fp = fopen(dspfile, "wb");
     if (fp == NULL) {
 	perror(dspfile);
+	bu_free(hf, "height field");
+	bu_free(grid, "dsp grid");
+	wdb_close(db_fp);
 	bu_exit(3, "terragen: could not open sidecar '%s' for writing\n", dspfile);
     }
     for (i = 0; i < dim * dim; i++) {
@@ -326,6 +339,7 @@ main(int ac, char *av[])
     VSET(rgb, 110, 95, 70);	/* rock / soil brown */
     mk_lcomb(db_fp, "terrain.r", &terr_hd, 1,
 	     "plastic", "di=0.8 sp=0.1", rgb, 0);
+    mk_freemembers(&terr_hd.l);
 
     /* ---- Water: a large thin slab at sea level, reflective glass. -- *
      * Sea level rides at the chosen fraction of the relief range.  The
@@ -344,6 +358,7 @@ main(int ac, char *av[])
 	VSET(rgb, 40, 90, 170);		/* deep blue */
 	mk_lcomb(db_fp, "water.r", &terr_hd, 1,
 		 "glass", "ri=1.33 sp=0.9 di=0.1 tr=0.5", rgb, 0);
+	mk_freemembers(&terr_hd.l);
     }
 
     /* ---- Sky: a cloud environment map, not enclosing geometry. ------ *
@@ -361,6 +376,7 @@ main(int ac, char *av[])
     (void)mk_addmember("sky.s", &sky_hd.l, NULL, WMOP_UNION);
     VSET(rgb, 130, 180, 240);		/* light sky blue */
     mk_lcomb(db_fp, "sky.r", &sky_hd, 1, "envmap", "cloud", rgb, 0);
+    mk_freemembers(&sky_hd.l);
 
     /* ---- Sun: a small sphere made into a BRL-CAD light region. ----- *
      * The "light" shader turns a region into a light source.  We place
@@ -387,6 +403,7 @@ main(int ac, char *av[])
     (void)mk_addmember("water.r", &all_hd.l, NULL, WMOP_UNION);
     (void)mk_addmember("sky.r", &all_hd.l, NULL, WMOP_UNION);
     mk_lcomb(db_fp, "all", &all_hd, 0, NULL, NULL, NULL, 0);
+    mk_freemembers(&all_hd.l);
     /* sun.r stays a separate top-level object, NOT a member of "all":
      * defining an explicit light region suppresses the ray tracer's
      * default lighting, leaving the autoview-framed scene dark.  With the
@@ -400,7 +417,7 @@ main(int ac, char *av[])
     bu_free(hf, "height field");
     bu_free(grid, "dsp grid");
 
-    db_close(db_fp->dbip);
+    wdb_close(db_fp);
 
     return 0;
 }
