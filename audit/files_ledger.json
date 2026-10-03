@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1454,
-    "pending_files": 2039,
-    "last_updated": "2026-10-03T08:39:40Z",
-    "total_issues": 331,
-    "reviewed_count": 1454
+    "reviewed_files": 1459,
+    "pending_files": 2034,
+    "last_updated": "2026-10-03T08:44:00Z",
+    "total_issues": 332,
+    "reviewed_count": 1459
   },
   "files": [
     {
@@ -34892,20 +34892,24 @@
       "path": "src/qged/plugins/polygon/QPolyCreate.cpp",
       "subsystem": "src/qged",
       "lines": 646,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:44:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0311"
+      ]
     },
     {
       "id": 3291,
       "path": "src/qged/plugins/polygon/QPolyCreate.h",
       "subsystem": "src/qged",
       "lines": 117,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:44:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0311"
+      ]
     },
     {
       "id": 3292,
@@ -34932,30 +34936,36 @@
       "path": "src/qged/plugins/polygon/QPolySettings.cpp",
       "subsystem": "src/qged",
       "lines": 279,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:44:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0311"
+      ]
     },
     {
       "id": 3295,
       "path": "src/qged/plugins/polygon/QPolySettings.h",
       "subsystem": "src/qged",
       "lines": 83,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:44:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0311"
+      ]
     },
     {
       "id": 3296,
       "path": "src/qged/plugins/polygon/polygon_tool.cpp",
       "subsystem": "src/qged",
       "lines": 114,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:44:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0311"
+      ]
     },
     {
       "id": 3297,
