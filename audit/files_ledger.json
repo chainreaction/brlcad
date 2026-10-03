@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1484,
-    "pending_files": 2009,
-    "last_updated": "2026-10-03T09:00:00Z",
-    "total_issues": 335,
-    "reviewed_count": 1484
+    "reviewed_files": 1492,
+    "pending_files": 2001,
+    "last_updated": "2026-10-03T12:05:00Z",
+    "total_issues": 336,
+    "reviewed_count": 1492
   },
   "files": [
     {
@@ -2334,10 +2334,12 @@
       "path": "include/qtcad/QgConsole.h",
       "subsystem": "include",
       "lines": 192,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T12:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0315"
+      ]
     },
     {
       "id": 231,
@@ -2506,30 +2508,36 @@
       "path": "include/qtcad/QgToolPalette.h",
       "subsystem": "include",
       "lines": 219,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T12:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0315"
+      ]
     },
     {
       "id": 247,
       "path": "include/qtcad/QgTreeSelectionModel.h",
       "subsystem": "include",
       "lines": 72,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T12:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0315"
+      ]
     },
     {
       "id": 248,
       "path": "include/qtcad/QgTreeView.h",
       "subsystem": "include",
       "lines": 102,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T12:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0315"
+      ]
     },
     {
       "id": 249,
@@ -28778,10 +28786,12 @@
       "path": "src/libqtcad/QgConsole.cpp",
       "subsystem": "src/libqtcad",
       "lines": 833,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T12:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0315"
+      ]
     },
     {
       "id": 2706,
@@ -28926,30 +28936,36 @@
       "path": "src/libqtcad/QgToolPalette.cpp",
       "subsystem": "src/libqtcad",
       "lines": 306,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T12:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0315"
+      ]
     },
     {
       "id": 2720,
       "path": "src/libqtcad/QgTreeSelectionModel.cpp",
       "subsystem": "src/libqtcad",
       "lines": 188,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T12:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0315"
+      ]
     },
     {
       "id": 2721,
       "path": "src/libqtcad/QgTreeView.cpp",
       "subsystem": "src/libqtcad",
       "lines": 430,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-03T12:05:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0315"
+      ]
     },
     {
       "id": 2722,
