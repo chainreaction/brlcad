@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1422,
-    "pending_files": 2071,
-    "last_updated": "2026-10-03T08:12:58Z",
-    "total_issues": 326,
-    "reviewed_count": 1422
+    "reviewed_files": 1427,
+    "pending_files": 2066,
+    "last_updated": "2026-10-03T08:18:56Z",
+    "total_issues": 327,
+    "reviewed_count": 1427
   },
   "files": [
     {
@@ -34660,50 +34660,60 @@
       "path": "src/proc-db/vegetation.c",
       "subsystem": "src/proc-db",
       "lines": 1015,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:18:56Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0306"
+      ]
     },
     {
       "id": 3271,
       "path": "src/proc-db/vegetation.h",
       "subsystem": "src/proc-db",
       "lines": 185,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:18:56Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0306"
+      ]
     },
     {
       "id": 3272,
       "path": "src/proc-db/voxelize.c",
       "subsystem": "src/proc-db",
       "lines": 506,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:18:56Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0306"
+      ]
     },
     {
       "id": 3273,
       "path": "src/proc-db/wavy.c",
       "subsystem": "src/proc-db",
       "lines": 137,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:18:56Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0306"
+      ]
     },
     {
       "id": 3274,
       "path": "src/proc-db/wdb_example.c",
       "subsystem": "src/proc-db",
       "lines": 152,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:18:56Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0306"
+      ]
     },
     {
       "id": 3275,
@@ -36900,5 +36910,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-10-03T08:12:58Z"
+  "last_updated": "2026-10-03T08:18:56Z"
 }
