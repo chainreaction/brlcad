@@ -38,35 +38,35 @@ class QPolyMod : public QWidget
     Q_OBJECT
 
     public:
-	QPolyMod();
+	explicit QPolyMod(QWidget *parent = nullptr);
 	~QPolyMod();
 
 	// Modify polygon settings
-	QPolySettings *ps;
+	QPolySettings *ps = nullptr;
 
 	// Modifying polygon geometry
-	QComboBox *mod_names;
-	QRadioButton *select_mode;
-	QRadioButton *move_mode;
-	QRadioButton *update_mode;
+	QComboBox *mod_names = nullptr;
+	QRadioButton *select_mode = nullptr;
+	QRadioButton *move_mode = nullptr;
+	QRadioButton *update_mode = nullptr;
 
-	QGroupBox *general_mode_opts;
-	QCheckBox *close_general_poly;
-	QRadioButton *append_pnt;
-	QRadioButton *select_pnt;
+	QGroupBox *general_mode_opts = nullptr;
+	QCheckBox *close_general_poly = nullptr;
+	QRadioButton *append_pnt = nullptr;
+	QRadioButton *select_pnt = nullptr;
 
 	// TODO - probably will want a copy operation at some point to
 	// duplicate an existing polygon in a new object...
 
 	// Boolean Operation Mode
-	QComboBox *csg_modes;
-	QPushButton *apply_bool;
+	QComboBox *csg_modes = nullptr;
+	QPushButton *apply_bool = nullptr;
 
 	// Align view to selected polygon
-	QPushButton *viewsnap_poly;
+	QPushButton *viewsnap_poly = nullptr;
 
 	// Removal
-	QPushButton *remove_poly;
+	QPushButton *remove_poly = nullptr;
 
     signals:
 	void settings_changed(unsigned long long);
@@ -105,14 +105,14 @@ class QPolyMod : public QWidget
     private:
 	void poly_type_settings(struct bv_polygon *ip);
 	int poly_cnt = 0;
-	struct bv_scene_obj *p = NULL;
+	struct bv_scene_obj *p = nullptr;
 	bool do_bool = false;
 
-	QgPolyFilter *cf = NULL;
-	QPolyUpdateFilter *puf;
-	QPolySelectFilter *psf;
-	QPolyPointFilter *ppf;
-	QPolyMoveFilter *pmf;
+	QgPolyFilter *cf = nullptr;
+	QPolyUpdateFilter *puf = nullptr;
+	QPolySelectFilter *psf = nullptr;
+	QPolyPointFilter *ppf = nullptr;
+	QPolyMoveFilter *pmf = nullptr;
 };
 
 
