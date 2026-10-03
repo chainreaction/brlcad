@@ -42,8 +42,8 @@ CADViewModel::CADViewModel(QObject *parentobj)
 
 CADViewModel::~CADViewModel()
 {
-    if (m_root)
-	delete m_root;
+    delete m_root;
+    m_root = NULL;
 }
 
 void
@@ -56,6 +56,8 @@ CADViewModel::update()
 void
 CADViewModel::refresh(unsigned long long)
 {
+    if (!qApp)
+	return;
     QgModel *m = ((QgEdApp *)qApp)->mdl;
     if (!m)
 	return;
@@ -64,13 +66,20 @@ CADViewModel::refresh(unsigned long long)
 	return;
 
     struct bview *v = gedp->ged_gvp;
+    if (!v) {
+	beginResetModel();
+	delete m_root;
+	m_root = new QgKeyValNode();
+	endResetModel();
+	return;
+    }
+
     struct bu_vls val = BU_VLS_INIT_ZERO;
     QMap<QString, QgKeyValNode*> standard_nodes;
     int i = 0;
-    if (m_root)
-	delete m_root;
-    m_root = new QgKeyValNode();
     beginResetModel();
+    delete m_root;
+    m_root = new QgKeyValNode();
 
     standard_nodes.insert("Name", add_pair("Name", bu_vls_cstr(&v->gv_name), m_root, i));
     bu_vls_sprintf(&val, "%g", v->gv_size);

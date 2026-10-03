@@ -28,13 +28,13 @@
 void *
 view_info_tool_create()
 {
-    CADViewModel *vmodel = new CADViewModel();
-    QIcon *obj_icon = new QIcon(QPixmap(":info.svg"));
+    QIcon obj_icon(QPixmap(":info.svg"));
     QgKeyValView *vview = new QgKeyValView(NULL, 0);
+    CADViewModel *vmodel = new CADViewModel(vview);
     vview->setModel(vmodel);
     vview->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     vview->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    QgToolPaletteElement *el = new QgToolPaletteElement(obj_icon, vview);
+    QgToolPaletteElement *el = new QgToolPaletteElement(&obj_icon, vview);
     QObject::connect(el, &QgToolPaletteElement::element_view_update, vmodel, &CADViewModel::refresh);
 
     return el;

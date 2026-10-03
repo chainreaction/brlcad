@@ -42,18 +42,18 @@ class QEll : public QWidget
 	~QEll();
 
 	// Ell origin
-	QCheckBox *O_pnt;
+	QCheckBox *O_pnt = nullptr;
 
 	// Select one or more axes to set the length on
-	QCheckBox *A_axis;
-	QCheckBox *B_axis;
-	QCheckBox *C_axis;
+	QCheckBox *A_axis = nullptr;
+	QCheckBox *B_axis = nullptr;
+	QCheckBox *C_axis = nullptr;
 
 	// Primitive name
-	QLineEdit *ell_name;
-	QPushButton *write_edit;
-	QPushButton *make_sph; // ell -> sph
-	QPushButton *reset_values;
+	QLineEdit *ell_name = nullptr;
+	QPushButton *write_edit = nullptr;
+	QPushButton *make_sph = nullptr; // ell -> sph
+	QPushButton *reset_values = nullptr;
 
     signals:
 	void view_updated(unsigned long long);

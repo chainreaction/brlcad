@@ -28,12 +28,12 @@
 void *
 ell_tool()
 {
-    QIcon *obj_icon = new QIcon(QPixmap(":ell.svg"));
+    QIcon obj_icon(QPixmap(":ell.svg"));
 
     QEll *ell = new QEll();
     ell->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
 
-    QgToolPaletteElement *el = new QgToolPaletteElement(obj_icon, ell);
+    QgToolPaletteElement *el = new QgToolPaletteElement(&obj_icon, ell);
 
     // Edit operations will usually change view objects - connect the internal
     // widget signal to the QgToolPaletteElement slot so the application can get

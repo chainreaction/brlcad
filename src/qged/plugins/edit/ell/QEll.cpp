@@ -35,6 +35,7 @@ QEll::QEll()
     // TODO - in an ideal world the "default" values would be set
     // and updated in response to view changes (if widget is continually
     // visible) or when it becomes visible...
+    memset(&ell, 0, sizeof(ell));
     ell.magic = RT_ELL_INTERNAL_MAGIC;
     VSET(ell.v, 0, 0, 0);
     VSET(ell.a, 100, 0, 0);
@@ -81,18 +82,24 @@ QEll::QEll()
 
 
     QObject::connect(ell_name, &QLineEdit::textEdited, this, &QEll::update_viewobj_name);
+    QObject::connect(write_edit, &QPushButton::clicked, this, &QEll::write_to_db);
+    QObject::connect(reset_values, &QPushButton::clicked, this, &QEll::read_from_db);
 }
 
 QEll::~QEll()
 {
-    if (p)
+    if (p) {
 	bv_obj_put(p);
+	p = NULL;
+    }
     bu_vls_free(&oname);
 }
 
 void
 QEll::read_from_db()
 {
+    if (!qApp)
+	return;
     QgModel *m = ((QgEdApp *)qApp)->mdl;
     if (!m)
 	return;
@@ -111,6 +118,10 @@ QEll::read_from_db()
     if (rt_db_get_internal(&intern, dp, dbip, NULL) < 0)
 	return;
     struct rt_ell_internal *ellp = (struct rt_ell_internal *)intern.idb_ptr;
+    if (!ellp) {
+	rt_db_free_internal(&intern);
+	return;
+    }
     RT_ELL_CK_MAGIC(ellp);
     VMOVE(ell.v, ellp->v);
     VMOVE(ell.a, ellp->a);
@@ -127,6 +138,8 @@ QEll::write_to_db()
 {
     if (!bu_vls_strlen(&oname))
 	return;
+    if (!qApp)
+	return;
     QgModel *m = ((QgEdApp *)qApp)->mdl;
     if (!m)
 	return;
@@ -140,7 +153,10 @@ QEll::write_to_db()
     struct rt_db_internal intern = RT_DB_INTERNAL_INIT_ZERO;
     intern.idb_major_type = DB5_MAJORTYPE_BRLCAD;
     intern.idb_type = ID_ELL;
-    intern.idb_ptr = &ell;
+    struct rt_ell_internal *ellp;
+    BU_ALLOC(ellp, struct rt_ell_internal);
+    *ellp = ell;
+    intern.idb_ptr = (void *)ellp;
     intern.idb_meth = &OBJ[intern.idb_type];
 
     dp = db_lookup(dbip, bu_vls_cstr(&oname), LOOKUP_QUIET);
@@ -153,12 +169,10 @@ QEll::write_to_db()
 	return;
     }
 
+    /* Note: rt_db_put_internal frees intern on both success and failure */
     if (rt_db_put_internal(dp, dbip, &intern) < 0) {
-	rt_db_free_internal(&intern);
 	return;
     }
-
-    rt_db_free_internal(&intern);
 
     emit view_updated(QG_VIEW_DB);
 }
@@ -166,11 +180,13 @@ QEll::write_to_db()
 void
 QEll::update_obj_wireframe()
 {
+    if (!qApp)
+	return;
     QgModel *m = ((QgEdApp *)qApp)->mdl;
     if (!m)
 	return;
     struct ged *gedp = m->gedp;
-    if (!gedp)
+    if (!gedp || !gedp->dbip)
 	return;
     struct bview *v = gedp->ged_gvp;
     if (!v)
@@ -179,6 +195,8 @@ QEll::update_obj_wireframe()
     // Make the object, if we've not already done so
     if (!p)
 	p = bv_obj_get(v, BV_VIEW_OBJS);
+    if (!p)
+	return;
 
     // Clear any old wireframes, labels, etc.
     bv_obj_reset(p);
@@ -196,6 +214,8 @@ QEll::update_obj_wireframe()
     if (!intern.idb_meth->ft_plot)
 	return;
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+    if (!wdbp)
+	return;
     struct bn_tol *tol = &wdbp->wdb_tol;
     struct bg_tess_tol *ttol = &wdbp->wdb_ttol;
     intern.idb_meth->ft_plot(&p->s_vlist, &intern, ttol, tol, p->s_v);
@@ -217,6 +237,8 @@ QEll::update_obj_wireframe()
 
     for (int i = 0; i < lcnt; i++) {
 	struct bv_scene_obj *s = bv_obj_get_child(p);
+	if (!s)
+	    continue;
 	struct bv_label *la;
 	BU_GET(la, struct bv_label);
 	s->s_i_data = (void *)la;
@@ -227,7 +249,7 @@ QEll::update_obj_wireframe()
 	s->s_type_flags |= BV_LABELS;
 	BU_VLS_INIT(&la->label);
 
-	bu_vls_sprintf(&la->label, "%s", pl[i].str);
+	bu_vls_sprintf(&la->label, "%s", pl[i].str ? pl[i].str : "");
 	VMOVE(la->p, pl[i].pt);
     }
 
@@ -241,11 +263,13 @@ QEll::update_obj_wireframe()
 void
 QEll::update_viewobj_name(const QString &)
 {
+    if (!qApp)
+	return;
     QgModel *m = ((QgEdApp *)qApp)->mdl;
     if (!m)
 	return;
     struct ged *gedp = m->gedp;
-    if (!gedp)
+    if (!gedp || !gedp->dbip)
 	return;
     struct bview *v = gedp->ged_gvp;
     if (!v)
@@ -254,13 +278,15 @@ QEll::update_viewobj_name(const QString &)
     // Make the view object, if we've not already done so
     if (!p)
 	p = bv_obj_get(v, BV_VIEW_OBJS);
+    if (!p)
+	return;
 
     // Make sure the view object names match whatever the dialog says
     // is the current (proposed) name for the written object
     bu_vls_trunc(&oname, 0);
-    if (ell_name->placeholderText().length())
+    if (ell_name && ell_name->placeholderText().length())
 	bu_vls_sprintf(&oname, "%s", ell_name->placeholderText().toLocal8Bit().data());
-    if (ell_name->text().length())
+    if (ell_name && ell_name->text().length())
 	bu_vls_sprintf(&oname, "%s", ell_name->text().toLocal8Bit().data());
     if (!bu_vls_strlen(&oname))
 	return;
@@ -285,7 +311,7 @@ QEll::update_viewobj_name(const QString &)
 bool
 QEll::eventFilter(QObject *, QEvent *e)
 {
-    if (e->type() == QEvent::MouseButtonPress || e->type() == QEvent::MouseButtonRelease ||   e->type() == QEvent::MouseButtonDblClick || e->type() == QEvent::MouseMove) {
+    if (e && (e->type() == QEvent::MouseButtonPress || e->type() == QEvent::MouseButtonRelease ||   e->type() == QEvent::MouseButtonDblClick || e->type() == QEvent::MouseMove)) {
 	bu_log("ell mouse event\n");
     }
     return false;
