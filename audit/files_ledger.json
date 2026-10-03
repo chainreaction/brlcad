@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1445,
-    "pending_files": 2048,
-    "last_updated": "2026-10-03T08:35:18Z",
-    "total_issues": 330,
-    "reviewed_count": 1445
+    "reviewed_files": 1454,
+    "pending_files": 2039,
+    "last_updated": "2026-10-03T08:39:40Z",
+    "total_issues": 331,
+    "reviewed_count": 1454
   },
   "files": [
     {
@@ -34996,90 +34996,108 @@
       "path": "src/qged/plugins/view/measure/CADViewMeasure.cpp",
       "subsystem": "src/qged",
       "lines": 196,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:39:40Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0310"
+      ]
     },
     {
       "id": 3301,
       "path": "src/qged/plugins/view/measure/CADViewMeasure.h",
       "subsystem": "src/qged",
       "lines": 83,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:39:40Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0310"
+      ]
     },
     {
       "id": 3302,
       "path": "src/qged/plugins/view/measure/measure.cpp",
       "subsystem": "src/qged",
       "lines": 73,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:39:40Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0310"
+      ]
     },
     {
       "id": 3303,
       "path": "src/qged/plugins/view/select/CADViewSelector.cpp",
       "subsystem": "src/qged",
       "lines": 417,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:39:40Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0310"
+      ]
     },
     {
       "id": 3304,
       "path": "src/qged/plugins/view/select/CADViewSelector.h",
       "subsystem": "src/qged",
       "lines": 104,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:39:40Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0310"
+      ]
     },
     {
       "id": 3305,
       "path": "src/qged/plugins/view/select/select.cpp",
       "subsystem": "src/qged",
       "lines": 75,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:39:40Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0310"
+      ]
     },
     {
       "id": 3306,
       "path": "src/qged/plugins/view/settings/CADViewSettings.cpp",
       "subsystem": "src/qged",
       "lines": 273,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:39:40Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0310"
+      ]
     },
     {
       "id": 3307,
       "path": "src/qged/plugins/view/settings/CADViewSettings.h",
       "subsystem": "src/qged",
       "lines": 83,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:39:40Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0310"
+      ]
     },
     {
       "id": 3308,
       "path": "src/qged/plugins/view/settings/view_settings.cpp",
       "subsystem": "src/qged",
       "lines": 70,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T08:39:40Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0310"
+      ]
     },
     {
       "id": 3309,
@@ -36936,5 +36954,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-10-03T08:35:18Z"
+  "last_updated": "2026-10-03T08:39:40Z"
 }
