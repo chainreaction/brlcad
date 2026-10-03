@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1384,
-    "pending_files": 2109,
-    "last_updated": "2026-10-03T04:24:00Z",
-    "total_issues": 318,
-    "reviewed_count": 1384
+    "reviewed_files": 1388,
+    "pending_files": 2105,
+    "last_updated": "2026-10-03T04:33:07Z",
+    "total_issues": 319,
+    "reviewed_count": 1388
   },
   "files": [
     {
@@ -34206,40 +34206,48 @@
       "path": "src/proc-db/csgbrep.cpp",
       "subsystem": "src/proc-db",
       "lines": 602,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:33:07Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0298"
+      ]
     },
     {
       "id": 3233,
       "path": "src/proc-db/donuts.c",
       "subsystem": "src/proc-db",
       "lines": 925,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:33:07Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0298"
+      ]
     },
     {
       "id": 3234,
       "path": "src/proc-db/gaia.c",
       "subsystem": "src/proc-db",
       "lines": 1070,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:33:07Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0298"
+      ]
     },
     {
       "id": 3235,
       "path": "src/proc-db/gears.c",
       "subsystem": "src/proc-db",
       "lines": 519,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:33:07Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0298"
+      ]
     },
     {
       "id": 3236,
@@ -36826,5 +36834,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-10-03T04:24:00Z"
+  "last_updated": "2026-10-03T04:33:07Z"
 }
