@@ -58,18 +58,18 @@ static const char *progname = "parashot";
 
 
 static void
-Usage(void)
+Usage(FILE *out)
 {
-    fprintf(stderr, "Usage: %s [options] output.g\n", progname);
-    fprintf(stderr, "  Generate a gravity-affected (parabolic) shotline as BRL-CAD pipe(s).\n");
-    fprintf(stderr, "  -p x,y,z   launch origin (default 0,0,0)\n");
-    fprintf(stderr, "  -v x,y,z   initial velocity vector, m/s (default 300,0,150)\n");
-    fprintf(stderr, "  -g x,y,z   gravity vector, m/s^2 (default 0,0,-9.80665)\n");
-    fprintf(stderr, "  -n N       number of trajectory steps (default 64)\n");
-    fprintf(stderr, "  -t tmax    maximum flight time, s (overrides ground impact)\n");
-    fprintf(stderr, "  -z ground  ground plane z; flight stops at impact (default 0)\n");
-    fprintf(stderr, "  -d od      pipe outer diameter (default 0.5)\n");
-    fprintf(stderr, "  -h -?      this help\n");
+    fprintf(out, "Usage: %s [options] output.g\n", progname);
+    fprintf(out, "  Generate a gravity-affected (parabolic) shotline as BRL-CAD pipe(s).\n");
+    fprintf(out, "  -p x,y,z   launch origin (default 0,0,0)\n");
+    fprintf(out, "  -v x,y,z   initial velocity vector, m/s (default 300,0,150)\n");
+    fprintf(out, "  -g x,y,z   gravity vector, m/s^2 (default 0,0,-9.80665)\n");
+    fprintf(out, "  -n N       number of trajectory steps (default 64)\n");
+    fprintf(out, "  -t tmax    maximum flight time, s (overrides ground impact)\n");
+    fprintf(out, "  -z ground  ground plane z; flight stops at impact (default 0)\n");
+    fprintf(out, "  -d od      pipe outer diameter (default 0.5)\n");
+    fprintf(out, "  -h -?      this help\n");
 }
 
 
@@ -85,8 +85,8 @@ parse_vect(const char *arg, vect_t v)
     if (arg == NULL)
 	return -1;
 
-    if (sscanf(arg, "%lf , %lf , %lf", &x, &y, &z) != 3 &&
-	sscanf(arg, "%lf %lf %lf", &x, &y, &z) != 3)
+    if (bu_sscanf(arg, "%lf , %lf , %lf", &x, &y, &z) != 3 &&
+	bu_sscanf(arg, "%lf %lf %lf", &x, &y, &z) != 3)
 	return -1;
 
     VSET(v, x, y, z);
@@ -113,6 +113,9 @@ main(int argc, char **argv)
     double disc;
     int i;
     int optc;
+
+    if (!argv || !argv[0])
+	return 1;
 
     bu_setprogname(argv[0]);
     progname = argv[0];
@@ -142,25 +145,41 @@ main(int argc, char **argv)
 		}
 		break;
 	    case 'n':
-		nsteps = atoi(bu_optarg);
+		if (bu_sscanf(bu_optarg, "%d", &nsteps) != 1 || nsteps < 1 || nsteps > 1000000) {
+		    fprintf(stderr, "%s: invalid step count (-n) '%s'\n", progname, bu_optarg);
+		    return 1;
+		}
 		break;
 	    case 't':
-		tmax = atof(bu_optarg);
+		if (bu_sscanf(bu_optarg, "%lf", &tmax) != 1) {
+		    fprintf(stderr, "%s: bad -t max time '%s'\n", progname, bu_optarg);
+		    return 1;
+		}
 		break;
 	    case 'z':
-		ground_z = atof(bu_optarg);
+		if (bu_sscanf(bu_optarg, "%lf", &ground_z) != 1) {
+		    fprintf(stderr, "%s: bad -z ground plane '%s'\n", progname, bu_optarg);
+		    return 1;
+		}
 		break;
 	    case 'd':
-		od = atof(bu_optarg);
+		if (bu_sscanf(bu_optarg, "%lf", &od) != 1 || od <= 0.0) {
+		    fprintf(stderr, "%s: bad -d pipe diameter '%s'\n", progname, bu_optarg);
+		    return 1;
+		}
 		break;
+	    case 'h':
+	    case '?':
+		Usage(stdout);
+		return 0;
 	    default:
-		Usage();
+		Usage(stderr);
 		return 1;
 	}
     }
 
     if ((argc - bu_optind) != 1) {
-	Usage();
+	Usage(stderr);
 	return 1;
     }
     outfile = argv[bu_optind];
@@ -267,7 +286,7 @@ main(int argc, char **argv)
 	fprintf(stderr, "%s: mk_pipe(baseline.pipe) failed\n", progname);
     mk_pipe_free(&head);
 
-    db_close(fp->dbip);
+    wdb_close(fp);
 
     bu_log("%s: wrote %s (shotline.pipe, baseline.pipe)\n", progname, outfile);
 

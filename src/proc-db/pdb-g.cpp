@@ -155,12 +155,16 @@ static pdb_data*
 read_pdb(const char* filename)
 {
     FILE* fp;
-#define PDB_LINELEN 81
+#define PDB_LINELEN 128
     char line[PDB_LINELEN];
     int num_atoms = 0;
     int num_alloc = 0;
     pdb_atom* atoms = NULL;
     char* header = NULL;
+    pdb_data* data;
+
+    if (!filename)
+	return NULL;
 
     if (!bu_file_exists(filename, 0)) {
 	fprintf(stderr, "ERROR: pdb file [%s] does not exist\n", filename);
@@ -169,36 +173,53 @@ read_pdb(const char* filename)
 
     fp = fopen(filename, "r");
     if (fp == NULL) {
-        perror("Failed to open file");
-        return NULL;
+	perror("Failed to open file");
+	return NULL;
     }
 
     num_alloc = MORE_ATOMS;
     atoms = (pdb_atom *)bu_malloc(num_alloc * sizeof(pdb_atom), "pdb_atom alloc");
 
     while (bu_fgets(line, PDB_LINELEN, fp) != NULL) {
-        if (bu_strncasecmp(line, "HEADER", 6) == 0) {
+	size_t len = strlen(line);
+	while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) {
+	    line[--len] = '\0';
+	}
+	if (len == 0)
+	    continue;
+
+	if (bu_strncasecmp(line, "HEADER", 6) == 0) {
 	    struct bu_vls headervls = BU_VLS_INIT_ZERO;
-	    bu_vls_strcpy(&headervls, &line[6]);
+	    if (len > 6)
+		bu_vls_strcpy(&headervls, &line[6]);
 	    bu_vls_trimspace(&headervls);
+	    if (header)
+		bu_free(header, "header replace");
 	    header = bu_strdup(bu_vls_cstr(&headervls));
 	    bu_vls_free(&headervls);
-        } else if (bu_strncasecmp(line, "ATOM", 4) == 0 || bu_strncasecmp(line, "HETATM", 6) == 0) {
-            if (num_atoms >= num_alloc) {
+	} else if (bu_strncasecmp(line, "ATOM", 4) == 0 || bu_strncasecmp(line, "HETATM", 6) == 0) {
+	    /* Pad line with spaces up to 80 characters for safe fixed-column parsing */
+	    while (len < 80) {
+		line[len++] = ' ';
+	    }
+	    line[80] = '\0';
+
+	    if (num_atoms >= num_alloc) {
 		num_alloc += MORE_ATOMS;
 		atoms = (pdb_atom *)bu_realloc(atoms, num_alloc * sizeof(pdb_atom), "pdb_atom realloc");
 	    }
 	    pdb_atom* atom = &atoms[num_atoms];
+	    memset(atom, 0, sizeof(pdb_atom));
 	    bu_strlcpy(atom->record_type, line, sizeof(atom->record_type));
-	    sscanf(&line[6], "%d", &atom->serial);
+	    bu_sscanf(&line[6], "%d", &atom->serial);
 	    bu_strlcpy(atom->atom_name, &line[12], sizeof(atom->atom_name));
 	    atom->alt_loc = line[16];
 	    bu_strlcpy(atom->res_name, &line[17], sizeof(atom->res_name));
 	    atom->chain_id = line[21];
-	    sscanf(&line[22], "%d", &atom->res_seq);
+	    bu_sscanf(&line[22], "%d", &atom->res_seq);
 	    atom->i_code = line[26];
-	    sscanf(&line[30], "%lf%lf%lf", &atom->x, &atom->y, &atom->z);
-	    sscanf(&line[54], "%lf%lf", &atom->occupancy, &atom->temp_factor);
+	    bu_sscanf(&line[30], "%lf%lf%lf", &atom->x, &atom->y, &atom->z);
+	    bu_sscanf(&line[54], "%lf%lf", &atom->occupancy, &atom->temp_factor);
 	    bu_strlcpy(atom->element, &line[76], sizeof(atom->element));
 	    bu_strlcpy(atom->charge, &line[78], sizeof(atom->charge));
 	    num_atoms++;
@@ -207,8 +228,7 @@ read_pdb(const char* filename)
 
     fclose(fp);
 
-    pdb_data* data = (pdb_data *)bu_malloc(sizeof(pdb_data), "pdb_data alloc");
-
+    data = (pdb_data *)bu_malloc(sizeof(pdb_data), "pdb_data alloc");
     data->header = header;
     data->atoms = atoms;
     data->num_atoms = num_atoms;
@@ -218,72 +238,102 @@ read_pdb(const char* filename)
 
 
 static void
-write_g(char *filename, pdb_data *pdbp)
+write_g(const char *filename, pdb_data *pdbp)
 {
     struct rt_wdb *db_fp;
+    struct wmember wm_all_atoms;
+    int i;
 
     if (!pdbp || !filename) {
-        fprintf(stderr, "ERROR: Invalid PDB data or filename.\n");
-        return;
+	fprintf(stderr, "ERROR: Invalid PDB data or filename.\n");
+	return;
     }
 
     db_fp = wdb_fopen(filename);
     if (db_fp == NULL) {
-        perror(filename);
-        return;
+	perror(filename);
+	return;
     }
 
     /* use header as database title if it exists */
     if (pdbp->header) {
-        mk_id_units(db_fp, pdbp->header, "mm");
+	mk_id_units(db_fp, pdbp->header, "mm");
     } else {
 	mk_id_units(db_fp, "PDB Geometry Database", "mm");
     }
 
-    struct wmember wm_all_atoms;
     BU_LIST_INIT(&wm_all_atoms.l);
 
     /* iterate through atoms in our PDB structure */
-    for (int i = 0; i < pdbp->num_atoms; ++i) {
-        pdb_atom *atom = &pdbp->atoms[i];
+    for (i = 0; i < pdbp->num_atoms; ++i) {
+	pdb_atom *atom = &pdbp->atoms[i];
+	char sphere_name[64];
+	point_t center;
 
-        /* create a sphere for the atom */
-        point_t center;
-        VSET(center, atom->x, atom->y, atom->z);
+	/* create a sphere for the atom */
+	VSET(center, atom->x, atom->y, atom->z);
+	snprintf(sphere_name, sizeof(sphere_name), "atom_%d.s", atom->serial);
 
-        char sphere_name[64];
-        snprintf(sphere_name, sizeof(sphere_name), "atom_%d.s", atom->serial);
+	mk_sph(db_fp, sphere_name, center, 1.0); // Default radius = 1.0 mm
 
-        mk_sph(db_fp, sphere_name, center, 1.0); // Default radius = 1.0 mm
-
-        /* add it to our combination list */
-        (void)mk_addmember(sphere_name, &wm_all_atoms.l, NULL, WMOP_UNION);
+	/* add it to our combination list */
+	(void)mk_addmember(sphere_name, &wm_all_atoms.l, NULL, WMOP_UNION);
     }
 
     /* create a combination for all atoms */
     mk_lcomb(db_fp, "all_atoms.r", &wm_all_atoms, 1, NULL, NULL, NULL, 0);
 
-    db_close(db_fp->dbip);
+    mk_freemembers(&wm_all_atoms.l);
+    wdb_close(db_fp);
 }
 
 
-/* format of command: pdb-g pdbfile gfile */
+/* format of command: pdb-g pdbfile [gfile] */
 int
 main(int argc, char *argv[])
 {
+    pdb_data* pdbp;
+    char outfile[MAXPATHLEN];
+
+    if (!argv || !argv[0])
+	return 1;
+
     bu_setprogname(argv[0]);
+
+    if (argc >= 2 && (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help"))) {
+	bu_log("Usage: %s file.pdb [file.g]\n", argv[0]);
+	return 0;
+    }
 
     if (argc < 2) {
 	bu_log("Usage: %s file.pdb [file.g]\n", argv[0]);
 	bu_exit(1, "ERROR: No pdb filename given.\n");
     }
 
+    if (argc > 2) {
+	bu_strlcpy(outfile, argv[2], sizeof(outfile));
+    } else {
+	char *ext;
+	bu_strlcpy(outfile, argv[1], sizeof(outfile));
+	ext = strrchr(outfile, '.');
+	if (ext) {
+	    bu_strlcpy(ext, ".g", sizeof(outfile) - (size_t)(ext - outfile));
+	} else {
+	    bu_strlcat(outfile, ".g", sizeof(outfile));
+	}
+    }
+
     /* open PDB file */
-    pdb_data* pdbp = read_pdb(argv[1]);
+    pdbp = read_pdb(argv[1]);
+    if (!pdbp) {
+	bu_exit(1, "ERROR: Failed to read PDB file [%s].\n", argv[1]);
+    }
 
-    write_g(argv[2], pdbp);
+    write_g(outfile, pdbp);
 
-    if (pdbp)
+    if (pdbp->header)
+	bu_free(pdbp->header, "pdb_header free");
+    if (pdbp->atoms)
 	bu_free(pdbp->atoms, "pdb_atom free");
     bu_free(pdbp, "pdb_data free");
 

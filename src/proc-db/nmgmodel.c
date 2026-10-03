@@ -70,11 +70,11 @@ int manifold[4] = { 0, 0, 0, 1 };
 
 
 void
-usage(const char *str)
+usage(const char *str, int status)
 {
     if (str) (void)fputs(str, stderr);
 
-    bu_exit(1, "Usage: %s [ -0123 ] \n%s\"%s\"\n%s\"%s\"\n",
+    bu_exit(status, "Usage: %s [ -h? ] [ -0123 ] \n%s\"%s\"\n%s\"%s\"\n",
 	    progname,
 	    "       Create NMG-to-mged database ", mfilename,
 	    "       and plot3 file ", plotfilename);
@@ -85,6 +85,9 @@ int
 parse_args(int ac, char **av)
 {
     int c;
+
+    if (!av || !*av)
+	return 0;
 
     if (! (progname=strrchr(*av, '/')))
 	progname = *av;
@@ -109,7 +112,9 @@ parse_args(int ac, char **av)
 	    case '2'	: manifold[2] = 1; break;
 	    case '1'	: manifold[1] = 1; break;
 	    case '0'	: manifold[0] = 1; break;
-	    default	: usage((char *)NULL); break;
+	    case 'h'	:
+	    case '?'	: usage((char *)NULL, 0); break;
+	    default	: usage((char *)NULL, 1); break;
 	}
 
     return bu_optind;
@@ -534,11 +539,14 @@ main(int ac, char *av[])
     struct rt_wdb *fdmodel;
     struct bu_list *vlfree = &rt_vlfree;
 
+    if (!av || !av[0])
+	return 1;
+
     bu_setprogname(av[0]);
 
     parse_args(ac, av);
     if (!manifold[0] && !manifold[1] && !manifold[2] && !manifold[3])
-	usage("No manifolds selected\n");
+	usage("No manifolds selected\n", 1);
 
     m = nmg_mm();
     r = nmg_mrsv(m);
@@ -572,16 +580,17 @@ main(int ac, char *av[])
     bu_log("Writing out geometry to file [%s] ...", mfilename);
 
     /* write the database */
-    if ((fdmodel = wdb_fopen(mfilename)) == NULL)
+    if ((fdmodel = wdb_fopen(mfilename)) == NULL) {
 	perror(mfilename);
-    else {
+	nmg_km(m);
+    } else {
 	mk_id(fdmodel, "hairy NMG");
-	mk_nmg(fdmodel, "s.NMG",  m); /* releases m, boo */
+	mk_nmg(fdmodel, "s.NMG",  m); /* releases m */
 
 	/* build a database region mentioning the solid */
 	mk_comb1(fdmodel, "r.NMG", "s.NMG", 1);
 
-	db_close(fdmodel->dbip);
+	wdb_close(fdmodel);
     }
 
     bu_log(" done.\n");

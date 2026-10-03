@@ -64,6 +64,8 @@ make_meatballs(struct rt_wdb *fp, const char *name, long count)
     fastf_t **pts;
 
     RT_CK_WDB(fp);
+    if (!name || count <= 0)
+	return;
 
     bn_rand_init(ctx, rand());
     bu_log("Creating [%s] object with %ld random point%s\n", name, count, count > 1 ? "s" : "");
@@ -85,7 +87,7 @@ make_meatballs(struct rt_wdb *fp, const char *name, long count)
 	fastf_t x = bn_rand_half(ctx) * SZ;
 	fastf_t y = bn_rand_half(ctx) * SZ;
 	fastf_t z = bn_rand_half(ctx) * SZ;
-	fastf_t field_strength = bn_rand0to1(ctx) * SZ / (2.0 * sqrt(count));
+	fastf_t field_strength = bn_rand0to1(ctx) * SZ / (2.0 * sqrt((double)count));
 
 	VSET(pts[i], x, y, z);
 	pts[i][3] = field_strength; /* something blobbly random */
@@ -115,8 +117,11 @@ mix_balls(struct db_i *dbip, const char *name, int ac, const char *av[])
     int i;
     struct directory *dp;
     struct rt_metaball_internal *newmp;
+    struct rt_wdb *wdbp;
 
     RT_CK_DBI(dbip);
+    if (!name || ac <= 0 || !av)
+	return;
 
     /* allocate a struct rt_metaball_internal object that we'll
      * manually fill in with points from the other metaballs being
@@ -134,6 +139,9 @@ mix_balls(struct db_i *dbip, const char *name, int ac, const char *av[])
 	struct rt_db_internal dir;
 	struct rt_metaball_internal *mp;
 	struct wdb_metaball_pnt *mpt;
+
+	if (!av[i])
+	    continue;
 
 	/* get a handle on the existing database object */
 	bu_log("\t%s\n", av[i]);
@@ -160,12 +168,17 @@ mix_balls(struct db_i *dbip, const char *name, int ac, const char *av[])
 	    bu_log("Adding point (%lf %lf %lf)\n", V3ARGS(mpt->coord));
 	    rt_metaball_add_point(newmp, (const point_t *)&mpt->coord, mpt->field_strength, mpt->blobbiness);
 	}
+	rt_db_free_internal(&dir);
     }
 
     bu_log("Joining balls together and creating [%s] object\n", name);
 
     /* write out new "mega metaball" out to disk */
-    struct rt_wdb *wdbp = wdb_dbopen(dbip, RT_WDB_TYPE_DB_DISK);
+    wdbp = wdb_dbopen(dbip, RT_WDB_TYPE_DB_DISK);
+    if (!wdbp) {
+	bu_log("Failed to open database for writing metaball\n");
+	return;
+    }
     wdb_export(wdbp, name, newmp, ID_METABALL, 1.0);
 }
 
@@ -206,7 +219,7 @@ make_spaghetti(const char *filename, const char *name, long count)
     mk_comb1(fp, "manyballs.r", balls[2], 1);
     mk_comb1(fp, "meatballs.r", "meatballs.s", 1);
 
-    db_close(fp->dbip);
+    wdb_close(fp);
 
     /* done with the write-only, now begins read/write */
     dbip = db_open(filename, DB_OPEN_READWRITE);
@@ -236,28 +249,36 @@ main(int argc, char *argv[])
     int optc;
     long count = COUNTMAX;
 
+    if (!argv || !argv[0])
+	bu_exit(EXIT_FAILURE, "ERROR: Invalid argument list\n");
     bu_setprogname(argv[0]);
 
     while ((optc = bu_getopt(argc, argv, "o:n:h?")) != -1) {
-        if (bu_optopt == '?') optc='h';
+	if (bu_optopt == '?') optc='h';
 	switch (optc) {
 	    case 'o':
-		snprintf(outfile, MAXPATHLEN, "%s", bu_optarg);
+		bu_strlcpy(outfile, bu_optarg, sizeof(outfile));
 		break;
 	    case 'n':
-		count = atoi(bu_optarg);
+		if (bu_sscanf(bu_optarg, "%ld", &count) != 1) {
+		    bu_log("Invalid count: %s\n", bu_optarg);
+		    bu_exit(EXIT_FAILURE, usage, argv[0], COUNTMAX);
+		}
 		break;
+	    case 'h':
+		bu_log(usage, argv[0], COUNTMAX);
+		return EXIT_SUCCESS;
 	    default:
-		fprintf(stderr,usage, *argv, COUNTMAX);
-		return optc == '?' ? EXIT_FAILURE : EXIT_SUCCESS;
+		bu_log(usage, argv[0], COUNTMAX);
+		return EXIT_FAILURE;
 	}
     }
 
-    if (count <= 0)
-	bu_exit(EXIT_FAILURE, "ERROR: count must be greater than zero");
+    if (count <= 0 || count > 1000000)
+	bu_exit(EXIT_FAILURE, "ERROR: count must be between 1 and 1000000\n");
 
     if (bu_file_exists(outfile, NULL))
-	bu_exit(EXIT_FAILURE, "ERROR: %s already exists.  Remove file and try again.", outfile);
+	bu_exit(EXIT_FAILURE, "ERROR: %s already exists.  Remove file and try again.\n", outfile);
 
     bu_log("Writing metaballs out to [%s]\n", outfile);
 
