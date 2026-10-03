@@ -100,6 +100,9 @@ build_helix(struct bu_list *head, int turns, double radius,
     double bend;
     point_t coord;
 
+    if (!head || turns <= 0)
+	return 0;
+
     /* outer diameter is the wire thickness; inner diameter is 0 so the
      * pipe is a solid wire rather than a hollow tube.
      */
@@ -187,18 +190,31 @@ main(int ac, char *av[])
     point_t gmin, gmax;
     point_t lpos;
 
-    bu_setprogname(av[0]);
+    const char *progname = (ac > 0 && av && av[0]) ? av[0] : "helicoil";
+
+    if (ac > 0 && av && av[0])
+	bu_setprogname(av[0]);
+
+    if (ac > 1 && (BU_STR_EQUAL(av[1], "-h") || BU_STR_EQUAL(av[1], "-?") || BU_STR_EQUAL(av[1], "--help"))) {
+	bu_log("Usage: %s output.g [--mode spring|screw|dna] "
+		"[--turns n] [--radius mm] [--pitch mm] [--wire mm]\n", progname);
+	return 0;
+    }
 
     if (ac < 2) {
 	bu_exit(1, "Usage: %s output.g [--mode spring|screw|dna] "
-		"[--turns n] [--radius mm] [--pitch mm] [--wire mm]\n", av[0]);
+		"[--turns n] [--radius mm] [--pitch mm] [--wire mm]\n", progname);
     }
 
     /* parse the optional parameters; every one has a sensible default
      * so that running with only the output path yields a full scene.
      */
     for (i = 2; i < ac; i++) {
-	if (BU_STR_EQUAL(av[i], "--mode") && i + 1 < ac) {
+	if (BU_STR_EQUAL(av[i], "-h") || BU_STR_EQUAL(av[i], "-?") || BU_STR_EQUAL(av[i], "--help")) {
+	    bu_log("Usage: %s output.g [--mode spring|screw|dna] "
+		   "[--turns n] [--radius mm] [--pitch mm] [--wire mm]\n", progname);
+	    return 0;
+	} else if (BU_STR_EQUAL(av[i], "--mode") && i + 1 < ac) {
 	    i++;
 	    if (BU_STR_EQUAL(av[i], "spring"))
 		mode = MODE_SPRING;
@@ -209,13 +225,21 @@ main(int ac, char *av[])
 	    else
 		bu_exit(1, "Unknown mode '%s' (use spring, screw, or dna)\n", av[i]);
 	} else if (BU_STR_EQUAL(av[i], "--turns") && i + 1 < ac) {
-	    turns = atoi(av[++i]);
+	    if (bu_sscanf(av[++i], "%d", &turns) != 1) {
+		bu_log("Warning: invalid turns value \"%s\", using default\n", av[i]);
+	    }
 	} else if (BU_STR_EQUAL(av[i], "--radius") && i + 1 < ac) {
-	    radius = atof(av[++i]);
+	    if (bu_sscanf(av[++i], "%lf", &radius) != 1) {
+		bu_log("Warning: invalid radius value \"%s\", using default\n", av[i]);
+	    }
 	} else if (BU_STR_EQUAL(av[i], "--pitch") && i + 1 < ac) {
-	    pitch = atof(av[++i]);
+	    if (bu_sscanf(av[++i], "%lf", &pitch) != 1) {
+		bu_log("Warning: invalid pitch value \"%s\", using default\n", av[i]);
+	    }
 	} else if (BU_STR_EQUAL(av[i], "--wire") && i + 1 < ac) {
-	    wire = atof(av[++i]);
+	    if (bu_sscanf(av[++i], "%lf", &wire) != 1) {
+		bu_log("Warning: invalid wire value \"%s\", using default\n", av[i]);
+	    }
 	} else {
 	    bu_exit(1, "Unrecognized argument '%s'\n", av[i]);
 	}
@@ -375,8 +399,11 @@ main(int ac, char *av[])
 
     bu_log("Wrote helical coil scene to %s (top-level group 'all')\n", av[1]);
 
+    mk_freemembers(&coil_hd.l);
+    mk_freemembers(&all_hd.l);
+
     /* Close the database file. */
-    db_close(db_fp->dbip);
+    wdb_close(db_fp);
 
     return 0;
 }

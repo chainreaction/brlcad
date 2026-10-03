@@ -41,8 +41,8 @@
 static void
 usage(const char *progname)
 {
-    fprintf(stderr, "Usage: %s db_file.g [stepSize [finalSize [initialSize]]]\n", progname);
-    bu_exit(-1, NULL);
+    bu_log("Usage: %s db_file.g [stepSize [finalSize [initialSize]]]\n", progname ? progname : "globe");
+    bu_exit(1, NULL);
 }
 
 
@@ -64,25 +64,54 @@ main(int ac, char *av[])
     char solidName[256]="";
     char prevSolid[256]="";
     char shaderparams[256]="";
-    char *progname = *av;
+    const char *progname = (ac > 0 && av && av[0]) ? av[0] : "globe";
 
-    bu_setprogname(av[0]);
+    if (ac > 0 && av && av[0])
+	bu_setprogname(av[0]);
+
+    if (ac > 1 && (BU_STR_EQUAL(av[1], "-h") || BU_STR_EQUAL(av[1], "-?") || BU_STR_EQUAL(av[1], "--help"))) {
+	bu_log("Usage: %s db_file.g [stepSize [finalSize [initialSize]]]\n", progname);
+	return 0;
+    }
 
     if (ac < 2)
 	usage(progname);
 
     if ((db_fp = wdb_fopen(av[1])) == NULL) {
 	perror(av[1]);
-	bu_exit(-1, NULL);
+	bu_exit(1, "ERROR: unable to open %s\n", av[1]);
     }
 
     if (ac > 2) {
-	stepSize=(double)atof(av[2]);
-	if (ac > 3) {
-	    finalSize=(double)atof(av[3]);
-	    if (ac > 4)
-		initialSize=(double)atof(av[4]);
+	if (bu_sscanf(av[2], "%lf", &stepSize) != 1) {
+	    bu_log("Warning: invalid stepSize \"%s\", using default\n", av[2]);
 	}
+	if (ac > 3) {
+	    if (bu_sscanf(av[3], "%lf", &finalSize) != 1) {
+		bu_log("Warning: invalid finalSize \"%s\", using default\n", av[3]);
+	    }
+	    if (ac > 4) {
+		if (bu_sscanf(av[4], "%lf", &initialSize) != 1) {
+		    bu_log("Warning: invalid initialSize \"%s\", using default\n", av[4]);
+		}
+	    }
+	}
+    }
+
+    if (stepSize <= 0.0) {
+	bu_log("Error: stepSize must be positive\n");
+	wdb_close(db_fp);
+	return 1;
+    }
+    if (initialSize <= 0.0) {
+	bu_log("Error: initialSize must be positive\n");
+	wdb_close(db_fp);
+	return 1;
+    }
+    if (finalSize <= initialSize) {
+	bu_log("Error: finalSize must be greater than initialSize\n");
+	wdb_close(db_fp);
+	return 1;
     }
 
     mk_id(db_fp, "Globe Database"); /* create the database header record */
@@ -105,33 +134,33 @@ main(int ac, char *av[])
     mk_sph(db_fp, "land.s", p1, initialSize);
     mk_addmember("land.s", &wm_hd.l, NULL, WMOP_UNION);
     mk_lcomb(db_fp, "land.c", &wm_hd, 0, "", "", rgb, 0);
+    mk_freemembers(&wm_hd.l);
+
     mk_addmember("land.s", &wm_hd.l, NULL, WMOP_UNION);
     mk_lcomb(db_fp, "land.r", &wm_hd, is_region, "plastic", "di=.8 sp=.2", rgb, 0);
+    mk_freemembers(&wm_hd.l);
 
     /*
      * make the AIR of the globe with a given color
      ***************/
     VSET(rgb, 130, 194, 253); /* a light blue */
-    sprintf(prevSolid, "land.s");
+    snprintf(prevSolid, sizeof(prevSolid), "land.s");
     for (counter=0, currentSize=initialSize+stepSize; currentSize < finalSize; counter += 1, currentSize+=stepSize) {
-	BU_LIST_INIT(&wm_hd.l);
-
-	sprintf(solidName, "air.%d.s", counter);
+	snprintf(solidName, sizeof(solidName), "air.%d.s", counter);
 	mk_sph(db_fp, solidName, p1, currentSize);
 	mk_addmember(solidName, &wm_hd.l, NULL, WMOP_UNION);
 	mk_addmember(prevSolid, &wm_hd.l, NULL, WMOP_SUBTRACT);
 
 	/* make the spatial combination */
-	sprintf(name, "air.%d.c", counter);
+	snprintf(name, sizeof(name), "air.%d.c", counter);
 	mk_lcomb(db_fp, name, &wm_hd, 0, NULL, NULL, NULL, 0);
+	mk_freemembers(&wm_hd.l);
 
 	mk_addmember(name, &wm_hd.l, NULL, WMOP_UNION);
 
-	/* sprintf(shaderparams, "{alpha %f}", (float)1.0 - (((float)finalSize/(float)currentSize)-(float)1.0));  */
-
 	/* make the spatial region */
-	sprintf(name, "air.%d.r", counter);
-	sprintf(shaderparams, "{tr %f}", (float)currentSize/(float)finalSize);
+	snprintf(name, sizeof(name), "air.%d.r", counter);
+	snprintf(shaderparams, sizeof(shaderparams), "{tr %f}", (float)currentSize/(float)finalSize);
 	mk_lcomb(db_fp,
 		 name,	/* Name of the db element created */
 		 &wm_hd,		/* list of elements & boolean operations */
@@ -140,16 +169,18 @@ main(int ac, char *av[])
 		 shaderparams, /* shader parameters */
 		 rgb,		/* item color */
 		 0);		/* inherit (override) flag */
+	mk_freemembers(&wm_hd.l);
 
 	/* add the region to a master region list */
 	mk_addmember(name, &bigList.l, NULL, WMOP_UNION);
 
 	/* keep track of the last combination we made for the next iteration */
-	snprintf(prevSolid, 256, "%s", solidName);
+	snprintf(prevSolid, sizeof(prevSolid), "%s", solidName);
     }
 
     /* make one final air region that comprises all the air regions */
     mk_lcomb(db_fp, "air.c", &bigList, 0, NULL, NULL, NULL, 0);
+    mk_freemembers(&bigList.l);
 
     /* Create the master globe region
      *
@@ -162,7 +193,6 @@ main(int ac, char *av[])
      */
 
     /* add the land to the main globe object that gets created at the end */
-    BU_LIST_INIT(&wm_hd.l);
     mk_addmember("land.r", &wm_hd.l, NULL, WMOP_UNION);
     mk_addmember("air.c", &wm_hd.l, NULL, WMOP_UNION);
 
@@ -174,8 +204,9 @@ main(int ac, char *av[])
 	     NULL, /* shader parameters */
 	     NULL,		/* item color */
 	     0);		/* inherit (override) flag */
+    mk_freemembers(&wm_hd.l);
 
-    db_close(db_fp->dbip);
+    wdb_close(db_fp);
     return 0;
 }
 

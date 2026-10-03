@@ -38,93 +38,106 @@ main(int ac, char *av[])
   int iterations = 1;
   const int SKIP = 1000;
   const char *USAGE = "Usage: %s [-i iterations] file.g\n";
+  const char *progname = (ac > 0 && av && av[0]) ? av[0] : "gtimes";
 
   struct db_i *dbip;
 
-  bu_setprogname(av[0]);
+  if (ac > 0 && av && av[0])
+    bu_setprogname(av[0]);
 
   if (ac < 2) {
-    printf(USAGE, av[0]);
+    bu_log(USAGE, progname);
     return 1;
   }
 
-  while ((c = bu_getopt(ac, av, "i:")) != -1) {
+  while ((c = bu_getopt(ac, av, "h?i:")) != -1) {
     switch (c) {
+      case 'h':
+      case '?':
+        bu_log(USAGE, progname);
+        return 0;
       case 'i':
-        iterations = atoi(bu_optarg);
-        if (iterations < 1)
+        if (bu_sscanf(bu_optarg, "%d", &iterations) != 1 || iterations < 1)
           iterations = 1;
         break;
       default:
-        printf("ERROR: unexpected [%c] option\n", c);
-        printf(USAGE, av[0]);
+        bu_log("ERROR: unexpected [%c] option\n", c);
+        bu_log(USAGE, progname);
         return 1;
     }
+  }
+
+  if (bu_optind >= ac || !av[bu_optind]) {
+    bu_log(USAGE, progname);
+    return 1;
   }
   av += bu_optind;
 
   if (!bu_file_exists(av[0], NULL)) {
-    printf("ERROR: %s does not exist\n", av[0]);
+    bu_log("ERROR: %s does not exist\n", av[0]);
     return 2;
   }
 
   if (iterations >= SKIP)
-      printf("NOTE: only printing times every %d iterations\n\n", SKIP);
+      bu_log("NOTE: only printing times every %d iterations\n\n", SKIP);
 
   for (i=0; i < iterations; i++) {
 
     timer = bu_gettime();
     dbip = db_open(av[0], DB_OPEN_READWRITE);
     if (!dbip) {
-      printf("ERROR: %s could not be opened\n", av[0]);
+      bu_log("ERROR: %s could not be opened\n", av[0]);
       return 2;
     }
     seconds[1] += (bu_gettime() - timer) / 1000000.0;
     if (iterations < SKIP || (i % SKIP == 0))
-	printf("[%2d] db_open: %02fs\n", i, (bu_gettime() - timer) / 1000000.0);
+	bu_log("[%2d] db_open: %02fs\n", i, (bu_gettime() - timer) / 1000000.0);
 
     timer = bu_gettime();
     (void)db_dirbuild(dbip);
     seconds[2] += (bu_gettime() - timer) / 1000000.0;
     if (iterations < SKIP || (i % SKIP == 0))
-	printf("[%2d] db_dirbuild: %02fs\n", i, (bu_gettime() - timer) / 1000000.0);
+	bu_log("[%2d] db_dirbuild: %02fs\n", i, (bu_gettime() - timer) / 1000000.0);
 
     timer = bu_gettime();
     db_update_nref(dbip);
     seconds[3] += (bu_gettime() - timer) / 1000000.0;
     if (iterations < SKIP || (i % SKIP == 0))
-	printf("[%2d] db_update_nref: %02fs\n", i, (bu_gettime() - timer) / 1000000.0);
+	bu_log("[%2d] db_update_nref: %02fs\n", i, (bu_gettime() - timer) / 1000000.0);
 
     timer = bu_gettime();
     {
-      struct ged ged;
       const struct rt_wdb *wdbp = wdb_dbopen(dbip, RT_WDB_TYPE_DB_DISK);
-      ged_init(&ged);
-      ged.dbip = wdbp->dbip;
+      if (wdbp) {
+	struct ged ged;
+	ged_init(&ged);
+	ged.dbip = wdbp->dbip;
 
-      const char *tops_av[1] = {"tops"};
-      (void)ged_exec_tops(&ged, 1, (const char **)tops_av);
+	const char *tops_av[1] = {"tops"};
+	(void)ged_exec_tops(&ged, 1, (const char **)tops_av);
+	ged_free(&ged);
+      }
     }
     seconds[4] += (bu_gettime() - timer) / 1000000.0;
     if (iterations < SKIP || (i % SKIP == 0))
-	printf("[%2d] tops: %02fs\n", i, (bu_gettime() - timer) / 1000000.0);
+	bu_log("[%2d] tops: %02fs\n", i, (bu_gettime() - timer) / 1000000.0);
 
     timer = bu_gettime();
     db_close(dbip);
     seconds[5] += (bu_gettime() - timer) / 1000000.0;
     if (iterations < SKIP || (i % SKIP == 0))
-	printf("[%2d] db_close: %02fs\n", i, (bu_gettime() - timer) / 1000000.0);
+	bu_log("[%2d] db_close: %02fs\n", i, (bu_gettime() - timer) / 1000000.0);
   }
 
   seconds[0] += (bu_gettime() - begin) / 1000000.0;
 
-  printf("\n");
-  printf("db_open: %02fs\n", seconds[1]);
-  printf("db_dirbuild: %02fs\n", seconds[2]);
-  printf("db_update_nref: %02fs\n", seconds[3]);
-  printf("ged_tops: %02fs\n", seconds[4]);
-  printf("db_close: %02fs\n", seconds[5]);
-  printf("\nELAPSED: %02fs\n", seconds[0]);
+  bu_log("\n");
+  bu_log("db_open: %02fs\n", seconds[1]);
+  bu_log("db_dirbuild: %02fs\n", seconds[2]);
+  bu_log("db_update_nref: %02fs\n", seconds[3]);
+  bu_log("ged_tops: %02fs\n", seconds[4]);
+  bu_log("db_close: %02fs\n", seconds[5]);
+  bu_log("\nELAPSED: %02fs\n", seconds[0]);
 
   return 0;
 }

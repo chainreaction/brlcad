@@ -61,15 +61,24 @@ main(int argc, char **argv)
     double base;
     int quant;
 
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
 
     if (argc > 1) {
-	bu_exit(1, "Usage: %s\n", argv[0]);
+	if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help")) {
+	    bu_log("Usage: %s\n", (argc > 0 && argv && argv[0]) ? argv[0] : "kurt");
+	    return 0;
+	}
+	bu_exit(1, "Usage: %s\n", (argc > 0 && argv && argv[0]) ? argv[0] : "kurt");
     }
 
     bu_log("Writing out geometry to file [kurt.g] ...");
 
     outfp = wdb_fopen("kurt.g");
+    if (!outfp) {
+	perror("kurt.g");
+	return 2;
+    }
     mk_id(outfp, "Kurt's multi-valued function");
 
     /* Create the detail cells */
@@ -89,7 +98,7 @@ main(int argc, char **argv)
      */
     make_surface(quant);
 
-    db_close(outfp->dbip);
+    wdb_close(outfp);
     bu_log(" done.\n");
 
     return 0;
@@ -121,11 +130,13 @@ do_cell(struct val *vp, double xc, double yc)
 	return;
     }
     for (l=0; l < nroots; l++) {
-	if (NEAR_ZERO(roots[l].im, 0.0001))
-	    vp->v_z[vp->v_n++] = roots[l].re;
+	if (NEAR_ZERO(roots[l].im, 0.0001)) {
+	    if (vp->v_n < 3)
+		vp->v_z[vp->v_n++] = roots[l].re;
+	}
     }
     /* Sort in increasing Z */
-    for (lim = nroots-1; lim > 0; lim--) {
+    for (lim = vp->v_n - 1; lim > 0; lim--) {
 	for (l=0; l < lim; l++) {
 	    double t;
 	    if ((t=vp->v_z[l]) > vp->v_z[l+1]) {
@@ -215,6 +226,7 @@ make_surface(int quant)
     rgb[1] = 160;
     rgb[2] = 200;
     mk_lcomb(outfp, "all", &head, 1, "plastic", "sh=10 sp=0.6 di=0.4", rgb, 0);
+    mk_freemembers(&head.l);
 }
 
 
@@ -231,11 +243,16 @@ pnorms(fastf_t (*norms)[3], fastf_t (*verts)[3], fastf_t *out, int npts)
     int i;
     vect_t ab, ac;
     vect_t n;
+    double mag;
 
     VSUB2(ab, verts[1], verts[0]);
     VSUB2(ac, verts[2], verts[0]);
     VCROSS(n, ab, ac);
-    VUNITIZE(n);
+    mag = MAGNITUDE(n);
+    if (!ZERO(mag)) {
+	double inv = 1.0 / mag;
+	VSCALE(n, n, inv);
+    }
 
     /* If normal points inwards, flip it */
     if (VDOT(n, out) < 0)
@@ -264,8 +281,13 @@ do_light(char *name, fastf_t *pos, fastf_t *dir_at, int da_flag, double r, unsig
     vect_t dir;
 
     if (da_flag) {
+	double mag;
 	VSUB2(dir, dir_at, pos);
-	VUNITIZE(dir);
+	mag = MAGNITUDE(dir);
+	if (!ZERO(mag)) {
+	    double inv = 1.0 / mag;
+	    VSCALE(dir, dir, inv);
+	}
     } else
 	VMOVE(dir, dir_at);
 

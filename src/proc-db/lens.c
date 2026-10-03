@@ -72,14 +72,14 @@
 
 static void
 printusage(void) {
-    fprintf(stderr,"Usage: [-T lens_type] [-r refractive_index] [-d diameter]\n");
-    fprintf(stderr,"       [-t thickness] [-f focal_length] [filename]\n");
-    fprintf(stderr,"defaults: T = 2 (the other possible value is 1), r = 1.5, d = 200, t = 40, f = 600\n");
-    fprintf(stderr,"(units mm)\n");
+    bu_log("Usage: [-T lens_type] [-r refractive_index] [-d diameter]\n");
+    bu_log("       [-t thickness] [-f focal_length] [filename]\n");
+    bu_log("defaults: T = 2 (the other possible value is 1), r = 1.5, d = 200, t = 40, f = 600\n");
+    bu_log("(units mm)\n");
 }
 
 static void
-MakeP(struct rt_wdb (*file), char *prefix, fastf_t diameter, fastf_t focal_length, fastf_t ref_ind, fastf_t thickness)
+MakeP(struct rt_wdb *file, const char *prefix, fastf_t diameter, fastf_t focal_length, fastf_t ref_ind, fastf_t thickness)
 {
     struct wmember lensglass, lens;
     struct bu_vls str = BU_VLS_INIT_ZERO;
@@ -88,6 +88,10 @@ MakeP(struct rt_wdb (*file), char *prefix, fastf_t diameter, fastf_t focal_lengt
     point_t origin;
     vect_t height;
     vect_t breadth;
+    double disc;
+
+    if (!file || !prefix)
+	return;
 
     if (focal_length > 0)
 	lens_type = 1;
@@ -98,7 +102,12 @@ MakeP(struct rt_wdb (*file), char *prefix, fastf_t diameter, fastf_t focal_lengt
     bu_log("sph_R = %f\n", sph_R);
     epa_R = diameter / 2;
     bu_log("epa_R = %f\n", epa_R);
-    epa_H = sph_R - sqrt(sph_R*sph_R-epa_R*epa_R);
+    disc = sph_R*sph_R - epa_R*epa_R;
+    if (disc < 0.0) {
+	bu_log("ERROR: specified parameters result in non-physical geometry (discriminant < 0)\n");
+	return;
+    }
+    epa_H = sph_R - sqrt(disc);
     bu_log("epa_H = %f\n", epa_H);
     rcc_h = thickness - lens_type * epa_H;
     bu_log("rcc_h = %f\n", rcc_h);
@@ -112,8 +121,8 @@ MakeP(struct rt_wdb (*file), char *prefix, fastf_t diameter, fastf_t focal_lengt
 	    VSET(height, 0, -rcc_h, 0);
 	    bu_vls_trunc(&str, 0);
 	    bu_vls_printf(&str, "%s-cyl.s", prefix);
-	    mk_rcc(file, bu_vls_addr(&str), origin, height, diameter/2);
-	    (void)mk_addmember(bu_vls_addr(&str), &lensglass.l, NULL, WMOP_UNION);
+	    mk_rcc(file, bu_vls_cstr(&str), origin, height, diameter/2);
+	    (void)mk_addmember(bu_vls_cstr(&str), &lensglass.l, NULL, WMOP_UNION);
 	} else {
 	    bu_log("Warning - specified thickness too thin for lens\n");
 	}
@@ -123,28 +132,32 @@ MakeP(struct rt_wdb (*file), char *prefix, fastf_t diameter, fastf_t focal_lengt
 	VSET(breadth, 0, 0, 1);
 	bu_vls_trunc(&str, 0);
 	bu_vls_printf(&str, "%s-epa.s", prefix);
-	mk_epa(file, bu_vls_addr(&str), origin, height, breadth, epa_R, epa_R);
+	mk_epa(file, bu_vls_cstr(&str), origin, height, breadth, epa_R, epa_R);
 	if (lens_type == 1)
-	    (void)mk_addmember(bu_vls_addr(&str), &lensglass.l, NULL, WMOP_UNION);
+	    (void)mk_addmember(bu_vls_cstr(&str), &lensglass.l, NULL, WMOP_UNION);
 	else
-	    (void)mk_addmember(bu_vls_addr(&str), &lensglass.l, NULL, WMOP_SUBTRACT);
+	    (void)mk_addmember(bu_vls_cstr(&str), &lensglass.l, NULL, WMOP_SUBTRACT);
 
 	bu_vls_trunc(&str, 0);
 	bu_vls_printf(&str, "%s.c", prefix);
-	mk_lcomb(file, bu_vls_addr(&str), &lensglass, 0,  NULL, NULL, NULL, 0);
+	mk_lcomb(file, bu_vls_cstr(&str), &lensglass, 0,  NULL, NULL, NULL, 0);
 
-	(void)mk_addmember(bu_vls_addr(&str), &lens.l, NULL, WMOP_UNION);
+	(void)mk_addmember(bu_vls_cstr(&str), &lens.l, NULL, WMOP_UNION);
 	bu_vls_trunc(&str, 0);
 	bu_vls_printf(&str, "%s.r", prefix);
-	mk_lcomb(file, bu_vls_addr(&str), &lens, 1, "glass", "ri=1.5", NULL, 0);
+	mk_lcomb(file, bu_vls_cstr(&str), &lens, 1, "glass", "ri=1.5", NULL, 0);
     } else {
-	bu_log("ERROR: specified parameters result in non-physical geometry");
+	bu_log("ERROR: specified parameters result in non-physical geometry\n");
     }
+
+    mk_freemembers(&lensglass.l);
+    mk_freemembers(&lens.l);
+    bu_vls_free(&str);
 }
 
 
 static void
-MakeD(struct rt_wdb (*file), char *prefix, fastf_t diameter, fastf_t focal_length, fastf_t ref_ind, fastf_t thickness)
+MakeD(struct rt_wdb *file, const char *prefix, fastf_t diameter, fastf_t focal_length, fastf_t ref_ind, fastf_t thickness)
 {
     struct wmember lensglass, lens;
     struct bu_vls str = BU_VLS_INIT_ZERO;
@@ -153,17 +166,38 @@ MakeD(struct rt_wdb (*file), char *prefix, fastf_t diameter, fastf_t focal_lengt
     point_t origin;
     vect_t height;
     vect_t breadth;
+    double radicand;
+    double disc;
+
+    if (!file || !prefix)
+	return;
 
     if (focal_length > 0)
 	lens_type = 1;
     else
 	lens_type = -1;
 
-    sph_R = ((ref_ind - 1) * sqrt(focal_length * lens_type * focal_length * lens_type * ref_ind * ref_ind - thickness * focal_length * lens_type * ref_ind) + focal_length * lens_type * ref_ind * ref_ind - focal_length * lens_type * ref_ind)/ref_ind;
+    if (ZERO(ref_ind)) {
+	bu_log("ERROR: refractive index cannot be zero\n");
+	return;
+    }
+
+    radicand = focal_length * lens_type * focal_length * lens_type * ref_ind * ref_ind - thickness * focal_length * lens_type * ref_ind;
+    if (radicand < 0.0) {
+	bu_log("ERROR: specified parameters result in non-physical geometry (negative radicand)\n");
+	return;
+    }
+
+    sph_R = ((ref_ind - 1) * sqrt(radicand) + focal_length * lens_type * ref_ind * ref_ind - focal_length * lens_type * ref_ind)/ref_ind;
     bu_log("sph_R = %f\n", sph_R);
     epa_R = diameter / 2;
     bu_log("epa_R = %f\n", epa_R);
-    epa_H = sph_R - sqrt(sph_R*sph_R-epa_R*epa_R);
+    disc = sph_R*sph_R - epa_R*epa_R;
+    if (disc < 0.0) {
+	bu_log("ERROR: specified parameters result in non-physical geometry (discriminant < 0)\n");
+	return;
+    }
+    epa_H = sph_R - sqrt(disc);
     bu_log("epa_H = %f\n", epa_H);
     rcc_h = thickness - 2 * lens_type * epa_H;
     bu_log("rcc_h = %f\n", rcc_h);
@@ -177,8 +211,8 @@ MakeD(struct rt_wdb (*file), char *prefix, fastf_t diameter, fastf_t focal_lengt
 	    VSET(height, 0, rcc_h, 0);
 	    bu_vls_trunc(&str, 0);
 	    bu_vls_printf(&str, "%s-cyl.s", prefix);
-	    mk_rcc(file, bu_vls_addr(&str), origin, height, diameter/2);
-	    (void)mk_addmember(bu_vls_addr(&str), &lensglass.l, NULL, WMOP_UNION);
+	    mk_rcc(file, bu_vls_cstr(&str), origin, height, diameter/2);
+	    (void)mk_addmember(bu_vls_cstr(&str), &lensglass.l, NULL, WMOP_UNION);
 	} else {
 	    bu_log("Warning - specified thickness too thin for lens\n");
 	}
@@ -188,33 +222,37 @@ MakeD(struct rt_wdb (*file), char *prefix, fastf_t diameter, fastf_t focal_lengt
 	VSET(breadth, 0, 0, 1);
 	bu_vls_trunc(&str, 0);
 	bu_vls_printf(&str, "%s-epa1.s", prefix);
-	mk_epa(file, bu_vls_addr(&str), origin, height, breadth, epa_R, epa_R);
+	mk_epa(file, bu_vls_cstr(&str), origin, height, breadth, epa_R, epa_R);
 	if (lens_type == 1)
-	    (void)mk_addmember(bu_vls_addr(&str), &lensglass.l, NULL, WMOP_UNION);
+	    (void)mk_addmember(bu_vls_cstr(&str), &lensglass.l, NULL, WMOP_UNION);
 	else
-	    (void)mk_addmember(bu_vls_addr(&str), &lensglass.l, NULL, WMOP_SUBTRACT);
+	    (void)mk_addmember(bu_vls_cstr(&str), &lensglass.l, NULL, WMOP_SUBTRACT);
 	VSET(origin, 0, rcc_h/2, 0);
 	VSET(height, 0, lens_type * epa_H, 0);
 	VSET(breadth, 0, 0, 1);
 	bu_vls_trunc(&str, 0);
 	bu_vls_printf(&str, "%s-epa2.s", prefix);
-	mk_epa(file, bu_vls_addr(&str), origin, height, breadth, epa_R, epa_R);
+	mk_epa(file, bu_vls_cstr(&str), origin, height, breadth, epa_R, epa_R);
 	if (lens_type == 1)
-	    (void)mk_addmember(bu_vls_addr(&str), &lensglass.l, NULL, WMOP_UNION);
+	    (void)mk_addmember(bu_vls_cstr(&str), &lensglass.l, NULL, WMOP_UNION);
 	else
-	    (void)mk_addmember(bu_vls_addr(&str), &lensglass.l, NULL, WMOP_SUBTRACT);
+	    (void)mk_addmember(bu_vls_cstr(&str), &lensglass.l, NULL, WMOP_SUBTRACT);
 
 	bu_vls_trunc(&str, 0);
 	bu_vls_printf(&str, "%s.c", prefix);
-	mk_lcomb(file, bu_vls_addr(&str), &lensglass, 0,  NULL, NULL, NULL, 0);
+	mk_lcomb(file, bu_vls_cstr(&str), &lensglass, 0,  NULL, NULL, NULL, 0);
 
-	(void)mk_addmember(bu_vls_addr(&str), &lens.l, NULL, WMOP_UNION);
+	(void)mk_addmember(bu_vls_cstr(&str), &lens.l, NULL, WMOP_UNION);
 	bu_vls_trunc(&str, 0);
 	bu_vls_printf(&str, "%s.r", prefix);
-	mk_lcomb(file, bu_vls_addr(&str), &lens, 1, "glass", "ri=1.5", NULL, 0);
+	mk_lcomb(file, bu_vls_cstr(&str), &lens, 1, "glass", "ri=1.5", NULL, 0);
     } else {
-	bu_log("ERROR: specified parameters result in non-physical geometry");
+	bu_log("ERROR: specified parameters result in non-physical geometry\n");
     }
+
+    mk_freemembers(&lensglass.l);
+    mk_freemembers(&lens.l);
+    bu_vls_free(&str);
 }
 
 
@@ -225,33 +263,37 @@ ReadArgs(int argc, char **argv, int *lens_1side_2side, fastf_t *ref_ind, fastf_t
     int c;
     const char *options="T:r:d:t:f:h?";
     int ltype;
-    float refractive, diam, thick, focal;
+    double val;
 
     while ((c=bu_getopt(argc, argv, options)) != -1) {
 	switch (c) {
 	    case 'T' :
-		sscanf(bu_optarg, "%d", &ltype);
-		*lens_1side_2side = ltype;
+		if (bu_sscanf(bu_optarg, "%d", &ltype) == 1) {
+		    if (ltype == 1 || ltype == 2)
+			*lens_1side_2side = ltype;
+		}
 		break;
 	    case 'r':
-		sscanf(bu_optarg, "%f", &refractive);
-		*ref_ind = refractive;
+		if (bu_sscanf(bu_optarg, "%lf", &val) == 1)
+		    *ref_ind = val;
 		break;
 	    case 'd':
-		sscanf(bu_optarg, "%f", &diam);
-		*diameter = diam;
+		if (bu_sscanf(bu_optarg, "%lf", &val) == 1)
+		    *diameter = val;
 		break;
 	    case 't':
-		sscanf(bu_optarg, "%f", &thick);
-		*thickness = thick;
+		if (bu_sscanf(bu_optarg, "%lf", &val) == 1)
+		    *thickness = val;
 		break;
 	    case 'f':
-		sscanf(bu_optarg, "%f", &focal);
-		*focal_length = focal;
+		if (bu_sscanf(bu_optarg, "%lf", &val) == 1)
+		    *focal_length = val;
 		break;
+	    case 'h':
+	    case '?':
 	    default:
 		printusage();
-		bu_exit(EXIT_SUCCESS, NULL);
+		bu_exit(0, NULL);
 	}
     }
     return bu_optind;
@@ -266,33 +308,35 @@ main(int ac, char *av[])
     struct bu_vls name = BU_VLS_INIT_ZERO;
     int lens_1side_2side = 2;
     fastf_t ref_ind, thickness, diameter, focal_length;
+    const char *outfilename;
 
-    bu_setprogname(av[0]);
-
-    bu_vls_trunc(&lens_type, 0);
-    bu_vls_trunc(&name, 0);
+    if (ac > 0 && av && av[0])
+	bu_setprogname(av[0]);
 
     ref_ind = 1.5;
     diameter = 200;
     thickness = diameter/5;
     focal_length = 600;
     bu_vls_printf(&lens_type, "DCX");
-    bu_vls_printf(&name, "lens_%s_f%.1f_d%.1f", bu_vls_addr(&lens_type), focal_length, diameter);
+    bu_vls_printf(&name, "lens_%s_f%.1f_d%.1f", bu_vls_cstr(&lens_type), focal_length, diameter);
 
     /* Process arguments */
     ReadArgs(ac, av, &lens_1side_2side, &ref_ind, &diameter, &thickness, &focal_length);
 
-    bu_log("Writing out geometry to file [%s] ...\n", av[bu_optind]);
+    outfilename = (bu_optind < ac && av[bu_optind]) ? av[bu_optind] : DEFAULT_LENS_FILENAME;
+    bu_log("Writing out geometry to file [%s] ...\n", outfilename);
 
-    /* Create file name if supplied, else use "lens.g" */
-    if (av[bu_optind]) {
-	if (bu_file_exists(av[bu_optind], NULL))
-	    bu_exit(-1, "ERROR: refusing to overwrite pre-existing file %s", av[bu_optind]);
-	db_fp = wdb_fopen(av[bu_optind]);
-    } else {
-	if (bu_file_exists(DEFAULT_LENS_FILENAME, NULL))
-	    bu_exit(-1, "ERROR: no filename supplied and lens.g exists.");
-	db_fp = wdb_fopen(DEFAULT_LENS_FILENAME);
+    if (bu_file_exists(outfilename, NULL)) {
+	bu_vls_free(&lens_type);
+	bu_vls_free(&name);
+	bu_exit(1, "ERROR: refusing to overwrite pre-existing file %s\n", outfilename);
+    }
+    db_fp = wdb_fopen(outfilename);
+    if (!db_fp) {
+	perror(outfilename);
+	bu_vls_free(&lens_type);
+	bu_vls_free(&name);
+	return 2;
     }
 
     /* Make the requested lens*/
@@ -308,8 +352,8 @@ main(int ac, char *av[])
 		bu_vls_trunc(&name, 0);
 		bu_vls_printf(&lens_type, "PCV");
 	}
-	bu_vls_printf(&name, "lens_%s_f%.1f_d%.1f", bu_vls_addr(&lens_type), focal_length, diameter);
-	MakeP(db_fp, bu_vls_addr(&name), diameter, focal_length, ref_ind, thickness);
+	bu_vls_printf(&name, "lens_%s_f%.1f_d%.1f", bu_vls_cstr(&lens_type), focal_length, diameter);
+	MakeP(db_fp, bu_vls_cstr(&name), diameter, focal_length, ref_ind, thickness);
     } else if (lens_1side_2side == 2) {
 	if (focal_length > 0) {
 		bu_log("Making BiConvex lens...\n");
@@ -322,12 +366,15 @@ main(int ac, char *av[])
 		bu_vls_trunc(&name, 0);
 		bu_vls_printf(&lens_type, "DCV");
 	}
-	bu_vls_printf(&name, "lens_%s_f%.1f_d%.1f", bu_vls_addr(&lens_type), focal_length, diameter);
-	MakeD(db_fp, bu_vls_addr(&name), diameter, focal_length, ref_ind, thickness);
+	bu_vls_printf(&name, "lens_%s_f%.1f_d%.1f", bu_vls_cstr(&lens_type), focal_length, diameter);
+	MakeD(db_fp, bu_vls_cstr(&name), diameter, focal_length, ref_ind, thickness);
     }
 
     /* Close database */
-    db_close(db_fp->dbip);
+    wdb_close(db_fp);
+
+    bu_vls_free(&lens_type);
+    bu_vls_free(&name);
 
     bu_log("Done.\n");
 

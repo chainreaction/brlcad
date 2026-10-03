@@ -231,6 +231,9 @@ subdivide_face(const point_t c0, const point_t c1, const point_t c2, int freq)
     int grid[MAX_FREQ + 1][MAX_FREQ + 1];
     int i, j;
 
+    if (freq < 1 || freq > MAX_FREQ)
+	return;
+
     for (i = 0; i <= freq; i++) {
 	for (j = 0; j <= i; j++) {
 	    point_t p;
@@ -296,10 +299,18 @@ main(int ac, char *av[])
     point_t gmin, gmax;
     point_t lpos;
 
-    bu_setprogname(av[0]);
+    const char *progname = (ac > 0 && av && av[0]) ? av[0] : "lattice";
+
+    if (ac > 0 && av && av[0])
+	bu_setprogname(av[0]);
+
+    if (ac > 1 && (BU_STR_EQUAL(av[1], "-h") || BU_STR_EQUAL(av[1], "-?") || BU_STR_EQUAL(av[1], "--help"))) {
+	bu_log("Usage: %s output.g [--frequency v] [--radius mm] [--strut-radius mm] [--strut rcc|cline] [--hemisphere 0|1]\n", progname);
+	return 0;
+    }
 
     if (ac < 2) {
-	bu_exit(1, "Usage: %s output.g [--frequency v] [--radius mm] [--strut-radius mm] [--strut rcc|cline] [--hemisphere 0|1]\n", av[0]);
+	bu_exit(1, "Usage: %s output.g [--frequency v] [--radius mm] [--strut-radius mm] [--strut rcc|cline] [--hemisphere 0|1]\n", progname);
     }
 
     /* Parse the optional parameters.  Everything past av[1] is
@@ -307,12 +318,21 @@ main(int ac, char *av[])
      * complete, attractive scene.
      */
     for (i = 2; i < ac; i++) {
-	if (BU_STR_EQUAL(av[i], "--frequency") && i + 1 < ac) {
-	    frequency = atoi(av[++i]);
+	if (BU_STR_EQUAL(av[i], "-h") || BU_STR_EQUAL(av[i], "-?") || BU_STR_EQUAL(av[i], "--help")) {
+	    bu_log("Usage: %s output.g [--frequency v] [--radius mm] [--strut-radius mm] [--strut rcc|cline] [--hemisphere 0|1]\n", progname);
+	    return 0;
+	} else if (BU_STR_EQUAL(av[i], "--frequency") && i + 1 < ac) {
+	    if (bu_sscanf(av[++i], "%d", &frequency) != 1) {
+		bu_log("Warning: invalid frequency \"%s\", using default\n", av[i]);
+	    }
 	} else if (BU_STR_EQUAL(av[i], "--radius") && i + 1 < ac) {
-	    radius = atof(av[++i]);
+	    if (bu_sscanf(av[++i], "%lf", &radius) != 1) {
+		bu_log("Warning: invalid radius \"%s\", using default\n", av[i]);
+	    }
 	} else if (BU_STR_EQUAL(av[i], "--strut-radius") && i + 1 < ac) {
-	    strut_radius = atof(av[++i]);
+	    if (bu_sscanf(av[++i], "%lf", &strut_radius) != 1) {
+		bu_log("Warning: invalid strut-radius \"%s\", using default\n", av[i]);
+	    }
 	} else if (BU_STR_EQUAL(av[i], "--strut") && i + 1 < ac) {
 	    i++;
 	    if (BU_STR_EQUAL(av[i], "cline")) {
@@ -321,7 +341,9 @@ main(int ac, char *av[])
 		use_cline = 0;
 	    }
 	} else if (BU_STR_EQUAL(av[i], "--hemisphere") && i + 1 < ac) {
-	    hemisphere = atoi(av[++i]);
+	    if (bu_sscanf(av[++i], "%d", &hemisphere) != 1) {
+		bu_log("Warning: invalid hemisphere \"%s\", using default\n", av[i]);
+	    }
 	} else {
 	    bu_log("WARNING: ignoring unrecognized argument '%s'\n", av[i]);
 	}
@@ -330,7 +352,7 @@ main(int ac, char *av[])
     if (frequency < 1)
 	frequency = 1;
     if (frequency > MAX_FREQ)
-	bu_exit(1, "ERROR: frequency %d exceeds maximum of %d\n", frequency, MAX_FREQ);
+	frequency = MAX_FREQ;
     if (radius <= 0.0)
 	radius = 1000.0;
     if (strut_radius <= 0.0)
@@ -513,6 +535,7 @@ main(int ac, char *av[])
 	mk_lcomb(db_fp, "light.r", &light_head, 1,
 		 "light", "inten=1.0 shadows=1",
 		 light_rgb, 0);
+	mk_freemembers(&light_head.l);
     }
 
     /* Top-level group "all" unions everything into one renderable. */
@@ -524,8 +547,11 @@ main(int ac, char *av[])
 
     bu_log("Wrote dome to %s; render the top-level object 'all'.\n", av[1]);
 
+    mk_freemembers(&dome_head.l);
+    mk_freemembers(&all_head.l);
+
     /* Close the database file. */
-    db_close(db_fp->dbip);
+    wdb_close(db_fp);
 
     return 0;
 }
