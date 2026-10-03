@@ -34327,10 +34327,9 @@
       "subsystem": "src/proc-db",
       "lines": 623,
       "status": "REVIEWED",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": [],
-      "issues": [
+      "reviewed_at": "2026-10-03T04:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
         "SEC-0300"
       ]
     },
@@ -34340,10 +34339,9 @@
       "subsystem": "src/proc-db",
       "lines": 1048,
       "status": "REVIEWED",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": [],
-      "issues": [
+      "reviewed_at": "2026-10-03T04:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
         "SEC-0300"
       ]
     },
@@ -34353,10 +34351,9 @@
       "subsystem": "src/proc-db",
       "lines": 574,
       "status": "REVIEWED",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": [],
-      "issues": [
+      "reviewed_at": "2026-10-03T04:45:00Z",
+      "issues_count": 1,
+      "issue_ids": [
         "SEC-0300"
       ]
     },
@@ -34365,50 +34362,60 @@
       "path": "src/proc-db/metaball.c",
       "subsystem": "src/proc-db",
       "lines": 281,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:58:10Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0301"
+      ]
     },
     {
       "id": 3246,
       "path": "src/proc-db/molecule.c",
       "subsystem": "src/proc-db",
       "lines": 291,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:58:10Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0301"
+      ]
     },
     {
       "id": 3247,
       "path": "src/proc-db/nmgmodel.c",
       "subsystem": "src/proc-db",
       "lines": 601,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:58:10Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0301"
+      ]
     },
     {
       "id": 3248,
       "path": "src/proc-db/parashot.c",
       "subsystem": "src/proc-db",
       "lines": 286,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:58:10Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0301"
+      ]
     },
     {
       "id": 3249,
       "path": "src/proc-db/pdb-g.cpp",
       "subsystem": "src/proc-db",
       "lines": 302,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T04:58:10Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0301"
+      ]
     },
     {
       "id": 3250,
