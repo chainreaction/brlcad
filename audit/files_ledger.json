@@ -33954,30 +33954,36 @@
       "path": "src/mged/titles.c",
       "subsystem": "src/mged",
       "lines": 647,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T22:50:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0294"
+      ]
     },
     {
       "id": 3212,
       "path": "src/mged/track.c",
       "subsystem": "src/mged",
       "lines": 943,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T22:50:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0294"
+      ]
     },
     {
       "id": 3213,
       "path": "src/mged/update.c",
       "subsystem": "src/mged",
       "lines": 281,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-02T22:50:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0294"
+      ]
     },
     {
       "id": 3214,
