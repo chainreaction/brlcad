@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1397,
-    "pending_files": 2096,
-    "last_updated": "2026-10-03T04:50:00Z",
-    "total_issues": 321,
-    "reviewed_count": 1397
+    "reviewed_files": 1407,
+    "pending_files": 2086,
+    "last_updated": "2026-10-03T05:09:22Z",
+    "total_issues": 323,
+    "reviewed_count": 1407
   },
   "files": [
     {
@@ -34422,50 +34422,60 @@
       "path": "src/proc-db/pipe.c",
       "subsystem": "src/proc-db",
       "lines": 803,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T05:09:22Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0302"
+      ]
     },
     {
       "id": 3251,
       "path": "src/proc-db/pipetest.c",
       "subsystem": "src/proc-db",
       "lines": 201,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T05:09:22Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0302"
+      ]
     },
     {
       "id": 3252,
       "path": "src/proc-db/pix2g.c",
       "subsystem": "src/proc-db",
       "lines": 282,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T05:09:22Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0302"
+      ]
     },
     {
       "id": 3253,
       "path": "src/proc-db/pyramid.c",
       "subsystem": "src/proc-db",
       "lines": 173,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T05:09:22Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0302"
+      ]
     },
     {
       "id": 3254,
       "path": "src/proc-db/ringworld.c",
       "subsystem": "src/proc-db",
       "lines": 182,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "REVIEWED",
+      "reviewed_at": "2026-10-03T05:09:22Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0302"
+      ]
     },
     {
       "id": 3255,
@@ -36862,5 +36872,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-10-03T04:39:54Z"
+  "last_updated": "2026-10-03T05:09:22Z"
 }
