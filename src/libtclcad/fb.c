@@ -75,6 +75,10 @@ fbo_coords_ok(struct fb *fbp, int x, int y)
     int width;
     int height;
     int errors;
+
+    if (!fbp)
+	return 0;
+
     width = fb_getwidth(fbp);
     height = fb_getheight(fbp);
 
@@ -116,8 +120,12 @@ fbo_deleteProc(void *clientData)
 {
     struct fb_obj *fbop = (struct fb_obj *)clientData;
 
+    if (!fbop)
+	return;
+
     /* close framebuffer */
-    fb_close(fbop->fbo_fbs.fbs_fbp);
+    if (fbop->fbo_fbs.fbs_fbp != FB_NULL)
+	fb_close(fbop->fbo_fbs.fbs_fbp);
 
     bu_vls_free(&fbop->fbo_name);
     BU_LIST_DEQUEUE(&fbop->l);
@@ -136,13 +144,16 @@ fbo_close_tcl(void *clientData, int argc, const char **UNUSED(argv))
 {
     struct fb_obj *fbop = (struct fb_obj *)clientData;
 
+    if (!fbop || !fbop->fbo_interp)
+	return BRLCAD_ERROR;
+
     if (argc != 2) {
 	bu_log("ERROR: expecting two arguments\n");
 	return BRLCAD_ERROR;
     }
 
-    /* Among other things, this will call dmo_deleteProc. */
-    Tcl_DeleteCommand(fbop->fbo_interp, bu_vls_addr(&fbop->fbo_name));
+    /* Among other things, this will call dmo_deleteProc / fbo_deleteProc. */
+    Tcl_DeleteCommand(fbop->fbo_interp, bu_vls_cstr(&fbop->fbo_name));
 
     return BRLCAD_OK;
 }
@@ -153,8 +164,11 @@ fbo_tcllist2color(const char *str, unsigned char *pixel)
 {
     int r, g, b;
 
-    if (sscanf(str, "%d %d %d", &r, &g, &b) != 3) {
-	bu_log("fb_clear: bad color spec - %s", str);
+    if (!str || !pixel)
+	return BRLCAD_ERROR;
+
+    if (bu_sscanf(str, "%d %d %d", &r, &g, &b) != 3) {
+	bu_log("fbo_tcllist2color: bad color spec - %s\n", str);
 	return BRLCAD_ERROR;
     }
 
@@ -181,6 +195,10 @@ fbo_clear_tcl(void *clientData, int argc, const char **argv)
     RGBpixel pixel;
     unsigned char *ms;
 
+    if (!fbop || fbop->fbo_fbs.fbs_fbp == FB_NULL || !argv) {
+	bu_log("ERROR: framebuffer not open\n");
+	return BRLCAD_ERROR;
+    }
 
     if (argc < 2 || 3 < argc) {
 	bu_log("ERROR: expecting only two or three arguments\n");
@@ -192,8 +210,8 @@ fbo_clear_tcl(void *clientData, int argc, const char **argv)
 	 * Decompose the color list into its constituents.
 	 * For now must be in the form of rrr ggg bbb.
 	 */
-	if (fbo_tcllist2color(argv[6], pixel) == BRLCAD_ERROR) {
-	    bu_log("fb_cell: invalid color spec: %s.", argv[6]);
+	if (!argv[2] || fbo_tcllist2color(argv[2], pixel) == BRLCAD_ERROR) {
+	    bu_log("fb_clear: invalid color spec: %s.\n", argv[2] ? argv[2] : "");
 	    return BRLCAD_ERROR;
 	}
 
@@ -223,23 +241,33 @@ fbo_cursor_tcl(void *clientData, int argc, const char **argv)
     int x, y;
     int status;
 
+    if (!fbop || fbop->fbo_fbs.fbs_fbp == FB_NULL || !argv) {
+	bu_log("ERROR: framebuffer not open\n");
+	return BRLCAD_ERROR;
+    }
+
     if (argc != 5) {
 	bu_log("ERROR: expecting five arguments\n");
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[2], "%d", &mode) != 1) {
-	bu_log("fb_cursor: bad mode - %s", argv[2]);
+    if (bu_sscanf(argv[2], "%d", &mode) != 1) {
+	bu_log("fb_cursor: bad mode - %s\n", argv[2]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[3], "%d", &x) != 1) {
-	bu_log("fb_cursor: bad x value - %s", argv[3]);
+    if (bu_sscanf(argv[3], "%d", &x) != 1) {
+	bu_log("fb_cursor: bad x value - %s\n", argv[3]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[4], "%d", &y) != 1) {
-	bu_log("fb_cursor: bad y value - %s", argv[4]);
+    if (bu_sscanf(argv[4], "%d", &y) != 1) {
+	bu_log("fb_cursor: bad y value - %s\n", argv[4]);
+	return BRLCAD_ERROR;
+    }
+
+    if (!fbo_coords_ok(fbop->fbo_fbs.fbs_fbp, x, y)) {
+	bu_log("fb_cursor: coordinates (%s, %s) are invalid.\n", argv[3], argv[4]);
 	return BRLCAD_ERROR;
     }
 
@@ -265,7 +293,13 @@ fbo_getcursor_tcl(void *clientData, int argc, const char **argv)
     int x, y;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
+    if (!fbop || fbop->fbo_fbs.fbs_fbp == FB_NULL || !fbop->fbo_interp || !argv) {
+	bu_log("ERROR: framebuffer not open\n");
+	return BRLCAD_ERROR;
+    }
+
     if (argc != 2
+	|| !argv[1]
 	|| !BU_STR_EQUIV(argv[1], "getcursor"))
     {
 	bu_log("ERROR: unexpected argument(s)\n");
@@ -275,7 +309,7 @@ fbo_getcursor_tcl(void *clientData, int argc, const char **argv)
     status = fb_getcursor(fbop->fbo_fbs.fbs_fbp, &mode, &x, &y);
     if (status == 0) {
 	bu_vls_printf(&vls, "%d %d %d", mode, x, y);
-	Tcl_AppendResult(fbop->fbo_interp, bu_vls_addr(&vls), (char *)NULL);
+	Tcl_AppendResult(fbop->fbo_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
 
 	return BRLCAD_OK;
@@ -297,6 +331,11 @@ fbo_refresh_tcl(void *clientData, int argc, const char **argv)
     struct fb_obj *fbop = (struct fb_obj *)clientData;
     int x, y, w, h;		       /* rectangle to be refreshed */
 
+    if (!fbop || fbop->fbo_fbs.fbs_fbp == FB_NULL || !argv) {
+	bu_log("ERROR: framebuffer not open\n");
+	return BRLCAD_ERROR;
+    }
+
     if (argc < 2 || 3 < argc) {
 	bu_log("ERROR: expecting only two or three arguments\n");
 	return BRLCAD_ERROR;
@@ -305,11 +344,20 @@ fbo_refresh_tcl(void *clientData, int argc, const char **argv)
     if (argc == 2) {
 	/* refresh the whole display */
 	x = y = 0;
+	if (!fbop->fbo_fbs.fbs_fbp->i) {
+	    bu_log("ERROR: framebuffer interface uninitialized\n");
+	    return BRLCAD_ERROR;
+	}
 	w = fbop->fbo_fbs.fbs_fbp->i->if_width;
 	h = fbop->fbo_fbs.fbs_fbp->i->if_height;
-    } else if (sscanf(argv[2], "%d %d %d %d", &x, &y, &w, &h) != 4) {
+    } else if (bu_sscanf(argv[2], "%d %d %d %d", &x, &y, &w, &h) != 4) {
 	/* refresh rectangular area */
-	bu_log("fb_refresh: bad rectangle - %s", argv[2]);
+	bu_log("fb_refresh: bad rectangle - %s\n", argv[2]);
+	return BRLCAD_ERROR;
+    }
+
+    if (w <= 0 || h <= 0) {
+	bu_log("fb_refresh: width and height must be > 0\n");
 	return BRLCAD_ERROR;
     }
 
@@ -333,8 +381,8 @@ fbo_listen_tcl(void *clientData, int argc, const char **argv)
     struct bu_vls vls = BU_VLS_INIT_ZERO;
     const char *ipc_env = NULL;
 
-    if (fbop->fbo_fbs.fbs_fbp == FB_NULL) {
-	bu_log("%s listen: framebuffer not open!\n", argv[0]);
+    if (!fbop || fbop->fbo_fbs.fbs_fbp == FB_NULL || !fbop->fbo_interp || !argv) {
+	bu_log("%s listen: framebuffer not open!\n", (argv && argc > 0 && argv[0]) ? argv[0] : "fb");
 	return BRLCAD_ERROR;
     }
 
@@ -344,7 +392,7 @@ fbo_listen_tcl(void *clientData, int argc, const char **argv)
     }
 
     if (argc == 3) {
-	if (BU_STR_EQUAL(argv[2], "ipc")) {
+	if (argv[2] && BU_STR_EQUAL(argv[2], "ipc")) {
 	    if (fbop->fbo_fbs.fbs_listener.fbsl_port >= 0)
 		fbs_close(&fbop->fbo_fbs);
 	    if (tclcad_listen_ipc(&fbop->fbo_fbs, fbop->fbo_interp) != BRLCAD_OK) {
@@ -357,20 +405,25 @@ fbo_listen_tcl(void *clientData, int argc, const char **argv)
 		const char *addr = eq ? eq + 1 : ipc_env;
 		bu_vls_printf(&vls, "%s", addr);
 	    }
-	    Tcl_AppendResult(fbop->fbo_interp, bu_vls_addr(&vls), (char *)NULL);
+	    Tcl_AppendResult(fbop->fbo_interp, bu_vls_cstr(&vls), (char *)NULL);
 	    bu_vls_free(&vls);
 	    return BRLCAD_OK;
 	}
 
 	int port;
 
-	if (sscanf(argv[2], "%d", &port) != 1) {
-	    bu_log("listen: bad value - %s\n", argv[2]);
+	if (!argv[2] || bu_sscanf(argv[2], "%d", &port) != 1) {
+	    bu_log("listen: bad value - %s\n", (argv[2]) ? argv[2] : "");
+	    return BRLCAD_ERROR;
+	}
+
+	if (port > 65535) {
+	    bu_log("listen: port %d out of valid range [0, 65535]\n", port);
 	    return BRLCAD_ERROR;
 	}
 
 	if (port >= 0) {
-	    //Set up fbo_fbs callbacks, then call fbs_open
+	    /* Set up fbo_fbs callbacks, then call fbs_open */
 	    fbop->fbo_fbs.fbs_is_listening = &tclcad_is_listening;
 	    fbop->fbo_fbs.fbs_listen_on_port = &tclcad_listen_on_port;
 	    fbop->fbo_fbs.fbs_open_server_handler = &tclcad_open_server_handler;
@@ -394,7 +447,7 @@ fbo_listen_tcl(void *clientData, int argc, const char **argv)
 	} else {
 	    bu_vls_printf(&vls, "%d", fbop->fbo_fbs.fbs_listener.fbsl_port);
 	}
-	Tcl_AppendResult(fbop->fbo_interp, bu_vls_addr(&vls), (char *)NULL);
+	Tcl_AppendResult(fbop->fbo_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
 
 	return BRLCAD_OK;
@@ -410,7 +463,7 @@ fbo_listen_tcl(void *clientData, int argc, const char **argv)
     } else {
 	bu_vls_printf(&vls, "%d", fbop->fbo_fbs.fbs_listener.fbsl_port);
     }
-    Tcl_AppendResult(fbop->fbo_interp, bu_vls_addr(&vls), (char *)NULL);
+    Tcl_AppendResult(fbop->fbo_interp, bu_vls_cstr(&vls), (char *)NULL);
     bu_vls_free(&vls);
 
     return BRLCAD_OK;
@@ -431,25 +484,30 @@ fbo_pixel_tcl(void *clientData, int argc, const char **argv)
     int x, y; 	/* pixel position */
     RGBpixel pixel;
 
+    if (!fbop || fbop->fbo_fbs.fbs_fbp == FB_NULL || !argv) {
+	bu_log("ERROR: framebuffer not open\n");
+	return BRLCAD_ERROR;
+    }
+
     if (argc != 4 && argc != 5) {
-	bu_log("ERROR: expecting five arguments\n");
+	bu_log("ERROR: expecting four or five arguments\n");
 	return BRLCAD_ERROR;
     }
 
     /* get pixel position */
-    if (sscanf(argv[2], "%d", &x) != 1) {
-	bu_log("fb_pixel: bad x value - %s", argv[2]);
+    if (bu_sscanf(argv[2], "%d", &x) != 1) {
+	bu_log("fb_pixel: bad x value - %s\n", argv[2]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[3], "%d", &y) != 1) {
-	bu_log("fb_pixel: bad y value - %s", argv[3]);
+    if (bu_sscanf(argv[3], "%d", &y) != 1) {
+	bu_log("fb_pixel: bad y value - %s\n", argv[3]);
 	return BRLCAD_ERROR;
     }
 
     /* check pixel position */
     if (!fbo_coords_ok(fbop->fbo_fbs.fbs_fbp, x, y)) {
-	bu_log("fb_pixel: coordinates (%s, %s) are invalid.", argv[2], argv[3]);
+	bu_log("fb_pixel: coordinates (%s, %s) are invalid.\n", argv[2], argv[3]);
 	return BRLCAD_ERROR;
     }
 
@@ -457,7 +515,7 @@ fbo_pixel_tcl(void *clientData, int argc, const char **argv)
     if (argc == 4) {
 	fb_rpixel(fbop->fbo_fbs.fbs_fbp, pixel);
 	bu_vls_printf(&vls, "%d %d %d", pixel[RED], pixel[GRN], pixel[BLU]);
-	Tcl_AppendResult(fbop->fbo_interp, bu_vls_addr(&vls), (char *)NULL);
+	Tcl_AppendResult(fbop->fbo_interp, bu_vls_cstr(&vls), (char *)NULL);
 	bu_vls_free(&vls);
 
 	return BRLCAD_OK;
@@ -469,8 +527,8 @@ fbo_pixel_tcl(void *clientData, int argc, const char **argv)
      */
 
     /* set pixel value */
-    if (fbo_tcllist2color(argv[4], pixel) == BRLCAD_ERROR) {
-	bu_log("fb_pixel: invalid color spec - %s", argv[4]);
+    if (!argv[4] || fbo_tcllist2color(argv[4], pixel) == BRLCAD_ERROR) {
+	bu_log("fb_pixel: invalid color spec - %s\n", argv[4] ? argv[4] : "");
 	return BRLCAD_ERROR;
     }
 
@@ -495,43 +553,59 @@ fbo_cell_tcl(void *clientData, int argc, const char **argv)
     size_t i;
     RGBpixel pixel;
     unsigned char *pp;
+    int fb_w, fb_h;
 
+    if (!fbop || fbop->fbo_fbs.fbs_fbp == FB_NULL || !argv) {
+	bu_log("ERROR: framebuffer not open\n");
+	return BRLCAD_ERROR;
+    }
 
     if (argc != 7) {
 	bu_log("ERROR: expecting seven arguments\n");
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[2], "%d", &xmin) != 1) {
-	bu_log("fb_cell: bad xmin value - %s", argv[2]);
+    if (bu_sscanf(argv[2], "%d", &xmin) != 1) {
+	bu_log("fb_cell: bad xmin value - %s\n", argv[2]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[3], "%d", &ymin) != 1) {
-	bu_log("fb_cell: bad ymin value - %s", argv[3]);
+    if (bu_sscanf(argv[3], "%d", &ymin) != 1) {
+	bu_log("fb_cell: bad ymin value - %s\n", argv[3]);
 	return BRLCAD_ERROR;
     }
 
     /* check coordinates */
     if (!fbo_coords_ok(fbop->fbo_fbs.fbs_fbp, xmin, ymin)) {
-	bu_log("fb_cell: coordinates (%s, %s) are invalid.", argv[2], argv[3]);
+	bu_log("fb_cell: coordinates (%s, %s) are invalid.\n", argv[2], argv[3]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[4], "%ld", &width) != 1) {
-	bu_log("fb_cell: bad width - %s", argv[4]);
+    if (bu_sscanf(argv[4], "%ld", &width) != 1) {
+	bu_log("fb_cell: bad width - %s\n", argv[4]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[5], "%ld", &height) != 1) {
-	bu_log("fb_cell: bad height - %s", argv[5]);
+    if (bu_sscanf(argv[5], "%ld", &height) != 1) {
+	bu_log("fb_cell: bad height - %s\n", argv[5]);
 	return BRLCAD_ERROR;
     }
-
 
     /* check width and height */
-    if (width <=0  || height <=0) {
-	bu_log("fb_cell: width and height must be > 0");
+    if (width <= 0 || height <= 0 || width > 32768 || height > 32768) {
+	bu_log("fb_cell: width and height must be > 0 and <= 32768\n");
+	return BRLCAD_ERROR;
+    }
+
+    fb_w = fb_getwidth(fbop->fbo_fbs.fbs_fbp);
+    fb_h = fb_getheight(fbop->fbo_fbs.fbs_fbp);
+    if (width > fb_w || height > fb_h || xmin > fb_w - (int)width || ymin > fb_h - (int)height) {
+	bu_log("fb_cell: rectangle exceeds framebuffer dimensions\n");
+	return BRLCAD_ERROR;
+    }
+
+    if ((size_t)width > SIZE_MAX / ((size_t)height * sizeof(RGBpixel))) {
+	bu_log("fb_cell: dimensions overflow buffer size\n");
 	return BRLCAD_ERROR;
     }
 
@@ -539,13 +613,13 @@ fbo_cell_tcl(void *clientData, int argc, const char **argv)
      * Decompose the color list into its constituents.
      * For now must be in the form of rrr ggg bbb.
      */
-    if (fbo_tcllist2color(argv[6], pixel) == BRLCAD_ERROR) {
-	bu_log("fb_cell: invalid color spec: %s", argv[6]);
+    if (!argv[6] || fbo_tcllist2color(argv[6], pixel) == BRLCAD_ERROR) {
+	bu_log("fb_cell: invalid color spec: %s\n", argv[6] ? argv[6] : "");
 	return BRLCAD_ERROR;
     }
 
-    pp = (unsigned char *)bu_calloc(width*height, sizeof(RGBpixel), "allocate pixel array");
-    for (i = 0; i < width*height*sizeof(RGBpixel); i+=sizeof(RGBpixel)) {
+    pp = (unsigned char *)bu_calloc((size_t)width * (size_t)height, sizeof(RGBpixel), "allocate pixel array");
+    for (i = 0; i < (size_t)width * (size_t)height * sizeof(RGBpixel); i += sizeof(RGBpixel)) {
 	pp[i] = pixel[0];
 	pp[i+1] = pixel[1];
 	pp[i+2] = pixel[2];
@@ -567,7 +641,13 @@ fbo_flush_tcl(void *clientData, int argc, const char **argv)
 {
     struct fb_obj *fbop = (struct fb_obj *)clientData;
 
+    if (!fbop || fbop->fbo_fbs.fbs_fbp == FB_NULL || !argv) {
+	bu_log("ERROR: framebuffer not open\n");
+	return BRLCAD_ERROR;
+    }
+
     if (argc != 2
+	|| !argv[1]
 	|| !BU_STR_EQUIV(argv[1], "flush"))
     {
 	bu_log("ERROR: expecting two arguments\n");
@@ -591,7 +671,13 @@ fbo_getheight_tcl(void *clientData, int argc, const char **argv)
     struct fb_obj *fbop = (struct fb_obj *)clientData;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
+    if (!fbop || fbop->fbo_fbs.fbs_fbp == FB_NULL || !fbop->fbo_interp || !argv) {
+	bu_log("ERROR: framebuffer not open\n");
+	return BRLCAD_ERROR;
+    }
+
     if (argc != 2
+	|| !argv[1]
 	|| !BU_STR_EQUIV(argv[1], "getheight"))
     {
 	bu_log("ERROR: expecting two arguments\n");
@@ -599,7 +685,7 @@ fbo_getheight_tcl(void *clientData, int argc, const char **argv)
     }
 
     bu_vls_printf(&vls, "%d", fb_getheight(fbop->fbo_fbs.fbs_fbp));
-    Tcl_AppendResult(fbop->fbo_interp, bu_vls_addr(&vls), (char *)NULL);
+    Tcl_AppendResult(fbop->fbo_interp, bu_vls_cstr(&vls), (char *)NULL);
     bu_vls_free(&vls);
 
     return BRLCAD_OK;
@@ -617,7 +703,13 @@ fbo_getwidth_tcl(void *clientData, int argc, const char **argv)
     struct fb_obj *fbop = (struct fb_obj *)clientData;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
+    if (!fbop || fbop->fbo_fbs.fbs_fbp == FB_NULL || !fbop->fbo_interp || !argv) {
+	bu_log("ERROR: framebuffer not open\n");
+	return BRLCAD_ERROR;
+    }
+
     if (argc != 2
+	|| !argv[1]
 	|| !BU_STR_EQUIV(argv[1], "getwidth"))
     {
 	bu_log("ERROR: expecting two arguments\n");
@@ -625,7 +717,7 @@ fbo_getwidth_tcl(void *clientData, int argc, const char **argv)
     }
 
     bu_vls_printf(&vls, "%d", fb_getwidth(fbop->fbo_fbs.fbs_fbp));
-    Tcl_AppendResult(fbop->fbo_interp, bu_vls_addr(&vls), (char *)NULL);
+    Tcl_AppendResult(fbop->fbo_interp, bu_vls_cstr(&vls), (char *)NULL);
     bu_vls_free(&vls);
 
     return BRLCAD_OK;
@@ -643,7 +735,13 @@ fbo_getsize_tcl(void *clientData, int argc, const char **argv)
     struct fb_obj *fbop = (struct fb_obj *)clientData;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
+    if (!fbop || fbop->fbo_fbs.fbs_fbp == FB_NULL || !fbop->fbo_interp || !argv) {
+	bu_log("ERROR: framebuffer not open\n");
+	return BRLCAD_ERROR;
+    }
+
     if (argc != 2
+	|| !argv[1]
 	|| !BU_STR_EQUIV(argv[1], "getsize"))
     {
 	bu_log("ERROR: expecting two arguments\n");
@@ -653,7 +751,7 @@ fbo_getsize_tcl(void *clientData, int argc, const char **argv)
     bu_vls_printf(&vls, "%d %d",
 		  fb_getwidth(fbop->fbo_fbs.fbs_fbp),
 		  fb_getheight(fbop->fbo_fbs.fbs_fbp));
-    Tcl_AppendResult(fbop->fbo_interp, bu_vls_addr(&vls), (char *)NULL);
+    Tcl_AppendResult(fbop->fbo_interp, bu_vls_cstr(&vls), (char *)NULL);
     bu_vls_free(&vls);
 
     return BRLCAD_OK;
@@ -675,42 +773,49 @@ fbo_rect_tcl(void *clientData, int argc, const char **argv)
     int height;
     int i;
     RGBpixel pixel;
+    int fb_w, fb_h;
+
+    if (!fbop || fbop->fbo_fbs.fbs_fbp == FB_NULL || !argv) {
+	bu_log("ERROR: framebuffer not open\n");
+	return BRLCAD_ERROR;
+    }
 
     if (argc != 7) {
 	bu_log("ERROR: expecting seven arguments\n");
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[2], "%d", &xmin) != 1) {
-	bu_log("fb_rect: bad xmin value - %s", argv[2]);
+    if (bu_sscanf(argv[2], "%d", &xmin) != 1) {
+	bu_log("fb_rect: bad xmin value - %s\n", argv[2]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[3], "%d", &ymin) != 1) {
-	bu_log("fb_rect: bad ymin value - %s", argv[3]);
+    if (bu_sscanf(argv[3], "%d", &ymin) != 1) {
+	bu_log("fb_rect: bad ymin value - %s\n", argv[3]);
 	return BRLCAD_ERROR;
     }
 
-    /* check coordinates */
-    if (!fbo_coords_ok(fbop->fbo_fbs.fbs_fbp, xmin, ymin)) {
-	bu_log("fb_rect: coordinates (%s, %s) are invalid.", argv[2], argv[3]);
+    if (bu_sscanf(argv[4], "%d", &width) != 1) {
+	bu_log("fb_rect: bad width - %s\n", argv[4]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[4], "%d", &width) != 1) {
-	bu_log("fb_rect: bad width - %s", argv[4]);
+    if (bu_sscanf(argv[5], "%d", &height) != 1) {
+	bu_log("fb_rect: bad height - %s\n", argv[5]);
 	return BRLCAD_ERROR;
     }
-
-    if (sscanf(argv[5], "%d", &height) != 1) {
-	bu_log("fb_rect: bad height - %s", argv[5]);
-	return BRLCAD_ERROR;
-    }
-
 
     /* check width and height */
-    if (width <=0  || height <=0) {
-	bu_log("fb_rect: width and height must be > 0");
+    if (width <= 0 || height <= 0 || width > 32768 || height > 32768) {
+	bu_log("fb_rect: width and height must be > 0 and <= 32768\n");
+	return BRLCAD_ERROR;
+    }
+
+    fb_w = fb_getwidth(fbop->fbo_fbs.fbs_fbp);
+    fb_h = fb_getheight(fbop->fbo_fbs.fbs_fbp);
+    if (xmin < 0 || ymin < 0 || width > fb_w || height > fb_h ||
+	xmin > fb_w - width || ymin > fb_h - height) {
+	bu_log("fb_rect: rectangle exceeds framebuffer dimensions\n");
 	return BRLCAD_ERROR;
     }
 
@@ -718,8 +823,8 @@ fbo_rect_tcl(void *clientData, int argc, const char **argv)
      * Decompose the color list into its constituents.
      * For now must be in the form of rrr ggg bbb.
      */
-    if (fbo_tcllist2color(argv[6], pixel) == BRLCAD_ERROR) {
-	bu_log("fb_rect: invalid color spec: %s", argv[6]);
+    if (!argv[6] || fbo_tcllist2color(argv[6], pixel) == BRLCAD_ERROR) {
+	bu_log("fb_rect: invalid color spec: %s\n", argv[6] ? argv[6] : "");
 	return BRLCAD_ERROR;
     }
 
@@ -758,24 +863,33 @@ fbo_configure_tcl(void *clientData, int argc, const char **argv)
     struct fb_obj *fbop = (struct fb_obj *)clientData;
     int width, height;
 
+    if (!fbop || fbop->fbo_fbs.fbs_fbp == FB_NULL || !argv) {
+	bu_log("ERROR: framebuffer not open\n");
+	return BRLCAD_ERROR;
+    }
+
     if (argc != 4) {
 	bu_log("ERROR: expecting four arguments\n");
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[2], "%d", &width) != 1) {
-	bu_log("fb_configure: bad width - %s", argv[2]);
+    if (bu_sscanf(argv[2], "%d", &width) != 1) {
+	bu_log("fb_configure: bad width - %s\n", argv[2]);
 	return BRLCAD_ERROR;
     }
 
-    if (sscanf(argv[3], "%d", &height) != 1) {
-	bu_log("fb_configure: bad height - %s", argv[3]);
+    if (bu_sscanf(argv[3], "%d", &height) != 1) {
+	bu_log("fb_configure: bad height - %s\n", argv[3]);
+	return BRLCAD_ERROR;
+    }
+
+    if (width <= 0 || height <= 0 || width > 32768 || height > 32768) {
+	bu_log("fb_configure: invalid dimensions %dx%d\n", width, height);
 	return BRLCAD_ERROR;
     }
 
     /* configure the framebuffer window */
-    if (fbop->fbo_fbs.fbs_fbp != FB_NULL)
-	(void)fb_configure_window(fbop->fbo_fbs.fbs_fbp, width, height);
+    (void)fb_configure_window(fbop->fbo_fbs.fbs_fbp, width, height);
 
     return BRLCAD_OK;
 }
@@ -811,11 +925,14 @@ fbo_cmd(ClientData clientData, Tcl_Interp *UNUSED(interp), int argc, const char 
 	{(const char *)NULL, BU_CMD_NULL}
     };
 
-    if (bu_cmd(fbo_cmds, argc, argv, 1, clientData, &ret) == BRLCAD_OK)
-	return ret;
+    if (!clientData || !argv || argc < 2)
+	return TCL_ERROR;
 
-    bu_log("ERROR: '%s' command not found\n", argv[1]);
-    return BRLCAD_ERROR;
+    if (bu_cmd(fbo_cmds, argc, argv, 1, clientData, &ret) == BRLCAD_OK)
+	return (ret == BRLCAD_OK) ? TCL_OK : TCL_ERROR;
+
+    bu_log("ERROR: '%s' command not found\n", argv[1] ? argv[1] : "");
+    return TCL_ERROR;
 }
 
 
@@ -828,7 +945,7 @@ fbo_cmd(ClientData clientData, Tcl_Interp *UNUSED(interp), int argc, const char 
 static int
 fbo_open_tcl(void *UNUSED(clientData), Tcl_Interp *interp, int argc, const char **argv)
 {
-    struct bu_list *objects = fb_objects(interp, NULL);
+    struct bu_list *objects;
     struct fb_obj *fbop;
     struct fb *ifp;
     int width = 512;
@@ -836,19 +953,26 @@ fbo_open_tcl(void *UNUSED(clientData), Tcl_Interp *interp, int argc, const char 
     register int c;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-    BU_ASSERT(objects);
+    if (!interp || !argv)
+	return BRLCAD_ERROR;
+
+    objects = fb_objects(interp, NULL);
+    if (!objects) {
+	bu_log("fb_open: failed to get objects list\n");
+	return BRLCAD_ERROR;
+    }
 
     if (argc == 1) {
 	/* get list of framebuffer objects */
 	for (BU_LIST_FOR(fbop, fb_obj, objects))
-	    Tcl_AppendResult(interp, bu_vls_addr(&fbop->fbo_name), " ", (char *)NULL);
+	    Tcl_AppendResult(interp, bu_vls_cstr(&fbop->fbo_name), " ", (char *)NULL);
 
 	return BRLCAD_OK;
     }
 
-    if (argc < 3) {
+    if (argc < 3 || !argv[1] || !argv[2]) {
 	bu_vls_printf(&vls, "helplib fb_open");
-	Tcl_Eval(interp, bu_vls_addr(&vls));
+	Tcl_Eval(interp, bu_vls_cstr(&vls));
 	bu_vls_free(&vls);
 	return BRLCAD_ERROR;
     }
@@ -873,18 +997,23 @@ fbo_open_tcl(void *UNUSED(clientData), Tcl_Interp *interp, int argc, const char 
 		break;
 	    case '?':
 	    default:
-		bu_log("fb_open: bad option - %s", bu_optarg);
+		bu_log("fb_open: bad option - %s\n", bu_optarg ? bu_optarg : "");
 		return BRLCAD_ERROR;
 	}
     }
 
+    if (width <= 0 || height <= 0 || width > 32768 || height > 32768) {
+	bu_log("fb_open: invalid dimensions %dx%d\n", width, height);
+	return BRLCAD_ERROR;
+    }
+
     if ((ifp = fb_open(argv[2], width, height)) == FB_NULL) {
-	bu_log("fb_open: bad device - %s", argv[2]);
+	bu_log("fb_open: bad device - %s\n", argv[2]);
 	return BRLCAD_ERROR;
     }
 
     if (fb_ioinit(ifp) != 0) {
-	bu_log("fb_open: fb_ioinit() failed.");
+	bu_log("fb_open: fb_ioinit() failed.\n");
 	(void)fb_close(ifp);
 	return BRLCAD_ERROR;
     }
@@ -901,14 +1030,14 @@ fbo_open_tcl(void *UNUSED(clientData), Tcl_Interp *interp, int argc, const char 
     BU_LIST_APPEND(objects, &fbop->l);
 
     (void)Tcl_CreateCommand(interp,
-			    bu_vls_addr(&fbop->fbo_name),
+			    bu_vls_cstr(&fbop->fbo_name),
 			    (Tcl_CmdProc *)fbo_cmd,
 			    (ClientData)fbop,
 			    fbo_deleteProc);
 
     /* Return new function name as result */
     Tcl_ResetResult(interp);
-    Tcl_AppendResult(interp, bu_vls_addr(&fbop->fbo_name), (char *)NULL);
+    Tcl_AppendResult(interp, bu_vls_cstr(&fbop->fbo_name), (char *)NULL);
     return BRLCAD_OK;
 }
 
@@ -917,6 +1046,10 @@ TCLCAD_EXPORT int
 Fbo_Init(Tcl_Interp *interp)
 {
     int created = 0;
+
+    if (!interp)
+	return TCL_ERROR;
+
     (void)fb_objects(interp, &created);
     if (!created)
 	return TCL_OK;
@@ -934,6 +1067,9 @@ to_fbs_callback(void *clientData)
 {
     struct bview *gdvp = (struct bview *)clientData;
 
+    if (!gdvp)
+	return;
+
     to_refresh_view(gdvp);
 }
 
@@ -941,7 +1077,12 @@ to_fbs_callback(void *clientData)
 int
 to_close_fbs(struct bview *gdvp)
 {
-    struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
+    struct tclcad_view_data *tvd;
+
+    if (!gdvp || !gdvp->u_data)
+	return TCL_OK;
+
+    tvd = (struct tclcad_view_data *)gdvp->u_data;
     if (tvd->gdv_fbs.fbs_fbp == FB_NULL)
 	return TCL_OK;
 
@@ -959,10 +1100,19 @@ to_close_fbs(struct bview *gdvp)
 int
 to_open_fbs(struct bview *gdvp, Tcl_Interp *interp)
 {
-    /* already open */
-    struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
+    struct tclcad_view_data *tvd;
+
+    if (!gdvp || !gdvp->u_data || !interp)
+	return TCL_ERROR;
+
+    tvd = (struct tclcad_view_data *)gdvp->u_data;
     if (tvd->gdv_fbs.fbs_fbp != FB_NULL)
 	return TCL_OK;
+
+    if (!gdvp->dmp) {
+	Tcl_AppendResult(interp, "openfb: display manager not available\n", (char *)NULL);
+	return TCL_ERROR;
+    }
 
     tvd->gdv_fbs.fbs_fbp = dm_get_fb((struct dm *)gdvp->dmp);
 
@@ -993,37 +1143,53 @@ to_set_fb_mode(struct ged *gedp,
 	       int UNUSED(maxargs))
 {
     int mode;
+    struct bview *gdvp;
+    struct tclcad_view_data *tvd;
+
+    if (!gedp || !gedp->ged_result_str || !argv)
+	return BRLCAD_ERROR;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return GED_HELP;
     }
 
     if (3 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
-    struct bview *gdvp = bv_set_find_view(&gedp->ged_views, argv[1]);
+    if (!argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
+	return BRLCAD_ERROR;
+    }
+
+    gdvp = bv_set_find_view(&gedp->ged_views, argv[1]);
     if (!gdvp) {
 	bu_vls_printf(gedp->ged_result_str, "View not found - %s", argv[1]);
 	return BRLCAD_ERROR;
     }
 
+    if (!gdvp->u_data) {
+	bu_vls_printf(gedp->ged_result_str, "View data not found - %s", argv[1]);
+	return BRLCAD_ERROR;
+    }
+
+    tvd = (struct tclcad_view_data *)gdvp->u_data;
+
     /* Get fb mode */
     if (argc == 2) {
-	struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
 	bu_vls_printf(gedp->ged_result_str, "%d", tvd->gdv_fbs.fbs_mode);
 	return BRLCAD_OK;
     }
 
     /* Set fb mode */
-    if (bu_sscanf(argv[2], "%d", &mode) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "set_fb_mode: bad value - %s\n", argv[2]);
+    if (!argv[2] || bu_sscanf(argv[2], "%d", &mode) != 1) {
+	bu_vls_printf(gedp->ged_result_str, "set_fb_mode: bad value - %s\n", argv[2] ? argv[2] : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1032,10 +1198,7 @@ to_set_fb_mode(struct ged *gedp,
     else if (TCLCAD_OBJ_FB_MODE_OVERLAY < mode)
 	mode = TCLCAD_OBJ_FB_MODE_OVERLAY;
 
-    {
-	struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
-	tvd->gdv_fbs.fbs_mode = mode;
-    }
+    tvd->gdv_fbs.fbs_mode = mode;
     to_refresh_view(gdvp);
 
     return BRLCAD_OK;
@@ -1050,29 +1213,45 @@ to_listen(struct ged *gedp,
 	  const char *usage,
 	  int UNUSED(maxargs))
 {
+    struct bview *gdvp;
+    struct tclcad_view_data *tvd;
+
+    if (!gedp || !gedp->ged_result_str || !argv)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return GED_HELP;
     }
 
     if (3 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
-    struct bview *gdvp = bv_set_find_view(&gedp->ged_views, argv[1]);
+    if (!argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
+	return BRLCAD_ERROR;
+    }
+
+    gdvp = bv_set_find_view(&gedp->ged_views, argv[1]);
     if (!gdvp) {
 	bu_vls_printf(gedp->ged_result_str, "View not found - %s", argv[1]);
 	return BRLCAD_ERROR;
     }
 
-    struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
+    if (!gdvp->u_data) {
+	bu_vls_printf(gedp->ged_result_str, "View data not found - %s", argv[1]);
+	return BRLCAD_ERROR;
+    }
+
+    tvd = (struct tclcad_view_data *)gdvp->u_data;
     if (tvd->gdv_fbs.fbs_fbp == FB_NULL) {
-	bu_vls_printf(gedp->ged_result_str, "%s listen: framebuffer not open!\n", argv[0]);
+	bu_vls_printf(gedp->ged_result_str, "%s listen: framebuffer not open!\n", argv[0] ? argv[0] : "view");
 	return BRLCAD_ERROR;
     }
 
@@ -1090,10 +1269,10 @@ to_listen(struct ged *gedp,
     }
 
     if (argc == 3) {
-	if (BU_STR_EQUAL(argv[2], "ipc")) {
+	if (argv[2] && BU_STR_EQUAL(argv[2], "ipc")) {
 	    if (tvd->gdv_fbs.fbs_listener.fbsl_port >= 0)
 		fbs_close(&tvd->gdv_fbs);
-	    if (tclcad_listen_ipc(&tvd->gdv_fbs, (Tcl_Interp *)gedp->ged_interp) != BRLCAD_OK) {
+	    if (!gedp->ged_interp || tclcad_listen_ipc(&tvd->gdv_fbs, (Tcl_Interp *)gedp->ged_interp) != BRLCAD_OK) {
 		bu_vls_printf(gedp->ged_result_str, "listen: failed to start IPC listener\n");
 		return BRLCAD_ERROR;
 	    }
@@ -1110,8 +1289,13 @@ to_listen(struct ged *gedp,
 
 	int port;
 
-	if (bu_sscanf(argv[2], "%d", &port) != 1) {
-	    bu_vls_printf(gedp->ged_result_str, "listen: bad value - %s\n", argv[2]);
+	if (!argv[2] || bu_sscanf(argv[2], "%d", &port) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "listen: bad value - %s\n", argv[2] ? argv[2] : "");
+	    return BRLCAD_ERROR;
+	}
+
+	if (port > 65535) {
+	    bu_vls_printf(gedp->ged_result_str, "listen: port %d out of valid range [0, 65535]\n", port);
 	    return BRLCAD_ERROR;
 	}
 
@@ -1145,7 +1329,7 @@ to_listen(struct ged *gedp,
 	return BRLCAD_OK;
     }
 
-    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
     return BRLCAD_ERROR;
 }
 
