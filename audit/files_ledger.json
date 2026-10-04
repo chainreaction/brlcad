@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1551,
-    "pending_files": 1942,
-    "last_updated": "2026-10-04T04:40:00Z",
-    "total_issues": 344,
-    "reviewed_count": 1551
+    "reviewed_files": 1552,
+    "pending_files": 1941,
+    "last_updated": "2026-10-04T04:55:00Z",
+    "total_issues": 345,
+    "reviewed_count": 1552
   },
   "files": [
     {
@@ -32956,10 +32956,14 @@
       "path": "src/libtclcad/mouse.c",
       "subsystem": "src/libtclcad",
       "lines": 3594,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T04:55:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0324"
+      ],
+      "batch": 82,
+      "issue_id": "SEC-0324"
     },
     {
       "id": 3116,
