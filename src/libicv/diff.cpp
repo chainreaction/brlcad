@@ -174,8 +174,15 @@ write_nirt_shots_for_ri(const struct icv_render_info *ri,
 			size_t width, size_t height,
 			FILE *fp)
 {
+    if (!ri || !diffs || ndiff <= 0 || width == 0 || height == 0 || !fp)
+	return;
+
     const double aspect = (ri->aspect > 0.0) ? ri->aspect : ((double)width / (double)height);
+    if (aspect <= 0.0 || ZERO(aspect))
+	return;
     const double viewsize = ri->viewsize;
+    if (viewsize <= 0.0 || ZERO(viewsize))
+	return;
 
     /* Reconstruct view2model from Viewrotscale + eye translation */
     mat_t Viewrotscale;
@@ -191,9 +198,7 @@ write_nirt_shots_for_ri(const struct icv_render_info *ri,
     bn_mat_inv(view2model, model2view);
 
     const double cell_width  = viewsize / (double)width;
-    const double cell_height = (aspect > 0.0)
-			       ? viewsize / ((double)height * aspect)
-			       : viewsize / (double)height;
+    const double cell_height = viewsize / ((double)height * aspect);
 
     /* dx_model, dy_model – rotate only, then scale */
     vect_t dx_model, dy_model;
@@ -209,9 +214,12 @@ write_nirt_shots_for_ri(const struct icv_render_info *ri,
     }
 
     /* Precompute the perspective zoomout factor (0 for orthographic) */
-    const double zoomout = (ri->perspective > 0.0)
-			   ? 1.0 / tan(DEG2RAD * ri->perspective / 2.0)
-			   : 0.0;
+    double zoomout = 0.0;
+    if (ri->perspective > 0.0 && ri->perspective < 180.0) {
+	double t = tan(DEG2RAD * ri->perspective / 2.0);
+	if (!ZERO(t))
+	    zoomout = 1.0 / t;
+    }
 
     /* viewbase_model – lower-left corner of the view plane */
     point_t viewbase_model;
@@ -320,13 +328,19 @@ extern "C" int
 icv_diff_nirt_shots(const icv_image_t *img1, const icv_image_t *img2,
 		    FILE *nirt_out1, FILE *nirt_out2)
 {
-    if (!img1 || !img2)
+    if (!img1 || !img2 || !img1->data || !img2->data)
 	return -1;
     if (!nirt_out1 && !nirt_out2)
 	return -1;
 
     if (img1->width != img2->width || img1->height != img2->height) {
 	bu_log("icv_diff_nirt_shots: images must be the same size\n");
+	return -1;
+    }
+    if (img1->width == 0 || img1->height == 0)
+	return -1;
+    if (img1->channels != 3 || img2->channels != 3) {
+	bu_log("icv_diff_nirt_shots: images must have 3 channels\n");
 	return -1;
     }
 
@@ -360,13 +374,26 @@ icv_diff_nirt_shots(const icv_image_t *img1, const icv_image_t *img2,
     const size_t width  = img1->width;
     const size_t height = img1->height;
 
+    if (width > SIZE_MAX / height || (width * height) > SIZE_MAX / (8 * sizeof(unsigned int)))
+	return -1;
+
     /* Get uint8 pixel data for comparison */
     unsigned char *d1 = icv_data2uchar(img1);
     unsigned char *d2 = icv_data2uchar(img2);
+    if (!d1 || !d2) {
+	if (d1) bu_free(d1, "icv_diff_nirt d1");
+	if (d2) bu_free(d2, "icv_diff_nirt d2");
+	return -1;
+    }
 
     /* Collect all differing pixels into a flat tuple array */
     unsigned int *diffs = (unsigned int *)bu_malloc(
 			      width * height * 8 * sizeof(unsigned int), "nirt diffs");
+    if (!diffs) {
+	bu_free(d1, "icv_diff_nirt d1");
+	bu_free(d2, "icv_diff_nirt d2");
+	return -1;
+    }
     int ndiff = 0;
 
     for (size_t row = 0; row < height; row++) {
@@ -412,7 +439,11 @@ icv_diff(
     icv_image_t *img1, icv_image_t *img2
 )
 {
-    if (!img1 || !img2)
+    if (!img1 || !img2 || !img1->data || !img2->data)
+	return -1;
+    if (img1->width == 0 || img1->height == 0 || img2->width == 0 || img2->height == 0)
+	return -1;
+    if (img1->channels == 0 || img2->channels == 0)
 	return -1;
 
     int ret = 0;
@@ -424,26 +455,44 @@ icv_diff(
      */
     unsigned char *d1 = icv_data2uchar(img1);
     unsigned char *d2 = icv_data2uchar(img2);
+    if (!d1 || !d2) {
+	if (d1) bu_free(d1, "image 1 rgb");
+	if (d2) bu_free(d2, "image 2 rgb");
+	return -1;
+    }
+
     size_t s1 = img1->width * img1->height;
     size_t s2 = img2->width * img2->height;
     size_t smin = (s1 < s2) ? s1 : s2;
     size_t smax = (s1 > s2) ? s1 : s2;
 
+    size_t c1_ch = img1->channels;
+    size_t c2_ch = img2->channels;
+    size_t common_ch = (c1_ch < c2_ch) ? c1_ch : c2_ch;
+    if (common_ch > 3) common_ch = 3;
+
     for (size_t i = 0; i < smin; i++) {
-	int ch;
-	for (ch = 0; ch < 3; ch++) {
-	    int c1 = d1[i*3+ch];
-	    int c2 = d2[i*3+ch];
+	for (size_t ch = 0; ch < common_ch; ch++) {
+	    int c1 = d1[i * c1_ch + ch];
+	    int c2 = d2[i * c2_ch + ch];
 	    int diff = c1 - c2;
 	    if (diff < 0) diff = -diff;
 	    if (diff == 0) {
-		if (matching)(*matching)++;
+		if (matching) (*matching)++;
 	    } else if (diff == 1) {
 		ret = 1;
-		if (off_by_1)(*off_by_1)++;
+		if (off_by_1) (*off_by_1)++;
 	    } else {
 		ret = 1;
-		if (off_by_many)(*off_by_many)++;
+		if (off_by_many) (*off_by_many)++;
+	    }
+	}
+	if (c1_ch != c2_ch) {
+	    ret = 1;
+	    if (off_by_many) {
+		size_t diff_ch = (c1_ch > c2_ch) ? (c1_ch - c2_ch) : (c2_ch - c1_ch);
+		if (diff_ch > 3) diff_ch = 3;
+		(*off_by_many) += (int)diff_ch;
 	    }
 	}
     }
@@ -452,7 +501,11 @@ icv_diff(
     if (smin != smax) {
 	ret = 1;
 	if (off_by_many) {
-	    (*off_by_many) += (int)((smax - smin) * 3);
+	    size_t extra = (smax - smin) * common_ch;
+	    if (extra > (size_t)INT_MAX)
+		*off_by_many = INT_MAX;
+	    else
+		(*off_by_many) += (int)extra;
 	}
     }
 
@@ -467,11 +520,21 @@ icv_diffimg(icv_image_t *img1, icv_image_t *img2)
 {
     long p;
 
-    if (!img1 || !img2 || !img1->width || !img2->width)
+    if (!img1 || !img2 || !img1->data || !img2->data || !img1->width || !img2->width || !img1->height || !img2->height)
 	return NULL;
 
     if ((img1->width != img2->width) || (img1->height != img2->height) || (img1->channels != img2->channels)) {
-	bu_log("icv_diffimg : Image Parameters not Equal");
+	bu_log("icv_diffimg : Image Parameters not Equal\n");
+	return NULL;
+    }
+
+    if (img1->channels != 3) {
+	bu_log("icv_diffimg : Requires 3-channel images\n");
+	return NULL;
+    }
+
+    if (img1->width > SIZE_MAX / img1->height || (img1->width * img1->height) > SIZE_MAX / 3) {
+	bu_log("icv_diffimg : Image dimensions overflow\n");
 	return NULL;
     }
 
@@ -487,9 +550,20 @@ icv_diffimg(icv_image_t *img1, icv_image_t *img2)
      */
     unsigned char *d1 = icv_data2uchar(img1);
     unsigned char *d2 = icv_data2uchar(img2);
+    if (!d1 || !d2) {
+	if (d1) bu_free(d1, "image 1 rgb");
+	if (d2) bu_free(d2, "image 2 rgb");
+	return NULL;
+    }
+
     size_t s = img1->width * img1->height;
     size_t nbytes = s * 3;
     unsigned char *od = (unsigned char *)bu_malloc(nbytes, "diffimg output");
+    if (!od) {
+	bu_free(d1, "image 1 rgb");
+	bu_free(d2, "image 2 rgb");
+	return NULL;
+    }
     memset(od, 0, nbytes);
 
     for (size_t i = 0; i < s; i++) {
@@ -534,6 +608,11 @@ icv_diffimg(icv_image_t *img1, icv_image_t *img2)
     bu_free(d1, "image 1 rgb");
     bu_free(d2, "image 2 rgb");
     bu_free(od, "diffimg output");
+
+    if (!out_img->data) {
+	icv_destroy(out_img);
+	return NULL;
+    }
 
     return out_img;
 }

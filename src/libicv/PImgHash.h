@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 //
 // Copyright (c) 2021 Samuel Bear Powell
 //
@@ -63,7 +63,7 @@ void resize_row(size_t in_c, size_t in_w, const InT* in, size_t out_w, OutT* out
 		hist[c * 256 + convert_pix<uint8_t>(p)] += 1;
 		pix[c] = convert_pix<OutT>(p);
 	    }
-	    size_t tw = tiles[in_x];
+	    size_t tw = (in_x < tiles.size()) ? tiles[in_x] : 1;
 	    for (size_t tx = 0; tx < tw; ++tx) {
 		for (size_t c = 0; c < in_c; ++c, ++out) {
 		    if (accumulate) *out += pix[c];
@@ -78,7 +78,7 @@ void resize_row(size_t in_c, size_t in_w, const InT* in, size_t out_w, OutT* out
 	    for (size_t c = 0; c < in_c; ++c) {
 		pix[c] = 0;
 	    }
-	    size_t tw = tiles[out_x];
+	    size_t tw = (out_x < tiles.size()) ? tiles[out_x] : 1;
 	    for (size_t tx = 0; tx < tw; ++tx) {
 		for (size_t c = 0; c < in_c; ++c, ++in) {
 		    auto p = *in;
@@ -86,6 +86,7 @@ void resize_row(size_t in_c, size_t in_w, const InT* in, size_t out_w, OutT* out
 		    pix[c] += convert_pix<TmpT>(p);
 		}
 	    }
+	    if (tw == 0) tw = 1;
 	    for (size_t c = 0; c < in_c; ++c, ++out) {
 		if (accumulate) *out += convert_pix<OutT>(pix[c] / tw);
 		else *out = convert_pix<OutT>(pix[c] / tw);
@@ -127,7 +128,7 @@ void resize(const Image<InT>& in, Image<OutT>& out, std::vector<size_t>& hist)
 	std::vector<OutT> tmp(out.channels*out.width, 0);
 	for (size_t in_y = 0; in_y < in.height; ++in_y, in_row += in.row_size) {
 	    resize_row<InT, OutT, TmpT>(in.channels, in.width, in_row, out.width, tmp.data(), tile_w, false, hist);
-	    size_t th = tile_h[in_y];
+	    size_t th = (in_y < tile_h.size()) ? tile_h[in_y] : 1;
 	    //copy the input row to each row of the output in the tile
 	    for (size_t ty = 0; ty < th; ++ty, out_row += out.row_size) {
 		for (size_t out_x = 0, i = 0; out_x < out.width; ++out_x) {
@@ -142,10 +143,11 @@ void resize(const Image<InT>& in, Image<OutT>& out, std::vector<size_t>& hist)
 	std::vector<TmpT> tmp(out.channels * out.width, 0);
 	for (size_t out_y = 0; out_y < out.height; ++out_y, out_row += out.row_size) {
 	    std::fill(tmp.begin(), tmp.end(), TmpT(0));
-	    size_t th = tile_h[out_y];
+	    size_t th = (out_y < tile_h.size()) ? tile_h[out_y] : 1;
 	    for (size_t ty = 0; ty < th; ++ty, in_row += in.row_size) {
 		resize_row<InT, TmpT, TmpT>(in.channels, in.width, in_row, out.width, tmp.data(), tile_w, true, hist);
 	    }
+	    if (th == 0) th = 1;
 	    for (size_t out_x = 0, i = 0; out_x < out.width; ++out_x) {
 		for (size_t c = 0; c < out.channels; ++c, ++i) {
 		    out_row[i] = convert_pix<OutT>(tmp[i] / th);
@@ -167,12 +169,19 @@ struct Image {
 	allocate();
     }
     Image(size_t i_height, size_t i_width, size_t i_channels = 1)
-	: Image(i_height, i_width, i_channels, i_height* i_width* i_channels, i_width* i_channels)
-    {}
+	: data(nullptr), height(i_height), width(i_width), channels(i_channels),
+	  size((i_height > 0 && i_width > 0 && i_channels > 0 && i_width <= SIZE_MAX / i_height && (i_width * i_height) <= SIZE_MAX / i_channels) ? i_height * i_width * i_channels : 0),
+	  row_size((i_width > 0 && i_channels > 0 && i_width <= SIZE_MAX / i_channels) ? i_width * i_channels : 0)
+    {
+	allocate();
+    }
     Image(const Image& other)
 	: data(nullptr), height(other.height), width(other.width), channels(other.channels), size(other.size), row_size(other.row_size)
     {
-	data = new std::vector<T>(*other.data);
+	if (other.data)
+	    data = new std::vector<T>(*other.data);
+	else
+	    allocate();
     }
     Image(Image&& other) noexcept
 	: data(other.data), height(other.height), width(other.width), channels(other.channels), size(other.size), row_size(other.row_size)
@@ -187,9 +196,14 @@ struct Image {
 	    channels = other.channels;
 	    size = other.size;
 	    row_size = other.row_size;
-	    if (!data)
-		data = new std::vector<T>;
-	    *data = *other.data;
+	    if (other.data) {
+		if (!data)
+		    data = new std::vector<T>;
+		*data = *other.data;
+	    } else {
+		delete data;
+		data = nullptr;
+	    }
 	}
 	return *this;
     }
@@ -228,20 +242,20 @@ struct Image {
 
     T* begin()
     {
-	return (T*)data->data();
+	return data ? (T*)data->data() : nullptr;
     }
     const T* begin() const
     {
-	return (const T*)data->data();
+	return data ? (const T*)data->data() : nullptr;
     }
 
     T* end()
     {
-	return begin() + size;
+	return begin() ? begin() + size : nullptr;
     }
     const T* end() const
     {
-	return begin() + size;
+	return begin() ? begin() + size : nullptr;
     }
 
     T at(size_t i) const
@@ -293,6 +307,8 @@ public:
     template<class RowT>
     bool add_row(const RowT* input_row)
     {
+	if (!input_row || !img.begin() || i >= img.size)
+	    return false;
 	auto img_row = img.begin() + i;
 	if (img.height == in_h) {
 	    resize_row<RowT, float, float>(in_c, in_w, input_row, img.width, img_row, tile_w, false, hist);
@@ -309,7 +325,8 @@ public:
 	    }
 	    resize_row<RowT, float, float>(in_c, in_w, input_row, img.width, img_row, tile_w, true, hist);
 	    ++ty;
-	    size_t th = tile_h[y];
+	    size_t th = (y < tile_h.size()) ? tile_h[y] : 1;
+	    if (th == 0) th = 1;
 	    if (ty >= th) {
 		ty = 0;
 		++y;
@@ -323,11 +340,13 @@ public:
 	} else {
 	    std::vector<float> tmp(img.width * img.channels, 0);
 	    resize_row<RowT, float, float>(in_c, in_w, input_row, img.width, tmp.data(), tile_w, false, hist);
-	    size_t th = tile_h[ty++];
-	    for (size_t k = 0; k < th; ++k, ++y, i += img.row_size) {
+	    size_t th = (ty < tile_h.size()) ? tile_h[ty++] : 1;
+	    for (size_t k = 0; k < th && y < img.height; ++k, ++y, i += img.row_size) {
 		for (size_t x = 0, j = 0; x < img.width; ++x) {
 		    for (size_t c = 0; c < img.channels; ++c, ++j) {
-			img[i + j] = tmp[j];
+			if (i + j < img.size) {
+			    img[i + j] = tmp[j];
+			}
 		    }
 		}
 	    }

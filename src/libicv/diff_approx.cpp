@@ -48,21 +48,26 @@ sample_to_u8(double sample)
     return static_cast<uint8_t>(lrint(sample * 255.0));
 }
 
-void
+static void
 load_icv(icv_image_t *img, imghash::Preprocess *prep)
 {
-    size_t rows, cols;
-    prep->start(img->height, img->width, 3);
-    rows = img->height;
-    cols = img->width;
+    if (!img || !img->data || !prep || img->channels != 3 || img->width == 0 || img->height == 0)
+	return;
+    if (img->width > SIZE_MAX / img->height / 3)
+	return;
+
+    size_t rows = img->height;
+    size_t cols = img->width;
+    prep->start(rows, cols, 3);
     for (size_t i = 0; i < rows; i++) {
 	std::vector<uint8_t> row;
+	row.reserve(cols * 3);
+	size_t row_offset = (rows - 1 - i) * cols * 3;
 	for (size_t j = 0; j < cols ; j++) {
-	    size_t offset = ((rows - 1) * cols * 3) - (i * cols * 3);
-	    row.push_back(sample_to_u8(img->data[offset + j*3+0]));
-	    row.push_back(sample_to_u8(img->data[offset + j*3+1]));
-	    row.push_back(sample_to_u8(img->data[offset + j*3+2]));
-	    //std::cout << "rgb: " << (int)row[row.size()-3] << " " << (int)row[row.size()-2] << " " << (int)row[row.size()-1] << "\n";
+	    size_t offset = row_offset + j * 3;
+	    row.push_back(sample_to_u8(img->data[offset + 0]));
+	    row.push_back(sample_to_u8(img->data[offset + 1]));
+	    row.push_back(sample_to_u8(img->data[offset + 2]));
 	}
 	prep->add_row(row.data());
     }
@@ -75,8 +80,10 @@ pdiff_dct(icv_image_t *img1, icv_image_t *img2)
     if (!img1 || !img2 || !img1->data || !img2->data ||
 	img1->channels != 3 || img2->channels != 3 ||
 	img1->width == 0 || img1->height == 0 ||
-	img2->width == 0 || img2->height == 0) {
-	bu_log("ERROR: pdiff_dct requires exactly 3 channels per image\n");
+	img2->width == 0 || img2->height == 0 ||
+	img1->width > SIZE_MAX / img1->height / 3 ||
+	img2->width > SIZE_MAX / img2->height / 3) {
+	bu_log("ERROR: pdiff_dct requires valid 3-channel images\n");
 	return -1.0;
     }
 
@@ -134,14 +141,22 @@ ssim_calc(icv_image_t *img1, icv_image_t *img2)
     long long window_count = 0;
 
     /* Validate structures */
-    ICV_IMAGE_VAL_INT(img1);
-    ICV_IMAGE_VAL_INT(img2);
+    if (!img1 || !img2 || !img1->data || !img2->data ||
+	img1->magic != ICV_IMAGE_MAGIC || img2->magic != ICV_IMAGE_MAGIC) {
+	return -1.0;
+    }
 
     /* Validate compatibility */
     if (img1->width != img2->width || img1->height != img2->height || img1->channels != img2->channels) {
 	bu_log("icv_ssim : Image dimensions or channels do not match.\n");
 	return -1.0;
     }
+
+    if (img1->width == 0 || img1->height == 0 || img1->channels == 0)
+	return -1.0;
+
+    if (img1->width > SIZE_MAX / img1->height || (img1->width * img1->height) > SIZE_MAX / img1->channels)
+	return -1.0;
 
     width = img1->width;
     height = img1->height;
@@ -177,6 +192,8 @@ ssim_calc(icv_image_t *img1, icv_image_t *img2)
 
 			double p1 = data1[idx];
 			double p2 = data2[idx];
+			if (!std::isfinite(p1)) p1 = 0.0;
+			if (!std::isfinite(p2)) p2 = 0.0;
 
 			/* Accumulate means (E[X]) */
 			mu1 += p1 * weight;
@@ -219,6 +236,7 @@ extern "C" fastf_t
 icv_adiff(icv_image_t *img1, icv_image_t *img2, int m)
 {
     if (!img1 || !img2 || !img1->data || !img2->data ||
+	    img1->width == 0 || img1->height == 0 || img1->channels == 0 ||
 	    img1->channels != img2->channels ||
 	    img1->width != img2->width || img1->height != img2->height) {
 	// Return a failing score if images are invalid or dimensions mismatched

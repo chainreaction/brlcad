@@ -195,18 +195,16 @@ json_to_render_info(const char *text, struct icv_render_info *info)
 extern "C" int
 png_write(icv_image_t *bif, FILE *fp)
 {
-    if (UNLIKELY(!bif))
+    if (UNLIKELY(!bif || !bif->data || bif->width == 0 || bif->height == 0 || bif->channels == 0 || bif->channels > 4))
 	return BRLCAD_ERROR;
     if (UNLIKELY(!fp))
 	return BRLCAD_ERROR;
 
+    if (bif->width > SIZE_MAX / bif->channels / bif->height)
+	return BRLCAD_ERROR;
+
     int png_color_type;
     std::string scene_json;
-
-    if (bif->channels > 4 || bif->channels == 0) {
-	bu_log("png_write : Invalid number of channels (%d)\n", (int)bif->channels);
-	return BRLCAD_ERROR;
-    }
 
     switch (bif->color_space) {
 	case ICV_COLOR_SPACE_GRAY:
@@ -216,7 +214,9 @@ png_write(icv_image_t *bif, FILE *fp)
 	    png_color_type = (bif->channels == 4) ? PNG_COLOR_TYPE_RGBA : PNG_COLOR_TYPE_RGB;
     }
 
-    unsigned char *data = icv_data2uchar(bif);
+    unsigned char * volatile data = icv_data2uchar(bif);
+    if (!data)
+	return BRLCAD_ERROR;
 
     png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     if (UNLIKELY(png_ptr == NULL)) {
@@ -227,7 +227,7 @@ png_write(icv_image_t *bif, FILE *fp)
     png_infop info_ptr = png_create_info_struct(png_ptr);
     if (info_ptr == NULL || setjmp(png_jmpbuf(png_ptr))) {
 	png_destroy_write_struct(&png_ptr, info_ptr ? &info_ptr : NULL);
-	bu_log("ERROR: Unable to create png header\n");
+	bu_log("ERROR: Unable to create png header or write data\n");
 	bu_free(data, "png write uchar data");
 	return BRLCAD_ERROR;
     }
@@ -284,13 +284,26 @@ extern "C" {
     icv_png_mem_write(png_structp png_ptr, png_bytep data, png_size_t length)
     {
 	struct icv_png_mem_ctx *ctx = (struct icv_png_mem_ctx *)png_get_io_ptr(png_ptr);
+	if (!ctx) {
+	    png_error(png_ptr, "icv_png_mem_write: context is NULL");
+	    return;
+	}
+
+	if (length > SIZE_MAX - ctx->size) {
+	    png_error(png_ptr, "icv_png_mem_write: buffer size overflow");
+	    return;
+	}
 
 	/* Expand buffer if needed */
 	if (ctx->size + length > ctx->capacity) {
-	    ctx->capacity = (ctx->capacity == 0) ? 8192 : ctx->capacity * 2;
-	    if (ctx->capacity < ctx->size + length) {
-		ctx->capacity = ctx->size + length;
+	    size_t new_cap = (ctx->capacity == 0) ? 8192 : ctx->capacity;
+	    while (new_cap < ctx->size + length && new_cap <= SIZE_MAX / 2) {
+		new_cap *= 2;
 	    }
+	    if (new_cap < ctx->size + length) {
+		new_cap = ctx->size + length;
+	    }
+	    ctx->capacity = new_cap;
 	    ctx->buffer = (unsigned char *)bu_realloc(ctx->buffer, ctx->capacity, "png_mem buffer");
 	}
 
@@ -312,13 +325,16 @@ png_write_mem(icv_image_t *bif, unsigned char **outbuffer, size_t *outsize)
 {
     png_structp png_ptr;
     png_infop info_ptr;
-    unsigned char *data;
+    unsigned char * volatile data = NULL;
     size_t row;
     int color_type;
     struct icv_png_mem_ctx ctx;
 
-    if (UNLIKELY(!bif)) return BRLCAD_ERROR;
+    if (UNLIKELY(!bif || !bif->data || bif->width == 0 || bif->height == 0 || bif->channels == 0 || bif->channels > 4)) return BRLCAD_ERROR;
     if (UNLIKELY(!outbuffer || !outsize)) return BRLCAD_ERROR;
+
+    if (bif->width > SIZE_MAX / bif->channels / bif->height)
+	return BRLCAD_ERROR;
 
     *outbuffer = NULL;
     *outsize = 0;
@@ -346,6 +362,7 @@ png_write_mem(icv_image_t *bif, unsigned char **outbuffer, size_t *outsize)
     if (setjmp(png_jmpbuf(png_ptr))) {
 	bu_log("png_write_mem: Error writing PNG to memory\n");
 	png_destroy_write_struct(&png_ptr, &info_ptr);
+	if (data) bu_free(data, "png_write_mem data");
 	if (ctx.buffer) bu_free(ctx.buffer, "png_mem buffer");
 	return BRLCAD_ERROR;
     }
@@ -396,6 +413,7 @@ png_write_mem(icv_image_t *bif, unsigned char **outbuffer, size_t *outsize)
     png_write_end(png_ptr, info_ptr);
     png_destroy_write_struct(&png_ptr, &info_ptr);
     bu_free(data, "png_write_mem data");
+    data = NULL;
 
     /* Trim allocated memory to exact final size */
     if (ctx.size > 0 && ctx.size < ctx.capacity) {
@@ -438,14 +456,14 @@ png_read(FILE *fp)
 	return NULL;
     }
 
-    icv_image_t *bif = NULL;
-    unsigned char *image = NULL;
-    unsigned char **rows = NULL;
+    icv_image_t * volatile bif = NULL;
+    unsigned char * volatile image = NULL;
+    unsigned char ** volatile rows = NULL;
 
     if (setjmp(png_jmpbuf(png_p))) {
 	png_destroy_read_struct(&png_p, &info_p, NULL);
 	bu_log("png_read: Error reading PNG file\n");
-	if (bif) bu_free(bif, "bif");
+	if (bif) icv_destroy(bif);
 	if (image) bu_free(image, "image");
 	if (rows) bu_free(rows, "png rows");
 	return NULL;
@@ -504,10 +522,13 @@ png_read(FILE *fp)
 
     png_read_update_info(png_p, info_p);
 
-    if (bif->width > 0 && bif->height > (size_t)-1 / bif->width / 3 / sizeof(double)) {
-	bu_log("png_read: dimensions excessively large, causing integer overflow\n");
+    size_t rowbytes = png_get_rowbytes(png_p, info_p);
+    if (bif->width == 0 || bif->height == 0 || rowbytes != bif->width * 3 ||
+	bif->height > SIZE_MAX / rowbytes / sizeof(double) ||
+	bif->height > SIZE_MAX / sizeof(unsigned char *)) {
+	bu_log("png_read: invalid or excessively large dimensions\n");
 	png_destroy_read_struct(&png_p, &info_p, NULL);
-	bu_free(bif, "bif");
+	icv_destroy(bif);
 	return NULL;
     }
 
@@ -523,12 +544,19 @@ png_read(FILE *fp)
 
     bif->data = icv_uchar2double(image, 3 * bif->width * bif->height);
     bu_free(image, "png_read : unsigned char data");
+    image = NULL;
     bif->magic = ICV_IMAGE_MAGIC;
     bif->channels = 3;
     bif->color_space = ICV_COLOR_SPACE_RGB;
 
     png_destroy_read_struct(&png_p, &info_p, NULL);
     bu_free(rows, "png rows");
+    rows = NULL;
+
+    if (!bif->data) {
+	icv_destroy(bif);
+	return NULL;
+    }
 
     return bif;
 }
@@ -550,7 +578,7 @@ user_read_data(png_structp png_ptr, png_bytep data, png_size_t length)
 
     struct png_mem_source *src = (struct png_mem_source *)io_ptr;
 
-    if (src->offset + length > src->size) {
+    if (length > src->size - src->offset) {
 	png_error(png_ptr, "png_read_mem: Read beyond end of buffer");
 	return;
     }
@@ -565,9 +593,9 @@ png_read_mem(const unsigned char *buffer, size_t size)
     if (UNLIKELY(!buffer || size == 0))
 	return NULL;
 
-    icv_image_t *bif = NULL;
-    unsigned char *data = NULL;
-    png_bytep *row_pointers = NULL;
+    icv_image_t * volatile bif = NULL;
+    unsigned char * volatile data = NULL;
+    png_bytep * volatile row_pointers = NULL;
 
     png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     if (UNLIKELY(png_ptr == NULL))
@@ -582,7 +610,7 @@ png_read_mem(const unsigned char *buffer, size_t size)
     if (setjmp(png_jmpbuf(png_ptr))) {
 	png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
 	bu_log("png_read_mem: Error reading PNG buffer\n");
-	if (bif) bu_free(bif, "bif");
+	if (bif) icv_destroy(bif);
 	if (data) bu_free(data, "png_read_mem unsigned char data");
 	if (row_pointers) bu_free(row_pointers, "row_pointers");
 	return NULL;
@@ -638,15 +666,25 @@ png_read_mem(const unsigned char *buffer, size_t size)
 
     png_size_t rowbytes = png_get_rowbytes(png_ptr, info_ptr);
 
-    if (rowbytes > 0 && height > (size_t)-1 / rowbytes) {
-	bu_log("png_read_mem: dimensions excessively large, causing integer overflow\n");
+    if (width == 0 || height == 0 || rowbytes == 0 ||
+	(size_t)height > SIZE_MAX / rowbytes / sizeof(double)) {
+	bu_log("png_read_mem: dimensions invalid or excessively large\n");
 	png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
 	return NULL;
     }
 
     data = (unsigned char *)bu_malloc(rowbytes * height, "png_read_mem unsigned char data");
+    if (!data) {
+	png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+	return NULL;
+    }
 
     row_pointers = (png_bytep*)bu_malloc(sizeof(png_bytep) * height, "row_pointers");
+    if (!row_pointers) {
+	bu_free(data, "png_read_mem unsigned char data");
+	png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+	return NULL;
+    }
     for (png_uint_32 row = 0; row < height; row++) {
 	row_pointers[height - 1 - row] = data + row * rowbytes;
     }
@@ -655,6 +693,7 @@ png_read_mem(const unsigned char *buffer, size_t size)
 
     png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
     bu_free(row_pointers, "row_pointers");
+    row_pointers = NULL;
 
     BU_ALLOC(bif, struct icv_image);
     ICV_IMAGE_INIT(bif);
@@ -666,6 +705,12 @@ png_read_mem(const unsigned char *buffer, size_t size)
     bif->magic = ICV_IMAGE_MAGIC;
     bif->data = icv_uchar2double(data, (size_t)(rowbytes * height));
     bu_free(data, "png_read_mem unsigned char data");
+    data = NULL;
+
+    if (!bif->data) {
+	icv_destroy(bif);
+	return NULL;
+    }
 
     return bif;
 }

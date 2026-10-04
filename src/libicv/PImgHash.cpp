@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 //
 // Copyright (c) 2021 Samuel Bear Powell
 //
@@ -51,6 +51,10 @@ template<> float convert_pix<float>(float p)
 }
 template<> uint8_t convert_pix<uint8_t>(float p)
 {
+    if (std::isnan(p) || p <= 0.0f)
+	return 0;
+    if (p >= 1.0f)
+	return 255;
     return static_cast<uint8_t>(p * 255.9999f); //we could use nextafter(256, 0) but it might not be optimized away
 }
 
@@ -131,6 +135,10 @@ std::vector<uint8_t> DCTHasher::apply(const Image<float>& image)
 {
     if (image.width != image.height || image.channels != 1) {
 	throw std::runtime_error("DCT: image must be square and single-channel");
+    }
+    if (image.width == 0) {
+	clear();
+	return bytes;
     }
     if (N_ != image.width) {
 	N_ = static_cast<unsigned>(image.width);
@@ -215,13 +223,20 @@ std::vector<size_t> tile_size(size_t a, size_t b)
 {
     // a > b
     //Use modified Bresenham's algorithm to distribute b groups over a items
+    if (b == 0)
+	return std::vector<size_t>();
+    if (a == 0)
+	return std::vector<size_t>(b, 0);
 
     intptr_t D = intptr_t(b) - intptr_t(a); //the usual algorithm uses b - 2*a, but that reduces the size of the first and last bins by half
     std::vector<size_t> sizes(b, 0);
     for (size_t i = 0, j = 0; i < a; ++i) {
-	sizes[j]++;
+	if (j < b) {
+	    sizes[j]++;
+	}
 	if (D > 0) {
-	    ++j;
+	    if (j + 1 < b)
+		++j;
 	    D += intptr_t(b) - intptr_t(a);
 	} else {
 	    D += intptr_t(b);
@@ -242,18 +257,25 @@ void Preprocess::start(size_t input_height, size_t input_width, size_t input_cha
     in_h = input_height;
     in_c = input_channels;
 
-    if (img.height > in_h) tile_h = tile_size(img.height, in_h);
-    else if (in_h> img.height) tile_h = tile_size(in_h, img.height);
+    tile_h.clear();
+    tile_w.clear();
 
-    if (img.width > in_w) tile_w = tile_size(img.width, in_w);
-    else if (in_w> img.width) tile_w = tile_size(in_w, img.width);
+    if (in_h > 0 && img.height > 0) {
+	if (img.height > in_h) tile_h = tile_size(img.height, in_h);
+	else if (in_h > img.height) tile_h = tile_size(in_h, img.height);
+    }
 
-    if (hist.size() != in_c * 256) {
+    if (in_w > 0 && img.width > 0) {
+	if (img.width > in_w) tile_w = tile_size(img.width, in_w);
+	else if (in_w > img.width) tile_w = tile_size(in_w, img.width);
+    }
+
+    if (in_c > 0 && hist.size() != in_c * 256) {
 	hist.resize(in_c * 256);
     }
     std::fill(hist.begin(), hist.end(), 0);
 
-    if (img.channels != in_c) {
+    if (in_c > 0 && img.channels != in_c) {
 	img = Image<float>(img.height, img.width, in_c);
     }
     y = 0;
@@ -268,24 +290,33 @@ Image<float> Preprocess::stop()
     std::vector<float> lut;
     lut.reserve(hist.size());
     size_t in_count = in_c * in_w * in_h;
-    for (size_t c = 0, j = 0; c < in_c; ++c) {
+    if (in_count == 0 || in_c == 0 || in_w == 0 || in_h == 0) {
+	return Image<float>(img.height, img.width, 1);
+    }
+    for (size_t c = 0, j = 0; c < in_c && j < hist.size(); ++c) {
 	size_t sum = 0;
-	for (size_t ip = 0; ip < hist_bins; ++ip, ++j) {
+	for (size_t ip = 0; ip < hist_bins && j < hist.size(); ++ip, ++j) {
 	    sum += hist[j];
 	    lut.push_back(float(sum) / in_count);
 	}
     }
 
     Image<float> out(img.height, img.width, 1);
+    if (lut.empty())
+	return out;
+
     //apply the equalization, storing the result in out
     for (size_t out_y = 0, out_i = 0, img_i = 0;
 	 out_y < out.height;
 	 ++out_y, out_i += out.row_size, img_i += img.row_size) {
 	for (size_t out_x = 0, out_j = out_i, img_j = img_i; out_x < out.width; ++out_x, ++out_j) {
 	    float sum = 0.0f;
-	    for (size_t c = 0; c < img.channels; ++c, ++img_j) {
+	    for (size_t c = 0; c < img.channels && c < in_c; ++c, ++img_j) {
 		auto p = img[img_j];
-		sum += lut[c * hist_bins + convert_pix<uint8_t>(p)];
+		size_t lut_idx = c * hist_bins + convert_pix<uint8_t>(p);
+		if (lut_idx < lut.size()) {
+		    sum += lut[lut_idx];
+		}
 	    }
 	    out[out_j] = sum;
 	}
