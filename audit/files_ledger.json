@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1570,
-    "pending_files": 1923,
-    "last_updated": "2026-10-04T08:10:00Z",
-    "total_issues": 348,
-    "reviewed_count": 1570
+    "reviewed_files": 1575,
+    "pending_files": 1918,
+    "last_updated": "2026-10-04T12:00:00Z",
+    "total_issues": 349,
+    "reviewed_count": 1575
   },
   "files": [
     {
@@ -27239,20 +27239,24 @@
       "path": "src/libicv/PImgHash.cpp",
       "subsystem": "src/libicv",
       "lines": 308,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T12:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0328"
+      ]
     },
     {
       "id": 2552,
       "path": "src/libicv/PImgHash.h",
       "subsystem": "src/libicv",
       "lines": 446,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T12:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0328"
+      ]
     },
     {
       "id": 2553,
@@ -27327,20 +27331,24 @@
       "path": "src/libicv/diff.cpp",
       "subsystem": "src/libicv",
       "lines": 549,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T12:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0328"
+      ]
     },
     {
       "id": 2560,
       "path": "src/libicv/diff_approx.cpp",
       "subsystem": "src/libicv",
       "lines": 247,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T12:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0328"
+      ]
     },
     {
       "id": 2561,
@@ -27455,10 +27463,12 @@
       "path": "src/libicv/png.cpp",
       "subsystem": "src/libicv",
       "lines": 683,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T12:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0328"
+      ]
     },
     {
       "id": 2571,
@@ -37128,5 +37138,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-10-04T08:10:00Z"
+  "last_updated": "2026-10-04T12:00:00Z"
 }
