@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1542,
-    "pending_files": 1951,
-    "last_updated": "2026-10-04T04:35:00Z",
-    "total_issues": 341,
-    "reviewed_count": 1542
+    "reviewed_files": 1547,
+    "pending_files": 1946,
+    "last_updated": "2026-10-04T04:45:00Z",
+    "total_issues": 342,
+    "reviewed_count": 1547
   },
   "files": [
     {
@@ -32844,10 +32844,12 @@
       "path": "src/libtclcad/bu.c",
       "subsystem": "src/libtclcad",
       "lines": 451,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "batch": 79,
+      "issue_id": "SEC-0321"
     },
     {
       "id": 3106,
@@ -32914,10 +32916,12 @@
       "path": "src/libtclcad/fbserv.c",
       "subsystem": "src/libtclcad",
       "lines": 353,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "batch": 79,
+      "issue_id": "SEC-0321"
     },
     {
       "id": 3113,
@@ -32964,10 +32968,12 @@
       "path": "src/libtclcad/rt.c",
       "subsystem": "src/libtclcad",
       "lines": 804,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "batch": 79,
+      "issue_id": "SEC-0321"
     },
     {
       "id": 3118,
@@ -33014,10 +33020,12 @@
       "path": "src/libtclcad/tkImgFmtPIX.c",
       "subsystem": "src/libtclcad",
       "lines": 362,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "batch": 79,
+      "issue_id": "SEC-0321"
     },
     {
       "id": 3123,
@@ -33124,10 +33132,12 @@
       "path": "src/libtclcad/wrapper.c",
       "subsystem": "src/libtclcad",
       "lines": 418,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
-      "issue_ids": []
+      "issue_ids": [],
+      "batch": 79,
+      "issue_id": "SEC-0321"
     },
     {
       "id": 3134,
