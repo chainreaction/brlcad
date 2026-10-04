@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1594,
-    "pending_files": 1899,
-    "last_updated": "2026-10-04T17:30:00Z",
-    "total_issues": 355,
-    "reviewed_count": 1594
+    "reviewed_files": 1595,
+    "pending_files": 1898,
+    "last_updated": "2026-10-04T20:10:00Z",
+    "total_issues": 356,
+    "reviewed_count": 1595
   },
   "files": [
     {
@@ -27731,10 +27731,12 @@
       "path": "src/libnmg/fuse.c",
       "subsystem": "src/libnmg",
       "lines": 3468,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T20:10:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0335"
+      ]
     },
     {
       "id": 2593,
