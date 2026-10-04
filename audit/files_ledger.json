@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1549,
-    "pending_files": 1944,
-    "last_updated": "2026-10-04T04:30:00Z",
-    "total_issues": 343,
-    "reviewed_count": 1549
+    "reviewed_files": 1551,
+    "pending_files": 1942,
+    "last_updated": "2026-10-04T04:40:00Z",
+    "total_issues": 344,
+    "reviewed_count": 1551
   },
   "files": [
     {
@@ -32888,10 +32888,14 @@
       "path": "src/libtclcad/dm.c",
       "subsystem": "src/libtclcad",
       "lines": 2961,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T04:40:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0323"
+      ],
+      "batch": 81,
+      "issue_id": "SEC-0323"
     },
     {
       "id": 3110,
@@ -32962,10 +32966,14 @@
       "path": "src/libtclcad/polygons.c",
       "subsystem": "src/libtclcad",
       "lines": 1820,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T04:40:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0323"
+      ],
+      "batch": 81,
+      "issue_id": "SEC-0323"
     },
     {
       "id": 3117,
