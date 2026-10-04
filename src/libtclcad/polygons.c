@@ -40,10 +40,50 @@
 #include "./tclcad_private.h"
 #include "./view/view.h"
 
+static void
+_free_partial_poly(struct bg_polygon *gpp, size_t num_contours)
+{
+    size_t i;
+    if (!gpp)
+	return;
+    if (gpp->contour) {
+	for (i = 0; i < num_contours; ++i) {
+	    if (gpp->contour[i].point) {
+		bu_free(gpp->contour[i].point, "point");
+		gpp->contour[i].point = NULL;
+	    }
+	}
+	bu_free(gpp->contour, "contour");
+	gpp->contour = NULL;
+    }
+    if (gpp->hole) {
+	bu_free(gpp->hole, "hole");
+	gpp->hole = NULL;
+    }
+    gpp->num_contours = 0;
+}
+
+static void
+_free_partial_polygon_state(bv_data_polygon_state *gdpsp, size_t num_polygons)
+{
+    size_t i;
+    if (!gdpsp || !gdpsp->gdps_polygons.polygon)
+	return;
+    for (i = 0; i < num_polygons; ++i) {
+	bg_polygon_free(&gdpsp->gdps_polygons.polygon[i]);
+    }
+    bu_free(gdpsp->gdps_polygons.polygon, "data polygons");
+    gdpsp->gdps_polygons.polygon = NULL;
+    gdpsp->gdps_polygons.num_polygons = 0;
+}
+
 static int
 to_extract_contours_av(Tcl_Interp *interp, struct ged *gedp, struct bview *gdvp, struct bg_polygon *gpp, size_t contour_ac, const char **contour_av, int mode, int vflag)
 {
-    register size_t j = 0, k = 0;
+    size_t j = 0, k = 0;
+
+    if (!interp || !gedp || !gedp->ged_result_str || !gpp || !contour_av || (vflag && !gdvp))
+	return BRLCAD_ERROR;
 
     gpp->num_contours = contour_ac;
     gpp->hole = NULL;
@@ -61,9 +101,16 @@ to_extract_contours_av(Tcl_Interp *interp, struct ged *gedp, struct bview *gdvp,
 	const char **point_av;
 	int hole;
 
+	if (!contour_av[j]) {
+	    bu_vls_printf(gedp->ged_result_str, "contour %zu: null contour data\n", j);
+	    _free_partial_poly(gpp, j);
+	    return BRLCAD_ERROR;
+	}
+
 	/* Split contour j into points */
 	if (Tcl_SplitList(interp, contour_av[j], &ac, &point_av) != TCL_OK) {
 	    bu_vls_printf(gedp->ged_result_str, "%s", Tcl_GetStringResult(interp));
+	    _free_partial_poly(gpp, j);
 	    return BRLCAD_ERROR;
 	}
 	point_ac = ac;
@@ -72,16 +119,18 @@ to_extract_contours_av(Tcl_Interp *interp, struct ged *gedp, struct bview *gdvp,
 	if (mode != BV_POLY_CONTOUR_MODE && point_ac < 4) {
 	    bu_vls_printf(gedp->ged_result_str, "There must be at least 3 points per contour");
 	    Tcl_Free((char *)point_av);
+	    _free_partial_poly(gpp, j);
 	    return BRLCAD_ERROR;
 	}
 
-	gpp->contour[j].num_points = point_ac - 1;
+	gpp->contour[j].num_points = (point_ac > 0) ? (point_ac - 1) : 0;
 	gpp->contour[j].point = (point_t *)bu_calloc(point_ac, sizeof(point_t), "point");
 
-	if (bu_sscanf(point_av[0], "%d", &hole) != 1) {
-	    bu_vls_printf(gedp->ged_result_str, "contour %zu, point %zu: bad hole flag - %s\n",
-			  j, k, point_av[k]);
+	if (!point_av[0] || bu_sscanf(point_av[0], "%d", &hole) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "contour %zu: bad hole flag - %s\n",
+			  j, point_av[0] ? point_av[0] : "null");
 	    Tcl_Free((char *)point_av);
+	    _free_partial_poly(gpp, j + 1);
 	    return BRLCAD_ERROR;
 	}
 	gpp->hole[j] = hole;
@@ -89,10 +138,11 @@ to_extract_contours_av(Tcl_Interp *interp, struct ged *gedp, struct bview *gdvp,
 	for (k = 1; k < point_ac; ++k) {
 	    double pt[ELEMENTS_PER_POINT]; /* must be double for scanf */
 
-	    if (bu_sscanf(point_av[k], "%lf %lf %lf", &pt[X], &pt[Y], &pt[Z]) != 3) {
+	    if (!point_av[k] || bu_sscanf(point_av[k], "%lf %lf %lf", &pt[X], &pt[Y], &pt[Z]) != 3) {
 		bu_vls_printf(gedp->ged_result_str, "contour %zu, point %zu: bad data point - %s\n",
-			      j, k, point_av[k]);
+			      j, k, point_av[k] ? point_av[k] : "null");
 		Tcl_Free((char *)point_av);
+		_free_partial_poly(gpp, j + 1);
 		return BRLCAD_ERROR;
 	    }
 
@@ -101,7 +151,6 @@ to_extract_contours_av(Tcl_Interp *interp, struct ged *gedp, struct bview *gdvp,
 	    } else {
 		VMOVE(gpp->contour[j].point[k-1], pt);
 	    }
-
 	}
 
 	Tcl_Free((char *)point_av);
@@ -114,34 +163,46 @@ to_extract_contours_av(Tcl_Interp *interp, struct ged *gedp, struct bview *gdvp,
 static int
 to_extract_polygons_av(Tcl_Interp *interp, struct ged *gedp, struct bview *gdvp, bv_data_polygon_state *gdpsp, size_t polygon_ac, const char **polygon_av, int mode, int vflag)
 {
-    register size_t i;
+    size_t i;
     int ac;
 
+    if (!interp || !gedp || !gedp->ged_result_str || !gdpsp || !polygon_av)
+	return BRLCAD_ERROR;
+
     gdpsp->gdps_polygons.num_polygons = polygon_ac;
-    gdpsp->gdps_polygons.polygon = (struct bg_polygon *)bu_calloc(polygon_ac, sizeof(struct bg_polygon), "data polygons");
-    for (i = 0; i < polygon_ac; ++i) {
-	// TODO - allocate properties containers for each polygon
+    if (polygon_ac == 0) {
+	gdpsp->gdps_polygons.polygon = NULL;
+	return BRLCAD_OK;
     }
+
+    gdpsp->gdps_polygons.polygon = (struct bg_polygon *)bu_calloc(polygon_ac, sizeof(struct bg_polygon), "data polygons");
 
     for (i = 0; i < polygon_ac; ++i) {
 	size_t contour_ac;
-	const char **contour_av;
+	const char **contour_av = NULL;
+
+	if (!polygon_av[i]) {
+	    bu_vls_printf(gedp->ged_result_str, "polygon %zu: null polygon data\n", i);
+	    _free_partial_polygon_state(gdpsp, i);
+	    return BRLCAD_ERROR;
+	}
 
 	/* Split polygon i into contours */
 	if (Tcl_SplitList(interp, polygon_av[i], &ac, &contour_av) != TCL_OK) {
 	    bu_vls_printf(gedp->ged_result_str, "%s", Tcl_GetStringResult(interp));
+	    _free_partial_polygon_state(gdpsp, i);
 	    return BRLCAD_ERROR;
 	}
 	contour_ac = ac;
 
 	if (to_extract_contours_av(interp, gedp, gdvp, &gdpsp->gdps_polygons.polygon[i], contour_ac, contour_av, mode, vflag) != BRLCAD_OK) {
 	    Tcl_Free((char *)contour_av);
+	    _free_partial_polygon_state(gdpsp, i);
 	    return BRLCAD_ERROR;
 	}
 
 	VMOVE(gdpsp->gdps_polygons.polygon[i].gp_color, gdpsp->gdps_color);
-	if (contour_ac)
-	    Tcl_Free((char *)contour_av);
+	Tcl_Free((char *)contour_av);
     }
 
     return BRLCAD_OK;
@@ -157,6 +218,9 @@ to_data_polygons_func(Tcl_Interp *interp,
 		      const char *argv[])
 {
     bv_data_polygon_state *gdpsp;
+
+    if (!interp || !gedp || !gedp->ged_result_str || !gdvp || !argv || argc < 2 || !argv[0] || !argv[1])
+	return BRLCAD_ERROR;
 
     if (argv[0][0] == 's')
 	gdpsp = &gdvp->gv_tcl.gv_sdata_polygons;
@@ -179,7 +243,7 @@ to_data_polygons_func(Tcl_Interp *interp,
 	if (argc == 3) {
 	    size_t i;
 
-	    if (bu_sscanf(argv[2], "%zu", &i) != 1 || i > gdpsp->gdps_polygons.num_polygons)
+	    if (!argv[2] || bu_sscanf(argv[2], "%zu", &i) != 1 || i >= gdpsp->gdps_polygons.num_polygons)
 		goto bad;
 
 	    gdpsp->gdps_target_polygon_i = i;
@@ -199,7 +263,7 @@ to_data_polygons_func(Tcl_Interp *interp,
 	if (argc == 3) {
 	    int op;
 
-	    if (bu_sscanf(argv[2], "%d", &op) != 1 || op > bg_Xor)
+	    if (!argv[2] || bu_sscanf(argv[2], "%d", &op) != 1 || op < 0 || op > bg_Xor)
 		goto bad;
 
 	    gdpsp->gdps_clip_type = (bg_clip_t)op;
@@ -536,6 +600,7 @@ to_data_polygons_func(Tcl_Interp *interp,
 
 	    if (to_extract_contours_av(interp, gedp, gdvp, &gdpsp->gdps_polygons.polygon[i],
 				       contour_ac, contour_av, gdvp->gv_tcl.gv_polygon_mode, 0) != BRLCAD_OK) {
+		--gdpsp->gdps_polygons.num_polygons;
 		Tcl_Free((char *)contour_av);
 		return BRLCAD_ERROR;
 	    }
@@ -560,23 +625,30 @@ to_data_polygons_func(Tcl_Interp *interp,
 	size_t i, j;
 	int op;
 	struct bg_polygon *gpp;
+	plane_t pl;
 
-	if (argc > 5)
+	if (argc > 5 || gdpsp->gdps_polygons.num_polygons == 0)
 	    goto bad;
 
 	if (argc > 2) {
-	    if (bu_sscanf(argv[2], "%zu", &i) != 1 ||
+	    if (!argv[2] || bu_sscanf(argv[2], "%zu", &i) != 1 ||
 		i >= gdpsp->gdps_polygons.num_polygons)
 		goto bad;
-	} else
+	} else {
 	    i = gdpsp->gdps_target_polygon_i;
+	    if (i >= gdpsp->gdps_polygons.num_polygons)
+		goto bad;
+	}
 
 	if (argc > 3) {
-	    if (bu_sscanf(argv[3], "%zu", &j) != 1 ||
+	    if (!argv[3] || bu_sscanf(argv[3], "%zu", &j) != 1 ||
 		j >= gdpsp->gdps_polygons.num_polygons)
 		goto bad;
-	} else
+	} else {
+	    if (gdpsp->gdps_polygons.num_polygons < 2)
+		goto bad;
 	    j = gdpsp->gdps_polygons.num_polygons - 1; /* Default - use last polygon as the clip polygon */
+	}
 
 	/* Nothing to do */
 	if (i == j)
@@ -584,10 +656,9 @@ to_data_polygons_func(Tcl_Interp *interp,
 
 	if (argc != 5)
 	    op = gdpsp->gdps_clip_type;
-	else if (bu_sscanf(argv[4], "%d", &op) != 1 || op > bg_Xor)
+	else if (!argv[4] || bu_sscanf(argv[4], "%d", &op) != 1 || op < 0 || op > bg_Xor)
 	    goto bad;
 
-	plane_t pl;
 	bv_view_plane(&pl, gdvp);
 
 	gpp = bg_clip_polygon((bg_clip_t)op,
@@ -595,6 +666,11 @@ to_data_polygons_func(Tcl_Interp *interp,
 			       &gdpsp->gdps_polygons.polygon[j],
 			       CLIPPER_MAX,
 			       &pl);
+
+	if (!gpp) {
+	    bu_vls_printf(gedp->ged_result_str, "clip: polygon clipping failed\n");
+	    return BRLCAD_ERROR;
+	}
 
 	/* Free the target polygon */
 	bg_polygon_free(&gdpsp->gdps_polygons.polygon[i]);
@@ -606,9 +682,14 @@ to_data_polygons_func(Tcl_Interp *interp,
 
 	    /* No longer need space for the clip polygon */
 	    --gdpsp->gdps_polygons.num_polygons;
-	    gdpsp->gdps_polygons.polygon = (struct bg_polygon *)bu_realloc(gdpsp->gdps_polygons.polygon,
-									  gdpsp->gdps_polygons.num_polygons * sizeof(struct bg_polygon),
-									  "realloc polygon");
+	    if (gdpsp->gdps_polygons.num_polygons > 0) {
+		gdpsp->gdps_polygons.polygon = (struct bg_polygon *)bu_realloc(gdpsp->gdps_polygons.polygon,
+									      gdpsp->gdps_polygons.num_polygons * sizeof(struct bg_polygon),
+									      "realloc polygon");
+	    } else {
+		bu_free(gdpsp->gdps_polygons.polygon, "realloc polygon");
+		gdpsp->gdps_polygons.polygon = NULL;
+	    }
 	}
 
 	/* Replace the target polygon with the newly clipped polygon. */
@@ -635,7 +716,7 @@ to_data_polygons_func(Tcl_Interp *interp,
 	if (argc != 4)
 	    goto bad;
 
-	if (bu_sscanf(argv[2], "%zu", &i) != 1 ||
+	if (!argv[2] || bu_sscanf(argv[2], "%zu", &i) != 1 ||
 	    i >= gdpsp->gdps_polygons.num_polygons)
 	    goto bad;
 
@@ -653,7 +734,7 @@ to_data_polygons_func(Tcl_Interp *interp,
 	struct bg_polygon *gpp;
 	size_t i;
 
-	if (argc != 3)
+	if (argc != 3 || !argv[2])
 	    goto bad;
 
 	if ((gpp = ged_import_polygon(gedp, argv[2])) == (struct bg_polygon *)0) {
@@ -671,6 +752,9 @@ to_data_polygons_func(Tcl_Interp *interp,
 	VMOVE(gdpsp->gdps_polygons.polygon[i].gp_color, gdpsp->gdps_color);
 	gdpsp->gdps_polygons.polygon[i].gp_line_style = gdpsp->gdps_line_style;
 	gdpsp->gdps_polygons.polygon[i].gp_line_width = gdpsp->gdps_line_width;
+
+	/* Free the imported container allocated by ged_import_polygon */
+	bu_free((void *)gpp, "import gpp");
 
 	to_refresh_view(gdvp);
 	return BRLCAD_OK;
@@ -836,7 +920,7 @@ to_data_polygons_func(Tcl_Interp *interp,
 	const char **contour_av;
 	struct bg_polygon gp;
 
-	if (argc != 4)
+	if (argc != 4 || !argv[2] || !argv[3])
 	    goto bad;
 
 	if (bu_sscanf(argv[2], "%zu", &i) != 1 ||
@@ -855,6 +939,8 @@ to_data_polygons_func(Tcl_Interp *interp,
 	    Tcl_Free((char *)contour_av);
 	    return BRLCAD_ERROR;
 	}
+
+	Tcl_Free((char *)contour_av);
 
 	bg_polygon_free(&gdpsp->gdps_polygons.polygon[i]);
 
@@ -971,29 +1057,32 @@ go_data_polygons(Tcl_Interp *interp,
 {
     int ret;
 
+    if (!gedp || !gedp->ged_result_str || !argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return GED_HELP;
     }
 
     if (argc < 2 || 6 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
     /* Don't allow go_refresh() to be called */
-    if (current_top != NULL) {
+    if (current_top && current_top->to_gedp && current_top->to_gedp->u_data) {
 	struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
 	tgd->go_dmv.refresh_on = 0;
     }
 
     ret = to_data_polygons_func(interp, gedp, gdvp, argc, argv);
     if (ret & BRLCAD_ERROR)
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 
     return ret;
 }
@@ -1010,17 +1099,20 @@ to_data_polygons(struct ged *gedp,
     struct bview *gdvp;
     int ret;
 
+    if (!gedp || !gedp->ged_result_str || !argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc < 3 || 7 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc < 3 || 7 < argc || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1030,11 +1122,14 @@ to_data_polygons(struct ged *gedp,
 	return BRLCAD_ERROR;
     }
 
+    if (!current_top || !current_top->to_interp)
+	return BRLCAD_ERROR;
+
     /* shift the command name to argv[1] before calling to_data_polygons_func */
     argv[1] = argv[0];
     ret = to_data_polygons_func(current_top->to_interp, gedp, gdvp, argc-1, argv+1);
     if (ret == BRLCAD_ERROR) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
     }
 
     return ret;
@@ -1050,22 +1145,25 @@ go_poly_circ_mode(Tcl_Interp *interp,
 		  const char *argv[],
 		  const char *usage)
 {
+    if (!gedp || !gedp->ged_result_str || !argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return GED_HELP;
     }
 
     if (argc != 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
     /* Don't allow go_refresh() to be called */
-    if (current_top != NULL) {
+    if (current_top && current_top->to_gedp && current_top->to_gedp->u_data) {
 	struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
 	tgd->go_dmv.refresh_on = 0;
     }
@@ -1086,17 +1184,20 @@ to_poly_circ_mode(struct ged *gedp,
     struct bu_vls bindings = BU_VLS_INIT_ZERO;
     int ret;
 
+    if (!gedp || !gedp->ged_result_str || !argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 4) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 4 || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1106,17 +1207,22 @@ to_poly_circ_mode(struct ged *gedp,
 	return BRLCAD_ERROR;
     }
 
+    if (!current_top || !current_top->to_interp || !current_top->to_gedp)
+	return BRLCAD_ERROR;
+
     /* shift the command name to argv[1] before calling to_poly_circ_mode_func */
     argv[1] = argv[0];
     ret = to_poly_circ_mode_func(current_top->to_interp, gedp, gdvp, argc-1, argv+1, usage);
 
-    struct bu_vls *pathname = dm_get_pathname((struct dm *)gdvp->dmp);
-    if (pathname && bu_vls_strlen(pathname)) {
-	bu_vls_printf(&bindings, "bind %s <Motion> {%s mouse_poly_circ %s %%x %%y}",
-		      bu_vls_cstr(pathname),
-		      bu_vls_cstr(&current_top->to_gedp->go_name),
-		      bu_vls_cstr(&gdvp->gv_name));
-	Tcl_Eval(current_top->to_interp, bu_vls_cstr(&bindings));
+    if (gdvp->dmp) {
+	struct bu_vls *pathname = dm_get_pathname((struct dm *)gdvp->dmp);
+	if (pathname && bu_vls_strlen(pathname)) {
+	    bu_vls_printf(&bindings, "bind %s <Motion> {%s mouse_poly_circ %s %%x %%y}",
+			  bu_vls_cstr(pathname),
+			  bu_vls_cstr(&current_top->to_gedp->go_name),
+			  bu_vls_cstr(&gdvp->gv_name));
+	    Tcl_Eval(current_top->to_interp, bu_vls_cstr(&bindings));
+	}
     }
     bu_vls_free(&bindings);
 
@@ -1142,6 +1248,9 @@ to_poly_circ_mode_func(Tcl_Interp *interp,
     struct bu_vls plist = BU_VLS_INIT_ZERO;
     bv_data_polygon_state *gdpsp;
 
+    if (!interp || !gedp || !gedp->ged_result_str || !gdvp || !argv || !argv[0] || !argv[1] || !argv[2])
+	return BRLCAD_ERROR;
+
     if (argv[0][0] == 's')
 	gdpsp = &gdvp->gv_tcl.gv_sdata_polygons;
     else
@@ -1157,7 +1266,7 @@ to_poly_circ_mode_func(Tcl_Interp *interp,
 
     if (bu_sscanf(argv[1], "%d", &x) != 1 ||
 	bu_sscanf(argv[2], "%d", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1165,16 +1274,18 @@ to_poly_circ_mode_func(Tcl_Interp *interp,
     gdvp->gv_prevMouseY = y;
     gdvp->gv_tcl.gv_polygon_mode = BV_POLY_CIRCLE_MODE;
 
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    if (gdvp->dmp) {
+	gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
+	gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    }
     bv_screen_to_view(gdvp, &fx, &fy, x, y);
     VSET(v_pt, fx, fy, gdvp->gv_tcl.gv_data_vZ);
     int snapped = 0;
-    if (gedp->ged_gvp->gv_s->gv_snap_lines) {
+    if (gedp->ged_gvp && gedp->ged_gvp->gv_s && gedp->ged_gvp->gv_s->gv_snap_lines) {
 	gedp->ged_gvp->gv_s->gv_snap_flags = BV_SNAP_TCL;
 	snapped = bv_snap_lines_2d(gedp->ged_gvp, &v_pt[X], &v_pt[Y]);
     }
-    if (!snapped && gedp->ged_gvp->gv_s->gv_grid.snap) {
+    if (!snapped && gedp->ged_gvp && gedp->ged_gvp->gv_s && gedp->ged_gvp->gv_s->gv_grid.snap) {
 	bv_snap_grid_2d(gedp->ged_gvp, &v_pt[X], &v_pt[Y]);
     }
 
@@ -1186,7 +1297,7 @@ to_poly_circ_mode_func(Tcl_Interp *interp,
     ac = 3;
     av[0] = "data_polygons";
     av[1] = "append_poly";
-    av[2] = bu_vls_addr(&plist);
+    av[2] = bu_vls_cstr(&plist);
     av[3] = (char *)0;
 
     if (gdpsp->gdps_polygons.num_polygons == gdpsp->gdps_target_polygon_i)
@@ -1217,6 +1328,9 @@ to_poly_cont_build_func(Tcl_Interp *interp,
     point_t v_pt, m_pt;
     bv_data_polygon_state *gdpsp;
 
+    if (!interp || !gedp || !gedp->ged_result_str || !gdvp || !argv || !argv[0] || !argv[1] || !argv[2])
+	return BRLCAD_ERROR;
+
     if (argv[0][0] == 's')
 	gdpsp = &gdvp->gv_tcl.gv_sdata_polygons;
     else
@@ -1232,7 +1346,7 @@ to_poly_cont_build_func(Tcl_Interp *interp,
 
     if (bu_sscanf(argv[1], "%d", &x) != 1 ||
 	bu_sscanf(argv[2], "%d", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1240,16 +1354,18 @@ to_poly_cont_build_func(Tcl_Interp *interp,
     gdvp->gv_prevMouseY = y;
     gdvp->gv_tcl.gv_polygon_mode = BV_POLY_CONTOUR_MODE;
 
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    if (gdvp->dmp) {
+	gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
+	gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    }
     bv_screen_to_view(gdvp, &fx, &fy, x, y);
     VSET(v_pt, fx, fy, gdvp->gv_tcl.gv_data_vZ);
     int snapped = 0;
-    if (gedp->ged_gvp->gv_s->gv_snap_lines) {
+    if (gedp->ged_gvp && gedp->ged_gvp->gv_s && gedp->ged_gvp->gv_s->gv_snap_lines) {
 	gedp->ged_gvp->gv_s->gv_snap_flags = BV_SNAP_TCL;
 	snapped = bv_snap_lines_2d(gedp->ged_gvp, &v_pt[X], &v_pt[Y]);
     }
-    if (!snapped && gedp->ged_gvp->gv_s->gv_grid.snap) {
+    if (!snapped && gedp->ged_gvp && gedp->ged_gvp->gv_s && gedp->ged_gvp->gv_s->gv_grid.snap) {
 	bv_snap_grid_2d(gedp->ged_gvp, &v_pt[X], &v_pt[Y]);
     }
 
@@ -1271,19 +1387,21 @@ to_poly_cont_build_func(Tcl_Interp *interp,
 	bu_vls_printf(&plist, "{ {%lf %lf %lf} {%lf %lf %lf} }", V3ARGS(m_pt), V3ARGS(m_pt));
 	ac = 3;
 	av[1] = "append_poly";
-	av[2] = bu_vls_addr(&plist);
+	av[2] = bu_vls_cstr(&plist);
 	av[3] = (char *)0;
 
 	(void)to_data_polygons_func(interp, gedp, gdvp, ac, (const char **)av);
 	bu_vls_free(&plist);
 
-	struct bu_vls *pathname = dm_get_pathname((struct dm *)gdvp->dmp);
-	if (doBind && pathname && bu_vls_strlen(pathname)) {
-	    bu_vls_printf(&bindings, "bind %s <Motion> {%s mouse_poly_cont %s %%x %%y}",
-			  bu_vls_cstr(pathname),
-			  bu_vls_cstr(&current_top->to_gedp->go_name),
-			  bu_vls_cstr(&gdvp->gv_name));
-	    Tcl_Eval(interp, bu_vls_cstr(&bindings));
+	if (doBind && gdvp->dmp && current_top && current_top->to_gedp) {
+	    struct bu_vls *pathname = dm_get_pathname((struct dm *)gdvp->dmp);
+	    if (pathname && bu_vls_strlen(pathname)) {
+		bu_vls_printf(&bindings, "bind %s <Motion> {%s mouse_poly_cont %s %%x %%y}",
+			      bu_vls_cstr(pathname),
+			      bu_vls_cstr(&current_top->to_gedp->go_name),
+			      bu_vls_cstr(&gdvp->gv_name));
+		Tcl_Eval(interp, bu_vls_cstr(&bindings));
+	    }
 	}
 	bu_vls_free(&bindings);
     } else {
@@ -1297,16 +1415,16 @@ to_poly_cont_build_func(Tcl_Interp *interp,
 
 	ac = 6;
 	av[1] = "replace_point";
-	av[2] = bu_vls_addr(&i_vls);
+	av[2] = bu_vls_cstr(&i_vls);
 	av[3] = "0";
-	av[4] = bu_vls_addr(&k_vls);
-	av[5] = bu_vls_addr(&plist);
+	av[4] = bu_vls_cstr(&k_vls);
+	av[5] = bu_vls_cstr(&plist);
 	av[6] = (char *)0;
 	(void)to_data_polygons_func(interp, gedp, gdvp, ac, (const char **)av);
 
 	ac = 5;
 	av[1] = "append_point";
-	av[4] = bu_vls_addr(&plist);
+	av[4] = bu_vls_cstr(&plist);
 	av[5] = (char *)0;
 	(void)to_data_polygons_func(interp, gedp, gdvp, ac, (const char **)av);
 	bu_vls_free(&i_vls);
@@ -1319,6 +1437,7 @@ to_poly_cont_build_func(Tcl_Interp *interp,
     return BRLCAD_OK;
 }
 
+
 int
 go_poly_cont_build(Tcl_Interp *interp,
 		   struct ged *gedp,
@@ -1327,22 +1446,25 @@ go_poly_cont_build(Tcl_Interp *interp,
 		   const char *argv[],
 		   const char *usage)
 {
+    if (!gedp || !gedp->ged_result_str || !argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return GED_HELP;
     }
 
     if (argc != 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
     /* Don't allow go_refresh() to be called */
-    if (current_top != NULL) {
+    if (current_top && current_top->to_gedp && current_top->to_gedp->u_data) {
 	struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
 	tgd->go_dmv.refresh_on = 0;
     }
@@ -1362,17 +1484,20 @@ to_poly_cont_build(struct ged *gedp,
     struct bview *gdvp;
     int ret;
 
+    if (!gedp || !gedp->ged_result_str || !argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 4) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 4 || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1382,13 +1507,10 @@ to_poly_cont_build(struct ged *gedp,
 	return BRLCAD_ERROR;
     }
 
-    gdvp = bv_set_find_view(&gedp->ged_views, argv[1]);
-    if (!gdvp) {
-	bu_vls_printf(gedp->ged_result_str, "View not found - %s", argv[1]);
+    if (!current_top || !current_top->to_interp)
 	return BRLCAD_ERROR;
-    }
 
-    /* shift the command name to argv[1] before calling to_mouse_poly_ell_func */
+    /* shift the command name to argv[1] before calling to_poly_cont_build_func */
     argv[1] = argv[0];
     ret = to_poly_cont_build_func(current_top->to_interp, gedp, gdvp, argc-1, argv+1, usage, 1);
 
@@ -1396,7 +1518,6 @@ to_poly_cont_build(struct ged *gedp,
 
     return ret;
 }
-
 
 
 int
@@ -1407,16 +1528,19 @@ go_poly_cont_build_end(Tcl_Interp *UNUSED(interp),
 		       const char *argv[],
 		       const char *usage)
 {
+    if (!gedp || !gedp->ged_result_str || !argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     if (argc != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
     /* Don't allow go_refresh() to be called */
-    if (current_top != NULL) {
+    if (current_top && current_top->to_gedp && current_top->to_gedp->u_data) {
 	struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
 	tgd->go_dmv.refresh_on = 0;
     }
@@ -1436,17 +1560,20 @@ to_poly_cont_build_end(struct ged *gedp,
     struct bview *gdvp;
     int ret;
 
+    if (!gedp || !gedp->ged_result_str || !argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 2 || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1456,7 +1583,7 @@ to_poly_cont_build_end(struct ged *gedp,
 	return BRLCAD_ERROR;
     }
 
-    /* shift the command name to argv[1] before calling to_poly_ell_mode_func */
+    /* shift the command name to argv[1] before calling to_poly_cont_build_end_func */
     argv[1] = argv[0];
     ret = to_poly_cont_build_end_func(gdvp, argc-1, argv+1);
 
@@ -1470,6 +1597,9 @@ to_poly_cont_build_end_func(struct bview *gdvp,
 			    int UNUSED(argc),
 			    const char *argv[])
 {
+    if (!gdvp || !argv || !argv[0])
+	return BRLCAD_ERROR;
+
     if (argv[0][0] == 's')
 	gdvp->gv_tcl.gv_sdata_polygons.gdps_cflag = 0;
     else
@@ -1487,22 +1617,25 @@ go_poly_ell_mode(Tcl_Interp *interp,
 		 const char *argv[],
 		 const char *usage)
 {
+    if (!gedp || !gedp->ged_result_str || !argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return GED_HELP;
     }
 
     if (argc != 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
     /* Don't allow go_refresh() to be called */
-    if (current_top != NULL) {
+    if (current_top && current_top->to_gedp && current_top->to_gedp->u_data) {
 	struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
 	tgd->go_dmv.refresh_on = 0;
     }
@@ -1523,17 +1656,20 @@ to_poly_ell_mode(struct ged *gedp,
     struct bu_vls bindings = BU_VLS_INIT_ZERO;
     int ret;
 
+    if (!gedp || !gedp->ged_result_str || !argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 4) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 4 || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1543,17 +1679,22 @@ to_poly_ell_mode(struct ged *gedp,
 	return BRLCAD_ERROR;
     }
 
+    if (!current_top || !current_top->to_interp || !current_top->to_gedp)
+	return BRLCAD_ERROR;
+
     /* shift the command name to argv[1] before calling to_poly_ell_mode_func */
     argv[1] = argv[0];
     ret = to_poly_ell_mode_func(current_top->to_interp, gedp, gdvp, argc-1, argv+1, usage);
 
-    struct bu_vls *pathname = dm_get_pathname((struct dm *)gdvp->dmp);
-    if (pathname && bu_vls_strlen(pathname)) {
-	bu_vls_printf(&bindings, "bind %s <Motion> {%s mouse_poly_ell %s %%x %%y}",
-		      bu_vls_cstr(pathname),
-		      bu_vls_cstr(&current_top->to_gedp->go_name),
-		      bu_vls_cstr(&gdvp->gv_name));
-	Tcl_Eval(current_top->to_interp, bu_vls_cstr(&bindings));
+    if (gdvp->dmp) {
+	struct bu_vls *pathname = dm_get_pathname((struct dm *)gdvp->dmp);
+	if (pathname && bu_vls_strlen(pathname)) {
+	    bu_vls_printf(&bindings, "bind %s <Motion> {%s mouse_poly_ell %s %%x %%y}",
+			  bu_vls_cstr(pathname),
+			  bu_vls_cstr(&current_top->to_gedp->go_name),
+			  bu_vls_cstr(&gdvp->gv_name));
+	    Tcl_Eval(current_top->to_interp, bu_vls_cstr(&bindings));
+	}
     }
     bu_vls_free(&bindings);
 
@@ -1579,6 +1720,9 @@ to_poly_ell_mode_func(Tcl_Interp *interp,
     struct bu_vls plist = BU_VLS_INIT_ZERO;
     bv_data_polygon_state *gdpsp;
 
+    if (!interp || !gedp || !gedp->ged_result_str || !gdvp || !argv || !argv[0] || !argv[1] || !argv[2])
+	return BRLCAD_ERROR;
+
     if (argv[0][0] == 's')
 	gdpsp = &gdvp->gv_tcl.gv_sdata_polygons;
     else
@@ -1594,7 +1738,7 @@ to_poly_ell_mode_func(Tcl_Interp *interp,
 
     if (bu_sscanf(argv[1], "%d", &x) != 1 ||
 	bu_sscanf(argv[2], "%d", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1602,16 +1746,18 @@ to_poly_ell_mode_func(Tcl_Interp *interp,
     gdvp->gv_prevMouseY = y;
     gdvp->gv_tcl.gv_polygon_mode = TCLCAD_POLY_ELLIPSE_MODE;
 
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    if (gdvp->dmp) {
+	gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
+	gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    }
     bv_screen_to_view(gdvp, &fx, &fy, x, y);
     VSET(v_pt, fx, fy, gdvp->gv_tcl.gv_data_vZ);
     int snapped = 0;
-    if (gedp->ged_gvp->gv_s->gv_snap_lines) {
+    if (gedp->ged_gvp && gedp->ged_gvp->gv_s && gedp->ged_gvp->gv_s->gv_snap_lines) {
 	gedp->ged_gvp->gv_s->gv_snap_flags = BV_SNAP_TCL;
 	snapped = bv_snap_lines_2d(gedp->ged_gvp, &v_pt[X], &v_pt[Y]);
     }
-    if (!snapped && gedp->ged_gvp->gv_s->gv_grid.snap) {
+    if (!snapped && gedp->ged_gvp && gedp->ged_gvp->gv_s && gedp->ged_gvp->gv_s->gv_grid.snap) {
 	bv_snap_grid_2d(gedp->ged_gvp, &v_pt[X], &v_pt[Y]);
     }
 
@@ -1623,7 +1769,7 @@ to_poly_ell_mode_func(Tcl_Interp *interp,
     ac = 3;
     av[0] = "data_polygons";
     av[1] = "append_poly";
-    av[2] = bu_vls_addr(&plist);
+    av[2] = bu_vls_cstr(&plist);
     av[3] = (char *)0;
 
     if (gdpsp->gdps_polygons.num_polygons == gdpsp->gdps_target_polygon_i)
@@ -1646,22 +1792,25 @@ go_poly_rect_mode(Tcl_Interp *interp,
 		  const char *argv[],
 		  const char *usage)
 {
+    if (!gedp || !gedp->ged_result_str || !argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return GED_HELP;
     }
 
     if (argc < 3 || 4 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
     /* Don't allow go_refresh() to be called */
-    if (current_top != NULL) {
+    if (current_top && current_top->to_gedp && current_top->to_gedp->u_data) {
 	struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
 	tgd->go_dmv.refresh_on = 0;
     }
@@ -1682,17 +1831,20 @@ to_poly_rect_mode(struct ged *gedp,
     struct bu_vls bindings = BU_VLS_INIT_ZERO;
     int ret;
 
+    if (!gedp || !gedp->ged_result_str || !argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc < 4 || 5 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc < 4 || 5 < argc || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0] ? argv[0] : "", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1702,17 +1854,22 @@ to_poly_rect_mode(struct ged *gedp,
 	return BRLCAD_ERROR;
     }
 
+    if (!current_top || !current_top->to_interp || !current_top->to_gedp)
+	return BRLCAD_ERROR;
+
     /* shift the command name to argv[1] before calling to_poly_rect_mode_func */
     argv[1] = argv[0];
     ret = to_poly_rect_mode_func(current_top->to_interp, gedp, gdvp, argc-1, argv+1, usage);
 
-    struct bu_vls *pathname = dm_get_pathname((struct dm *)gdvp->dmp);
-    if (pathname && bu_vls_strlen(pathname)) {
-	bu_vls_printf(&bindings, "bind %s <Motion> {%s mouse_poly_rect %s %%x %%y}",
-		      bu_vls_cstr(pathname),
-		      bu_vls_cstr(&current_top->to_gedp->go_name),
-		      bu_vls_cstr(&gdvp->gv_name));
-	Tcl_Eval(current_top->to_interp, bu_vls_cstr(&bindings));
+    if (gdvp->dmp) {
+	struct bu_vls *pathname = dm_get_pathname((struct dm *)gdvp->dmp);
+	if (pathname && bu_vls_strlen(pathname)) {
+	    bu_vls_printf(&bindings, "bind %s <Motion> {%s mouse_poly_rect %s %%x %%y}",
+			  bu_vls_cstr(pathname),
+			  bu_vls_cstr(&current_top->to_gedp->go_name),
+			  bu_vls_cstr(&gdvp->gv_name));
+	    Tcl_Eval(current_top->to_interp, bu_vls_cstr(&bindings));
+	}
     }
     bu_vls_free(&bindings);
 
@@ -1739,6 +1896,9 @@ to_poly_rect_mode_func(Tcl_Interp *interp,
     struct bu_vls plist = BU_VLS_INIT_ZERO;
     bv_data_polygon_state *gdpsp;
 
+    if (!interp || !gedp || !gedp->ged_result_str || !gdvp || !argv || !argv[0] || !argv[1] || !argv[2])
+	return BRLCAD_ERROR;
+
     if (argv[0][0] == 's')
 	gdpsp = &gdvp->gv_tcl.gv_sdata_polygons;
     else
@@ -1754,15 +1914,15 @@ to_poly_rect_mode_func(Tcl_Interp *interp,
 
     if (bu_sscanf(argv[1], "%d", &x) != 1 ||
 	bu_sscanf(argv[2], "%d", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
     if (argc == 3)
 	sflag = 0;
     else {
-	if (bu_sscanf(argv[3], "%d", &sflag) != 1) {
-	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	if (!argv[3] || bu_sscanf(argv[3], "%d", &sflag) != 1) {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage ? usage : "");
 	    return BRLCAD_ERROR;
 	}
     }
@@ -1774,16 +1934,18 @@ to_poly_rect_mode_func(Tcl_Interp *interp,
     else
 	gdvp->gv_tcl.gv_polygon_mode = TCLCAD_POLY_RECTANGLE_MODE;
 
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    if (gdvp->dmp) {
+	gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
+	gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    }
     bv_screen_to_view(gdvp, &fx, &fy, x, y);
     VSET(v_pt, fx, fy, gdvp->gv_tcl.gv_data_vZ);
     int snapped = 0;
-    if (gedp->ged_gvp->gv_s->gv_snap_lines) {
+    if (gedp->ged_gvp && gedp->ged_gvp->gv_s && gedp->ged_gvp->gv_s->gv_snap_lines) {
 	gedp->ged_gvp->gv_s->gv_snap_flags = BV_SNAP_TCL;
 	snapped = bv_snap_lines_2d(gedp->ged_gvp, &v_pt[X], &v_pt[Y]);
     }
-    if (!snapped && gedp->ged_gvp->gv_s->gv_grid.snap) {
+    if (!snapped && gedp->ged_gvp && gedp->ged_gvp->gv_s && gedp->ged_gvp->gv_s->gv_grid.snap) {
 	bv_snap_grid_2d(gedp->ged_gvp, &v_pt[X], &v_pt[Y]);
     }
 
@@ -1795,7 +1957,7 @@ to_poly_rect_mode_func(Tcl_Interp *interp,
     ac = 3;
     av[0] = "data_polygons";
     av[1] = "append_poly";
-    av[2] = bu_vls_addr(&plist);
+    av[2] = bu_vls_cstr(&plist);
     av[3] = (char *)0;
 
     if (gdpsp->gdps_polygons.num_polygons == gdpsp->gdps_target_polygon_i)
