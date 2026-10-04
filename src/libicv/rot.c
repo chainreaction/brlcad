@@ -38,6 +38,7 @@
 
 #include "common.h"
 
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include "bio.h"
@@ -66,11 +67,36 @@ ssize_t yin, xout, yout;
 int plus90, minus90, reverse, rot_invert;
 size_t pixbytes = 1;
 
+/* Upper bound on bytes per pixel; generous for any interleaved channel
+ * layout while keeping per-pixel buffers and offsets small. */
+#define ROT_MAX_PIXBYTES 1024
+
+
+/* Parse a strictly positive integer no larger than max.  Returns 1 on
+ * success, 0 on malformed or out-of-range input. */
+static int
+parse_positive(const char *str, long max, long *out)
+{
+    char *endp = NULL;
+    long val;
+
+    if (!str || !out)
+	return 0;
+
+    val = strtol(str, &endp, 10);
+    if (endp == str || *endp != '\0' || val <= 0 || val > max)
+	return 0;
+
+    *out = val;
+    return 1;
+}
+
 
 int
 get_args(size_t argc, const char **argv, FILE **ifp, FILE **ofp, double *angle)
 {
     int c;
+    long val, w, h;
     const char *in_file_name = NULL;
     const char *out_file_name = NULL;
 
@@ -94,46 +120,38 @@ get_args(size_t argc, const char **argv, FILE **ifp, FILE **ofp, double *angle)
 	    case 'i':
 		rot_invert++;
 		break;
-	    case '#': {
-		long val = strtol(bu_optarg, NULL, 10);
-		if (val <= 0 || val > 1024) {
+	    case '#':
+		if (!parse_positive(bu_optarg, ROT_MAX_PIXBYTES, &val)) {
 		    bu_log("ERROR: %s invalid pixel size: %s\n", argv[0], bu_optarg);
 		    return 0;
 		}
 		pixbytes = (size_t)val;
 		break;
-	    }
 	    case 'S':
-	    case 's': {
+	    case 's':
 		/* square size */
-		long val = strtol(bu_optarg, NULL, 10);
-		if (val <= 0) {
+		if (!parse_positive(bu_optarg, LONG_MAX, &val)) {
 		    bu_log("ERROR: %s invalid square size: %s\n", argv[0], bu_optarg);
 		    return 0;
 		}
 		nxin = nyin = (ssize_t)val;
 		break;
-	    }
 	    case 'W':
-	    case 'w': {
-		long val = strtol(bu_optarg, NULL, 10);
-		if (val <= 0) {
+	    case 'w':
+		if (!parse_positive(bu_optarg, LONG_MAX, &val)) {
 		    bu_log("ERROR: %s invalid width: %s\n", argv[0], bu_optarg);
 		    return 0;
 		}
 		nxin = (ssize_t)val;
 		break;
-	    }
 	    case 'N':
-	    case 'n': {
-		long val = strtol(bu_optarg, NULL, 10);
-		if (val <= 0) {
+	    case 'n':
+		if (!parse_positive(bu_optarg, LONG_MAX, &val)) {
 		    bu_log("ERROR: %s invalid height: %s\n", argv[0], bu_optarg);
 		    return 0;
 		}
 		nyin = (ssize_t)val;
 		break;
-	    }
 	    case 'a':
 		*angle = atof(bu_optarg);
 		break;
@@ -154,12 +172,12 @@ get_args(size_t argc, const char **argv, FILE **ifp, FILE **ofp, double *angle)
 
     /* XXX - backward compatibility hack */
     if ((size_t)(bu_optind+2) == argc) {
-	long w = strtol(argv[bu_optind++], NULL, 10);
-	long h = strtol(argv[bu_optind++], NULL, 10);
-	if (w <= 0 || h <= 0) {
+	if (!parse_positive(argv[bu_optind], LONG_MAX, &w)
+	    || !parse_positive(argv[bu_optind + 1], LONG_MAX, &h)) {
 	    bu_log("ERROR: %s invalid dimensions\n", argv[0]);
 	    return 0;
 	}
+	bu_optind += 2;
 	nxin = (ssize_t)w;
 	nyin = (ssize_t)h;
     }
@@ -377,7 +395,7 @@ icv_rot(size_t argc, const char *argv[])
 	goto early_done;
     }
 
-    if (nxin <= 0 || nyin <= 0 || (size_t)nxin > MAXPIXELS || (size_t)nyin > MAXPIXELS || pixbytes == 0 || pixbytes > 1024) {
+    if (nxin <= 0 || nyin <= 0 || (size_t)nxin > MAXPIXELS || (size_t)nyin > MAXPIXELS) {
 	bu_log("ERROR: %s invalid dimensions (must be > 0)\n", argv[0]);
 	ret = 1;
 	goto early_done;

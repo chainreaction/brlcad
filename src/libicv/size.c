@@ -186,9 +186,13 @@ icv_image_size(const char *name, size_t udpi, size_t file_size, bu_mime_image_t 
     if (!widthp || !heightp)
 	return 0;
 
+    /* Paper sizes are in mm and dpi is per inch; without a valid
+     * conversion no size guess is meaningful. */
     inch_conv = bu_units_conversion("inch");
-    if (ZERO(inch_conv))
-	inch_conv = 25.4;
+    if (ZERO(inch_conv)) {
+	bu_log("icv_image_size : unable to resolve inch unit conversion\n");
+	return 0;
+    }
 
     switch (img_type) {
 	case BU_MIME_IMAGE_PIX:
