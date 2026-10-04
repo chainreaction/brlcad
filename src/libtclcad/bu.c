@@ -52,6 +52,9 @@ lwrapper_func(ClientData data, Tcl_Interp *interp, int argc, const char *argv[])
 {
     struct bu_cmdtab *ctp = (struct bu_cmdtab *)data;
 
+    if (!ctp || !ctp->ct_func)
+	return TCL_ERROR;
+
     return ctp->ct_func(interp, argc, argv);
 }
 
@@ -94,7 +97,10 @@ tcl_bu_get_value_by_keyword(void *clientData,
     const char **listv = (const char **)NULL;
     const char **tofree = (const char **)NULL;
 
-    if (argc < 3) {
+    if (!interp || !argv)
+	return BRLCAD_ERROR;
+
+    if (argc < 3 || !argv[1]) {
 	char buf[TINYBUFSIZ];
 	snprintf(buf, TINYBUFSIZ, "%d", argc);
 	bu_log("bu_get_value_by_keyword: wrong # of args (%s).\n"
@@ -106,8 +112,8 @@ tcl_bu_get_value_by_keyword(void *clientData,
     iwant = argv[1];
 
     if (argc == 3) {
-	if (Tcl_SplitList(interp, argv[2], &listc, (const char ***)&listv) != TCL_OK) {
-	    bu_log("bu_get_value_by_keyword: iwant='%s', unable to split '%s'\n", iwant, argv[2]);
+	if (!argv[2] || Tcl_SplitList(interp, argv[2], &listc, (const char ***)&listv) != TCL_OK) {
+	    bu_log("bu_get_value_by_keyword: iwant='%s', unable to split '%s'\n", iwant, argv[2] ? argv[2] : "");
 	    return BRLCAD_ERROR;
 	}
 	tofree = listv;
@@ -128,16 +134,20 @@ tcl_bu_get_value_by_keyword(void *clientData,
     }
 
     for (i=0; i < listc; i += 2) {
+	if (!listv[i] || !listv[i+1])
+	    continue;
 	if (BU_STR_EQUAL(iwant, listv[i])) {
 	    /* If value is a list, don't nest it in another list */
 	    if (listv[i+1][0] == '{') {
 		struct bu_vls str = BU_VLS_INIT_ZERO;
+		size_t vlen = strlen(listv[i+1]);
 
-		/* Skip leading { */
-		bu_vls_strcat(&str, &listv[i+1][1]);
-		/* Trim trailing } */
-		bu_vls_trunc(&str, -1);
-		Tcl_AppendResult(interp, bu_vls_addr(&str), NULL);
+		if (vlen >= 2 && listv[i+1][vlen-1] == '}') {
+		    bu_vls_strncpy(&str, &listv[i+1][1], vlen - 2);
+		} else {
+		    bu_vls_strcpy(&str, &listv[i+1][1]);
+		}
+		Tcl_AppendResult(interp, bu_vls_cstr(&str), NULL);
 		bu_vls_free(&str);
 	    } else {
 		Tcl_AppendResult(interp, listv[i+1], NULL);
@@ -177,19 +187,19 @@ tcl_bu_rgb_to_hsv(void *clientData,
     fastf_t hsv[3];
     struct bu_vls result = BU_VLS_INIT_ZERO;
 
-    if (argc != 4) {
+    if (!interp || !argv || argc != 4 || !argv[1] || !argv[2] || !argv[3]) {
 	bu_log("Usage: bu_rgb_to_hsv R G B\n");
 	return BRLCAD_ERROR;
     }
-    if (sscanf(argv[1], "%d", &rgb_int[0]) != 1
-	|| sscanf(argv[2], "%d", &rgb_int[1]) != 1
-	|| sscanf(argv[3], "%d", &rgb_int[2]) != 1
+    if (bu_sscanf(argv[1], "%d", &rgb_int[0]) != 1
+	|| bu_sscanf(argv[2], "%d", &rgb_int[1]) != 1
+	|| bu_sscanf(argv[3], "%d", &rgb_int[2]) != 1
 	|| (rgb_int[0] < 0) || (rgb_int[0] > 255)
 	|| (rgb_int[1] < 0) || (rgb_int[1] > 255)
 	|| (rgb_int[2] < 0) || (rgb_int[2] > 255)) {
 	bu_vls_printf(&result, "bu_rgb_to_hsv: Bad RGB (%s, %s, %s)\n",
 		      argv[1], argv[2], argv[3]);
-	bu_log("ERROR: %s", bu_vls_addr(&result));
+	bu_log("ERROR: %s", bu_vls_cstr(&result));
 	bu_vls_free(&result);
 	return BRLCAD_ERROR;
     }
@@ -199,7 +209,7 @@ tcl_bu_rgb_to_hsv(void *clientData,
 
     bu_rgb_to_hsv(rgb, hsv);
     bu_vls_printf(&result, "%g %g %g", hsv[0], hsv[1], hsv[2]);
-    Tcl_AppendResult(interp, bu_vls_addr(&result), NULL);
+    Tcl_AppendResult(interp, bu_vls_cstr(&result), NULL);
     bu_vls_free(&result);
     return BRLCAD_OK;
 
@@ -227,13 +237,13 @@ tcl_bu_hsv_to_rgb(void *clientData,
     unsigned char rgb[3];
     struct bu_vls result = BU_VLS_INIT_ZERO;
 
-    if (argc != 4) {
+    if (!interp || !argv || argc != 4 || !argv[1] || !argv[2] || !argv[3]) {
 	bu_log("Usage: bu_hsv_to_rgb H S V\n");
 	return BRLCAD_ERROR;
     }
-    if (sscanf(argv[1], "%lf", &vals[0]) != 1
-	|| sscanf(argv[2], "%lf", &vals[1]) != 1
-	|| sscanf(argv[3], "%lf", &vals[2]) != 1)
+    if (bu_sscanf(argv[1], "%lf", &vals[0]) != 1
+	|| bu_sscanf(argv[2], "%lf", &vals[1]) != 1
+	|| bu_sscanf(argv[3], "%lf", &vals[2]) != 1)
     {
 	bu_log("Bad HSV parsing (%s, %s, %s)\n", argv[1], argv[2], argv[3]);
 	return BRLCAD_ERROR;
@@ -246,7 +256,7 @@ tcl_bu_hsv_to_rgb(void *clientData,
     }
 
     bu_vls_printf(&result, "%d %d %d", rgb[0], rgb[1], rgb[2]);
-    Tcl_AppendResult(interp, bu_vls_addr(&result), NULL);
+    Tcl_AppendResult(interp, bu_vls_cstr(&result), NULL);
     bu_vls_free(&result);
     return BRLCAD_OK;
 
@@ -256,6 +266,10 @@ const char *
 _tclcad_bu_dir_print(const char *dirkey, int fail_quietly)
 {
     static char result[MAXPATHLEN] = {0};
+
+    if (!dirkey)
+	return NULL;
+
     if (BU_STR_EQUIV(dirkey, "curr") || BU_STR_EQUIV(dirkey, "cwd") ||
 	    BU_STR_EQUAL(dirkey, "BU_DIR_CURR")) {
 	snprintf(result, MAXPATHLEN, "%s", bu_dir(NULL, 0, BU_DIR_CURR, NULL));
@@ -341,12 +355,19 @@ tcl_bu_dir(void *clientData,
 		   const char **argv)
 {
     Tcl_Interp *interp = (Tcl_Interp *)clientData;
-    if (argc != 2) {
+    const char *res;
+
+    if (!interp || !argv || argc != 2 || !argv[1]) {
 	bu_log("Usage: bu_dir [curr|init|bin|lib|libexec|include|data|doc|man|temp|home|cache|config|ext|libext]\n");
 	return BRLCAD_ERROR;
     }
-    Tcl_AppendResult(interp, _tclcad_bu_dir_print(argv[1],1), NULL);
-    return BRLCAD_OK;
+    res = _tclcad_bu_dir_print(argv[1], 1);
+    if (res) {
+	Tcl_AppendResult(interp, res, NULL);
+	return BRLCAD_OK;
+    }
+    Tcl_AppendResult(interp, "Unknown directory key ", argv[1], NULL);
+    return BRLCAD_ERROR;
 }
 
 /**
@@ -364,11 +385,15 @@ tcl_bu_file_null(void *clientData,
 		 const char **UNUSED(argv))
 {
     Tcl_Interp *interp = (Tcl_Interp *)clientData;
-    if (argc != 1) {
+    const char *null_file;
+
+    if (!interp || argc != 1) {
 	bu_log("Usage: bu_file_null\n");
 	return BRLCAD_ERROR;
     }
-    Tcl_AppendResult(interp, bu_file_null(), NULL);
+    null_file = bu_file_null();
+    if (null_file)
+	Tcl_AppendResult(interp, null_file, NULL);
     return BRLCAD_OK;
 }
 
@@ -390,19 +415,19 @@ tcl_bu_units_conversion(void *clientData,
     double conv_factor;
     struct bu_vls result = BU_VLS_INIT_ZERO;
 
-    if (argc != 2) {
+    if (!interp || !argv || argc != 2 || !argv[1]) {
 	bu_log("Usage: bu_units_conversion units_string\n");
 	return BRLCAD_ERROR;
     }
 
     conv_factor = bu_units_conversion(argv[1]);
-    if (conv_factor <= 0.0) {
+    if (ZERO(conv_factor) || conv_factor < 0.0) {
 	bu_log("ERROR: bu_units_conversion: Unrecognized units string: %s\n", argv[1]);
 	return BRLCAD_ERROR;
     }
 
     bu_vls_printf(&result, "%.12e", conv_factor);
-    Tcl_AppendResult(interp, bu_vls_addr(&result), NULL);
+    Tcl_AppendResult(interp, bu_vls_cstr(&result), NULL);
     bu_vls_free(&result);
     return BRLCAD_OK;
 }
@@ -412,6 +437,9 @@ static void
 register_cmds(Tcl_Interp *interp, struct bu_cmdtab *cmds)
 {
     struct bu_cmdtab *ctp = NULL;
+
+    if (!interp || !cmds)
+	return;
 
     for (ctp = cmds; ctp->ct_name != (char *)NULL; ctp++) {
 	(void)Tcl_CreateCommand(interp, ctp->ct_name, lwrapper_func, (ClientData)ctp, (Tcl_CmdDeleteProc *)NULL);
@@ -431,6 +459,9 @@ Bu_Init(Tcl_Interp *interp)
 	{"bu_hsv_to_rgb",		tcl_bu_hsv_to_rgb},
 	{(const char *)NULL, BU_CMD_NULL}
     };
+
+    if (!interp)
+	return BRLCAD_ERROR;
 
     register_cmds(interp, cmds);
 

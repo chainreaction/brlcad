@@ -45,6 +45,8 @@
 static void
 comm_error(const char *str)
 {
+    if (!str)
+	return;
     bu_log("%s", str);
 }
 
@@ -75,11 +77,21 @@ new_client_handler(ClientData clientData, Tcl_Channel chan, char *UNUSED(host), 
 new_client_handler(ClientData clientData, int UNUSED(port))
 #endif
 {
-    struct fbserv_listener *fbslp = (struct fbserv_listener *)clientData;
-    struct fbserv_obj *fbsp = fbslp->fbsl_fbsp;
-    struct pkg_switch *pswitch = fbs_pkg_switch();
+    struct fbserv_listener *fbslp;
+    struct fbserv_obj *fbsp;
+    struct pkg_switch *pswitch;
     void *cdata = NULL;
     struct pkg_conn *pcp = NULL;
+
+    if (!clientData)
+	return;
+
+    fbslp = (struct fbserv_listener *)clientData;
+    fbsp = fbslp->fbsl_fbsp;
+    if (!fbsp)
+	return;
+
+    pswitch = fbs_pkg_switch();
 
 #ifdef USE_TCL_CHAN
     uintptr_t pfd = (uintptr_t)fbslp->fbsl_fd;
@@ -102,6 +114,9 @@ new_client_handler(ClientData clientData, int UNUSED(port))
 C_DECL int
 tclcad_is_listening(struct fbserv_obj *fbsp)
 {
+    if (!fbsp)
+	return 0;
+
 #ifdef USE_TCL_CHAN
     if (fbsp->fbs_listener.fbsl_chan != NULL) {
 #else
@@ -116,8 +131,12 @@ C_DECL int
 tclcad_listen_on_port(struct fbserv_obj *fbsp, int available_port)
 {
     char hostname[32] = {0};
+
+    if (!fbsp || available_port < 0 || available_port > 65535)
+	return 0;
+
     /* XXX hardwired for now */
-    sprintf(hostname, "localhost");
+    snprintf(hostname, sizeof(hostname), "%s", "localhost");
 
 #ifdef USE_TCL_CHAN
     fbsp->fbs_listener.fbsl_chan = Tcl_OpenTcpServer((Tcl_Interp *)fbsp->fbs_interp, available_port, hostname, new_client_handler, (ClientData)&fbsp->fbs_listener);
@@ -134,7 +153,7 @@ tclcad_listen_on_port(struct fbserv_obj *fbsp, int available_port)
     }
 #else
     char portname[32] = {0};
-    sprintf(portname, "%d", available_port);
+    snprintf(portname, sizeof(portname), "%d", available_port);
     fbsp->fbs_listener.fbsl_listener = pkg_listen(portname, NULL, 0, comm_error);
     if (fbsp->fbs_listener.fbsl_listener) {
 	fbsp->fbs_listener.fbsl_fd = pkg_get_listener_fd(fbsp->fbs_listener.fbsl_listener);
@@ -147,16 +166,24 @@ tclcad_listen_on_port(struct fbserv_obj *fbsp, int available_port)
 C_DECL void
 tclcad_open_server_handler(struct fbserv_obj *fbsp)
 {
+    if (!fbsp)
+	return;
+
 #ifdef USE_TCL_CHAN
     Tcl_GetChannelHandle(fbsp->fbs_listener.fbsl_chan, TCL_READABLE, (ClientData *)&fbsp->fbs_listener.fbsl_fd);
 #else
-    Tcl_CreateFileHandler(fbsp->fbs_listener.fbsl_fd, TCL_READABLE, (Tcl_FileProc *)new_client_handler, (ClientData)&fbsp->fbs_listener);
+    if (fbsp->fbs_listener.fbsl_fd >= 0) {
+	Tcl_CreateFileHandler(fbsp->fbs_listener.fbsl_fd, TCL_READABLE, (Tcl_FileProc *)new_client_handler, (ClientData)&fbsp->fbs_listener);
+    }
 #endif
 }
 
 C_DECL void
 tclcad_close_server_handler(struct fbserv_obj *fbsp)
 {
+    if (!fbsp)
+	return;
+
 #ifdef USE_TCL_CHAN
     if (fbsp->fbs_listener.fbsl_chan != NULL) {
 	Tcl_ChannelProc *callback = (Tcl_ChannelProc *)new_client_handler;
@@ -165,7 +192,10 @@ tclcad_close_server_handler(struct fbserv_obj *fbsp)
 	fbsp->fbs_listener.fbsl_chan = NULL;
     }
 #else
-    Tcl_DeleteFileHandler(fbsp->fbs_listener.fbsl_fd);
+    if (fbsp->fbs_listener.fbsl_fd >= 0) {
+	Tcl_DeleteFileHandler(fbsp->fbs_listener.fbsl_fd);
+	fbsp->fbs_listener.fbsl_fd = -1;
+    }
 #endif
 }
 
@@ -176,27 +206,38 @@ tclcad_open_client_handler(struct fbserv_obj *fbsp, int i, void *data)
 tclcad_open_client_handler(struct fbserv_obj *fbsp, int i, void *UNUSED(data))
 #endif
 {
+    if (!fbsp || i < 0 || i >= MAX_CLIENTS)
+	return;
+
 #ifdef USE_TCL_CHAN
     fbsp->fbs_clients[i].fbsc_chan = (Tcl_Channel)data;
     fbsp->fbs_clients[i].fbsc_handler = fbs_existing_client_handler;
     Tcl_CreateChannelHandler(fbsp->fbs_clients[i].fbsc_chan, TCL_READABLE,
 	    fbsp->fbs_clients[i].fbsc_handler, (ClientData)&fbsp->fbs_clients[i]);
 #else
-    Tcl_CreateFileHandler(fbsp->fbs_clients[i].fbsc_fd, TCL_READABLE,
-	    fbs_existing_client_handler, (ClientData)&fbsp->fbs_clients[i]);
+    if (fbsp->fbs_clients[i].fbsc_fd >= 0) {
+	Tcl_CreateFileHandler(fbsp->fbs_clients[i].fbsc_fd, TCL_READABLE,
+		fbs_existing_client_handler, (ClientData)&fbsp->fbs_clients[i]);
+    }
 #endif
 }
 
 C_DECL void
 tclcad_close_client_handler(struct fbserv_obj *fbsp, int sub)
 {
+    if (!fbsp || sub < 0 || sub >= MAX_CLIENTS)
+	return;
+
 #ifdef USE_TCL_CHAN
     Tcl_DeleteChannelHandler(fbsp->fbs_clients[sub].fbsc_chan, fbsp->fbs_clients[sub].fbsc_handler, (ClientData)fbsp->fbs_clients[sub].fbsc_fd);
 
     Tcl_Close((Tcl_Interp *)fbsp->fbs_interp, fbsp->fbs_clients[sub].fbsc_chan);
     fbsp->fbs_clients[sub].fbsc_chan = NULL;
 #else
-    Tcl_DeleteFileHandler(fbsp->fbs_clients[sub].fbsc_fd);
+    if (fbsp->fbs_clients[sub].fbsc_fd >= 0) {
+	Tcl_DeleteFileHandler(fbsp->fbs_clients[sub].fbsc_fd);
+	fbsp->fbs_clients[sub].fbsc_fd = -1;
+    }
 #endif
 }
 
@@ -221,6 +262,9 @@ static void
 tcl_ipc_poll_win(ClientData cd)
 {
     struct fbserv_client *fbscp = (struct fbserv_client *)cd;
+
+    if (!fbscp)
+	return;
 
     /* Termination guard: pkg was already closed, stop the timer. */
     if (!fbscp->fbsc_pkg || fbscp->fbsc_pkg == PKC_NULL) {
@@ -259,9 +303,13 @@ tcl_ipc_poll_win(ClientData cd)
 static void
 tclcad_open_ipc_client_win(struct fbserv_obj *fbsp, int i, void *UNUSED(data))
 {
-    Tcl_TimerToken tok =
-	Tcl_CreateTimerHandler(10, tcl_ipc_poll_win,
-			       (ClientData)&fbsp->fbs_clients[i]);
+    Tcl_TimerToken tok;
+
+    if (!fbsp || i < 0 || i >= MAX_CLIENTS)
+	return;
+
+    tok = Tcl_CreateTimerHandler(10, tcl_ipc_poll_win,
+				 (ClientData)&fbsp->fbs_clients[i]);
     fbsp->fbs_clients[i].fbsc_chan    = (void *)tok;
     fbsp->fbs_clients[i].fbsc_handler = NULL;
 }
@@ -273,6 +321,9 @@ tclcad_open_ipc_client_win(struct fbserv_obj *fbsp, int i, void *UNUSED(data))
 static void
 tclcad_close_ipc_client_win(struct fbserv_obj *fbsp, int sub)
 {
+    if (!fbsp || sub < 0 || sub >= MAX_CLIENTS)
+	return;
+
     if (fbsp->fbs_clients[sub].fbsc_chan) {
 	Tcl_DeleteTimerHandler((Tcl_TimerToken)fbsp->fbs_clients[sub].fbsc_chan);
 	fbsp->fbs_clients[sub].fbsc_chan    = NULL;
@@ -309,6 +360,8 @@ tclcad_close_ipc_client_win(struct fbserv_obj *fbsp, int sub)
 TCLCAD_EXPORT int
 tclcad_listen_ipc(struct fbserv_obj *fbsp, Tcl_Interp *interp)
 {
+    if (!fbsp)
+	return BRLCAD_ERROR;
 #ifdef USE_TCL_CHAN
     /* Windows: use a timer-based poll to avoid Tcl's pipe reader thread
      * consuming data before pkg_process() can read it.                   */

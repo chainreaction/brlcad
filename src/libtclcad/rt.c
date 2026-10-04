@@ -80,6 +80,11 @@ static struct dbcmdstruct tclcad_rt_cmds[] = {
 static int
 tclcad_rt_parse_ray(Tcl_Interp *interp, struct xray *rp, const char *const*argv)
 {
+    fastf_t mag;
+
+    if (!interp || !rp || !argv || !argv[0] || !argv[1] || !argv[2])
+	return TCL_ERROR;
+
     if (bn_decode_vect(rp->r_pt,  argv[0]) != 3) {
 	Tcl_AppendResult(interp,
 			 "badly formatted point: ", argv[0], (char *)NULL);
@@ -105,7 +110,12 @@ tclcad_rt_parse_ray(Tcl_Interp *interp, struct xray *rp, const char *const*argv)
 			     (char *)NULL);
 	    return TCL_ERROR;
     }
-    VUNITIZE(rp->r_dir);
+    mag = MAGNITUDE(rp->r_dir);
+    if (ZERO(mag)) {
+	Tcl_AppendResult(interp, "ray direction vector has zero length\n", (char *)NULL);
+	return TCL_ERROR;
+    }
+    VSCALE(rp->r_dir, rp->r_dir, 1.0 / mag);
     return TCL_OK;
 }
 
@@ -117,11 +127,17 @@ tclcad_rt_pr_cutter(Tcl_Interp *interp, const union cutter *cutp)
     struct bu_vls str = BU_VLS_INIT_ZERO;
     size_t i;
 
+    if (!interp || !cutp)
+	return;
+
     switch (cutp->cut_type) {
 	case CUT_CUTNODE:
-	    bu_vls_printf(&str,
-			  "type cutnode axis %c point %.25G",
-			  xyz[cutp->cn.cn_axis], cutp->cn.cn_point);
+	    {
+		char axis_char = (cutp->cn.cn_axis >= 0 && cutp->cn.cn_axis < 3) ? xyz[cutp->cn.cn_axis] : '?';
+		bu_vls_printf(&str,
+			      "type cutnode axis %c point %.25G",
+			      axis_char, cutp->cn.cn_point);
+	    }
 	    break;
 	case CUT_BOXNODE:
 	    bu_vls_printf(&str,
@@ -132,20 +148,24 @@ tclcad_rt_pr_cutter(Tcl_Interp *interp, const union cutter *cutp)
 			  V3ARGS(cutp->bn.bn_max));
 	    bu_vls_printf(&str, " solids {");
 	    for (i=0; i < cutp->bn.bn_len; i++) {
-		bu_vls_strcat(&str, cutp->bn.bn_list[i]->st_name);
-		bu_vls_putc(&str, ' ');
+		if (cutp->bn.bn_list[i]) {
+		    bu_vls_strcat(&str, cutp->bn.bn_list[i]->st_name);
+		    bu_vls_putc(&str, ' ');
+		}
 	    }
 	    bu_vls_printf(&str, "} pieces {");
 	    for (i = 0; i < cutp->bn.bn_piecelen; i++) {
 		struct rt_piecelist *plp = &cutp->bn.bn_piecelist[i];
 		size_t j;
 		RT_CK_PIECELIST(plp);
-		/* These can be taken by user positionally */
-		bu_vls_printf(&str, "{%s {", plp->stp->st_name);
-		for (j=0; j < plp->npieces; j++) {
-		    bu_vls_printf(&str, "%ld ", plp->pieces[j]);
+		if (plp->stp) {
+		    /* These can be taken by user positionally */
+		    bu_vls_printf(&str, "{%s {", plp->stp->st_name);
+		    for (j=0; j < plp->npieces; j++) {
+			bu_vls_printf(&str, "%ld ", plp->pieces[j]);
+		    }
+		    bu_vls_strcat(&str, "} } ");
 		}
-		bu_vls_strcat(&str, "} } ");
 	    }
 	    bu_vls_strcat(&str, "}");
 	    break;
@@ -154,7 +174,7 @@ tclcad_rt_pr_cutter(Tcl_Interp *interp, const union cutter *cutp)
 			  (void *)cutp);
 	    break;
     }
-    Tcl_AppendResult(interp, bu_vls_addr(&str), (char *)NULL);
+    Tcl_AppendResult(interp, bu_vls_cstr(&str), (char *)NULL);
     bu_vls_free(&str);
 }
 
@@ -174,10 +194,13 @@ tclcad_rt_cutter(ClientData clientData, Tcl_Interp *interp, int argc, const char
     const union cutter *cutp;
     int n;
 
-    if (argc != 6) {
+    if (!clientData || !interp || !argv)
+	return TCL_ERROR;
+
+    if (argc != 6 || !argv[0] || !argv[1] || !argv[2]) {
 	Tcl_AppendResult(interp,
 			 "wrong # args: should be \"",
-			 argv[0], " ", argv[1], "cutnum {P} dir|at {V}\"",
+			 argv[0] ? argv[0] : "", " ", argv[1] ? argv[1] : "", "cutnum {P} dir|at {V}\"",
 			 (char *)NULL);
 	return TCL_ERROR;
     }
@@ -186,7 +209,10 @@ tclcad_rt_cutter(ClientData clientData, Tcl_Interp *interp, int argc, const char
     rtip = ap->a_rt_i;
     RT_CK_RTI(rtip);
 
-    n = atoi(argv[2]);
+    if (bu_sscanf(argv[2], "%d", &n) != 1 || n < 0) {
+	Tcl_AppendResult(interp, "invalid cutnum: ", argv[2], (char *)NULL);
+	return TCL_ERROR;
+    }
     if (tclcad_rt_parse_ray(interp, &ap->a_ray, &argv[3]) == TCL_ERROR)
 	return TCL_ERROR;
 
@@ -209,13 +235,16 @@ tclcad_rt_pr_hit(Tcl_Interp *interp, struct hit *hitp, const struct seg *segp, i
     const struct directory *dp;
     struct curvature crv = {{0.0, 0.0, 0.0}, 0.0, 0.0};
 
+    if (!interp || !hitp || !segp)
+	return;
+
     RT_CK_SEG(segp);
     stp = segp->seg_stp;
     RT_CK_SOLTAB(stp);
     dp = stp->st_dp;
     RT_CK_DIR(dp);
 
-    RT_HIT_NORMAL(norm, hitp, stp, rayp, flipflag);
+    RT_HIT_NORMAL(norm, hitp, stp, NULL, flipflag);
     RT_CURVATURE(&crv, hitp, flipflag, stp);
 
     bu_vls_printf(&str, " {dist %g point {", hitp->hit_dist);
@@ -233,9 +262,9 @@ tclcad_rt_pr_hit(Tcl_Interp *interp, struct hit *hitp, const struct seg *segp, i
 	bu_vls_strcat(&str, sofar);
 	bu_free((void *)sofar, "path string");
     }
-    bu_vls_printf(&str, " solid %s}", dp->d_namep);
+    bu_vls_printf(&str, " solid %s}", dp->d_namep ? dp->d_namep : "");
 
-    Tcl_AppendResult(interp, bu_vls_addr(&str), (char *)NULL);
+    Tcl_AppendResult(interp, bu_vls_cstr(&str), (char *)NULL);
     bu_vls_free(&str);
 }
 
@@ -245,8 +274,15 @@ tclcad_rt_a_hit(struct application *ap,
 	     struct partition *PartHeadp,
 	     struct seg *UNUSED(segHeadp))
 {
-    Tcl_Interp *interp = (Tcl_Interp *)ap->a_uptr;
+    Tcl_Interp *interp;
     register struct partition *pp;
+
+    if (!ap || !PartHeadp)
+	return 0;
+
+    interp = (Tcl_Interp *)ap->a_uptr;
+    if (!interp)
+	return 0;
 
     RT_CK_PT_HD(PartHeadp);
 
@@ -258,7 +294,7 @@ tclcad_rt_a_hit(struct application *ap,
 	tclcad_rt_pr_hit(interp, pp->pt_outhit, pp->pt_outseg, pp->pt_outflip);
 	Tcl_AppendResult(interp,
 			 "\nregion ",
-			 pp->pt_regionp->reg_name,
+			 (pp->pt_regionp && pp->pt_regionp->reg_name) ? pp->pt_regionp->reg_name : "",
 			 (char *)NULL);
 	Tcl_AppendResult(interp, "}\n", (char *)NULL);
     }
@@ -305,10 +341,13 @@ tclcad_rt_shootray(ClientData clientData, Tcl_Interp *interp, int argc, const ch
     struct rt_i *rtip;
     int idx;
 
-    if ((argc != 5 && argc != 6) || (argc == 6 && !BU_STR_EQUAL(argv[2], "-R"))) {
+    if (!clientData || !interp || !argv)
+	return TCL_ERROR;
+
+    if ((argc != 5 && argc != 6) || (argc == 6 && (!argv[2] || !BU_STR_EQUAL(argv[2], "-R")))) {
 	Tcl_AppendResult(interp,
 			 "wrong # args: should be \"",
-			 argv[0], " ", argv[1], " [-R] {P} dir|at {V}\"",
+			 argv[0] ? argv[0] : "", " ", argv[1] ? argv[1] : "", " [-R] {P} dir|at {V}\"",
 			 (char *)NULL);
 	return TCL_ERROR;
     }
@@ -348,10 +387,13 @@ tclcad_rt_onehit(ClientData clientData, Tcl_Interp *interp, int argc, const char
     struct rt_i *rtip;
     char buf[64];
 
+    if (!clientData || !interp || !argv)
+	return TCL_ERROR;
+
     if (argc < 2 || argc > 3) {
 	Tcl_AppendResult(interp,
 			 "wrong # args: should be \"",
-			 argv[0], " ", argv[1], " [#]\"",
+			 argv[0] ? argv[0] : "", " ", argv[1] ? argv[1] : "", " [#]\"",
 			 (char *)NULL);
 	return TCL_ERROR;
     }
@@ -361,9 +403,11 @@ tclcad_rt_onehit(ClientData clientData, Tcl_Interp *interp, int argc, const char
     RT_CK_RTI(rtip);
 
     if (argc == 3) {
-	ap->a_onehit = atoi(argv[2]);
+	int val = 0;
+	if (bu_sscanf(argv[2], "%d", &val) == 1)
+	    ap->a_onehit = val;
     }
-    sprintf(buf, "%d", ap->a_onehit);
+    snprintf(buf, sizeof(buf), "%d", ap->a_onehit);
     Tcl_AppendResult(interp, buf, (char *)NULL);
     return TCL_OK;
 }
@@ -381,10 +425,13 @@ tclcad_rt_no_bool(ClientData clientData, Tcl_Interp *interp, int argc, const cha
     struct rt_i *rtip;
     char buf[64];
 
+    if (!clientData || !interp || !argv)
+	return TCL_ERROR;
+
     if (argc < 2 || argc > 3) {
 	Tcl_AppendResult(interp,
 			 "wrong # args: should be \"",
-			 argv[0], " ", argv[1], " [#]\"",
+			 argv[0] ? argv[0] : "", " ", argv[1] ? argv[1] : "", " [#]\"",
 			 (char *)NULL);
 	return TCL_ERROR;
     }
@@ -394,9 +441,11 @@ tclcad_rt_no_bool(ClientData clientData, Tcl_Interp *interp, int argc, const cha
     RT_CK_RTI(rtip);
 
     if (argc == 3) {
-	ap->a_no_booleans = atoi(argv[2]);
+	int val = 0;
+	if (bu_sscanf(argv[2], "%d", &val) == 1)
+	    ap->a_no_booleans = val;
     }
-    sprintf(buf, "%d", ap->a_no_booleans);
+    snprintf(buf, sizeof(buf), "%d", ap->a_no_booleans);
     Tcl_AppendResult(interp, buf, (char *)NULL);
     return TCL_OK;
 }
@@ -415,10 +464,13 @@ tclcad_rt_check(ClientData clientData, Tcl_Interp *interp, int argc, const char 
     struct application *ap = (struct application *)clientData;
     struct rt_i *rtip;
 
+    if (!clientData || !interp || !argv)
+	return TCL_ERROR;
+
     if (argc != 2) {
 	Tcl_AppendResult(interp,
 			 "wrong # args: should be \"",
-			 argv[0], " ", argv[1], "\"",
+			 argv[0] ? argv[0] : "", " ", argv[1] ? argv[1] : "", "\"",
 			 (char *)NULL);
 	return TCL_ERROR;
     }
@@ -447,10 +499,13 @@ tclcad_rt_prep(ClientData clientData, Tcl_Interp *interp, int argc, const char *
     struct rt_i *rtip;
     struct bu_vls str = BU_VLS_INIT_ZERO;
 
+    if (!clientData || !interp || !argv)
+	return TCL_ERROR;
+
     if (argc < 2 || argc > 4) {
 	Tcl_AppendResult(interp,
 			 "wrong # args: should be \"",
-			 argv[0], " ", argv[1],
+			 argv[0] ? argv[0] : "", " ", argv[1] ? argv[1] : "",
 			 " [hasty_prep]\"",
 			 (char *)NULL);
 	return TCL_ERROR;
@@ -462,13 +517,17 @@ tclcad_rt_prep(ClientData clientData, Tcl_Interp *interp, int argc, const char *
 
     if (argc >= 3 && !rtip->needprep) {
 	Tcl_AppendResult(interp,
-			 argv[0], " ", argv[1],
+			 argv[0] ? argv[0] : "", " ", argv[1] ? argv[1] : "",
 			 " invoked when model has already been prepped.\n",
 			 (char *)NULL);
 	return TCL_ERROR;
     }
 
-    if (argc == 4) rtip->rti_hasty_prep = atoi(argv[3]);
+    if (argc == 4) {
+	int hasty = 0;
+	if (bu_sscanf(argv[3], "%d", &hasty) == 1)
+	    rtip->rti_hasty_prep = hasty;
+    }
 
     /* If args were given, prep now. */
     if (argc >= 3) rt_prep_parallel(rtip, 1);
@@ -496,7 +555,7 @@ tclcad_rt_prep(ClientData clientData, Tcl_Interp *interp, int argc, const char *
 							   ((double)rtip->stats.rti_cut_totobj) /
 							   rtip->stats.rti_ncut_by_type[CUT_BOXNODE]);
 
-    Tcl_AppendResult(interp, bu_vls_addr(&str), (char *)NULL);
+    Tcl_AppendResult(interp, bu_vls_cstr(&str), (char *)NULL);
     bu_vls_free(&str);
     return TCL_OK;
 }
@@ -518,12 +577,15 @@ tclcad_rt_set(ClientData clientData, Tcl_Interp *interp, int argc, const char *c
     struct application *ap = (struct application *)clientData;
     struct rt_i *rtip;
     struct bu_vls str = BU_VLS_INIT_ZERO;
-    int val;
+    int val = 0;
     const char *usage = "[vname [val]]";
 
+    if (!clientData || !interp || !argv)
+	return TCL_ERROR;
+
     if (argc < 2 || argc > 4) {
-	bu_vls_printf(&str, "%s %s: %s", argv[0], argv[1], usage);
-	Tcl_AppendResult(interp, bu_vls_addr(&str), (char *)NULL);
+	bu_vls_printf(&str, "%s %s: %s", argv[0] ? argv[0] : "", argv[1] ? argv[1] : "", usage);
+	Tcl_AppendResult(interp, bu_vls_cstr(&str), (char *)NULL);
 	bu_vls_free(&str);
 
 	return TCL_ERROR;
@@ -538,15 +600,23 @@ tclcad_rt_set(ClientData clientData, Tcl_Interp *interp, int argc, const char *c
 	bu_vls_printf(&str, "{onehit %d} ", ap->a_onehit);
 	bu_vls_printf(&str, "{no_bool %d} ", ap->a_no_booleans);
 	bu_vls_printf(&str, "{bot_reverse_normal_disabled %d}", ap->a_bot_reverse_normal_disabled);
-	Tcl_AppendResult(interp, bu_vls_addr(&str), (char *)NULL);
+	Tcl_AppendResult(interp, bu_vls_cstr(&str), (char *)NULL);
 	bu_vls_free(&str);
 
 	return TCL_OK;
     }
 
-    if (argc == 4 && sscanf(argv[3], "%d", &val) != 1) {
-	bu_vls_printf(&str, "%s %s: bad val - %s, must be an integer", argv[0], argv[1], argv[3]);
-	Tcl_AppendResult(interp, bu_vls_addr(&str), (char *)NULL);
+    if (!argv[2]) {
+	bu_vls_printf(&str, "%s %s: %s", argv[0] ? argv[0] : "", argv[1] ? argv[1] : "", usage);
+	Tcl_AppendResult(interp, bu_vls_cstr(&str), (char *)NULL);
+	bu_vls_free(&str);
+	return TCL_ERROR;
+    }
+
+    if (argc == 4 && (!argv[3] || bu_sscanf(argv[3], "%d", &val) != 1)) {
+	bu_vls_printf(&str, "%s %s: bad val - %s, must be an integer",
+		      argv[0] ? argv[0] : "", argv[1] ? argv[1] : "", argv[3] ? argv[3] : "");
+	Tcl_AppendResult(interp, bu_vls_cstr(&str), (char *)NULL);
 	bu_vls_free(&str);
 
 	return TCL_ERROR;
@@ -569,15 +639,15 @@ tclcad_rt_set(ClientData clientData, Tcl_Interp *interp, int argc, const char *c
 	    ap->a_bot_reverse_normal_disabled = val;
     } else {
 	bu_vls_printf(&str, "%s %s: bad val - %s, must be one of the following: onehit, no_bool, or bot_reverse_normal_disabled",
-		      argv[0], argv[1], argv[2]);
-	Tcl_AppendResult(interp, bu_vls_addr(&str), (char *)NULL);
+		      argv[0] ? argv[0] : "", argv[1] ? argv[1] : "", argv[2]);
+	Tcl_AppendResult(interp, bu_vls_cstr(&str), (char *)NULL);
 	bu_vls_free(&str);
 
 	return TCL_ERROR;
     }
 
     bu_vls_printf(&str, "%d", val);
-    Tcl_AppendResult(interp, bu_vls_addr(&str), (char *)NULL);
+    Tcl_AppendResult(interp, bu_vls_cstr(&str), (char *)NULL);
     bu_vls_free(&str);
     return TCL_OK;
 }
@@ -587,14 +657,18 @@ int
 tclcad_rt(ClientData clientData, Tcl_Interp *interp, int argc, const char **argv)
 {
     // Make sure we didn't accidentally wind up with the wrong data type
-    struct application *ap = (struct application *)clientData;
-    RT_CK_APPLICATION(ap);
-
+    struct application *ap;
     struct dbcmdstruct *dbcmd;
 
-    if (argc < 2) {
+    if (!clientData || !interp || !argv)
+	return TCL_ERROR;
+
+    ap = (struct application *)clientData;
+    RT_CK_APPLICATION(ap);
+
+    if (argc < 2 || !argv[1]) {
 	Tcl_AppendResult(interp,
-			 "wrong # args: should be \"", argv[0],
+			 "wrong # args: should be \"", argv[0] ? argv[0] : "",
 			 " command [args...]\"",
 			 (char *)NULL);
 	return TCL_ERROR;
@@ -632,6 +706,9 @@ tclcad_rt_import_from_path(Tcl_Interp *interp, struct rt_db_internal *ip, const 
 {
     struct db_i *dbip;
     int status;
+
+    if (!interp || !ip || !path || !wdb)
+	return TCL_ERROR;
 
     /* Can't run RT_CK_DB_INTERNAL(ip), it hasn't been filled in yet */
     RT_CK_WDB(wdb);
@@ -701,6 +778,9 @@ tclcad_rt_import_from_path(Tcl_Interp *interp, struct rt_db_internal *ip, const 
 int
 Rt_Init(Tcl_Interp *interp)
 {
+    if (!interp)
+	return TCL_ERROR;
+
     Tcl_PkgProvide(interp,  "Rt", brlcad_version());
 
     return TCL_OK;
@@ -717,6 +797,9 @@ tcl_obj_to_int_array(Tcl_Interp *interp, Tcl_Obj *list, int **array, int *array_
     Tcl_Obj **obj_array;
     int len, i;
 
+    if (!interp || !list || !array || !array_len)
+	return 0;
+
     if (Tcl_ListObjGetElements(interp, list, &len, &obj_array) != TCL_OK)
 	return 0;
 
@@ -729,8 +812,11 @@ tcl_obj_to_int_array(Tcl_Interp *interp, Tcl_Obj *list, int **array, int *array_
     }
 
     for (i=0; i<len && i<*array_len; i++) {
-	(*array)[i] = atoi(Tcl_GetStringFromObj(obj_array[i], NULL));
-	Tcl_DecrRefCount(obj_array[i]);
+	if (obj_array[i]) {
+	    if (bu_sscanf(Tcl_GetString(obj_array[i]), "%d", &(*array)[i]) != 1) {
+		(*array)[i] = 0;
+	    }
+	}
     }
 
     return len < *array_len ? len : *array_len;
@@ -743,9 +829,13 @@ tcl_list_to_int_array(Tcl_Interp *interp, char *char_list, int **array, int *arr
     Tcl_Obj *obj;
     int ret;
 
-    obj = Tcl_NewStringObj(char_list, -1);
+    if (!char_list)
+	return 0;
 
+    obj = Tcl_NewStringObj(char_list, -1);
+    Tcl_IncrRefCount(obj);
     ret = tcl_obj_to_int_array(interp, obj, array, array_len);
+    Tcl_DecrRefCount(obj);
 
     return ret;
 }
@@ -757,6 +847,9 @@ tcl_obj_to_fastf_array(Tcl_Interp *interp, Tcl_Obj *list, fastf_t **array, int *
     Tcl_Obj **obj_array;
     int len, i;
     int ret;
+
+    if (!interp || !list || !array || !array_len)
+	return 0;
 
     if ((ret=Tcl_ListObjGetElements(interp, list, &len, &obj_array)) != TCL_OK)
 	return ret;
@@ -770,8 +863,14 @@ tcl_obj_to_fastf_array(Tcl_Interp *interp, Tcl_Obj *list, fastf_t **array, int *
     }
 
     for (i=0; i<len && i<*array_len; i++) {
-	(*array)[i] = atof(Tcl_GetStringFromObj(obj_array[i], NULL));
-	Tcl_DecrRefCount(obj_array[i]);
+	if (obj_array[i]) {
+	    double val = 0.0;
+	    if (bu_sscanf(Tcl_GetString(obj_array[i]), "%lf", &val) == 1) {
+		(*array)[i] = (fastf_t)val;
+	    } else {
+		(*array)[i] = 0.0;
+	    }
+	}
     }
 
     return len < *array_len ? len : *array_len;
@@ -784,9 +883,13 @@ tcl_list_to_fastf_array(Tcl_Interp *interp, const char *char_list, fastf_t **arr
     Tcl_Obj *obj;
     int ret;
 
-    obj = Tcl_NewStringObj(char_list, -1);
+    if (!char_list)
+	return 0;
 
+    obj = Tcl_NewStringObj(char_list, -1);
+    Tcl_IncrRefCount(obj);
     ret = tcl_obj_to_fastf_array(interp, obj, array, array_len);
+    Tcl_DecrRefCount(obj);
 
     return ret;
 }

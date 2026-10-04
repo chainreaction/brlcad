@@ -148,7 +148,7 @@ FileMatchPIX(Tcl_Channel UNUSED(chan), const char *fileName, Tcl_Obj *format, in
     int len;
     size_t width, height;
 
-    if (format == NULL || interp == NULL)
+    if (format == NULL || interp == NULL || widthPtr == NULL || heightPtr == NULL)
 	return 0;
 
     formatString = Tcl_GetStringFromObj(format, &len);
@@ -208,12 +208,20 @@ FileReadPIX(Tcl_Interp *interp, Tcl_Channel chan, const char *fileName, Tcl_Obj 
     int nBytes, h, count;
     unsigned char *pixelPtr;
     Tk_PhotoImageBlock block;
-    char *formatString;
+    char *formatString = NULL;
     int len;
+
+    if (!interp || !chan || !fileName)
+	return TCL_ERROR;
+
+    if (srcX < 0 || srcY < 0)
+	return TCL_ERROR;
 
     /* Determine dimensions of file. */
 
-    formatString = Tcl_GetStringFromObj(format, &len);
+    if (format != NULL) {
+	formatString = Tcl_GetStringFromObj(format, &len);
+    }
 
     if (fb_common_name_size(&fileWidth, &fileHeight, formatString) <= 0)
 	if (fb_common_file_size(&fileWidth, &fileHeight, fileName, 3) <= 0) {
@@ -223,7 +231,7 @@ FileReadPIX(Tcl_Interp *interp, Tcl_Channel chan, const char *fileName, Tcl_Obj 
 	    return TCL_ERROR;
 	}
 
-    if ((fileWidth <= 0) || (fileHeight <= 0)) {
+    if ((fileWidth <= 0) || (fileHeight <= 0) || (fileWidth > (size_t)INT_MAX / 3)) {
 	Tcl_AppendResult(interp, "PIX image file \"", fileName,
 			 "\" has dimension(s) <= 0", (char *) NULL);
 	return TCL_ERROR;
@@ -245,7 +253,7 @@ FileReadPIX(Tcl_Interp *interp, Tcl_Channel chan, const char *fileName, Tcl_Obj 
     block.offset[1] = 1;
     block.offset[2] = 2;
     block.width = width;
-    block.pitch = block.pixelSize * fileWidth;
+    block.pitch = block.pixelSize * (int)fileWidth;
 
 #if TK_MINOR_VERSION < 5
     Tk_PhotoExpand(imageHandle, destX + width, destY + height);
@@ -271,7 +279,7 @@ FileReadPIX(Tcl_Interp *interp, Tcl_Channel chan, const char *fileName, Tcl_Obj 
 			     fileName, "\": ",
 			     Tcl_Eof(chan) ? "not enough data" : Tcl_PosixError(interp),
 			     (char *) NULL);
-	    bu_free((char *) pixelPtr, "PIX image");
+	    bu_free((char *) pixelPtr, "PIX image buffer");
 	    return TCL_ERROR;
 	}
 	block.height = 1;
@@ -311,6 +319,15 @@ FileWritePIX(Tcl_Interp *interp, const char *fileName, Tcl_Obj *format, Tk_Photo
     int w, h;
     int greenOffset, blueOffset;
     unsigned char *pixelPtr, *pixLinePtr;
+    const char *fmtStr;
+
+    if (!interp || !fileName || !blockPtr || !blockPtr->pixelPtr)
+	return TCL_ERROR;
+
+    if (blockPtr->width <= 0 || blockPtr->height <= 0 || blockPtr->pixelSize < 3) {
+	Tcl_AppendResult(interp, "invalid image dimensions or pixel size for PIX export", (char *)NULL);
+	return TCL_ERROR;
+    }
 
     if ((f = fopen(fileName, "wb")) == NULL) {
 	Tcl_AppendResult(interp, fileName, ": ", Tcl_PosixError(interp), (char *)NULL);
@@ -342,7 +359,8 @@ FileWritePIX(Tcl_Interp *interp, const char *fileName, Tcl_Obj *format, Tk_Photo
     f = NULL;
 
  writeerror:
-    Tcl_AppendResult(interp, "error writing \"", fileName, "\" as format [", format, "]: ", Tcl_PosixError(interp), (char *) NULL);
+    fmtStr = format ? Tcl_GetString(format) : "pix";
+    Tcl_AppendResult(interp, "error writing \"", fileName, "\" as format [", fmtStr, "]: ", Tcl_PosixError(interp), (char *) NULL);
     if (f != NULL) {
 	fclose(f);
     }
