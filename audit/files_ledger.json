@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1591,
-    "pending_files": 1902,
-    "last_updated": "2026-10-04T17:00:00Z",
-    "total_issues": 353,
-    "reviewed_count": 1591
+    "reviewed_files": 1593,
+    "pending_files": 1900,
+    "last_updated": "2026-10-04T17:15:00Z",
+    "total_issues": 354,
+    "reviewed_count": 1593
   },
   "files": [
     {
@@ -27695,20 +27695,24 @@
       "path": "src/libnmg/eval.c",
       "subsystem": "src/libnmg",
       "lines": 657,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T17:15:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0333"
+      ]
     },
     {
       "id": 2590,
       "path": "src/libnmg/extrude.c",
       "subsystem": "src/libnmg",
       "lines": 1365,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T17:15:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0333"
+      ]
     },
     {
       "id": 2591,
