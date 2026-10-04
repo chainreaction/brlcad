@@ -48,6 +48,7 @@ struct nmg_bool_state {
     const int *bs_actions;
     const struct bn_tol *bs_tol;
     struct bu_list *vlfree;
+    long bs_maxindex;
 };
 
 
@@ -94,9 +95,20 @@ nmg_ck_lu_orientation(struct loopuse *lu, const struct bn_tol *tolp)
     plane_t lu_peqn;
     fastf_t dot;
 
+    if (!lu || !tolp)
+	return;
+
     NMG_CK_LOOPUSE(lu);
+    BN_CK_TOL(tolp);
+
+    if (!lu->up.magic_p || *lu->up.magic_p != NMG_FACEUSE_MAGIC)
+	return;
+
     fu = lu->up.fu_p;		/* parent had better be faceuse */
     NMG_CK_FACEUSE(fu);
+
+    if (!fu->f_p || !fu->f_p->g.magic_p || *fu->f_p->g.magic_p != NMG_FACE_G_PLANE_MAGIC)
+	return;
 
     NMG_GET_FU_PLANE(fu_peqn, fu);
     nmg_loop_plane_newell(lu, lu_peqn);
@@ -107,7 +119,7 @@ nmg_ck_lu_orientation(struct loopuse *lu, const struct bn_tol *tolp)
 	return;		/* can't determine geometric orientation */
 
 
-    if (dot < 0.0) {
+    if (dot < -tolp->perp) {
 	bu_log("nmg_ck_lu_orientation() lu=%p, dot=%g, fu_orient=%s, lu_orient=%s\n",
 	       (void *)lu, dot,
 	       nmg_orientation(fu->orientation),
@@ -193,10 +205,22 @@ nmg_evaluate_boolean(struct shell *sA, struct shell *sB, int op, char **classlis
 {
     int const *actions = NULL;
     struct nmg_bool_state bool_state;
+    long maxindex = 0;
+    int i;
+
+    if (!sA || !sB || !classlist || !tol)
+	return;
 
     NMG_CK_SHELL(sA);
     NMG_CK_SHELL(sB);
     BN_CK_TOL(tol);
+
+    for (i = 0; i < 8; i++) {
+	if (!classlist[i]) {
+	    bu_log("nmg_evaluate_boolean() classlist[%d] is NULL\n", i);
+	    return;
+	}
+    }
 
     if (nmg_debug & NMG_DEBUG_BOOLEVAL) {
 	bu_log("nmg_evaluate_boolean(sA=%p, sB=%p, op=%d) START\n",
@@ -219,12 +243,18 @@ nmg_evaluate_boolean(struct shell *sA, struct shell *sB, int op, char **classlis
 	    bu_bomb("bad boolean\n");
     }
 
+    if (sA->r_p && sA->r_p->m_p)
+	maxindex = sA->r_p->m_p->maxindex;
+    if (sB->r_p && sB->r_p->m_p && sB->r_p->m_p->maxindex > maxindex)
+	maxindex = sB->r_p->m_p->maxindex;
+
     bool_state.bs_dest = sA;
     bool_state.bs_src = sB;
     bool_state.bs_classtab = classlist;
     bool_state.bs_actions = actions;
     bool_state.vlfree = vlfree;
     bool_state.bs_tol = tol;
+    bool_state.bs_maxindex = maxindex;
 
     bool_state.bs_isA = 1;
     nmg_eval_shell(sA, &bool_state);
@@ -247,11 +277,12 @@ nmg_evaluate_boolean(struct shell *sA, struct shell *sB, int op, char **classlis
 
 	if ((fp=fopen("bool_ans.plot3", "wb")) == (FILE *)NULL) {
 	    (void)perror("bool_ans.plot3");
-	    bu_bomb("unable to open bool_ans.plot3 for writing");
+	    bu_log("unable to open bool_ans.plot3 for writing\n");
+	} else {
+	    bu_log("plotting bool_ans.plot3\n");
+	    nmg_pl_s(fp, sA, vlfree);
+	    (void)fclose(fp);
 	}
-	bu_log("plotting bool_ans.plot3\n");
-	nmg_pl_s(fp, sA, vlfree);
-	(void)fclose(fp);
     }
 
     /* Remove loops/edges/vertices that appear more than once in result */
@@ -275,26 +306,35 @@ nmg_eval_action(uint32_t *ptr, register struct nmg_bool_state *bs)
     register int nmg_class;
     int index;
 
+    if (!ptr || !bs || !bs->bs_classtab || !bs->bs_actions)
+	return BACTION_RETAIN;
+
     BN_CK_TOL(bs->bs_tol);
 
     index = nmg_index_of_struct(ptr);
+    if (index < 0 || (bs->bs_maxindex > 0 && index > bs->bs_maxindex)) {
+	bu_log("nmg_eval_action(ptr=%p) invalid index %d (max %ld), retaining\n",
+	       (void *)ptr, index, bs->bs_maxindex);
+	return BACTION_RETAIN;
+    }
+
     if (bs->bs_isA) {
-	if (NMG_INDEX_VALUE(bs->bs_classtab[NMG_CLASS_AinB], index)) {
+	if (bs->bs_classtab[NMG_CLASS_AinB] && NMG_INDEX_VALUE(bs->bs_classtab[NMG_CLASS_AinB], index)) {
 	    nmg_class = NMG_CLASS_AinB;
 	    ret = bs->bs_actions[NMG_CLASS_AinB];
 	    goto out;
 	}
-	if (NMG_INDEX_VALUE(bs->bs_classtab[NMG_CLASS_AonBshared], index)) {
+	if (bs->bs_classtab[NMG_CLASS_AonBshared] && NMG_INDEX_VALUE(bs->bs_classtab[NMG_CLASS_AonBshared], index)) {
 	    nmg_class = NMG_CLASS_AonBshared;
 	    ret = bs->bs_actions[NMG_CLASS_AonBshared];
 	    goto out;
 	}
-	if (NMG_INDEX_VALUE(bs->bs_classtab[NMG_CLASS_AonBanti], index)) {
+	if (bs->bs_classtab[NMG_CLASS_AonBanti] && NMG_INDEX_VALUE(bs->bs_classtab[NMG_CLASS_AonBanti], index)) {
 	    nmg_class = NMG_CLASS_AonBanti;
 	    ret = bs->bs_actions[NMG_CLASS_AonBanti];
 	    goto out;
 	}
-	if (NMG_INDEX_VALUE(bs->bs_classtab[NMG_CLASS_AoutB], index)) {
+	if (bs->bs_classtab[NMG_CLASS_AoutB] && NMG_INDEX_VALUE(bs->bs_classtab[NMG_CLASS_AoutB], index)) {
 	    nmg_class = NMG_CLASS_AoutB;
 	    ret = bs->bs_actions[NMG_CLASS_AoutB];
 	    goto out;
@@ -307,22 +347,22 @@ nmg_eval_action(uint32_t *ptr, register struct nmg_bool_state *bs)
     }
 
     /* is B */
-    if (NMG_INDEX_VALUE(bs->bs_classtab[NMG_CLASS_BinA], index)) {
+    if (bs->bs_classtab[NMG_CLASS_BinA] && NMG_INDEX_VALUE(bs->bs_classtab[NMG_CLASS_BinA], index)) {
 	nmg_class = NMG_CLASS_BinA;
 	ret = bs->bs_actions[NMG_CLASS_BinA];
 	goto out;
     }
-    if (NMG_INDEX_VALUE(bs->bs_classtab[NMG_CLASS_BonAshared], index)) {
+    if (bs->bs_classtab[NMG_CLASS_BonAshared] && NMG_INDEX_VALUE(bs->bs_classtab[NMG_CLASS_BonAshared], index)) {
 	nmg_class = NMG_CLASS_BonAshared;
 	ret = bs->bs_actions[NMG_CLASS_BonAshared];
 	goto out;
     }
-    if (NMG_INDEX_VALUE(bs->bs_classtab[NMG_CLASS_BonAanti], index)) {
+    if (bs->bs_classtab[NMG_CLASS_BonAanti] && NMG_INDEX_VALUE(bs->bs_classtab[NMG_CLASS_BonAanti], index)) {
 	nmg_class = NMG_CLASS_BonAanti;
 	ret = bs->bs_actions[NMG_CLASS_BonAanti];
 	goto out;
     }
-    if (NMG_INDEX_VALUE(bs->bs_classtab[NMG_CLASS_BoutA], index)) {
+    if (bs->bs_classtab[NMG_CLASS_BoutA] && NMG_INDEX_VALUE(bs->bs_classtab[NMG_CLASS_BoutA], index)) {
 	nmg_class = NMG_CLASS_BoutA;
 	ret = bs->bs_actions[NMG_CLASS_BoutA];
 	goto out;
@@ -398,16 +438,25 @@ nmg_eval_shell(register struct shell *s, struct nmg_bool_state *bs)
 	    if (lu->lumate_p == nextlu)
 		nextlu = BU_LIST_PNEXT(loopuse, nextlu);
 
+	    if (!lu->l_p) {
+		lu = nextlu;
+		continue;
+	    }
 	    NMG_CK_LOOP(lu->l_p);
 	    nmg_ck_lu_orientation(lu, bs->bs_tol);
 	    switch (nmg_eval_action(&lu->l_p->magic, bs)) {
 		case BACTION_KILL:
 		    /* Kill by demoting loop to edges */
-		    if (BU_LIST_FIRST_MAGIC(&lu->down_hd) == NMG_VERTEXUSE_MAGIC) {
+		    if (BU_LIST_IS_EMPTY(&lu->down_hd)) {
+			(void)nmg_klu(lu);
+		    } else if (BU_LIST_FIRST_MAGIC(&lu->down_hd) == NMG_VERTEXUSE_MAGIC) {
 			/* loop of single vertex */
 			(void)nmg_klu(lu);
-		    } else if (nmg_demote_lu(lu) == 0) {
-			nmg_eval_plot(bs, nmg_eval_count++);	/* debug */
+		    } else if (BU_LIST_FIRST_MAGIC(&lu->down_hd) == NMG_EDGEUSE_MAGIC) {
+			if (nmg_demote_lu(lu) == 0)
+			    nmg_eval_plot(bs, nmg_eval_count++);	/* debug */
+		    } else {
+			(void)nmg_klu(lu);
 		    }
 		    lu = nextlu;
 		    continue;
@@ -466,8 +515,16 @@ nmg_eval_shell(register struct shell *s, struct nmg_bool_state *bs)
 	if (lu->lumate_p == nextlu)
 	    nextlu = BU_LIST_PNEXT(loopuse, nextlu);
 
+	if (BU_LIST_IS_EMPTY(&lu->down_hd)) {
+	    lu = nextlu;
+	    continue;
+	}
 	if (BU_LIST_FIRST_MAGIC(&lu->down_hd) == NMG_VERTEXUSE_MAGIC) {
 	    /* ignore vertex-with-self-loop */
+	    lu = nextlu;
+	    continue;
+	}
+	if (!lu->l_p) {
 	    lu = nextlu;
 	    continue;
 	}
@@ -476,8 +533,12 @@ nmg_eval_shell(register struct shell *s, struct nmg_bool_state *bs)
 	    case BACTION_KILL:
 		/* Demote the loopuse into wire edges */
 		/* kill loop & mate */
-		if (nmg_demote_lu(lu) == 0)
-		    nmg_eval_plot(bs, nmg_eval_count++);	/* debug */
+		if (BU_LIST_FIRST_MAGIC(&lu->down_hd) == NMG_EDGEUSE_MAGIC) {
+		    if (nmg_demote_lu(lu) == 0)
+			nmg_eval_plot(bs, nmg_eval_count++);	/* debug */
+		} else {
+		    (void)nmg_klu(lu);
+		}
 		lu = nextlu;
 		continue;
 	    case BACTION_RETAIN:
@@ -502,12 +563,20 @@ nmg_eval_shell(register struct shell *s, struct nmg_bool_state *bs)
 	    nexteu = BU_LIST_PNEXT(edgeuse, nexteu);
 
 	/* Consider this edge */
+	if (!eu->e_p) {
+	    eu = nexteu;
+	    continue;
+	}
 	NMG_CK_EDGE(eu->e_p);
 	switch (nmg_eval_action(&eu->e_p->magic, bs)) {
 	    case BACTION_KILL:
 		/* Demote the edegeuse (and mate) into vertices */
-		if (nmg_demote_eu(eu) == 0)
-		    nmg_eval_plot(bs, nmg_eval_count++);	/* debug */
+		if (eu->up.magic_p && *eu->up.magic_p == NMG_SHELL_MAGIC) {
+		    if (nmg_demote_eu(eu) == 0)
+			nmg_eval_plot(bs, nmg_eval_count++);	/* debug */
+		} else {
+		    (void)nmg_keu(eu);
+		}
 		eu = nexteu;
 		continue;
 	    case BACTION_RETAIN:
@@ -536,6 +605,10 @@ nmg_eval_shell(register struct shell *s, struct nmg_bool_state *bs)
 	NMG_CK_LOOPUSE(lu);
 	nextlu = BU_LIST_PNEXT(loopuse, lu);
 
+	if (BU_LIST_IS_EMPTY(&lu->down_hd)) {
+	    lu = nextlu;
+	    continue;
+	}
 	if (BU_LIST_FIRST_MAGIC(&lu->down_hd) != NMG_VERTEXUSE_MAGIC) {
 	    /* ignore any remaining wire-loops */
 	    lu = nextlu;
@@ -545,6 +618,10 @@ nmg_eval_shell(register struct shell *s, struct nmg_bool_state *bs)
 	    nextlu = BU_LIST_PNEXT(loopuse, nextlu);
 	vu = BU_LIST_PNEXT(vertexuse, &lu->down_hd);
 	NMG_CK_VERTEXUSE(vu);
+	if (!vu->v_p) {
+	    lu = nextlu;
+	    continue;
+	}
 	NMG_CK_VERTEX(vu->v_p);
 	switch (nmg_eval_action(&vu->v_p->magic, bs)) {
 	    case BACTION_KILL:
@@ -568,17 +645,22 @@ nmg_eval_shell(register struct shell *s, struct nmg_bool_state *bs)
     vu = s->vu_p;
     if (vu) {
 	NMG_CK_VERTEXUSE(vu);
-	NMG_CK_VERTEX(vu->v_p);
-	switch (nmg_eval_action(&vu->v_p->magic, bs)) {
-	    case BACTION_KILL:
-		nmg_kvu(vu);
-		nmg_eval_plot(bs, nmg_eval_count++);	/* debug */
-		s->vu_p = (struct vertexuse *)0;	/* sanity */
-		break;
-	    case BACTION_RETAIN:
-		break;
-	    default:
-		bu_bomb("nmg_eval_shell() bad BACTION\n");
+	if (vu->v_p) {
+	    NMG_CK_VERTEX(vu->v_p);
+	    switch (nmg_eval_action(&vu->v_p->magic, bs)) {
+		case BACTION_KILL:
+		    nmg_kvu(vu);
+		    nmg_eval_plot(bs, nmg_eval_count++);	/* debug */
+		    s->vu_p = (struct vertexuse *)0;	/* sanity */
+		    break;
+		case BACTION_RETAIN:
+		    break;
+		default:
+		    bu_bomb("nmg_eval_shell() bad BACTION\n");
+	    }
+	} else {
+	    nmg_kvu(vu);
+	    s->vu_p = (struct vertexuse *)0;
 	}
     }
     if (nmg_debug & NMG_DEBUG_VERIFY)
@@ -601,6 +683,9 @@ nmg_eval_plot(struct nmg_bool_state *bs, int num)
     int do_plot = 0;
     int do_anim = 0;
 
+    if (!bs)
+	return;
+
     if (nmg_debug & NMG_DEBUG_BOOLEVAL && nmg_debug & NMG_DEBUG_PLOTEM)
 	do_plot = 1;
     if (nmg_debug & NMG_DEBUG_PL_ANIM) do_anim = 1;
@@ -610,15 +695,17 @@ nmg_eval_plot(struct nmg_bool_state *bs, int num)
     BN_CK_TOL(bs->bs_tol);
 
     if (do_plot) {
-	sprintf(fname, "nmg_eval%d.plot3", num);
+	snprintf(fname, sizeof(fname), "nmg_eval%d.plot3", num);
 	if ((fp = fopen(fname, "wb")) == NULL) {
 	    perror(fname);
 	    return;
 	}
 	bu_log("Plotting %s\n", fname);
 
-	nmg_pl_s(fp, bs->bs_dest, bs->vlfree);
-	nmg_pl_s(fp, bs->bs_src, bs->vlfree);
+	if (bs->bs_dest)
+	    nmg_pl_s(fp, bs->bs_dest, bs->vlfree);
+	if (bs->bs_src)
+	    nmg_pl_s(fp, bs->bs_src, bs->vlfree);
 
 	fclose(fp);
     }
@@ -626,8 +713,10 @@ nmg_eval_plot(struct nmg_bool_state *bs, int num)
     if (do_anim) {
 	struct bv_vlblock *vbp = bv_vlblock_init(bs->vlfree, 32);
 
-	nmg_vlblock_s(vbp, bs->bs_dest, 0, bs->vlfree);
-	nmg_vlblock_s(vbp, bs->bs_src, 0, bs->vlfree);
+	if (bs->bs_dest)
+	    nmg_vlblock_s(vbp, bs->bs_dest, 0, bs->vlfree);
+	if (bs->bs_src)
+	    nmg_vlblock_s(vbp, bs->bs_src, 0, bs->vlfree);
 
 	/* Cause animation of boolean operation as it proceeds! */
 	if (nmg_vlblock_anim_upcall) {
