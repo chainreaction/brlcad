@@ -50,13 +50,17 @@ static icv_image_t *
 demo_rgb(size_t w, size_t h)
 {
     icv_image_t *img = icv_create(w, h, ICV_COLOR_SPACE_RGB);
+    if (!img || !img->data) {
+	if (img) icv_destroy(img);
+	return NULL;
+    }
 
     for (size_t y = 0; y < h; y++) {
 	for (size_t x = 0; x < w; x++) {
 	    size_t off = (y * w + x) * 3;
 	    img->data[off + 0] = (w > 1) ? (double)x / (double)(w - 1) : 0.0;
 	    img->data[off + 1] = (h > 1) ? (double)y / (double)(h - 1) : 0.0;
-	    img->data[off + 2] = (double)(x + y) / (double)(w + h);
+	    img->data[off + 2] = (w + h > 0) ? (double)(x + y) / (double)(w + h) : 0.0;
 	}
     }
 
@@ -66,7 +70,16 @@ demo_rgb(size_t w, size_t h)
 static icv_image_t *
 clone_image(const icv_image_t *src)
 {
+    if (!src || !src->data || src->width == 0 || src->height == 0 || src->channels == 0)
+	return NULL;
+    if (src->width > SIZE_MAX / src->height / src->channels / sizeof(double))
+	return NULL;
+
     icv_image_t *dst = icv_create(src->width, src->height, src->color_space);
+    if (!dst || !dst->data) {
+	if (dst) icv_destroy(dst);
+	return NULL;
+    }
     size_t len = src->width * src->height * src->channels;
 
     memcpy(dst->data, src->data, len * sizeof(double));
@@ -91,6 +104,9 @@ demo_memory_io(icv_image_t *img)
     unsigned char *png = NULL;
     size_t png_len = 0;
 
+    if (!img || !img->data)
+	return;
+
     DEMO_CHECK(icv_write_mem(img, &png, &png_len, BU_MIME_IMAGE_PNG) == 0,
 	       "encode PNG to memory");
     DEMO_CHECK(png != NULL && png_len > 0, "PNG memory buffer is populated");
@@ -108,6 +124,9 @@ demo_memory_io(icv_image_t *img)
 static void
 demo_file_io(icv_image_t *img)
 {
+    if (!img || !img->data)
+	return;
+
     struct fmt {
 	bu_mime_image_t mime;
 	const char *label;
@@ -142,9 +161,18 @@ static void
 demo_crop_filter_ascii(icv_image_t *base)
 {
     struct icv_ascii_art_params artparams = ICV_ASCII_ART_PARAMS_DEFAULT;
+    if (!base || !base->data)
+	return;
+
     icv_image_t *rect = clone_image(base);
     icv_image_t *quad = clone_image(base);
     char *art = NULL;
+
+    if (!rect || !quad) {
+	if (rect) icv_destroy(rect);
+	if (quad) icv_destroy(quad);
+	return;
+    }
 
     print_crop_diagram();
 
@@ -178,6 +206,12 @@ demo_diffs(void)
     int off_by_1 = 0;
     int off_by_many = 0;
 
+    if (!a || !b || !a->data || !b->data) {
+	if (a) icv_destroy(a);
+	if (b) icv_destroy(b);
+	return;
+    }
+
     b->data[(7 * 8 + 7) * 3 + 0] = 0.0;
     b->data[(4 * 8 + 3) * 3 + 1] = 1.0;
 
@@ -202,16 +236,18 @@ demo_animation(void)
     icv_image_t *a = demo_rgb(4, 4);
     icv_image_t *b = demo_rgb(4, 4);
 
-    b->data[0] = 1.0;
-    b->data[1] = 0.0;
-    b->data[2] = 0.0;
-
     DEMO_CHECK(fp != NULL && path[0] != '\0', "create temporary animation path");
     if (fp)
 	fclose(fp);
 
+    if (b && b->data) {
+	b->data[0] = 1.0;
+	b->data[1] = 0.0;
+	b->data[2] = 0.0;
+    }
+
     DEMO_CHECK(anim != NULL, "create animation");
-    if (anim && fp) {
+    if (anim && fp && a && b) {
 	DEMO_CHECK(icv_anim_add_frame(anim, a) == 0, "append first animation frame");
 	DEMO_CHECK(icv_anim_add_frame(anim, b) == 0, "append second animation frame");
 	DEMO_CHECK(icv_anim_set_frame_delay(anim, 1, 100000) == 0, "set animation frame delay");
@@ -222,19 +258,24 @@ demo_animation(void)
 	    printf("animation roundtrip frames: %zu\n", icv_anim_num_frames(read_anim));
 	    icv_anim_destroy(read_anim);
 	}
-	bu_file_delete(path);
     }
 
-    icv_anim_destroy(anim);
-    icv_destroy(a);
-    icv_destroy(b);
+    if (path[0] != '\0')
+	bu_file_delete(path);
+
+    if (anim)
+	icv_anim_destroy(anim);
+    if (a)
+	icv_destroy(a);
+    if (b)
+	icv_destroy(b);
 }
 
 int
 main(int argc, char **argv)
 {
-    (void)argc;
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
 
     printf("libicv developer demo\n");
 
@@ -244,7 +285,8 @@ main(int argc, char **argv)
     demo_crop_filter_ascii(img);
     demo_diffs();
     demo_animation();
-    icv_destroy(img);
+    if (img)
+	icv_destroy(img);
 
     if (failures) {
 	bu_log("icv_demo encountered %d failed example checks\n", failures);

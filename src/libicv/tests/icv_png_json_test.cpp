@@ -94,12 +94,17 @@ dbl_eq(double a, double b)
 static icv_image_t *
 make_solid(size_t w, size_t h, double r, double g, double b)
 {
+    if (w == 0 || h == 0 || w > SIZE_MAX / h / 3 / sizeof(double))
+	return NULL;
     icv_image_t *img = icv_create(w, h, ICV_COLOR_SPACE_RGB);
-    if (!img) return NULL;
+    if (!img || !img->data) {
+	if (img) icv_destroy(img);
+	return NULL;
+    }
     for (size_t i = 0; i < w * h; i++) {
-img->data[i*3+0] = r;
-img->data[i*3+1] = g;
-img->data[i*3+2] = b;
+	img->data[i*3+0] = r;
+	img->data[i*3+1] = g;
+	img->data[i*3+2] = b;
     }
     return img;
 }
@@ -126,58 +131,60 @@ read_be32(const unsigned char *p)
 static std::string
 png_read_text_chunk(const char *filename, const char *key)
 {
+    if (!filename || !key) return std::string();
+
     FILE *fp = fopen(filename, "rb");
     if (!fp) return std::string();
 
     /* Read entire file into memory */
     if (fseek(fp, 0, SEEK_END) != 0) { fclose(fp); return std::string(); }
     long fsz = ftell(fp);
-    if (fsz <= 0) { fclose(fp); return std::string(); }
+    if (fsz <= 0 || fsz > 100 * 1024 * 1024) { fclose(fp); return std::string(); }
     rewind(fp);
 
     std::vector<unsigned char> buf((size_t)fsz);
     if (fread(buf.data(), 1, (size_t)fsz, fp) != (size_t)fsz) {
-fclose(fp); return std::string();
+	fclose(fp); return std::string();
     }
     fclose(fp);
 
     /* Verify PNG signature */
     static const unsigned char PNG_SIG[8] = {137,80,78,71,13,10,26,10};
     if (buf.size() < 8 || memcmp(buf.data(), PNG_SIG, 8) != 0)
-return std::string();
+	return std::string();
 
     size_t pos = 8;
     while (pos + 12 <= buf.size()) {
-uint32_t length = read_be32(buf.data() + pos);
-/* chunk type is 4 ASCII bytes */
-const unsigned char *type = buf.data() + pos + 4;
-const unsigned char *data = buf.data() + pos + 8;
+	uint32_t length = read_be32(buf.data() + pos);
+	/* chunk type is 4 ASCII bytes */
+	const unsigned char *type = buf.data() + pos + 4;
+	const unsigned char *data = buf.data() + pos + 8;
 
-if (pos + 12 + length > buf.size())
-    break;
+	if (pos > buf.size() - 12 || static_cast<size_t>(length) > buf.size() - 12 - pos)
+	    break;
 
-/* tEXt chunk type = 0x74455874 ("tEXt") */
-if (type[0]=='t' && type[1]=='E' && type[2]=='X' && type[3]=='t'
-    && length > 0)
-{
-    /* keyword ends at the first NUL byte */
-    const unsigned char *nul = (const unsigned char *)memchr(data, 0, length);
-    if (nul) {
-size_t klen = (size_t)(nul - data);
-std::string kw(reinterpret_cast<const char *>(data), klen);
-if (kw == key) {
-    /* text follows the NUL */
-    size_t tlen = length - klen - 1;
-    return std::string(reinterpret_cast<const char *>(nul + 1), tlen);
-}
-    }
-}
+	/* tEXt chunk type = 0x74455874 ("tEXt") */
+	if (type[0]=='t' && type[1]=='E' && type[2]=='X' && type[3]=='t'
+	    && length > 0)
+	{
+	    /* keyword ends at the first NUL byte */
+	    const unsigned char *nul = (const unsigned char *)memchr(data, 0, length);
+	    if (nul) {
+		size_t klen = (size_t)(nul - data);
+		std::string kw(reinterpret_cast<const char *>(data), klen);
+		if (kw == key) {
+		    /* text follows the NUL */
+		    size_t tlen = length - klen - 1;
+		    return std::string(reinterpret_cast<const char *>(nul + 1), tlen);
+		}
+	    }
+	}
 
-/* IEND chunk signals end */
-if (type[0]=='I' && type[1]=='E' && type[2]=='N' && type[3]=='D')
-    break;
+	/* IEND chunk signals end */
+	if (type[0]=='I' && type[1]=='E' && type[2]=='N' && type[3]=='D')
+	    break;
 
-pos += 12 + length;
+	pos += 12 + static_cast<size_t>(length);
     }
 
     return std::string();
@@ -197,6 +204,10 @@ test_json_chunk_structure(const char *tmpdir)
     if (!img) return;
 
     struct icv_render_info *ri = icv_render_info_create();
+    if (!ri) {
+	icv_destroy(img);
+	return;
+    }
     ri->db_filename = bu_strdup("/project/models/tank.g");
     ri->objects     = bu_strdup("hull.r turret.r");
 
@@ -308,6 +319,10 @@ test_double_precision(const char *tmpdir)
     if (!img) return;
 
     struct icv_render_info *ri = icv_render_info_create();
+    if (!ri) {
+	icv_destroy(img);
+	return;
+    }
     ri->db_filename = bu_strdup("precision.g");
 
     /* Use values that are not exactly representable in fewer digits */
@@ -334,27 +349,27 @@ test_double_precision(const char *tmpdir)
     CHECK(img2 != NULL, "read PNG back");
 
     if (img2) {
-const struct icv_render_info *ri2 = icv_image_get_render_info(img2);
-CHECK(ri2 != NULL, "render_info present after read-back");
-if (ri2) {
-    /* Exact bit-for-bit equality expected after full-precision serialisation */
-    CHECK(dbl_eq(ri2->eye_model[0], precise_x),
-  "eye_model[0] round-trips exactly");
-    CHECK(dbl_eq(ri2->eye_model[1], precise_y),
-  "eye_model[1] round-trips exactly");
-    CHECK(dbl_eq(ri2->viewsize, precise_vs),
-  "viewsize round-trips exactly");
-    bu_log("  eye_model[0]: %.17g (orig %.17g) match=%d\n",
-   ri2->eye_model[0], precise_x,
-   dbl_eq(ri2->eye_model[0], precise_x));
-    bu_log("  eye_model[1]: %.17g (orig %.17g) match=%d\n",
-   ri2->eye_model[1], precise_y,
-   dbl_eq(ri2->eye_model[1], precise_y));
-    bu_log("  viewsize:     %.17g (orig %.17g) match=%d\n",
-   ri2->viewsize, precise_vs,
-   dbl_eq(ri2->viewsize, precise_vs));
-}
-icv_destroy(img2);
+	const struct icv_render_info *ri2 = icv_image_get_render_info(img2);
+	CHECK(ri2 != NULL, "render_info present after read-back");
+	if (ri2) {
+	    /* Exact bit-for-bit equality expected after full-precision serialisation */
+	    CHECK(dbl_eq(ri2->eye_model[0], precise_x),
+		  "eye_model[0] round-trips exactly");
+	    CHECK(dbl_eq(ri2->eye_model[1], precise_y),
+		  "eye_model[1] round-trips exactly");
+	    CHECK(dbl_eq(ri2->viewsize, precise_vs),
+		  "viewsize round-trips exactly");
+	    bu_log("  eye_model[0]: %.17g (orig %.17g) match=%d\n",
+		   ri2->eye_model[0], precise_x,
+		   dbl_eq(ri2->eye_model[0], precise_x));
+	    bu_log("  eye_model[1]: %.17g (orig %.17g) match=%d\n",
+		   ri2->eye_model[1], precise_y,
+		   dbl_eq(ri2->eye_model[1], precise_y));
+	    bu_log("  viewsize:     %.17g (orig %.17g) match=%d\n",
+		   ri2->viewsize, precise_vs,
+		   dbl_eq(ri2->viewsize, precise_vs));
+	}
+	icv_destroy(img2);
     }
 
     bu_file_delete(bu_vls_cstr(&fname));
@@ -403,6 +418,10 @@ test_single_object(const char *tmpdir)
     if (!img) return;
 
     struct icv_render_info *ri = icv_render_info_create();
+    if (!ri) {
+	icv_destroy(img);
+	return;
+    }
     ri->db_filename = bu_strdup("single.g");
     ri->objects     = bu_strdup("all.r");
     MAT_IDN(ri->viewrotscale);
@@ -422,27 +441,27 @@ test_single_object(const char *tmpdir)
     std::string raw = png_read_text_chunk(bu_vls_cstr(&fname), "BRL-CAD-scene");
     CHECK(!raw.empty(), "BRL-CAD-scene chunk present");
     if (!raw.empty()) {
-using json = nlohmann::json;
-json j;
-bool valid_json = true;
-try { j = json::parse(raw); } catch (...) { valid_json = false; }
-CHECK(valid_json, "valid JSON");
-if (valid_json && j.contains("objects") && j["objects"].is_array()) {
-    CHECK(j["objects"].size() == 1u, "objects array has 1 element");
-    if (!j["objects"].empty())
-CHECK(j["objects"][0].get<std::string>() == "all.r",
-      "objects[0] == 'all.r'");
-}
+	using json = nlohmann::json;
+	json j;
+	bool valid_json = true;
+	try { j = json::parse(raw); } catch (...) { valid_json = false; }
+	CHECK(valid_json, "valid JSON");
+	if (valid_json && j.contains("objects") && j["objects"].is_array()) {
+	    CHECK(j["objects"].size() == 1u, "objects array has 1 element");
+	    if (!j["objects"].empty())
+		CHECK(j["objects"][0].get<std::string>() == "all.r",
+		      "objects[0] == 'all.r'");
+	}
     }
 
     /* Verify API round-trip */
     icv_image_t *img2 = icv_read(bu_vls_cstr(&fname), BU_MIME_IMAGE_PNG, 0, 0);
     CHECK(img2 != NULL, "read PNG back");
     if (img2) {
-const struct icv_render_info *ri2 = icv_image_get_render_info(img2);
-CHECK(ri2 && ri2->objects && BU_STR_EQUAL(ri2->objects, "all.r"),
-      "objects field round-trips as 'all.r'");
-icv_destroy(img2);
+	const struct icv_render_info *ri2 = icv_image_get_render_info(img2);
+	CHECK(ri2 && ri2->objects && BU_STR_EQUAL(ri2->objects, "all.r"),
+	      "objects field round-trips as 'all.r'");
+	icv_destroy(img2);
     }
 
     bu_file_delete(bu_vls_cstr(&fname));
@@ -456,11 +475,12 @@ icv_destroy(img2);
 int
 main(int argc, char *argv[])
 {
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
 
     const char *tmpdir = "/tmp";
-    if (argc > 1)
-tmpdir = argv[1];
+    if (argc > 1 && argv && argv[1])
+	tmpdir = argv[1];
 
     test_json_chunk_structure(tmpdir);
     test_double_precision(tmpdir);

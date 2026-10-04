@@ -63,8 +63,13 @@ static int tests_passed = 0;
 static icv_image_t *
 make_solid(size_t w, size_t h, double r, double g, double b)
 {
+    if (w == 0 || h == 0 || w > SIZE_MAX / h / 3 / sizeof(double))
+	return NULL;
     icv_image_t *img = icv_create(w, h, ICV_COLOR_SPACE_RGB);
-    if (!img) return NULL;
+    if (!img || !img->data) {
+	if (img) icv_destroy(img);
+	return NULL;
+    }
     for (size_t i = 0; i < w * h; i++) {
 	img->data[i*3+0] = r;
 	img->data[i*3+1] = g;
@@ -85,6 +90,13 @@ test_icv_diff_counts(void)
     /* Two 2x1 images, both initially black */
     icv_image_t *img1 = make_solid(2, 1, 0.0, 0.0, 0.0);
     icv_image_t *img2 = make_solid(2, 1, 0.0, 0.0, 0.0);
+
+    CHECK(img1 != NULL && img2 != NULL, "created test images for diff counting");
+    if (!img1 || !img2 || !img1->data || !img2->data) {
+	if (img1) icv_destroy(img1);
+	if (img2) icv_destroy(img2);
+	return;
+    }
 
     /* Make img2 pixel[0] red channel = 1/255 (off by 1) */
     img2->data[0] = 1.0/255.0;
@@ -114,6 +126,12 @@ test_icv_diff_counts(void)
     /* Identical images */
     img1 = make_solid(3, 3, 0.5, 0.25, 0.125);
     img2 = make_solid(3, 3, 0.5, 0.25, 0.125);
+    CHECK(img1 != NULL && img2 != NULL, "created identical test images for diff counting");
+    if (!img1 || !img2) {
+	if (img1) icv_destroy(img1);
+	if (img2) icv_destroy(img2);
+	return;
+    }
     matching = off_by_1 = off_by_many = 0;
     ret = icv_diff(&matching, &off_by_1, &off_by_many, img1, img2);
     CHECK(ret == 0, "icv_diff returns 0 for identical images");
@@ -139,6 +157,13 @@ test_icv_diffimg_colors(void)
      */
     icv_image_t *img1 = icv_create(3, 1, ICV_COLOR_SPACE_RGB);
     icv_image_t *img2 = icv_create(3, 1, ICV_COLOR_SPACE_RGB);
+
+    CHECK(img1 != NULL && img2 != NULL, "created test images for diffimg");
+    if (!img1 || !img2 || !img1->data || !img2->data) {
+	if (img1) icv_destroy(img1);
+	if (img2) icv_destroy(img2);
+	return;
+    }
 
     /* pixel 0: img1 red=128/255, img2 red=50/255  → diff=78, only red */
     img1->data[0*3+0] = 128.0/255.0;
@@ -213,6 +238,11 @@ test_png_metadata_roundtrip(const char *tmpdir)
     if (!img) return;
 
     struct icv_render_info *ri = icv_render_info_create();
+    CHECK(ri != NULL, "created render_info for PNG round-trip");
+    if (!ri) {
+	icv_destroy(img);
+	return;
+    }
     ri->db_filename = bu_strdup("/some/path/test.g");
     ri->objects     = bu_strdup("sphere.r cube.r");
 
@@ -280,6 +310,12 @@ test_diff_render_info(void)
 
     icv_image_t *img1 = make_solid(2, 2, 0.1, 0.2, 0.3);
     icv_image_t *img2 = make_solid(2, 2, 0.1, 0.2, 0.3);
+    CHECK(img1 != NULL && img2 != NULL, "created test images for diff_render_info");
+    if (!img1 || !img2) {
+	if (img1) icv_destroy(img1);
+	if (img2) icv_destroy(img2);
+	return;
+    }
 
     /* No metadata on either */
     int r = icv_diff_render_info(img1, img2, NULL);
@@ -287,6 +323,14 @@ test_diff_render_info(void)
 
     /* Attach identical metadata */
     struct icv_render_info *ri1 = icv_render_info_create();
+    struct icv_render_info *ri2 = icv_render_info_create();
+    if (!ri1 || !ri2) {
+	if (ri1) icv_render_info_destroy(ri1);
+	if (ri2) icv_render_info_destroy(ri2);
+	icv_destroy(img1);
+	icv_destroy(img2);
+	return;
+    }
     ri1->db_filename = bu_strdup("model.g");
     ri1->objects     = bu_strdup("all.r");
     VSET(ri1->eye_model, 0, 0, 1000);
@@ -295,7 +339,6 @@ test_diff_render_info(void)
     MAT_IDN(ri1->viewrotscale);
     CHECK(icv_image_set_render_info(img1, ri1) == 0, "attached render metadata to first image");
 
-    struct icv_render_info *ri2 = icv_render_info_create();
     ri2->db_filename = bu_strdup("model.g");
     ri2->objects     = bu_strdup("all.r");
     VSET(ri2->eye_model, 0, 0, 1000);
@@ -312,6 +355,12 @@ test_diff_render_info(void)
 
     /* Replace img2's render info with a different db_filename */
     struct icv_render_info *ri3 = icv_render_info_create();
+    if (!ri3) {
+	bu_vls_free(&msgs);
+	icv_destroy(img1);
+	icv_destroy(img2);
+	return;
+    }
     ri3->db_filename = bu_strdup("OTHER.g");
     ri3->objects     = bu_strdup("all.r");
     VSET(ri3->eye_model, 0, 0, 1000);
@@ -343,6 +392,12 @@ test_nirt_shots(const char *tmpdir)
     const size_t IMG_W = 4, IMG_H = 4;
     icv_image_t *img1 = make_solid(IMG_W, IMG_H, 0.0, 0.0, 0.0);
     icv_image_t *img2 = make_solid(IMG_W, IMG_H, 0.0, 0.0, 0.0);
+    CHECK(img1 != NULL && img2 != NULL, "created test images for nirt shots");
+    if (!img1 || !img2 || !img1->data || !img2->data) {
+	if (img1) icv_destroy(img1);
+	if (img2) icv_destroy(img2);
+	return;
+    }
 
     /* Change pixel (col=2, row=1) red channel in img2 */
     const size_t test_col = 2;
@@ -351,6 +406,11 @@ test_nirt_shots(const char *tmpdir)
 
     /* Orthographic camera looking straight down -Z, eye at origin */
     struct icv_render_info *ri = icv_render_info_create();
+    if (!ri) {
+	icv_destroy(img1);
+	icv_destroy(img2);
+	return;
+    }
     ri->db_filename = bu_strdup("test_scene.g");
     ri->objects     = bu_strdup("sph.r");
 
@@ -439,15 +499,17 @@ test_nirt_shots(const char *tmpdir)
      * that the function still writes both scripts regardless. */
     {
 	struct icv_render_info *ri2 = icv_render_info_create();
-	ri2->db_filename = bu_strdup("other_scene.g");  /* different from img1! */
-	ri2->objects     = bu_strdup("cube.r");
-	MAT_IDN(ri2->viewrotscale);
-	ri2->viewrotscale[15] = 0.5 * 400.0;
-	VSET(ri2->eye_model, 10.0, 0.0, 0.0);          /* slightly different eye */
-	ri2->viewsize    = 400.0;
-	ri2->aspect      = 1.0;
-	ri2->perspective = 0.0;
-	CHECK(icv_image_set_render_info(img2, ri2) == 0, "attached nirt render metadata to second image");
+	if (ri2) {
+	    ri2->db_filename = bu_strdup("other_scene.g");  /* different from img1! */
+	    ri2->objects     = bu_strdup("cube.r");
+	    MAT_IDN(ri2->viewrotscale);
+	    ri2->viewrotscale[15] = 0.5 * 400.0;
+	    VSET(ri2->eye_model, 10.0, 0.0, 0.0);          /* slightly different eye */
+	    ri2->viewsize    = 400.0;
+	    ri2->aspect      = 1.0;
+	    ri2->perspective = 0.0;
+	    CHECK(icv_image_set_render_info(img2, ri2) == 0, "attached nirt render metadata to second image");
+	}
 
 	struct bu_vls fname1 = BU_VLS_INIT_ZERO;
 	struct bu_vls fname2 = BU_VLS_INIT_ZERO;
@@ -486,34 +548,37 @@ test_nirt_shots(const char *tmpdir)
     {
 	icv_image_t *img_a = make_solid(IMG_W, IMG_H, 0.0, 0.0, 0.0);
 	icv_image_t *img_b = make_solid(IMG_W, IMG_H, 0.0, 0.0, 0.0);
+	if (img_a && img_b && img_b->data) {
+	    img_b->data[(test_row * IMG_W + test_col) * 3 + 0] = 1.0;
 
-	img_b->data[(test_row * IMG_W + test_col) * 3 + 0] = 1.0;
+	    struct icv_render_info *ri3 = icv_render_info_create();
+	    if (ri3) {
+		ri3->db_filename = bu_strdup("test_scene.g");
+		ri3->objects     = bu_strdup("sph.r");
+		MAT_IDN(ri3->viewrotscale);
+		ri3->viewrotscale[15] = 0.5 * 400.0;
+		VSET(ri3->eye_model, 0.0, 0.0, 0.0);
+		ri3->viewsize    = 400.0;
+		ri3->aspect      = 1.0;
+		ri3->perspective = 0.0;
+		CHECK(icv_image_set_render_info(img_b, ri3) == 0, "attached nirt render metadata to comparison image");
+	    }
 
-	struct icv_render_info *ri3 = icv_render_info_create();
-	ri3->db_filename = bu_strdup("test_scene.g");
-	ri3->objects     = bu_strdup("sph.r");
-	MAT_IDN(ri3->viewrotscale);
-	ri3->viewrotscale[15] = 0.5 * 400.0;
-	VSET(ri3->eye_model, 0.0, 0.0, 0.0);
-	ri3->viewsize    = 400.0;
-	ri3->aspect      = 1.0;
-	ri3->perspective = 0.0;
-	CHECK(icv_image_set_render_info(img_b, ri3) == 0, "attached nirt render metadata to comparison image");
-
-	struct bu_vls fname_c = BU_VLS_INIT_ZERO;
-	bu_vls_printf(&fname_c, "%s/test_shots_c.nirt", tmpdir);
-	FILE *fp_c = fopen(bu_vls_cstr(&fname_c), "w");
-	CHECK(fp_c != NULL, "opened nirt output for img2-only render_info");
-	if (fp_c) {
-	    /* Pass NULL for fp1 since img_a has no render_info */
-	    int ns = icv_diff_nirt_shots(img_a, img_b, NULL, fp_c);
-	    fclose(fp_c);
-	    CHECK(ns == 1, "icv_diff_nirt_shots works when only img2 has render_info");
+	    struct bu_vls fname_c = BU_VLS_INIT_ZERO;
+	    bu_vls_printf(&fname_c, "%s/test_shots_c.nirt", tmpdir);
+	    FILE *fp_c = fopen(bu_vls_cstr(&fname_c), "w");
+	    CHECK(fp_c != NULL, "opened nirt output for img2-only render_info");
+	    if (fp_c) {
+		/* Pass NULL for fp1 since img_a has no render_info */
+		int ns = icv_diff_nirt_shots(img_a, img_b, NULL, fp_c);
+		fclose(fp_c);
+		CHECK(ns == 1, "icv_diff_nirt_shots works when only img2 has render_info");
+	    }
+	    bu_file_delete(bu_vls_cstr(&fname_c));
+	    bu_vls_free(&fname_c);
 	}
-	bu_file_delete(bu_vls_cstr(&fname_c));
-	bu_vls_free(&fname_c);
-	icv_destroy(img_a);
-	icv_destroy(img_b);
+	if (img_a) icv_destroy(img_a);
+	if (img_b) icv_destroy(img_b);
     }
 
     icv_destroy(img1);
@@ -527,11 +592,12 @@ test_nirt_shots(const char *tmpdir)
 int
 main(int argc, char *argv[])
 {
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
 
     /* Determine a writable temp directory */
     const char *tmpdir = "/tmp";
-    if (argc > 1)
+    if (argc > 1 && argv && argv[1])
 	tmpdir = argv[1];
 
     test_icv_diff_counts();

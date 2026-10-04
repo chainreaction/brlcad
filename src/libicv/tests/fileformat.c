@@ -49,8 +49,11 @@ static icv_image_t *
 make_pixel(void)
 {
     icv_image_t *img = icv_create(1, 1, ICV_COLOR_SPACE_RGB);
-    if (!img)
+    if (!img || !img->data) {
+	if (img)
+	    icv_destroy(img);
 	return NULL;
+    }
 
     img->data[0] = 1.0;
     img->data[1] = 128.0 / 255.0;
@@ -89,6 +92,9 @@ check_pixel_file(const char *path, const char *msg)
 static void
 write_auto_pix(const char *path, const char *msg)
 {
+    if (!path)
+	return;
+
     icv_image_t *img = make_pixel();
     int ret = BRLCAD_ERROR;
 
@@ -149,9 +155,8 @@ test_auto_write_prefixed_filename(void)
 int
 main(int argc, char **argv)
 {
-    (void)argc;
-
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
 
     test_auto_write_short_filename();
     test_auto_write_percent_filename();

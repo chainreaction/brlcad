@@ -60,7 +60,13 @@ near_equal(double a, double b)
 static icv_image_t *
 make_gray(size_t w, size_t h)
 {
+    if (w == 0 || h == 0 || w > SIZE_MAX / h / sizeof(double))
+	return NULL;
     icv_image_t *img = icv_create(w, h, ICV_COLOR_SPACE_GRAY);
+    if (!img || !img->data) {
+	if (img) icv_destroy(img);
+	return NULL;
+    }
     for (size_t y = 0; y < h; y++) {
 	for (size_t x = 0; x < w; x++) {
 	    img->data[y * w + x] = (double)(y * 10 + x);
@@ -72,7 +78,13 @@ make_gray(size_t w, size_t h)
 static icv_image_t *
 make_unit_gray(size_t w, size_t h)
 {
+    if (w == 0 || h == 0 || w > SIZE_MAX / h / sizeof(double))
+	return NULL;
     icv_image_t *img = icv_create(w, h, ICV_COLOR_SPACE_GRAY);
+    if (!img || !img->data) {
+	if (img) icv_destroy(img);
+	return NULL;
+    }
     size_t npix = w * h;
     for (size_t i = 0; i < npix; i++) {
 	img->data[i] = (npix > 1) ? (double)i / (double)(npix - 1) : 0.0;
@@ -83,7 +95,13 @@ make_unit_gray(size_t w, size_t h)
 static icv_image_t *
 make_rgb(size_t w, size_t h)
 {
+    if (w == 0 || h == 0 || w > SIZE_MAX / h / 3 / sizeof(double))
+	return NULL;
     icv_image_t *img = icv_create(w, h, ICV_COLOR_SPACE_RGB);
+    if (!img || !img->data) {
+	if (img) icv_destroy(img);
+	return NULL;
+    }
     for (size_t y = 0; y < h; y++) {
 	for (size_t x = 0; x < w; x++) {
 	    size_t off = (y * w + x) * 3;
@@ -98,13 +116,19 @@ make_rgb(size_t w, size_t h)
 static icv_image_t *
 make_unit_rgb(size_t w, size_t h)
 {
+    if (w == 0 || h == 0 || w > SIZE_MAX / h / 3 / sizeof(double))
+	return NULL;
     icv_image_t *img = icv_create(w, h, ICV_COLOR_SPACE_RGB);
+    if (!img || !img->data) {
+	if (img) icv_destroy(img);
+	return NULL;
+    }
     for (size_t y = 0; y < h; y++) {
 	for (size_t x = 0; x < w; x++) {
 	    size_t off = (y * w + x) * 3;
 	    img->data[off + 0] = (w > 1) ? (double)x / (double)(w - 1) : 0.0;
 	    img->data[off + 1] = (h > 1) ? (double)y / (double)(h - 1) : 0.0;
-	    img->data[off + 2] = (double)(x + y) / (double)(w + h);
+	    img->data[off + 2] = (w + h > 0) ? (double)(x + y) / (double)(w + h) : 0.0;
 	}
     }
     return img;
@@ -113,7 +137,13 @@ make_unit_rgb(size_t w, size_t h)
 static icv_image_t *
 make_solid_rgb(size_t w, size_t h, double r, double g, double b)
 {
+    if (w == 0 || h == 0 || w > SIZE_MAX / h / 3 / sizeof(double))
+	return NULL;
     icv_image_t *img = icv_create(w, h, ICV_COLOR_SPACE_RGB);
+    if (!img || !img->data) {
+	if (img) icv_destroy(img);
+	return NULL;
+    }
     for (size_t i = 0; i < w * h; i++) {
 	img->data[i * 3 + 0] = r;
 	img->data[i * 3 + 1] = g;
@@ -125,6 +155,8 @@ make_solid_rgb(size_t w, size_t h, double r, double g, double b)
 static icv_image_t *
 make_rgba(size_t w, size_t h)
 {
+    if (w == 0 || h == 0 || w > SIZE_MAX / h / 4 / sizeof(double))
+	return NULL;
     icv_image_t *img;
     BU_ALLOC(img, struct icv_image);
     ICV_IMAGE_INIT(img);
@@ -134,6 +166,10 @@ make_rgba(size_t w, size_t h)
     img->channels = 4;
     img->alpha_channel = 1;
     img->data = (double *)bu_calloc(w * h * img->channels, sizeof(double), "rgba test data");
+    if (!img->data) {
+	bu_free(img, "struct icv_image");
+	return NULL;
+    }
     for (size_t y = 0; y < h; y++) {
 	for (size_t x = 0; x < w; x++) {
 	    size_t off = (y * w + x) * img->channels;
@@ -618,6 +654,10 @@ test_crop_filters_and_stats(void)
     icv_destroy(new_img);
 
     img = icv_create(5, 1, ICV_COLOR_SPACE_GRAY);
+    if (!img || !img->data) {
+	if (img) icv_destroy(img);
+	return;
+    }
     img->data[0] = -0.10;
     img->data[1] = 0.00;
     img->data[2] = 0.25;
@@ -628,30 +668,30 @@ test_crop_filters_and_stats(void)
     double *sumv = icv_sum(img);
     double *meanv = icv_mean(img);
     size_t **bins = icv_hist(img, 4);
-    int *mode = icv_mode(img, bins, 4);
-    int *median = icv_median(img, bins, 4);
-    double *var = icv_var(img, bins, 4);
-    double *skew = icv_skew(img, bins, 4);
+    int *mode = bins ? icv_mode(img, bins, 4) : NULL;
+    int *median = bins ? icv_median(img, bins, 4) : NULL;
+    double *var = bins ? icv_var(img, bins, 4) : NULL;
+    double *skew = bins ? icv_skew(img, bins, 4) : NULL;
 
-    CHECK(near_equal(minv[0], -0.10), "icv_min preserves values below zero");
-    CHECK(near_equal(maxv[0], 1.00), "icv_max finds max");
-    CHECK(near_equal(sumv[0], 2.14), "icv_sum sums all samples");
-    CHECK(near_equal(meanv[0], 2.14 / 5.0), "icv_mean averages all samples");
-    CHECK(bins[0][0] == 2 && bins[0][1] == 1 && bins[0][2] == 0 && bins[0][3] == 2,
+    CHECK(minv && near_equal(minv[0], -0.10), "icv_min preserves values below zero");
+    CHECK(maxv && near_equal(maxv[0], 1.00), "icv_max finds max");
+    CHECK(sumv && near_equal(sumv[0], 2.14), "icv_sum sums all samples");
+    CHECK(meanv && near_equal(meanv[0], 2.14 / 5.0), "icv_mean averages all samples");
+    CHECK(bins && bins[0] && bins[0][0] == 2 && bins[0][1] == 1 && bins[0][2] == 0 && bins[0][3] == 2,
 	  "icv_hist clamps negative and maximum values");
-    CHECK(mode[0] == 0, "icv_mode returns first most-populated bin");
-    CHECK(median[0] == 1, "icv_median is based on sample counts");
-    CHECK(var[0] >= 0.0, "icv_var returns non-negative variance");
-    CHECK(isfinite(skew[0]), "icv_skew returns finite skewness");
+    CHECK(mode && mode[0] == 0, "icv_mode returns first most-populated bin");
+    CHECK(median && median[0] == 1, "icv_median is based on sample counts");
+    CHECK(var && var[0] >= 0.0, "icv_var returns non-negative variance");
+    CHECK(skew && isfinite(skew[0]), "icv_skew returns finite skewness");
 
-    bu_free(minv, "min values");
-    bu_free(maxv, "max values");
-    bu_free(sumv, "sum values");
-    bu_free(meanv, "mean values");
-    bu_free(mode, "mode values");
-    bu_free(median, "median values");
-    bu_free(var, "variance values");
-    bu_free(skew, "skew values");
+    if (minv) bu_free(minv, "min values");
+    if (maxv) bu_free(maxv, "max values");
+    if (sumv) bu_free(sumv, "sum values");
+    if (meanv) bu_free(meanv, "mean values");
+    if (mode) bu_free(mode, "mode values");
+    if (median) bu_free(median, "median values");
+    if (var) bu_free(var, "variance values");
+    if (skew) bu_free(skew, "skew values");
     free_bins(bins, img->channels);
     icv_destroy(img);
 }
@@ -1071,6 +1111,13 @@ test_ascii_render_info_and_diff(void)
 {
     icv_image_t *img1 = make_unit_rgb(2, 1);
     icv_image_t *img2 = make_unit_rgb(2, 1);
+    CHECK(img1 != NULL && img2 != NULL, "created test images for ascii art and diff");
+    if (!img1 || !img2 || !img1->data || !img2->data) {
+	if (img1) icv_destroy(img1);
+	if (img2) icv_destroy(img2);
+	return;
+    }
+
     struct icv_ascii_art_params artparams = ICV_ASCII_ART_PARAMS_DEFAULT;
     char *art = icv_ascii_art(img1, &artparams);
     CHECK(art != NULL && strlen(art) > 0, "icv_ascii_art returns non-empty text");
@@ -1080,11 +1127,16 @@ test_ascii_render_info_and_diff(void)
     CHECK(icv_image_get_render_info(img1) == NULL, "icv_image_get_render_info reports absent metadata");
     struct icv_render_info *ri1 = icv_render_info_create();
     struct icv_render_info *ri2 = icv_render_info_create();
-    fill_render_info(ri1, "model.g", "box.s");
-    fill_render_info(ri2, "model.g", "box.s");
-    CHECK(icv_image_set_render_info(img1, ri1) == 0, "icv_image_set_render_info attaches metadata");
-    CHECK(icv_image_set_render_info(img2, ri2) == 0, "icv_image_set_render_info attaches comparison metadata");
-    CHECK(icv_image_get_render_info(img1) == ri1, "icv_image_set_render_info stores metadata pointer");
+    if (ri1 && ri2) {
+	fill_render_info(ri1, "model.g", "box.s");
+	fill_render_info(ri2, "model.g", "box.s");
+	CHECK(icv_image_set_render_info(img1, ri1) == 0, "icv_image_set_render_info attaches metadata");
+	CHECK(icv_image_set_render_info(img2, ri2) == 0, "icv_image_set_render_info attaches comparison metadata");
+	CHECK(icv_image_get_render_info(img1) == ri1, "icv_image_set_render_info stores metadata pointer");
+    } else {
+	if (ri1) icv_render_info_destroy(ri1);
+	if (ri2) icv_render_info_destroy(ri2);
+    }
     struct icv_render_info *ri_bad = icv_render_info_create();
     CHECK(icv_image_set_render_info(NULL, ri_bad) == -1, "icv_image_set_render_info rejects null image without taking ownership");
     CHECK(icv_render_info_destroy(ri_bad) == 0, "icv_render_info_destroy releases unattached metadata");
@@ -1093,7 +1145,8 @@ test_ascii_render_info_and_diff(void)
     CHECK(icv_diff_render_info(img1, img2, &msgs) == 0, "icv_diff_render_info accepts identical metadata");
     CHECK(strlen(bu_vls_cstr(&msgs)) > 0, "icv_diff_render_info writes comparison report");
     bu_vls_trunc(&msgs, 0);
-    img2->render_info->viewsize = 3.0;
+    if (img2->render_info)
+	img2->render_info->viewsize = 3.0;
     CHECK(icv_diff_render_info(img1, img2, &msgs) == 1, "icv_diff_render_info detects metadata differences");
     bu_vls_free(&msgs);
     CHECK(icv_image_set_render_info(img1, NULL) == 0, "icv_image_set_render_info clears metadata");
@@ -1130,10 +1183,17 @@ test_ascii_render_info_and_diff(void)
 
     img1 = make_unit_rgb(1, 1);
     img2 = make_unit_rgb(1, 1);
+    if (!img1 || !img2 || !img1->data || !img2->data) {
+	if (img1) icv_destroy(img1);
+	if (img2) icv_destroy(img2);
+	return;
+    }
     img2->data[0] = 1.0;
     ri1 = icv_render_info_create();
-    fill_render_info(ri1, "model.g", "box.s");
-    CHECK(icv_image_set_render_info(img1, ri1) == 0, "icv_image_set_render_info attaches nirt metadata");
+    if (ri1) {
+	fill_render_info(ri1, "model.g", "box.s");
+	CHECK(icv_image_set_render_info(img1, ri1) == 0, "icv_image_set_render_info attaches nirt metadata");
+    }
     FILE *nirt = tmpfile();
     CHECK(nirt != NULL, "tmpfile available for nirt shot test");
     if (nirt) {
@@ -1151,6 +1211,13 @@ test_animation_frame_management(void)
     icv_image_t *a = make_unit_rgb(2, 2);
     icv_image_t *b = make_unit_rgb(2, 2);
     icv_image_t *c = make_unit_rgb(2, 2);
+    if (!a || !b || !c) {
+	if (anim) icv_anim_destroy(anim);
+	if (a) icv_destroy(a);
+	if (b) icv_destroy(b);
+	if (c) icv_destroy(c);
+	return;
+    }
     b->data[0] = 0.75;
     c->data[0] = 0.25;
 
@@ -1272,8 +1339,8 @@ test_animation_frame_management(void)
 int
 main(int argc, char **argv)
 {
-    (void)argc;
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
 
     test_create_zero_and_pixel_io();
     test_data_conversion_and_size_guessing();

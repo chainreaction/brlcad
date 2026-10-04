@@ -104,7 +104,10 @@ bool test_passed = true;
 
 // Create test image
 icv_image_t* create_test_image(size_t width, size_t height, size_t channels = 3) {
-    icv_image_t *img = (icv_image_t*)calloc(1, sizeof(icv_image_t));
+    if (width == 0 || height == 0 || channels == 0) return nullptr;
+    if (width > SIZE_MAX / height / channels / sizeof(double)) return nullptr;
+
+    icv_image_t *img = (icv_image_t*)bu_calloc(1, sizeof(icv_image_t), "icv_image_t");
     if (!img) return nullptr;
 
     img->magic = 0x6269666d;  // ICV_IMAGE_MAGIC
@@ -116,9 +119,9 @@ icv_image_t* create_test_image(size_t width, size_t height, size_t channels = 3)
     img->gamma_corr = 0.0;
 
     size_t data_size = width * height * channels * sizeof(double);
-    img->data = (double*)calloc(1, data_size);
+    img->data = (double*)bu_calloc(1, data_size, "image data");
     if (!img->data) {
-	free(img);
+	bu_free(img, "icv_image_t");
 	return nullptr;
     }
 
@@ -136,7 +139,7 @@ void free_test_image(icv_image_t* img) {
 
 // Compare pixel values with tolerance
 bool pixels_match(const icv_image_t* img1, const icv_image_t* img2, double tolerance = 0.01) {
-    if (!img1 || !img2) return false;
+    if (!img1 || !img2 || !img1->data || !img2->data) return false;
     if (img1->width != img2->width || img1->height != img2->height) return false;
     if (img1->channels != img2->channels) return false;
 
@@ -193,11 +196,15 @@ bool rle_roundtrip(const rle::Image& img, rle::Image& out,
     fclose(f);
     if (!write_ok) {
 	std::cerr << "Write failed: " << rle::error_string(err) << std::endl;
+	bu_file_delete(filename);
 	return false;
     }
 
     f = fopen(filename, "rb");
-    if (!f) return false;
+    if (!f) {
+	bu_file_delete(filename);
+	return false;
+    }
 
     auto res = rle::Decoder::read(f, out);
     fclose(f);
@@ -679,12 +686,12 @@ void test_null_image_write() {
 void test_invalid_file() {
     TEST("Error handling: invalid file read");
 
-    FILE* fp = std::fopen("nonexistent_file.rle", "rb");
-    if (fp) {
-	std::fclose(fp);
-	std::cout << "SKIPPED (file exists)\n";
-	return;
-    }
+    FILE* fp = std::fopen("nonexistent_file_xyz_12345.rle", "rb");
+    EXPECT_TRUE(fp == nullptr);
+    rle::Image out;
+    rle::DecoderResult res = rle::Decoder::read(fp, out);
+    EXPECT_FALSE(res.ok);
+    EXPECT_EQ(res.error, rle::Error::INTERNAL_ERROR);
 
     END_TEST();
 }
@@ -732,11 +739,12 @@ void test_write_invalid_channels() {
     if (img) {
 	FILE* fp = std::fopen("test_invalid_channels.rle", "wb");
 	EXPECT_TRUE(fp != nullptr);
-
-	int result = rle_write(img, fp);
-	std::fclose(fp);
-	EXPECT_NE(result, 0);
-
+	if (fp) {
+	    int result = rle_write(img, fp);
+	    std::fclose(fp);
+	    EXPECT_NE(result, 0);
+	}
+	bu_file_delete("test_invalid_channels.rle");
 	free_test_image(img);
     }
 
@@ -755,10 +763,12 @@ void test_write_oversized_dimensions() {
 
 	FILE* fp = std::fopen("test_oversized.rle", "wb");
 	EXPECT_TRUE(fp != nullptr);
-
-	int result = rle_write(img, fp);
-	std::fclose(fp);
-	EXPECT_NE(result, 0);
+	if (fp) {
+	    int result = rle_write(img, fp);
+	    std::fclose(fp);
+	    EXPECT_NE(result, 0);
+	}
+	bu_file_delete("test_oversized.rle");
 
 	img->width = 10;
 	img->height = 10;
@@ -1595,9 +1605,9 @@ void test_teapot_image() {
 // Main Test Runner
 //==============================================================================
 
-int main(int, const char **av) {
-
-    bu_setprogname(av[0]);
+int main(int ac, const char **av) {
+    if (ac > 0 && av && av[0])
+	bu_setprogname(av[0]);
 
     std::cout << "========================================\n";
     std::cout << "RLE Comprehensive Test Suite\n";

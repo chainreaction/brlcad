@@ -48,7 +48,7 @@ namespace {
 bool
 nearly_equal(float a, float b)
 {
-    return std::fabs(a - b) < 1.0e-6f;
+    return std::isfinite(a) && std::isfinite(b) && std::fabs(a - b) < 1.0e-6f;
 }
 
 class ManualHasher : public imghash::Hasher
@@ -222,9 +222,13 @@ test_hashing()
     ManualHasher manual;
     imghash::Hasher::hash_type manual_hash = manual.apply(img);
     CHECK(manual_hash.size() == 1);
-    CHECK(manual_hash[0] == 5);
+    if (!manual_hash.empty())
+	CHECK(manual_hash[0] == 5);
     manual.reset();
-    CHECK(manual.apply(img)[0] == 5);
+    imghash::Hasher::hash_type reset_hash = manual.apply(img);
+    CHECK(reset_hash.size() == 1);
+    if (!reset_hash.empty())
+	CHECK(reset_hash[0] == 5);
 
     imghash::Hasher::hash_type h1 = {0xff};
     imghash::Hasher::hash_type h2 = {0x0f, 0xff};
@@ -236,9 +240,10 @@ test_hashing()
 } // namespace
 
 int
-main(int, char *argv[])
+main(int argc, char *argv[])
 {
-    bu_setprogname(argv[0]);
+    if (argc > 0 && argv && argv[0])
+	bu_setprogname(argv[0]);
     if (!test_image_ownership()) return EXIT_FAILURE;
     if (!test_resize()) return EXIT_FAILURE;
     if (!test_preprocess()) return EXIT_FAILURE;

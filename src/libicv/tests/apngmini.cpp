@@ -46,6 +46,8 @@ apngmini::Frame
 make_frame(uint32_t width, uint32_t height, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     apngmini::Frame f;
+    if (width == 0 || height == 0 || width > SIZE_MAX / 4 / height)
+	return f;
     f.width = width;
     f.height = height;
     f.delay.numerator = 1;
@@ -81,10 +83,12 @@ test_compose_modes()
 
     apngmini::vector<apngmini::vector<uint8_t>> composed = anim.compose();
     CHECK(composed.size() == 2);
+    CHECK(composed[0].size() >= 4);
     CHECK(composed[0][0] == 200);
     CHECK(composed[0][3] == 255);
 
     size_t p = (1 * anim.canvas_width + 1) * 4;
+    CHECK(composed[1].size() > p + 3);
     CHECK(composed[1][p + 0] == 0);
     CHECK(composed[1][p + 2] == 200);
     CHECK(composed[1][p + 3] == 128);
@@ -137,10 +141,13 @@ test_read_write_helpers()
     CHECK(!reader.has_next());
 
     std::string path = "test_apngmini_roundtrip.png";
+    struct FileGuard {
+	std::string p;
+	~FileGuard() { bu_file_delete(p.c_str()); }
+    } guard{path};
     CHECK(apngmini::write_file(path, anim, 1));
     apngmini::Animation read_from_file = apngmini::read_file(path);
     CHECK(read_from_file.frames.size() == 2);
-    bu_file_delete(path.c_str());
 
     bool missing_threw = false;
     try {
@@ -158,7 +165,7 @@ test_read_write_helpers()
 int
 main(int ac, const char **av)
 {
-    if (ac > 0)
+    if (ac > 0 && av && av[0])
 	bu_setprogname(av[0]);
     if (!test_compose_modes()) return EXIT_FAILURE;
     if (!test_read_write_helpers()) return EXIT_FAILURE;
