@@ -36,9 +36,12 @@ tclcad_interp_objects_delete(ClientData clientData, Tcl_Interp *UNUSED(interp))
     struct tclcad_interp_object_list *state =
 	(struct tclcad_interp_object_list *)clientData;
 
+    if (!state)
+	return;
+
     if (BU_LIST_NON_EMPTY(&state->objects)) {
 	bu_log("libtclcad %s objects remain during interpreter deletion\n",
-		state->description);
+		state->description ? state->description : "");
 	/* Command client data still references the head; do not leave it dangling. */
 	return;
     }
@@ -50,6 +53,9 @@ struct bu_list *
 tclcad_interp_objects(Tcl_Interp *interp, const char *key,
 	const char *description, int *created)
 {
+    if (!interp || !key)
+	return NULL;
+
     struct tclcad_interp_object_list *state =
 	(struct tclcad_interp_object_list *)Tcl_GetAssocData(interp, key, NULL);
 
@@ -83,6 +89,8 @@ tclcad_current_top(void)
 {
     struct tclcad_thread_state *state = (struct tclcad_thread_state *)
 	Tcl_GetThreadData(&tclcad_thread_state_key, sizeof(struct tclcad_thread_state));
+    if (!state)
+	return NULL;
     return &state->top;
 }
 

@@ -239,7 +239,16 @@ open_shared_runtime_objects(Tcl_Interp *first, Tcl_Interp *second, bool init_gui
 int
 main(int argc, const char **argv)
 {
+    if (!argv || !argv[0])
+	return 1;
+
     bu_setprogname(argv[0]);
+
+    if (argc > 1 && (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help"))) {
+	std::printf("Usage: %s [--gui]\nVerify that libtclcad initialization and its Tcl object registries are scoped to each interpreter.\n", argv[0]);
+	return 0;
+    }
+
     Tcl_FindExecutable(argv[0]);
 
     bool init_gui = false;

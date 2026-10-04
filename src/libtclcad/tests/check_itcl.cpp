@@ -32,9 +32,18 @@
 #include "../tclcad_private.h"
 
 int
-main(int UNUSED(argc), const char **argv)
+main(int argc, const char **argv)
 {
+    if (!argv || !argv[0])
+	return 1;
+
     bu_setprogname(argv[0]);
+
+    if (argc > 1 && (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help"))) {
+	std::printf("Usage: %s\nVerify that libtclcad can initialize its minimum supported Itcl.\n", argv[0]);
+	return 0;
+    }
+
     Tcl_FindExecutable(argv[0]);
 
     Tcl_Interp *interp = Tcl_CreateInterp();

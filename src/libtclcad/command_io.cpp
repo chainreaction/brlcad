@@ -50,6 +50,8 @@ tclcad_create_io_data()
 {
     struct tclcad_io_data *d;
     BU_GET(d, struct tclcad_io_data);
+    d->interp = NULL;
+    d->io_mode = 0;
     d->state = new std::map<struct ged_subprocess *, struct tclcad_process_channels *>;
     return d;
 }
@@ -112,7 +114,7 @@ tclcad_create_io_handler(struct ged_subprocess *p, bu_process_io_t d, ged_io_fun
 void
 tclcad_delete_io_handler(struct ged_subprocess *p, bu_process_io_t d)
 {
-    if (!p) return;
+    if (!p || !p->p) return;
     int *active = NULL;
     switch (d) {
 	case BU_PROCESS_STDIN: active = &p->stdin_active; break;

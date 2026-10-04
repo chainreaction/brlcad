@@ -45,6 +45,19 @@
 
 #define MAX_BUF 2048
 
+static void
+_insert_unique_path(struct bu_ptbl *tbl, const char *path)
+{
+    if (!tbl || !path || strlen(path) == 0)
+	return;
+    for (size_t i = 0; i < BU_PTBL_LEN(tbl); i++) {
+	const char *existing = (const char *)BU_PTBL_GET(tbl, i);
+	if (existing && BU_STR_EQUAL(existing, path))
+	    return;
+    }
+    bu_ptbl_ins(tbl, (long *)bu_strdup(path));
+}
+
 /**
  * Set up the Tcl auto_path for locating various necessary BRL-CAD
  * scripting resources. Detect whether the current invocation is from
@@ -86,8 +99,7 @@ tclcad_auto_path(Tcl_Interp *interp)
 	struct bu_vls buffer = BU_VLS_INIT_ZERO;
 	/* limit path length from env var for sanity */
 	bu_vls_strncat(&buffer, env, MAX_BUF);
-	const char *p = bu_strdup(bu_vls_cstr(&buffer));
-	bu_ptbl_ins(&paths, (long *)p);
+	_insert_unique_path(&paths, bu_vls_cstr(&buffer));
 	bu_vls_free(&buffer);
     }
 
@@ -99,9 +111,11 @@ tclcad_auto_path(Tcl_Interp *interp)
 	bu_vls_strncat(&buffer, env, MAX_BUF);
 	bu_vls_printf(&buffer, "%citcl.tcl", BU_DIR_SEPARATOR);
 	if (bu_file_exists(bu_vls_cstr(&buffer), NULL)) {
-	    const char *p = bu_strdup(bu_vls_cstr(&buffer));
-	    bu_ptbl_ins(&paths, (long *)p);
+	    struct bu_vls dirbuf = BU_VLS_INIT_ZERO;
+	    bu_vls_strncat(&dirbuf, env, MAX_BUF);
+	    _insert_unique_path(&paths, bu_vls_cstr(&dirbuf));
 	    itcl_set = 1;
+	    bu_vls_free(&dirbuf);
 	} else {
 	    bu_log("Warning: ITCL_LIBRARY environment variable is set to %s, but file itcl.tcl is not found in that directory, skipping.\n", env);
 	}
@@ -116,8 +130,11 @@ tclcad_auto_path(Tcl_Interp *interp)
 	bu_vls_strncat(&buffer, env, MAX_BUF);
 	bu_vls_printf(&buffer, "%citk.tcl", BU_DIR_SEPARATOR);
 	if (bu_file_exists(bu_vls_cstr(&buffer), NULL)) {
-	    const char *p = bu_strdup(bu_vls_cstr(&buffer));
-	    bu_ptbl_ins(&paths, (long *)p);
+	    struct bu_vls dirbuf = BU_VLS_INIT_ZERO;
+	    bu_vls_strncat(&dirbuf, env, MAX_BUF);
+	    _insert_unique_path(&paths, bu_vls_cstr(&dirbuf));
+	    itk_set = 1;
+	    bu_vls_free(&dirbuf);
 	} else {
 	    bu_log("Warning: ITK_LIBRARY environment variable is set to %s, but file itk.tcl is not found in that directory, skipping.\n", env);
 	}
@@ -126,16 +143,10 @@ tclcad_auto_path(Tcl_Interp *interp)
 
     /* If tcl_library is defined in the interp, capture it for addition */
     {
-	struct bu_vls buffer = BU_VLS_INIT_ZERO;
-	/* limit path length from env var for sanity */
-	bu_vls_sprintf(&buffer, "set tcl_library");
-	Tcl_Eval(interp, bu_vls_cstr(&buffer));
-	bu_vls_sprintf(&buffer, "%s", Tcl_GetStringResult(interp));
-	if (bu_vls_strlen(&buffer)) {
-	    const char *p = bu_strdup(bu_vls_cstr(&buffer));
-	    bu_ptbl_ins(&paths, (long *)p);
+	const char *tcl_lib_val = Tcl_GetVar(interp, "tcl_library", TCL_GLOBAL_ONLY);
+	if (tcl_lib_val && strlen(tcl_lib_val)) {
+	    _insert_unique_path(&paths, tcl_lib_val);
 	}
-	bu_vls_free(&buffer);
     }
 
     /* Set up the library subdirectories of interest.  Some are
@@ -198,8 +209,7 @@ tclcad_auto_path(Tcl_Interp *interp)
 		bu_vls_sprintf(&lib_path, "%s%c%s", libdir, BU_DIR_SEPARATOR, fname);
 		if (bu_file_exists(bu_vls_cstr(&lib_path), NULL)) {
 		    // Have a path
-		    const char *p = bu_strdup(bu_vls_cstr(&lib_path));
-		    bu_ptbl_ins(&paths, (long *)p);
+		    _insert_unique_path(&paths, bu_vls_cstr(&lib_path));
 		    bu_ptbl_ins(&found_subpaths, (long *)fname);
 		}
 	    }
@@ -224,9 +234,7 @@ tclcad_auto_path(Tcl_Interp *interp)
 	bu_dir(tclscripts, MAXPATHLEN, BU_DIR_DATA, "tclscripts", NULL);
 
 	if (bu_file_exists(tclscripts, NULL)) {
-
-	    const char *path = bu_strdup(tclscripts);
-	    bu_ptbl_ins(&paths, (long *)path);
+	    _insert_unique_path(&paths, tclscripts);
 
 	    size_t i;
 	    char **listing = NULL;
@@ -236,8 +244,7 @@ tclcad_auto_path(Tcl_Interp *interp)
 		char dirpath[MAXPATHLEN] = {0};
 		bu_dir(dirpath, MAXPATHLEN, tclscripts, listing[i], NULL);
 		if (bu_file_directory(dirpath)) {
-		    path = bu_strdup(dirpath);
-		    bu_ptbl_ins(&paths, (long *)path);
+		    _insert_unique_path(&paths, dirpath);
 		}
 	    }
 	    bu_argv_free(count, listing);

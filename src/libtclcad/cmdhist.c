@@ -77,6 +77,9 @@ _tclcad_cmdhist_record(struct tclcad_cmdhist_obj *chop, struct bu_vls *cmdp, str
     struct tclcad_cmdhist *new_hist;
     const char *eol = "\n";
 
+    if (!chop || !cmdp || !start || !finish)
+	return;
+
     if (UNLIKELY(BU_STR_EQUAL(bu_vls_addr(cmdp), eol)))
 	return;
 
@@ -95,6 +98,8 @@ _tclcad_cmdhist_record(struct tclcad_cmdhist_obj *chop, struct bu_vls *cmdp, str
 static int
 _tclcad_cmdhist_timediff(struct timeval *tvdiff, struct timeval *start, struct timeval *finish)
 {
+    if (!tvdiff || !start || !finish)
+	return -1;
     if (UNLIKELY(finish->tv_sec == 0 && finish->tv_usec == 0))
 	return -1;
     if (UNLIKELY(start->tv_sec == 0 && start->tv_usec == 0))
@@ -121,8 +126,8 @@ tclcad_cmdhist_history(void *data, int argc, const char *argv[])
     struct timeval tvdiff;
     struct tclcad_cmdhist_obj *chop = (struct tclcad_cmdhist_obj *)data;
 
-    if (argc < 2 || 5 < argc) {
-	bu_log("Usage: %s -delays\nList command history.\n", argv[0]);
+    if (!chop || !argv || argc < 2 || 5 < argc) {
+	bu_log("Usage: %s -delays\nList command history.\n", (argv && argv[0]) ? argv[0] : "history");
 	return BRLCAD_ERROR;
     }
 
@@ -137,14 +142,17 @@ tclcad_cmdhist_history(void *data, int argc, const char *argv[])
 	    if (fp != NULL) {
 		fclose(fp);
 		bu_log("%s: -outfile option given more than once\n", argv[0]);
+		bu_vls_free(&str);
 		return BRLCAD_ERROR;
 	    } else if (argc < 4 || BU_STR_EQUAL(argv[3], delays)) {
 		bu_log("%s: I need a file name\n", argv[0]);
+		bu_vls_free(&str);
 		return BRLCAD_ERROR;
 	    } else {
 		fp = fopen(argv[3], "ab+");
 		if (UNLIKELY(fp == NULL)) {
 		    bu_log("%s: error opening file", argv[0]);
+		    bu_vls_free(&str);
 		    return BRLCAD_ERROR;
 		}
 		--argc;
@@ -180,6 +188,7 @@ tclcad_cmdhist_history(void *data, int argc, const char *argv[])
     if (fp != NULL)
 	fclose(fp);
 
+    bu_vls_free(&str);
     return BRLCAD_OK;
 }
 
@@ -191,7 +200,7 @@ tclcad_cmdhist_add(void *clientData, int argc, const char **argv)
     struct bu_vls vls = BU_VLS_INIT_ZERO;
     struct timeval zero;
 
-    if (argc != 3) {
+    if (!chop || !argv || argc != 3 || !argv[2]) {
 	bu_log("ERROR: expecting only three arguments\n");
 	return BRLCAD_ERROR;
     }
@@ -219,10 +228,13 @@ tclcad_cmdhist_prev(void *clientData, int argc, const char **UNUSED(argv))
     struct tclcad_cmdhist_obj *chop = (struct tclcad_cmdhist_obj *)clientData;
     struct tclcad_cmdhist *hp;
 
-    if (argc != 2) {
+    if (!chop || argc != 2) {
 	bu_log("ERROR: expecting only two arguments\n");
 	return BRLCAD_ERROR;
     }
+
+    if (!chop->cho_curr)
+	chop->cho_curr = &chop->cho_head;
 
     hp = BU_LIST_PLAST(tclcad_cmdhist, chop->cho_curr);
     if (BU_LIST_NOT_HEAD(hp, &chop->cho_head.l))
@@ -238,10 +250,13 @@ tclcad_cmdhist_curr(void *clientData, int argc, const char **UNUSED(argv))
 {
     struct tclcad_cmdhist_obj *chop = (struct tclcad_cmdhist_obj *)clientData;
 
-    if (argc != 2) {
+    if (!chop || argc != 2) {
 	bu_log("ERROR: expecting only two arguments\n");
 	return BRLCAD_ERROR;
     }
+
+    if (!chop->cho_curr)
+	chop->cho_curr = &chop->cho_head;
 
     if (BU_LIST_NOT_HEAD(chop->cho_curr, &chop->cho_head.l)) {
 	/* result is in chop->cho_curr */
@@ -258,12 +273,12 @@ tclcad_cmdhist_next(void *clientData, int argc, const char **UNUSED(argv))
 {
     struct tclcad_cmdhist_obj *chop = (struct tclcad_cmdhist_obj *)clientData;
 
-    if (argc != 2) {
+    if (!chop || argc != 2) {
 	bu_log("ERROR: expecting only two arguments\n");
 	return BRLCAD_ERROR;
     }
 
-    if (BU_LIST_IS_HEAD(chop->cho_curr, &chop->cho_head.l))
+    if (!chop->cho_curr || BU_LIST_IS_HEAD(chop->cho_curr, &chop->cho_head.l))
 	return BRLCAD_ERROR;
 
     chop->cho_curr = BU_LIST_PNEXT(tclcad_cmdhist, chop->cho_curr);
@@ -281,6 +296,10 @@ static int
 cho_cmd(ClientData clientData, Tcl_Interp *interp, int argc, const char **argv)
 {
     int ret;
+    struct tclcad_cmdhist_obj *chop = (struct tclcad_cmdhist_obj *)clientData;
+
+    if (!chop || !interp)
+	return BRLCAD_ERROR;
 
     static struct bu_cmdtab cho_cmds[] = {
 	{"add",		tclcad_cmdhist_add},
@@ -292,12 +311,12 @@ cho_cmd(ClientData clientData, Tcl_Interp *interp, int argc, const char **argv)
     };
 
     if (bu_cmd(cho_cmds, argc, argv, 1, clientData, &ret) == BRLCAD_OK) {
-	if (ret == BRLCAD_OK)
-	    Tcl_AppendResult(interp, bu_vls_addr(&((struct tclcad_cmdhist_obj *)clientData)->cho_curr->h_command), NULL);
+	if (ret == BRLCAD_OK && chop->cho_curr)
+	    Tcl_AppendResult(interp, bu_vls_addr(&chop->cho_curr->h_command), NULL);
 	return ret;
     }
 
-    bu_log("ERROR: '%s' command not found\n", argv[1]);
+    bu_log("ERROR: '%s' command not found\n", (argv && argc > 1 && argv[1]) ? argv[1] : "");
     return BRLCAD_ERROR;
 }
 
@@ -306,19 +325,16 @@ static void
 cho_deleteProc(ClientData clientData)
 {
     struct tclcad_cmdhist_obj *chop = (struct tclcad_cmdhist_obj *)clientData;
-    struct tclcad_cmdhist *curr, *next;
+    struct tclcad_cmdhist *curr;
+
+    if (!chop)
+	return;
 
     /* free list of commands */
-    curr = BU_LIST_NEXT(tclcad_cmdhist, &chop->cho_head.l);
-    while (BU_LIST_NOT_HEAD(curr, &chop->cho_head.l)) {
-	curr = BU_LIST_NEXT(tclcad_cmdhist, &chop->cho_head.l);
-	next = BU_LIST_PNEXT(tclcad_cmdhist, curr);
-
+    while (BU_LIST_WHILE(curr, tclcad_cmdhist, &chop->cho_head.l)) {
 	bu_vls_free(&curr->h_command);
-
 	BU_LIST_DEQUEUE(&curr->l);
 	bu_free((void *)curr, "cho_deleteProc: curr");
-	curr = next;
     }
 
     bu_vls_free(&chop->cho_name);
@@ -332,10 +348,15 @@ cho_deleteProc(ClientData clientData)
 static struct tclcad_cmdhist_obj *
 cho_open(ClientData UNUSED(clientData), Tcl_Interp *interp, const char *name)
 {
-    struct bu_list *objects = cmdhist_objects(interp, NULL);
+    struct bu_list *objects;
     struct tclcad_cmdhist_obj *chop;
 
-    BU_ASSERT(objects);
+    if (!interp || !name)
+	return TCLCAD_CMDHIST_OBJ_NULL;
+
+    objects = cmdhist_objects(interp, NULL);
+    if (!objects)
+	return TCLCAD_CMDHIST_OBJ_NULL;
 
     /* check to see if command history object exists */
     for (BU_LIST_FOR(chop, tclcad_cmdhist_obj, objects)) {
@@ -364,11 +385,16 @@ cho_open(ClientData UNUSED(clientData), Tcl_Interp *interp, const char *name)
 int
 cho_open_tcl(ClientData clientData, Tcl_Interp *interp, int argc, const char **argv)
 {
-    struct bu_list *objects = cmdhist_objects(interp, NULL);
+    struct bu_list *objects;
     struct tclcad_cmdhist_obj *chop;
     struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-    BU_ASSERT(objects);
+    if (!interp)
+	return TCL_ERROR;
+
+    objects = cmdhist_objects(interp, NULL);
+    if (!objects)
+	return TCL_ERROR;
 
     if (argc == 1) {
 	/* get list of command history objects */

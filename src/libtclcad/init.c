@@ -65,6 +65,8 @@ static void
 tclcad_init_state_delete(ClientData clientData, Tcl_Interp *UNUSED(interp))
 {
     struct tclcad_init_state *state = (struct tclcad_init_state *)clientData;
+    if (!state)
+	return;
     BU_PUT(state, struct tclcad_init_state);
 }
 
@@ -73,6 +75,9 @@ static struct tclcad_init_state *
 tclcad_init_state(Tcl_Interp *interp)
 {
     struct tclcad_init_state *state = NULL;
+
+    if (!interp)
+	return NULL;
 
     state = (struct tclcad_init_state *)Tcl_GetAssocData(interp,
 	    TCLCAD_INIT_ASSOC_KEY, NULL);
@@ -93,6 +98,9 @@ wrapper_func(ClientData data, Tcl_Interp *interp, int argc, const char *argv[])
 {
     struct bu_cmdtab *ctp = (struct bu_cmdtab *)data;
 
+    if (!ctp || !ctp->ct_func)
+	return TCL_ERROR;
+
     return ctp->ct_func(interp, argc, argv);
 }
 
@@ -101,6 +109,9 @@ void
 tclcad_register_cmds(Tcl_Interp *interp, struct bu_cmdtab *cmds)
 {
     struct bu_cmdtab *ctp = NULL;
+
+    if (!interp || !cmds)
+	return;
 
     for (ctp = cmds; ctp->ct_name != (char *)NULL; ctp++) {
 	(void)Tcl_CreateCommand(interp, ctp->ct_name, wrapper_func, (ClientData)ctp, (Tcl_CmdDeleteProc *)NULL);
@@ -112,6 +123,9 @@ tclcad_source_file(Tcl_Interp *interp, const char *filename)
 {
     Tcl_Obj *cmd[2] = {NULL, NULL};
     int ret = TCL_ERROR;
+
+    if (!interp || !filename)
+	return TCL_ERROR;
 
     cmd[0] = Tcl_NewStringObj("source", -1);
     cmd[1] = Tcl_NewStringObj(filename, -1);
@@ -199,6 +213,8 @@ tclcad_init(Tcl_Interp *interp, int init_gui, struct bu_vls *tlog)
     }
 
     state = tclcad_init_state(interp);
+    if (!state)
+	return TCL_ERROR;
     if (state->initialized & TCLCAD_CORE_INITIALIZED) {
 	if (!init_gui || (state->initialized & TCLCAD_GUI_INITIALIZED))
 	    return TCL_OK;
@@ -349,24 +365,32 @@ tclcad_set_argv(Tcl_Interp *interp, int argc, const char **argv)
     char buf[TCL_INTEGER_SPACE] = {0};
     char *args;
     Tcl_DString argString;
-    char nstr = '\0';
-    const char **av;
 
-    if (!interp) return;
+    if (!interp)
+	return;
 
     /* create the tcl variables, even if they're empty */
-    av = (!argv) ? (const char **)&nstr : argv;
+    if (argc <= 0 || !argv) {
+	snprintf(buf, sizeof(buf), "0");
+	Tcl_SetVar(interp, "argc", buf, TCL_GLOBAL_ONLY);
+	Tcl_SetVar(interp, "argv", "", TCL_GLOBAL_ONLY);
+	return;
+    }
 
     /* argc */
-    sprintf(buf, "%ld", (long)(argc));
+    snprintf(buf, sizeof(buf), "%d", argc);
     Tcl_SetVar(interp, "argc", buf, TCL_GLOBAL_ONLY);
 
     /* argv */
-    args = Tcl_Merge(argc, (const char * const *)av);
-    Tcl_ExternalToUtfDString(NULL, args, -1, &argString);
-    Tcl_SetVar(interp, "argv", Tcl_DStringValue(&argString), TCL_GLOBAL_ONLY);
-    Tcl_DStringFree(&argString);
-    ckfree(args);
+    args = Tcl_Merge(argc, (const char * const *)argv);
+    if (args) {
+	Tcl_ExternalToUtfDString(NULL, args, -1, &argString);
+	Tcl_SetVar(interp, "argv", Tcl_DStringValue(&argString), TCL_GLOBAL_ONLY);
+	Tcl_DStringFree(&argString);
+	ckfree(args);
+    } else {
+	Tcl_SetVar(interp, "argv", "", TCL_GLOBAL_ONLY);
+    }
 }
 
 

@@ -175,7 +175,7 @@ TCLCAD_EXPORT extern void fb_tcl_setup(void);
 
 __END_DECLS
 
-#endif /* TCLCAD_MISC_H */
+#endif /* TCLCAD_DRAW_H */
 
 /** @} */
 /*

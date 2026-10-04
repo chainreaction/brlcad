@@ -34,10 +34,20 @@
 #include "../tclcad_private.h" // for to_cmdtab and to_cmds
 
 int
-main(int UNUSED(argc), const char **argv)
+main(int argc, const char **argv)
 {
-    std::set<std::string> skip_names;
+    if (!argv || !argv[0])
+	return 1;
+
     bu_setprogname(argv[0]);
+
+    if (argc > 1 && (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help"))) {
+	std::cout << "Usage: " << argv[0] << "\n"
+		  << "Verify libtclcad commands against libged commands.\n";
+	return 0;
+    }
+
+    std::set<std::string> skip_names;
 
     skip_names.insert(std::string("NULL"));
 
