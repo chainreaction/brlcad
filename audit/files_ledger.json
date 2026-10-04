@@ -32878,10 +32878,12 @@
       "path": "src/libtclcad/commands.c",
       "subsystem": "src/libtclcad",
       "lines": 6588,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T05:07:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0325"
+      ]
     },
     {
       "id": 3109,
