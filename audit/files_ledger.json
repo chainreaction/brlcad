@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1593,
-    "pending_files": 1900,
-    "last_updated": "2026-10-04T17:15:00Z",
-    "total_issues": 354,
-    "reviewed_count": 1593
+    "reviewed_files": 1594,
+    "pending_files": 1899,
+    "last_updated": "2026-10-04T17:30:00Z",
+    "total_issues": 355,
+    "reviewed_count": 1594
   },
   "files": [
     {
@@ -27719,10 +27719,12 @@
       "path": "src/libnmg/fcut.c",
       "subsystem": "src/libnmg",
       "lines": 3809,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T17:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0334"
+      ]
     },
     {
       "id": 2592,
