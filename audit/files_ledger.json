@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1510,
-    "pending_files": 1983,
-    "last_updated": "2026-10-04T00:07:00Z",
-    "total_issues": 338,
-    "reviewed_count": 1510
+    "reviewed_files": 1517,
+    "pending_files": 1976,
+    "last_updated": "2026-10-04T04:18:56Z",
+    "total_issues": 339,
+    "reviewed_count": 1517
   },
   "files": [
     {
@@ -2406,7 +2406,7 @@
       "path": "include/qtcad/QgGeomImport.h",
       "subsystem": "include",
       "lines": 151,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -2440,7 +2440,7 @@
       "path": "include/qtcad/QgModel.h",
       "subsystem": "include",
       "lines": 361,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -28864,7 +28864,7 @@
       "path": "src/libqtcad/QgGeomImport.cpp",
       "subsystem": "src/libqtcad",
       "lines": 375,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -28898,7 +28898,7 @@
       "path": "src/libqtcad/QgModel.cpp",
       "subsystem": "src/libqtcad",
       "lines": 996,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -29064,7 +29064,7 @@
       "path": "src/libqtcad/tests/qgmodel.cpp",
       "subsystem": "src/libqtcad",
       "lines": 288,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -29074,7 +29074,7 @@
       "path": "src/libqtcad/tests/qgview.cpp",
       "subsystem": "src/libqtcad",
       "lines": 98,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -29084,7 +29084,7 @@
       "path": "src/libqtcad/tests/qsketch.cpp",
       "subsystem": "src/libqtcad",
       "lines": 2126,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -37066,5 +37066,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-10-04T00:07:00Z"
+  "last_updated": "2026-10-04T04:18:56Z"
 }

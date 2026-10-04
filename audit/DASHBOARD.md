@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-10-03 12:15:00 UTC
+**Last Updated:** 2026-10-04 04:20:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 1510 (43.2%)
-- **Files Pending Review:** 1983
-- **Total Issues Identified:** 338
+- **Files Reviewed:** 1517 (43.4%)
+- **Files Pending Review:** 1976
+- **Total Issues Identified:** 339
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 263 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 264 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 52 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 338
+- **Fixed (Committed):** 339
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -25,7 +25,7 @@
 |:---|:---:|:---:|:---:|:---:|
 | `bench` | 5 | 5 | 100.0% | 1 |
 | `doc` | 19 | 0 | 0.0% | 0 |
-| `include` | 315 | 27 | 8.6% | 6 |
+| `include` | 315 | 29 | 9.2% | 7 |
 | `misc` | 55 | 0 | 0.0% | 0 |
 | `regress` | 21 | 0 | 0.0% | 0 |
 | `src/adrt` | 51 | 0 | 0.0% | 0 |
@@ -98,7 +98,7 @@
 | `src/liboptical` | 46 | 0 | 0.0% | 0 |
 | `src/libpc` | 6 | 6 | 100.0% | 1 |
 | `src/libpkg` | 10 | 10 | 100.0% | 3 |
-| `src/libqtcad` | 29 | 24 | 82.8% | 5 |
+| `src/libqtcad` | 29 | 29 | 100.0% | 6 |
 | `src/librt` | 373 | 0 | 0.0% | 0 |
 | `src/libtclcad` | 31 | 0 | 0.0% | 0 |
 | `src/libtermio` | 2 | 2 | 100.0% | 1 |
@@ -440,3 +440,4 @@
 
 
 
+| `SEC-0318` | **Sev 2** | Memory Leaks, Uninitialized Pointers, Division by Zero, Model Invariant Violations, and NULL Pointer Dereferences | `libqtcad & include/qtcad (Batch 76: 7 files)` | `FIXED` | In BRL-CAD libqtcad Batch 76 (QgGeomImport.h, QgModel.h, QgGeomImport.cpp, QgModel.cpp, tests/qgmodel.cpp, tests/qgview.cpp, tests/qsketch.cpp, 1,323 lines): in QgModel.h, initialized rootItem to NULL to prevent uninitialized pointer dereference (CWE-457); in QgModel.cpp, fixed severe memory leak in destructor by iterating through and deleting all QgItem allocations in items before deleting container, freed empty_gvp, and safely deleted gedp->dbi_state before calling ged_close (CWE-401), deleted existing rootItem and cleared items on g_update reset, guarded mdl, gedp, and dbi_state in QgItem_cmp to prevent SIGSEGV crashes during sorting, added comprehensive null checks in QgItem constructor and path_hash, guarded mdl, gedp, dbi_state, and dp in update callbacks, guarded node and index in NodeRow, canFetchMore, and fetchMore, guarded qi, gedp, dbi_state, and ged_gvp in data(), validated argc and argv in run_cmd, verified sender QAction cast and guarded cnode in draw/erase actions, and added bounds and null checks in item expand/collapse handlers; in QgGeomImport.h and QgGeomImport.cpp, explicitly marked constructors and initialized all pointer members to NULL across ASCImportDialog, RhinoImportDialog, and STEPImportDialog (CWE-457), reparented dialog widgets to this for proper Qt memory ownership, deleted out_win in exec_console_app_in_window to prevent persistent dialog leaks (CWE-401), guarded bu_dir return before QString construction, added null checks on dialog UI controls in options(), and fixed critical logic flaw in gfile() where canceling an import dialog still executed the converter by checking dialog.exec() != QDialog::Accepted; in tests/qgmodel.cpp, tests/qgview.cpp, and tests/qsketch.cpp, guarded path_hashes against empty underflow and validated argc/argv with clean help handling in qgmodel, validated argc/argv with clean help handling and corrected argv[1] model path in qgview, and in qsketch validated argc/argv, added clean db_close on error exit paths, guarded nteeth <= 0 in sketch_create_gear to prevent division by zero (CWE-369), verified dp and dbip in QSketchEditWindow constructor, and guarded vertex/segment arrays and view in table population and screenshot methods. |
