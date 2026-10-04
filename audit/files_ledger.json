@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1502,
-    "pending_files": 1991,
-    "last_updated": "2026-10-03T12:15:00Z",
-    "total_issues": 337,
-    "reviewed_count": 1502
+    "reviewed_files": 1510,
+    "pending_files": 1983,
+    "last_updated": "2026-10-04T00:07:00Z",
+    "total_issues": 338,
+    "reviewed_count": 1510
   },
   "files": [
     {
@@ -2428,10 +2428,12 @@
       "path": "include/qtcad/QgMeasureFilter.h",
       "subsystem": "include",
       "lines": 142,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T00:07:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0317"
+      ]
     },
     {
       "id": 239,
@@ -2448,10 +2450,12 @@
       "path": "include/qtcad/QgPolyFilter.h",
       "subsystem": "include",
       "lines": 136,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T00:07:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0317"
+      ]
     },
     {
       "id": 241,
@@ -2482,10 +2486,12 @@
       "path": "include/qtcad/QgSelectFilter.h",
       "subsystem": "include",
       "lines": 113,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T00:07:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0317"
+      ]
     },
     {
       "id": 244,
@@ -2504,10 +2510,12 @@
       "path": "include/qtcad/QgSketchFilter.h",
       "subsystem": "include",
       "lines": 360,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T00:07:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0317"
+      ]
     },
     {
       "id": 246,
@@ -28878,10 +28886,12 @@
       "path": "src/libqtcad/QgMeasureFilter.cpp",
       "subsystem": "src/libqtcad",
       "lines": 449,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T00:07:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0317"
+      ]
     },
     {
       "id": 2713,
@@ -28898,10 +28908,12 @@
       "path": "src/libqtcad/QgPolyFilter.cpp",
       "subsystem": "src/libqtcad",
       "lines": 455,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T00:07:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0317"
+      ]
     },
     {
       "id": 2715,
@@ -28932,20 +28944,24 @@
       "path": "src/libqtcad/QgSelectFilter.cpp",
       "subsystem": "src/libqtcad",
       "lines": 396,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T00:07:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0317"
+      ]
     },
     {
       "id": 2718,
       "path": "src/libqtcad/QgSketchFilter.cpp",
       "subsystem": "src/libqtcad",
       "lines": 851,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T00:07:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0317"
+      ]
     },
     {
       "id": 2719,
@@ -37050,5 +37066,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-10-03T12:15:00Z"
+  "last_updated": "2026-10-04T00:07:00Z"
 }
