@@ -1,22 +1,22 @@
 # BRL-CAD RMF/STIG Cat 1 Security Audit Dashboard
-**Last Updated:** 2026-10-04 04:20:00 UTC
+**Last Updated:** 2026-10-04 04:30:00 UTC
 
 ## Overall Progress
 - **Total C/C++ Files:** 3493
-- **Files Reviewed:** 1517 (43.4%)
-- **Files Pending Review:** 1976
-- **Total Issues Identified:** 339
+- **Files Reviewed:** 1532 (43.9%)
+- **Files Pending Review:** 1961
+- **Total Issues Identified:** 340
 
 ### Issues by Severity Potential
 | Severity Level | Count | Description |
 |:---:|:---:|:---|
 | **3 (High)** | 23 | Likely exploit or crash potential; widespread/library exposure |
-| **2 (Medium)** | 264 | Possible exploit or crash under specific circumstances |
+| **2 (Medium)** | 265 | Possible exploit or crash under specific circumstances |
 | **1 (Low)** | 52 | Localized / low-impact vulnerability |
 
 ### Issues by Verification Status
 - **Confirmed:** 0
-- **Fixed (Committed):** 339
+- **Fixed (Committed):** 340
 - **Pending Verification:** 0
 - **Disproven:** 0
 
@@ -25,7 +25,7 @@
 |:---|:---:|:---:|:---:|:---:|
 | `bench` | 5 | 5 | 100.0% | 1 |
 | `doc` | 19 | 0 | 0.0% | 0 |
-| `include` | 315 | 29 | 9.2% | 7 |
+| `include` | 315 | 34 | 10.8% | 8 |
 | `misc` | 55 | 0 | 0.0% | 0 |
 | `regress` | 21 | 0 | 0.0% | 0 |
 | `src/adrt` | 51 | 0 | 0.0% | 0 |
@@ -100,7 +100,7 @@
 | `src/libpkg` | 10 | 10 | 100.0% | 3 |
 | `src/libqtcad` | 29 | 29 | 100.0% | 6 |
 | `src/librt` | 373 | 0 | 0.0% | 0 |
-| `src/libtclcad` | 31 | 0 | 0.0% | 0 |
+| `src/libtclcad` | 31 | 10 | 32.3% | 1 |
 | `src/libtermio` | 2 | 2 | 100.0% | 1 |
 | `src/libwdb` | 27 | 27 | 100.0% | 2 |
 | `src/mged` | 55 | 55 | 100.0% | 16 |
@@ -441,3 +441,4 @@
 
 
 | `SEC-0318` | **Sev 2** | Memory Leaks, Uninitialized Pointers, Division by Zero, Model Invariant Violations, and NULL Pointer Dereferences | `libqtcad & include/qtcad (Batch 76: 7 files)` | `FIXED` | In BRL-CAD libqtcad Batch 76 (QgGeomImport.h, QgModel.h, QgGeomImport.cpp, QgModel.cpp, tests/qgmodel.cpp, tests/qgview.cpp, tests/qsketch.cpp, 1,323 lines): in QgModel.h, initialized rootItem to NULL to prevent uninitialized pointer dereference (CWE-457); in QgModel.cpp, fixed severe memory leak in destructor by iterating through and deleting all QgItem allocations in items before deleting container, freed empty_gvp, and safely deleted gedp->dbi_state before calling ged_close (CWE-401), deleted existing rootItem and cleared items on g_update reset, guarded mdl, gedp, and dbi_state in QgItem_cmp to prevent SIGSEGV crashes during sorting, added comprehensive null checks in QgItem constructor and path_hash, guarded mdl, gedp, dbi_state, and dp in update callbacks, guarded node and index in NodeRow, canFetchMore, and fetchMore, guarded qi, gedp, dbi_state, and ged_gvp in data(), validated argc and argv in run_cmd, verified sender QAction cast and guarded cnode in draw/erase actions, and added bounds and null checks in item expand/collapse handlers; in QgGeomImport.h and QgGeomImport.cpp, explicitly marked constructors and initialized all pointer members to NULL across ASCImportDialog, RhinoImportDialog, and STEPImportDialog (CWE-457), reparented dialog widgets to this for proper Qt memory ownership, deleted out_win in exec_console_app_in_window to prevent persistent dialog leaks (CWE-401), guarded bu_dir return before QString construction, added null checks on dialog UI controls in options(), and fixed critical logic flaw in gfile() where canceling an import dialog still executed the converter by checking dialog.exec() != QDialog::Accepted; in tests/qgmodel.cpp, tests/qgview.cpp, and tests/qsketch.cpp, guarded path_hashes against empty underflow and validated argc/argv with clean help handling in qgmodel, validated argc/argv with clean help handling and corrected argv[1] model path in qgview, and in qsketch validated argc/argv, added clean db_close on error exit paths, guarded nteeth <= 0 in sketch_create_gear to prevent division by zero (CWE-369), verified dp and dbip in QSketchEditWindow constructor, and guarded vertex/segment arrays and view in table population and screenshot methods. |
+| `SEC-0319` | **Sev 2** | Stack Out-of-Bounds Read, Memory Leaks, Resource Leaks, Uninitialized Memory, Path Detection Bugs, and NULL Pointer Dereferences | `libtclcad & include/tclcad (Batch 77: 15 files)` | `FIXED` | In BRL-CAD libtclcad Batch 77 (include/tclcad.h, include/tclcad/defines.h, include/tclcad/draw.h, include/tclcad/misc.h, include/tclcad/setup.h, tclcad_private.h, auto_path.c, cmdhist.c, command_io.cpp, eval.c, global.c, init.c, tests/check_itcl.cpp, tests/check_multi_interp.cpp, tests/check_tclcad_cmds.cpp, 3,267 lines): in include/tclcad/draw.h, corrected header guard comment from TCLCAD_MISC_H to TCLCAD_DRAW_H; in auto_path.c, fixed critical path detection bugs where ITCL_LIBRARY and ITK_LIBRARY overrides appended filename (itcl.tcl/itk.tcl) and inserted file path instead of directory into auto_path, breaking subsequent file existence checks, fixed itk_set flag never being set to 1, eliminated capturing Tcl error message into paths when tcl_library is unset by replacing unchecked Tcl_Eval with Tcl_GetVar, and added _insert_unique_path helper to deduplicate path entries; in cmdhist.c, fixed severe memory leak of str on all exit paths of tclcad_cmdhist_history (CWE-401), closed fp before error returns to prevent file descriptor leaks, guarded against NULL argv and argv[0], guarded chop and argv[2] in tclcad_cmdhist_add, guarded chop, cho_curr, and BU_LIST boundaries in tclcad_cmdhist_prev/curr/next, guarded chop->cho_curr in cho_cmd before dereferencing, replaced redundant nested BU_LIST_NEXT calls with standard while (BU_LIST_WHILE(...)) dequeue loop in cho_deleteProc, and guarded objects and interp in cho_open/cho_open_tcl; in command_io.cpp, initialized interp to NULL and io_mode to 0 in tclcad_create_io_data eliminating uninitialized struct members (CWE-457), and guarded p->p in tclcad_delete_io_handler to prevent NULL pointer dereference in bu_process_fileno (CWE-476); in eval.c, validated interp and command, guarded args against NULL, and ensured individual argument strings are non-null in tclcad_eval and tclcad_eval_noresult; in global.c, guarded clientData against NULL in tclcad_interp_objects_delete, guarded interp and key in tclcad_interp_objects, and guarded state in tclcad_current_top; in init.c, guarded clientData, interp, and cmds in tclcad_init_state_delete, tclcad_init_state, and tclcad_register_cmds, guarded ctp and ct_func in wrapper_func, guarded filename in tclcad_source_file, verified non-null state in tclcad_init, and fixed critical out-of-bounds stack read (CWE-125) in tclcad_set_argv where !argv caused cast of a single-char stack variable to (const char **) passed into Tcl_Merge, handling empty/non-positive argc cleanly without invalid memory access; in tests/check_itcl.cpp, tests/check_multi_interp.cpp, and tests/check_tclcad_cmds.cpp, validated argv and argv[0] before bu_setprogname/Tcl_FindExecutable and added standard -h/-?/--help usage output with clean exit 0. |
