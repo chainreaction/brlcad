@@ -23,6 +23,9 @@
  *
  */
 
+#include "common.h"
+#include <math.h>
+#include <stdint.h>
 #include "bu/magic.h"
 #include "bu/malloc.h"
 #include "icv.h"
@@ -31,14 +34,24 @@ static size_t **
 icv_init_bins(icv_image_t* img, size_t n_bins)
 {
     size_t c;
-    size_t i;
     size_t **bins;
 
+    if (!img || img->channels == 0 || n_bins == 0)
+	return NULL;
+
     bins = (size_t**) bu_malloc(sizeof(size_t*)*img->channels, "icv_init_bins : Histogram Bins");
+    if (!bins)
+	return NULL;
+
     for (c = 0; c < img->channels; c++) {
-	bins[c] = (size_t*) bu_malloc(sizeof(size_t)*n_bins, "icv_init_bins : Histogram Array for Channels");
-	for (i = 0; i < n_bins; i++) {
-	    bins[c][i] = 0;
+	bins[c] = (size_t*) bu_calloc(n_bins, sizeof(size_t), "icv_init_bins : Histogram Array for Channels");
+	if (!bins[c]) {
+	    while (c > 0) {
+		c--;
+		bu_free(bins[c], "icv_init_bins free");
+	    }
+	    bu_free(bins, "icv_init_bins free");
+	    return NULL;
 	}
     }
     return bins;
@@ -54,17 +67,26 @@ icv_hist(icv_image_t* img, size_t n_bins)
     size_t temp;
     size_t size;
     size_t **bins;
-    size = img->width*img->height;
-    data = img->data;
 
     ICV_IMAGE_VAL_PTR(img);
 
+    if (!img->data || img->width == 0 || img->height == 0 || img->channels == 0 || n_bins == 0)
+	return NULL;
+
+    if (img->width > SIZE_MAX / img->height)
+	return NULL;
+
+    size = img->width*img->height;
+    data = img->data;
+
     bins = icv_init_bins(img, n_bins);
+    if (!bins)
+	return NULL;
 
     for (i = 0; i < size; i++) {
 	for (j = 0; j < img->channels; j++) {
 	    double val = (*data++) * n_bins;
-	    if (!(val >= 0.0)) val = 0.0;
+	    if (isnan(val) || !(val >= 0.0)) val = 0.0;
 	    temp = (size_t)val;
 	    if (temp >= n_bins) temp = n_bins - 1; /* clamp max values to the final bin */
 	    bins[j][temp]++;
@@ -84,16 +106,25 @@ icv_max(icv_image_t* img)
 
     ICV_IMAGE_VAL_PTR(img);
 
+    if (!img->data || img->channels == 0 || img->width == 0 || img->height == 0)
+	return NULL;
+
+    if (img->width > SIZE_MAX / img->height)
+	return NULL;
+
     max = (double *)bu_malloc(sizeof(double)*img->channels, "max values");
+    if (!max)
+	return NULL;
 
     data = img->data;
     for (i = 0; i < img->channels; i++)
-	max[i] = (img->width * img->height > 0) ? data[i] : 0.0;
+	max[i] = data[i];
 
-    for (size = img->width*img->height; size>0; size--) {
+    size = img->width*img->height;
+    while (size-- > 0) {
 	for (i = 0; i < img->channels; i++) {
 	    double val = *data++;
-	    if (max[i] < val)
+	    if (!isnan(val) && (isnan(max[i]) || max[i] < val))
 		max[i] = val;
 	}
     }
@@ -106,14 +137,21 @@ double *
 icv_sum(icv_image_t* img)
 {
     double *data = NULL;
-
     double *sum; /**< An array of size channels. */
     size_t i;
-    size_t size,j;
+    size_t size, j;
 
     ICV_IMAGE_VAL_PTR(img);
 
+    if (!img->data || img->channels == 0 || img->width == 0 || img->height == 0)
+	return NULL;
+
+    if (img->width > SIZE_MAX / img->height)
+	return NULL;
+
     sum = (double *)bu_malloc(sizeof(double)*img->channels, "sum values");
+    if (!sum)
+	return NULL;
 
     for (i = 0; i < img->channels; i++)
 	sum[i] = 0.0;
@@ -121,9 +159,13 @@ icv_sum(icv_image_t* img)
     data = img->data;
     size = (size_t)img->width*img->height;
 
-    for (j = 0; j < size; j++)
-	for (i = 0; i < img->channels; i++)
-	    sum[i] += *data++;
+    for (j = 0; j < size; j++) {
+	for (i = 0; i < img->channels; i++) {
+	    double val = *data++;
+	    if (!isnan(val))
+		sum[i] += val;
+	}
+    }
 
     return sum;
 }
@@ -138,11 +180,22 @@ icv_mean(icv_image_t* img)
 
     ICV_IMAGE_VAL_PTR(img);
 
-    mean = icv_sum(img); /**< receives sum from icv_image_sum*/
+    if (!img->data || img->channels == 0 || img->width == 0 || img->height == 0)
+	return NULL;
+
+    if (img->width > SIZE_MAX / img->height)
+	return NULL;
+
     size = (size_t)img->width*img->height;
+    if (size == 0)
+	return NULL;
+
+    mean = icv_sum(img); /**< receives sum from icv_image_sum*/
+    if (!mean)
+	return NULL;
 
     for (i = 0; i < img->channels; i++)
-	mean[i]/=size;
+	mean[i] /= size;
 
     return mean;
 }
@@ -158,16 +211,25 @@ icv_min(icv_image_t* img)
 
     ICV_IMAGE_VAL_PTR(img);
 
+    if (!img->data || img->channels == 0 || img->width == 0 || img->height == 0)
+	return NULL;
+
+    if (img->width > SIZE_MAX / img->height)
+	return NULL;
+
     min = (double *)bu_malloc(sizeof(double)*img->channels, "min values");
+    if (!min)
+	return NULL;
 
     data = img->data;
     for (i = 0; i < img->channels; i++)
-	min[i] = (img->width * img->height > 0) ? data[i] : 0.0;
+	min[i] = data[i];
 
-    for (size = (size_t)img->width*img->height; size>0; size--) {
+    size = (size_t)img->width*img->height;
+    while (size-- > 0) {
 	for (i = 0; i < img->channels; i++) {
 	    double val = *data++;
-	    if (min[i] > val)
+	    if (!isnan(val) && (isnan(min[i]) || min[i] > val))
 		min[i] = val;
 	}
     }
@@ -179,7 +241,7 @@ icv_min(icv_image_t* img)
 double *
 icv_var(icv_image_t* img, size_t** bins, size_t n_bins)
 {
-    size_t i,c;
+    size_t i, c;
     double *var;
     double *mean;
     size_t size;
@@ -187,13 +249,30 @@ icv_var(icv_image_t* img, size_t** bins, size_t n_bins)
 
     ICV_IMAGE_VAL_PTR(img);
 
-    var = (double *) bu_calloc(img->channels, sizeof(double), "variance values");
+    if (!bins || n_bins == 0 || !img->data || img->channels == 0 || img->width == 0 || img->height == 0)
+	return NULL;
+
+    if (img->width > SIZE_MAX / img->height)
+	return NULL;
 
     size = (size_t) img->height*img->width;
+    if (size == 0)
+	return NULL;
 
     mean = icv_mean(img);
+    if (!mean)
+	return NULL;
+
+    var = (double *) bu_calloc(img->channels, sizeof(double), "variance values");
+    if (!var) {
+	bu_free(mean, "mean values");
+	return NULL;
+    }
+
     for (i = 0; i < n_bins; i++) {
 	for (c = 0; c < img->channels; c++) {
+	    if (!bins[c])
+		continue;
 	    d = (double)i - n_bins*mean[c];
 	    var[c] += bins[c][i] * d * d;
 	}
@@ -212,7 +291,7 @@ icv_var(icv_image_t* img, size_t** bins, size_t n_bins)
 double *
 icv_skew(icv_image_t* img, size_t** bins, size_t n_bins)
 {
-    size_t i,c;
+    size_t i, c;
     double *skew;
     double *mean;
     size_t size;
@@ -220,15 +299,32 @@ icv_skew(icv_image_t* img, size_t** bins, size_t n_bins)
 
     ICV_IMAGE_VAL_PTR(img);
 
-    skew = (double *)bu_calloc(img->channels, sizeof(double), "skewness values");
+    if (!bins || n_bins == 0 || !img->data || img->channels == 0 || img->width == 0 || img->height == 0)
+	return NULL;
+
+    if (img->width > SIZE_MAX / img->height)
+	return NULL;
 
     size = (size_t) img->height*img->width;
+    if (size == 0)
+	return NULL;
 
     mean = icv_mean(img);
+    if (!mean)
+	return NULL;
+
+    skew = (double *)bu_calloc(img->channels, sizeof(double), "skewness values");
+    if (!skew) {
+	bu_free(mean, "mean values");
+	return NULL;
+    }
+
     for (i = 0; i < n_bins; i++) {
 	for (c = 0; c < img->channels; c++) {
+	    if (!bins[c])
+		continue;
 	    d = (double)i - n_bins*mean[c];
-	    skew[c] += bins[c][i] * d * d *d;
+	    skew[c] += bins[c][i] * d * d * d;
 	}
     }
 
@@ -245,14 +341,23 @@ icv_skew(icv_image_t* img, size_t** bins, size_t n_bins)
 int *
 icv_median(icv_image_t* img, size_t** bins, size_t n_bins)
 {
-    size_t i,c;
+    size_t i, c;
     int *median;
     double *partial_sum;
 
     ICV_IMAGE_VAL_PTR(img);
 
+    if (!bins || n_bins == 0 || img->channels == 0 || img->width == 0 || img->height == 0)
+	return NULL;
+
     median = (int *)bu_malloc(sizeof(int)*img->channels, "median values");
+    if (!median)
+	return NULL;
     partial_sum = (double *)bu_malloc(sizeof(double)*img->channels, "partial sum values");
+    if (!partial_sum) {
+	bu_free(median, "median values");
+	return NULL;
+    }
 
     size_t num_pixels = (size_t)img->width * img->height;
 
@@ -262,10 +367,12 @@ icv_median(icv_image_t* img, size_t** bins, size_t n_bins)
     }
 
     for (c = 0; c < img->channels; c++) {
+	if (!bins[c])
+	    continue;
 	for (i = 0; i < n_bins; i++) {
 	    partial_sum[c] += bins[c][i];
 	    if (partial_sum[c] >= num_pixels / 2.0) {
-		median[c] = i;
+		median[c] = (int)i;
 		break;
 	    }
 	}
@@ -280,18 +387,25 @@ icv_median(icv_image_t* img, size_t** bins, size_t n_bins)
 int *
 icv_mode(icv_image_t* img, size_t** bins, size_t n_bins)
 {
-    size_t i,c;
+    size_t i, c;
     int *mode;
 
     ICV_IMAGE_VAL_PTR(img);
 
+    if (!bins || n_bins == 0 || img->channels == 0)
+	return NULL;
+
     mode = (int *) bu_malloc(sizeof(int)*img->channels, "mode values");
+    if (!mode)
+	return NULL;
 
     for (c = 0; c < img->channels; c++) {
 	mode[c] = 0;
+	if (!bins[c])
+	    continue;
 	for (i = 0; i < n_bins; i++)
 	    if (bins[c][mode[c]] < bins[c][i])
-		mode[c] = i;
+		mode[c] = (int)i;
     }
     return mode;
 }

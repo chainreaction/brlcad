@@ -46,6 +46,11 @@ icv_crop_rect(icv_image_t *img, size_t xorig, size_t yorig, size_t xnum, size_t 
 
     ICV_IMAGE_VAL_INT(img);
 
+    if (!img->data || img->width == 0 || img->height == 0 || img->channels == 0) {
+	bu_log("icv_crop_rect : Invalid image data or dimensions\n");
+	return -1;
+    }
+
     if (xnum < 1) {
 	bu_log("icv_crop_rect : ERROR: Horizontal Cut Size\n");
 	return -1;
@@ -65,10 +70,23 @@ icv_crop_rect(icv_image_t *img, size_t xorig, size_t yorig, size_t xnum, size_t 
     }
 
     /* initialization of variables to insure cropping and copying */
+    if (img->width > SIZE_MAX / img->channels)
+	return -1;
     widthstep_in = img->width*img->channels;
+
+    if (xnum > SIZE_MAX / img->channels)
+	return -1;
     widthstep_out = xnum*img->channels;
+
+    if (widthstep_out > SIZE_MAX / sizeof(double))
+	return -1;
     bytes_row = widthstep_out*sizeof(double);
+
+    if (ynum > SIZE_MAX / bytes_row)
+	return -1;
     out_data = p = (double *)bu_malloc(ynum*bytes_row,"icv_rect : Cropped Image Data");
+    if (!out_data)
+	return -1;
 
     in_data = img->data + yorig*widthstep_in + xorig*img->channels;
 
@@ -103,9 +121,14 @@ icv_crop(icv_image_t *img, size_t ulx, size_t uly, size_t urx, size_t ury, size_
 
     ICV_IMAGE_VAL_INT(img);
 
-    /* Validate crop dimensions to prevent integer overflow during allocation */
-    if (img->width == 0 || img->height == 0 || xnum < 2 || ynum < 2 || xnum > (size_t)-1 / ynum / img->channels / sizeof(double)) {
-	bu_log("icv_crop : Invalid crop dimensions (must be at least 2x2 and fit in memory).\n");
+    /* Validate image and crop dimensions to prevent division by zero and integer overflow */
+    if (!img->data || img->channels == 0 || img->width == 0 || img->height == 0 || xnum < 2 || ynum < 2) {
+	bu_log("icv_crop : Invalid image data or crop dimensions (must be at least 2x2).\n");
+	return -1;
+    }
+
+    if (xnum > SIZE_MAX / ynum / img->channels / sizeof(double)) {
+	bu_log("icv_crop : Invalid crop dimensions (overflows memory).\n");
 	return -1;
     }
 
@@ -113,6 +136,8 @@ icv_crop(icv_image_t *img, size_t ulx, size_t uly, size_t urx, size_t ury, size_
     data = img->data;
     data_flags = img->flags;
     out_data = p = (double *)bu_malloc(ynum*xnum*img->channels*sizeof(double), "icv_crop: Out Image");
+    if (!out_data)
+	return -1;
 
     for (row = 0; row < ynum; row++) {
 	double row_t = (double)row / (double)(ynum - 1);

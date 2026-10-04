@@ -34,7 +34,7 @@
 extern "C" char *
 icv_ascii_art(icv_image_t *img, struct icv_ascii_art_params *p)
 {
-    if (!img)
+    if (!img || !img->data || img->width == 0 || img->height == 0 || img->channels == 0)
 	return NULL;
 
     pixcii::AsciiArtParams ap;
@@ -42,7 +42,7 @@ icv_ascii_art(icv_image_t *img, struct icv_ascii_art_params *p)
     if (p) {
 	ap.color = (p->output_color) ? true : false;
 	ap.invert_color = (p->invert_color) ? true : false;
-	ap.brightness_boost = p->brightness_multiplier;
+	ap.brightness_boost = (p->brightness_multiplier >= 0.0f) ? p->brightness_multiplier : 1.0f;
     }
 
     std::string txt_art = pixcii::generateAsciiText(img, ap);

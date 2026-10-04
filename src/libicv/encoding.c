@@ -23,6 +23,9 @@
  *
  */
 
+#include "common.h"
+#include <math.h>
+#include <stdint.h>
 #include "icv.h"
 #include "vmath.h"
 #include "bu/magic.h"
@@ -35,11 +38,13 @@ icv_uchar2double(unsigned char *data, size_t size)
     double *double_data, *double_p;
     unsigned char *char_p;
 
-    if (size == 0)
+    if (!data || size == 0 || size > SIZE_MAX / sizeof(double))
 	return NULL;
 
     char_p = data;
     double_p = double_data = (double *) bu_malloc(size*sizeof(double), "uchar2data : double data");
+    if (!double_data)
+	return NULL;
 
     while (size--) {
 	*double_p = ICV_CONV_8BIT(*char_p);
@@ -55,6 +60,7 @@ unsigned char *
 icv_data2uchar(const icv_image_t *bif)
 {
     size_t size;
+    size_t pixels;
     unsigned char *uchar_data, *char_p;
     double *double_p;
 
@@ -64,25 +70,35 @@ icv_data2uchar(const icv_image_t *bif)
 
     ICV_IMAGE_VAL_PTR(bif);
 
-    size = bif->height*bif->width*bif->channels;
-    char_p = uchar_data = (unsigned char *) bu_malloc((size_t)size, "data2uchar : unsigned char data");
+    if (!bif->data || bif->width == 0 || bif->height == 0 || bif->channels == 0) {
+	return NULL;
+    }
 
+    if (bif->width > SIZE_MAX / bif->height)
+	return NULL;
+    pixels = bif->width * bif->height;
+    if (bif->channels > SIZE_MAX / pixels)
+	return NULL;
+    size = pixels * bif->channels;
+
+    char_p = uchar_data = (unsigned char *) bu_malloc(size, "data2uchar : unsigned char data");
     if (!char_p) {
 	return NULL;
     }
 
     double_p = bif->data;
 
-    if (ZERO(bif->gamma_corr)) {
+    if (ZERO(bif->gamma_corr) || bif->gamma_corr <= 0.0) {
 	while (size--) {
-	    long longval = lrint((*double_p)*255.0);
-
-	    if (longval > 255)
-		*char_p = 255;
-	    else if (longval < 0)
+	    double val = *double_p;
+	    if (isnan(val) || val <= 0.0) {
 		*char_p = 0;
-	    else
-		*char_p = (unsigned char)longval;
+	    } else if (val >= 1.0) {
+		*char_p = 255;
+	    } else {
+		long longval = lrint(val * 255.0);
+		*char_p = (longval > 255) ? 255 : (longval < 0 ? 0 : (unsigned char)longval);
+	    }
 
 	    char_p++;
 	    double_p++;
@@ -90,21 +106,19 @@ icv_data2uchar(const icv_image_t *bif)
 
     } else {
 	float *rand_p = NULL;
-	double ex = 1.0/bif->gamma_corr;
+	double ex = 1.0 / bif->gamma_corr;
 	bn_rand_init(rand_p, 0);
 
 	while (size--) {
 	    double val = *double_p;
-	    if (val < 0.0) val = 0.0;
-	    else if (val > 1.0) val = 1.0;
-
-	    long longval = lrint(pow(val, ex)*255.0 + (double) bn_rand0to1(rand_p));
-	    if (longval > 255)
-		*char_p = 255;
-	    else if (longval < 0)
+	    if (isnan(val) || val <= 0.0) {
 		*char_p = 0;
-	    else
-		*char_p = (unsigned char)longval;
+	    } else if (val >= 1.0) {
+		*char_p = 255;
+	    } else {
+		long longval = lrint(pow(val, ex) * 255.0 + (double) bn_rand0to1(rand_p));
+		*char_p = (longval > 255) ? 255 : (longval < 0 ? 0 : (unsigned char)longval);
+	    }
 
 	    char_p++;
 	    double_p++;

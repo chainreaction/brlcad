@@ -49,18 +49,29 @@ icv_gray2rgb(icv_image_t *img)
 	return 0;
 
     if (img->color_space != ICV_COLOR_SPACE_GRAY) {
-	bu_log("ERROR : color_space error");
+	bu_log("ERROR : color_space error\n");
 	return -1;
     }
 
+    if (!img->data || img->width == 0 || img->height == 0 || img->channels == 0) {
+	bu_log("ERROR : Invalid image data or dimensions\n");
+	return -1;
+    }
+
+    if (img->width > SIZE_MAX / img->height) {
+	bu_log("ERROR : Image dimensions overflow\n");
+	return -1;
+    }
     size = img->height*img->width;
-    if (size > (size_t)-1 / (3 * sizeof(double))) {
-	bu_log("ERROR : Image size too large to convert to RGB");
+    if (size > SIZE_MAX / (3 * sizeof(double))) {
+	bu_log("ERROR : Image size too large to convert to RGB\n");
 	return -1;
     }
     op = out_data = (double *)bu_malloc(size*3*sizeof(double), "Out Image Data");
+    if (!op)
+	return -1;
     in_data = img->data;
-    for (i =0 ; i < size; i++) {
+    for (i = 0; i < size; i++) {
 	*(out_data) = *in_data;
 	*(out_data+1) = *in_data;
 	*(out_data+2) = *in_data;
@@ -95,7 +106,12 @@ icv_rgb2gray(icv_image_t *img, ICV_COLOR color, double rweight, double gweight, 
 	return 0;
 
     if (img->color_space != ICV_COLOR_SPACE_RGB) {
-	bu_log("ERROR : color_space error");
+	bu_log("ERROR : color_space error\n");
+	return -1;
+    }
+
+    if (!img->data || img->width == 0 || img->height == 0 || img->channels < 3) {
+	bu_log("ERROR : Invalid image data or insufficient channels for RGB\n");
 	return -1;
     }
 
@@ -133,7 +149,7 @@ icv_rgb2gray(icv_image_t *img, ICV_COLOR color, double rweight, double gweight, 
 	case ICV_COLOR_RGB :
 	    break;
 	default :
-	    bu_log("ERROR: Wrong Arguments for Color");
+	    bu_log("ERROR: Wrong Arguments for Color\n");
 	    return -1;
     }
 
@@ -158,8 +174,18 @@ icv_rgb2gray(icv_image_t *img, ICV_COLOR color, double rweight, double gweight, 
     if (blue != 0 && ZERO(bweight))
 	bweight = 1.0 / (double)num_color_planes;
 
+    if (img->width > SIZE_MAX / img->height) {
+	bu_log("ERROR : Image dimensions overflow\n");
+	return -1;
+    }
     size = img->height*img->width;
+    if (size > SIZE_MAX / sizeof(double)) {
+	bu_log("ERROR : Image size too large to convert to gray\n");
+	return -1;
+    }
     out_data = (double*) bu_malloc(size*sizeof(double), "Out Image Data");
+    if (!out_data)
+	return -1;
     if (multiple_colors) {
 	for (in = out = 0; out < size; out++, in += img->channels) {
 	    value = rweight*in_data[in] + gweight*in_data[in+1] + bweight*in_data[in+2];

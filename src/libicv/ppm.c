@@ -44,12 +44,23 @@ ppm_write(icv_image_t *bif, FILE *fp)
 
     wimg = icv_image_for_write(bif, ICV_COLOR_SPACE_RGB, 3);
     if (!wimg) {
-	bu_log("ppm_write : Color Space conflict");
+	bu_log("ppm_write : Color Space conflict\n");
 	return BRLCAD_ERROR;
     }
 
     if (wimg->channels != 3) {
-	bu_log("ppm_write : Channel count conflict (expected 3, got %d)", (int)wimg->channels);
+	bu_log("ppm_write : Channel count conflict (expected 3, got %d)\n", (int)wimg->channels);
+	icv_destroy(wimg);
+	return BRLCAD_ERROR;
+    }
+
+    if (!wimg->data || wimg->width == 0 || wimg->height == 0) {
+	icv_destroy(wimg);
+	return BRLCAD_ERROR;
+    }
+
+    if (wimg->width > SIZE_MAX / wimg->height / 3) {
+	bu_log("ppm_write : Dimensions overflow size_t\n");
 	icv_destroy(wimg);
 	return BRLCAD_ERROR;
     }
@@ -60,13 +71,20 @@ ppm_write(icv_image_t *bif, FILE *fp)
     ppm_writeppminit(fp, cols, rows, (pixval)255, 0);
 
     pixel *pixelrow = ppm_allocrow(cols);
+    if (!pixelrow) {
+	icv_destroy(wimg);
+	return BRLCAD_ERROR;
+    }
 
     for (size_t p = 0; p < (size_t)rows ; p++) {
 	for (size_t q = 0; q < (size_t)cols; q++) {
 	    size_t offset = (((size_t)rows - 1) * (size_t)cols * 3) - (p * (size_t)cols * 3);
-	    pixelrow[q].r = lrint(wimg->data[offset + q*3+0]*255.0);
-	    pixelrow[q].g = lrint(wimg->data[offset + q*3+1]*255.0);
-	    pixelrow[q].b = lrint(wimg->data[offset + q*3+2]*255.0);
+	    double rv = wimg->data[offset + q*3+0]*255.0;
+	    double gv = wimg->data[offset + q*3+1]*255.0;
+	    double bv = wimg->data[offset + q*3+2]*255.0;
+	    pixelrow[q].r = (rv >= 255.0) ? 255 : (rv <= 0.0 || isnan(rv) ? 0 : (pixval)lrint(rv));
+	    pixelrow[q].g = (gv >= 255.0) ? 255 : (gv <= 0.0 || isnan(gv) ? 0 : (pixval)lrint(gv));
+	    pixelrow[q].b = (bv >= 255.0) ? 255 : (bv <= 0.0 || isnan(bv) ? 0 : (pixval)lrint(bv));
 	}
 	ppm_writeppmrow(fp, pixelrow, cols, (pixval) 255, 0);
     }
@@ -92,28 +110,45 @@ ppm_write_mem(icv_image_t *bif, unsigned char **outbuffer, size_t *outsize)
     if (UNLIKELY(!outbuffer || !outsize))
 	return BRLCAD_ERROR;
 
+    *outbuffer = NULL;
+    *outsize = 0;
+
     wimg = icv_image_for_write(bif, ICV_COLOR_SPACE_RGB, 3);
     if (!wimg) {
-	bu_log("ppm_write_mem : Color Space conflict");
+	bu_log("ppm_write_mem : Color Space conflict\n");
 	return BRLCAD_ERROR;
     }
 
     if (wimg->channels != 3) {
-	bu_log("ppm_write_mem : Channel count conflict (expected 3, got %d)", (int)wimg->channels);
+	bu_log("ppm_write_mem : Channel count conflict (expected 3, got %d)\n", (int)wimg->channels);
 	icv_destroy(wimg);
 	return BRLCAD_ERROR;
     }
 
-    *outbuffer = NULL;
-    *outsize = 0;
+    if (!wimg->data || wimg->width == 0 || wimg->height == 0) {
+	icv_destroy(wimg);
+	return BRLCAD_ERROR;
+    }
 
     /* Create the PPM header and calculate exact memory requirements */
-    sprintf(header, "P6\n%zu %zu\n255\n", wimg->width, wimg->height);
+    snprintf(header, sizeof(header), "P6\n%zu %zu\n255\n", wimg->width, wimg->height);
     header_len = strlen(header);
+
+    if (wimg->width > (SIZE_MAX - header_len) / wimg->height / 3) {
+	bu_log("ppm_write_mem : Dimensions overflow size_t\n");
+	icv_destroy(wimg);
+	return BRLCAD_ERROR;
+    }
+
     data_len = (size_t)wimg->width * (size_t)wimg->height * 3;
 
     *outsize = header_len + data_len;
     *outbuffer = (unsigned char *)bu_malloc(*outsize, "ppm_write_mem buffer");
+    if (!*outbuffer) {
+	*outsize = 0;
+	icv_destroy(wimg);
+	return BRLCAD_ERROR;
+    }
 
     /* Write the header */
     memcpy(*outbuffer, header, header_len);
@@ -157,7 +192,17 @@ ppm_read(FILE *fp)
     if (PPM_FORMAT_TYPE(format) != PPM_TYPE)
 	return NULL;
 
+    if (cols <= 0 || rows <= 0 || maxval <= 0)
+	return NULL;
+
+    if ((size_t)cols > SIZE_MAX / (size_t)rows / 3 / sizeof(double)) {
+	bu_log("ppm_read: dimensions excessively large, causing integer overflow\n");
+	return NULL;
+    }
+
     pixel **pixels = ppm_allocarray(cols, rows);
+    if (!pixels)
+	return NULL;
 
     for (int row = 0; row < rows; row++)
 	ppm_readppmrow(fp, pixels[row], cols, maxval, format);
@@ -169,21 +214,22 @@ ppm_read(FILE *fp)
     bif->width = (size_t)cols;
     bif->height = (size_t)rows;
 
-    if (bif->width > 0 && bif->height > (size_t)-1 / bif->width / 3 / sizeof(double)) {
-	bu_log("ppm_read: dimensions excessively large, causing integer overflow\n");
-	bu_free(bif, "icv container");
+    double *data = (double *)bu_malloc(bif->width * bif->height * 3 * sizeof(double), "image data");
+    if (!data) {
 	ppm_freearray(pixels, rows);
+	bu_free(bif, "icv container");
 	return NULL;
     }
 
-    double *data = (double *)bu_malloc(bif->width * bif->height * 3 * sizeof(double), "image data");
+    double norm = (maxval > 0) ? (1.0 / (double)maxval) : (1.0 / 255.0);
+
     for (size_t p = 0; p < (size_t)rows ; p++) {
 	pixel *r = pixels[p];
 	for (size_t q = 0; q < (size_t)cols; q++) {
 	    size_t offset = (((size_t)rows - 1) * (size_t)cols * 3) - (p * (size_t)cols * 3);
-	    data[offset + q*3+0] = (double)r[q].r/(double)255.0;
-	    data[offset + q*3+1] = (double)r[q].g/(double)255.0;
-	    data[offset + q*3+2] = (double)r[q].b/(double)255.0;
+	    data[offset + q*3+0] = (double)r[q].r * norm;
+	    data[offset + q*3+1] = (double)r[q].g * norm;
+	    data[offset + q*3+2] = (double)r[q].b * norm;
 	}
     }
 
@@ -218,6 +264,8 @@ parse_ppm_int(const unsigned char **p, const unsigned char *end)
     if (*p >= end || !isdigit(**p)) return -1;
     int val = 0;
     while (*p < end && isdigit(**p)) {
+	if (val > (INT_MAX - 9) / 10)
+	    return -1;
 	val = val * 10 + (**p - '0');
 	(*p)++;
     }
@@ -249,15 +297,15 @@ ppm_read_mem(const unsigned char *buffer, size_t size)
     }
 
     if (p < end && isspace(*p)) {
-	p++; // exactly one whitespace character separates maxval and data
+	p++; /* exactly one whitespace character separates maxval and data */
     }
 
-    if (cols > 0 && rows > 0 && (size_t)rows > (size_t)-1 / cols / 3 / sizeof(double)) {
+    if ((size_t)cols > SIZE_MAX / (size_t)rows / 3 / sizeof(double)) {
 	bu_log("ppm_read_mem: dimensions excessively large, causing integer overflow\n");
 	return NULL;
     }
 
-    size_t expected_size = (size_t)cols * rows * 3;
+    size_t expected_size = (size_t)cols * (size_t)rows * 3;
     if ((size_t)(end - p) < expected_size) {
 	bu_log("ppm_read_mem: Incomplete image data\n");
 	return NULL;
@@ -271,11 +319,15 @@ ppm_read_mem(const unsigned char *buffer, size_t size)
     bif->height = (size_t)rows;
 
     double *data = (double *)bu_malloc(bif->width * bif->height * 3 * sizeof(double), "image data");
+    if (!data) {
+	bu_free(bif, "icv container");
+	return NULL;
+    }
     double norm = 1.0 / maxval;
 
     for (size_t row = 0; row < (size_t)rows; row++) {
 	for (size_t col = 0; col < (size_t)cols; col++) {
-	    size_t offset = (((size_t)rows - 1 - row) * (size_t)cols + col) * 3; // store bottom-up
+	    size_t offset = (((size_t)rows - 1 - row) * (size_t)cols + col) * 3; /* store bottom-up */
 	    data[offset + 0] = p[0] * norm;
 	    data[offset + 1] = p[1] * norm;
 	    data[offset + 2] = p[2] * norm;

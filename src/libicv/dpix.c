@@ -25,6 +25,7 @@
 
 #include "common.h"
 
+#include <math.h>
 #include <sys/stat.h>  /* for file mode info in WRMODE */
 #include <string.h>
 
@@ -68,39 +69,55 @@ icv_normalize(icv_image_t *bif)
     size_t size;
     size_t i;
 
-    if (bif == NULL) {
-	bu_log("icv_normalize : trying to normalize a NULL bif\n");
+    if (bif == NULL || bif->data == NULL) {
+	bu_log("icv_normalize : trying to normalize a NULL bif or data\n");
 	return bif;
     }
 
-    data = bif->data;
+    if (bif->width == 0 || bif->height == 0 || bif->channels == 0)
+	return bif;
 
-    /* Number of data elements. */
+    if (bif->width > SIZE_MAX / bif->height / bif->channels)
+	return bif;
+
     size = bif->height*bif->width*bif->channels;
+    data = bif->data;
 
     min = INFINITY;
     max = -INFINITY;
 
-    for (i = 0; i<size; i++) {
-	V_MIN(min, *data);
-	V_MAX(max, *data);
-	data++;
+    for (i = 0; i < size; i++) {
+	double val = *data++;
+	if (isnan(val))
+	    continue;
+	V_MIN(min, val);
+	V_MAX(max, val);
     }
+
+    if (isnan(min) || isinf(min) || isnan(max) || isinf(max)) {
+	icv_sanitize(bif);
+	return bif;
+    }
+
     /* strict Condition for avoiding normalization */
     if (max <= 1.0 && min >= 0.0)
 	return bif;
 
-    if (max - min < 1e-12) {
+    if (max - min < 1e-12 || ZERO(max - min)) {
 	icv_sanitize(bif);
 	return bif;
     }
 
     data = bif->data;
-    m = 1/(max-min);
-    b = -min/(max-min);
+    m = 1.0 / (max - min);
+    b = -min / (max - min);
 
-    for (i =0; i<size; i++) {
-	*data = m*(*data) + b;
+    for (i = 0; i < size; i++) {
+	double val = *data;
+	if (isnan(val))
+	    *data = 0.0;
+	else
+	    *data = m * val + b;
 	data++;
     }
 
@@ -116,7 +133,6 @@ dpix_read(FILE *fp, size_t width, size_t height)
 
     icv_image_t *bif;
     size_t size;
-    ssize_t ret;
 
     if (width == 0 || height == 0) {
 	bu_log("dpix_read : Using default size.\n");
@@ -131,21 +147,24 @@ dpix_read(FILE *fp, size_t width, size_t height)
     }
 
     bif = icv_create(width, height, ICV_COLOR_SPACE_RGB);
-    if (!bif)
+    if (!bif || !bif->data) {
+	if (bif)
+	    icv_destroy(bif);
 	return NULL;
+    }
 
     /* Size in Bytes for reading. */
     size_t sample_count = width * height * DPIX_CHANNELS;
     size = sample_count * SIZEOF_NETWORK_DOUBLE;
     unsigned char *encoded = (unsigned char *)bu_malloc(size,
 	"dpix encoded input");
+    if (!encoded) {
+	icv_destroy(bif);
+	return NULL;
+    }
 
-    /* read dpix data
-     * TODO - why are we using the lower level read API here? */
-    int fd = fileno(fp);
-    ret = read(fd, encoded, size);
-
-    if (ret != (ssize_t)size) {
+    size_t ret = fread(encoded, 1, size, fp);
+    if (ret != size) {
 	bu_log("dpix_read : Error while reading\n");
 	bu_free(encoded, "dpix encoded input");
 	icv_destroy(bif);
@@ -173,30 +192,50 @@ dpix_write(icv_image_t *bif, FILE *fp)
 
     wimg = icv_image_for_write(bif, ICV_COLOR_SPACE_RGB, DPIX_CHANNELS);
     if (!wimg) {
-	bu_log("dpix_write : Color Space conflict");
+	bu_log("dpix_write : Color Space conflict\n");
 	return BRLCAD_ERROR;
     }
 
     if (wimg->channels != DPIX_CHANNELS) {
-	bu_log("dpix_write : Channel count conflict (expected 3, got %d)", (int)wimg->channels);
+	bu_log("dpix_write : Channel count conflict (expected 3, got %d)\n", (int)wimg->channels);
+	icv_destroy(wimg);
+	return BRLCAD_ERROR;
+    }
+
+    if (!wimg->data || wimg->width == 0 || wimg->height == 0) {
+	icv_destroy(wimg);
+	return BRLCAD_ERROR;
+    }
+
+    if (wimg->width > SIZE_MAX / wimg->height / DPIX_CHANNELS) {
+	bu_log("dpix_write : Dimensions overflow size_t\n");
 	icv_destroy(wimg);
 	return BRLCAD_ERROR;
     }
 
     size_t sample_count = wimg->width * wimg->height * DPIX_CHANNELS;
+    if (sample_count > SIZE_MAX / SIZEOF_NETWORK_DOUBLE) {
+	bu_log("dpix_write : Byte size overflows size_t\n");
+	icv_destroy(wimg);
+	return BRLCAD_ERROR;
+    }
+
     size_t size = sample_count * SIZEOF_NETWORK_DOUBLE;
     unsigned char *encoded = (unsigned char *)bu_malloc(size,
 	"dpix encoded output");
+    if (!encoded) {
+	icv_destroy(wimg);
+	return BRLCAD_ERROR;
+    }
+
     dpix_encode(encoded, wimg->data, sample_count);
 
-    // TODO - why does dpix use write instead of fwrite?
-    int fd = fileno(fp);
-    ssize_t ret = write(fd, encoded, size);
+    size_t ret = fwrite(encoded, 1, size, fp);
     bu_free(encoded, "dpix encoded output");
     icv_destroy(wimg);
 
-    if (ret < 0 || (size_t)ret != size) {
-	bu_log("dpix_write : Short Write");
+    if (ret != size) {
+	bu_log("dpix_write : Short Write\n");
 	return BRLCAD_ERROR;
     }
 
@@ -213,22 +252,46 @@ dpix_write_mem(icv_image_t *bif, unsigned char **outbuffer, size_t *outsize)
     if (UNLIKELY(!outbuffer || !outsize))
 	return BRLCAD_ERROR;
 
+    *outbuffer = NULL;
+    *outsize = 0;
+
     wimg = icv_image_for_write(bif, ICV_COLOR_SPACE_RGB, DPIX_CHANNELS);
     if (!wimg) {
-	bu_log("dpix_write_mem : Color Space conflict");
+	bu_log("dpix_write_mem : Color Space conflict\n");
 	return BRLCAD_ERROR;
     }
 
     if (wimg->channels != DPIX_CHANNELS) {
-	bu_log("dpix_write_mem : Channel count conflict (expected 3, got %d)", (int)wimg->channels);
+	bu_log("dpix_write_mem : Channel count conflict (expected 3, got %d)\n", (int)wimg->channels);
 	icv_destroy(wimg);
 	return BRLCAD_ERROR;
     }
 
-    size_t sample_count = (size_t)wimg->width * wimg->height *
-	DPIX_CHANNELS;
+    if (!wimg->data || wimg->width == 0 || wimg->height == 0) {
+	icv_destroy(wimg);
+	return BRLCAD_ERROR;
+    }
+
+    if (wimg->width > SIZE_MAX / wimg->height / DPIX_CHANNELS) {
+	bu_log("dpix_write_mem : Dimensions overflow size_t\n");
+	icv_destroy(wimg);
+	return BRLCAD_ERROR;
+    }
+
+    size_t sample_count = (size_t)wimg->width * wimg->height * DPIX_CHANNELS;
+    if (sample_count > SIZE_MAX / SIZEOF_NETWORK_DOUBLE) {
+	bu_log("dpix_write_mem : Byte size overflows size_t\n");
+	icv_destroy(wimg);
+	return BRLCAD_ERROR;
+    }
+
     *outsize = sample_count * SIZEOF_NETWORK_DOUBLE;
     *outbuffer = (unsigned char *)bu_malloc(*outsize, "dpix_write_mem buffer");
+    if (!*outbuffer) {
+	*outsize = 0;
+	icv_destroy(wimg);
+	return BRLCAD_ERROR;
+    }
 
     dpix_encode(*outbuffer, wimg->data, sample_count);
     icv_destroy(wimg);
@@ -257,6 +320,11 @@ dpix_read_mem(const unsigned char *buffer, size_t size, size_t width, size_t hei
     }
 
     size_t sample_count = width * height * DPIX_CHANNELS;
+    if (sample_count > SIZE_MAX / SIZEOF_NETWORK_DOUBLE) {
+	bu_log("dpix_read_mem: dimensions overflow size_t\n");
+	return NULL;
+    }
+
     size_t expected_size = sample_count * SIZEOF_NETWORK_DOUBLE;
     if (size < expected_size) {
 	bu_log("dpix_read_mem: Buffer size too small for dimensions\n");
@@ -264,8 +332,11 @@ dpix_read_mem(const unsigned char *buffer, size_t size, size_t width, size_t hei
     }
 
     bif = icv_create(width, height, ICV_COLOR_SPACE_RGB);
-    if (!bif)
+    if (!bif || !bif->data) {
+	if (bif)
+	    icv_destroy(bif);
 	return NULL;
+    }
 
     dpix_decode(bif->data, buffer, sample_count);
 

@@ -41,17 +41,28 @@ int icv_sanitize(icv_image_t* img)
 {
     double *data = NULL;
     size_t size;
+    size_t pixels;
 
     ICV_IMAGE_VAL_INT(img);
 
-    data= img->data;
-    for (size = img->width*img->height*img->channels; size>0; size--) {
+    if (!img->data || img->width == 0 || img->height == 0 || img->channels == 0)
+	return -1;
+
+    if (img->width > SIZE_MAX / img->height)
+	return -1;
+    pixels = img->width * img->height;
+    if (img->channels > SIZE_MAX / pixels)
+	return -1;
+    size = pixels * img->channels;
+
+    data = img->data;
+    for (; size > 0; size--) {
 	if (isnan(*data))
 	    *data = 0.0;
-	else if (*data>1.0)
+	else if (*data > 1.0)
 	    *data = 1.0;
-	else if (*data<0)
-	    *data = 0;
+	else if (*data < 0.0)
+	    *data = 0.0;
 	data++;
     }
     img->flags |= ICV_SANITIZED;
@@ -63,9 +74,12 @@ int icv_add_val(icv_image_t* img, double val)
     double *data = NULL;
     size_t size;
 
-    data = img->data;
-
     ICV_IMAGE_VAL_INT(img);
+
+    if (!img->data || img->width == 0 || img->height == 0 || img->channels == 0)
+	return -1;
+
+    data = img->data;
 
     for (size = img->width*img->height*img->channels; size>0; size--) {
 	*data += val;
@@ -86,6 +100,9 @@ int icv_multiply_val(icv_image_t* img, double val)
     size_t size;
 
     ICV_IMAGE_VAL_INT(img);
+
+    if (!img->data || img->width == 0 || img->height == 0 || img->channels == 0)
+	return -1;
 
     data = img->data;
 
@@ -108,9 +125,15 @@ int icv_divide_val(icv_image_t* img, double val)
 
     ICV_IMAGE_VAL_INT(img);
 
-    data = img->data;
+    if (ZERO(val)) {
+	bu_log("icv_divide_val : Division by zero\n");
+	return -1;
+    }
 
-    /* Since data is double dividing by 0 will result in INF and -INF */
+    if (!img->data || img->width == 0 || img->height == 0 || img->channels == 0)
+	return -1;
+
+    data = img->data;
 
     for (size = img->width*img->height*img->channels; size>0; size--) {
 	*data /= val;
@@ -131,6 +154,9 @@ int icv_pow_val(icv_image_t* img, double val)
     size_t size;
 
     ICV_IMAGE_VAL_INT(img);
+
+    if (!img->data || img->width == 0 || img->height == 0 || img->channels == 0)
+	return -1;
 
     data = img->data;
 
@@ -156,13 +182,16 @@ icv_image_t *icv_add(icv_image_t *img1, icv_image_t *img2)
     ICV_IMAGE_VAL_PTR(img1);
     ICV_IMAGE_VAL_PTR(img2);
 
+    if (!img1->data || !img2->data)
+	return NULL;
+
     if ((img1->width != img2->width) || (img1->height != img2->height) || (img1->channels != img2->channels)) {
-	bu_log("icv_add : Image Parameters not Equal");
+	bu_log("icv_add : Image Parameters not Equal\n");
 	return NULL;
     }
 
-    data1 =img1->data;
-    data2 =img2->data;
+    data1 = img1->data;
+    data2 = img2->data;
 
     out_img = icv_create_with_channels(img1->width, img1->height, img1->color_space, img1->channels);
     if (!out_img)
@@ -187,13 +216,16 @@ icv_image_t *icv_sub(icv_image_t *img1, icv_image_t *img2)
     ICV_IMAGE_VAL_PTR(img1);
     ICV_IMAGE_VAL_PTR(img2);
 
+    if (!img1->data || !img2->data)
+	return NULL;
+
     if ((img1->width != img2->width) || (img1->height != img2->height) || (img1->channels != img2->channels)) {
-	bu_log("icv_sub : Image Parameters not Equal");
+	bu_log("icv_sub : Image Parameters not Equal\n");
 	return NULL;
     }
 
-    data1 =img1->data;
-    data2 =img2->data;
+    data1 = img1->data;
+    data2 = img2->data;
 
     out_img = icv_create_with_channels(img1->width, img1->height, img1->color_space, img1->channels);
     if (!out_img)
@@ -218,13 +250,16 @@ icv_image_t *icv_multiply(icv_image_t *img1, icv_image_t *img2)
     ICV_IMAGE_VAL_PTR(img1);
     ICV_IMAGE_VAL_PTR(img2);
 
+    if (!img1->data || !img2->data)
+	return NULL;
+
     if ((img1->width != img2->width) || (img1->height != img2->height) || (img1->channels != img2->channels)) {
-	bu_log("icv_multiply : Image Parameters not Equal");
+	bu_log("icv_multiply : Image Parameters not Equal\n");
 	return NULL;
     }
 
-    data1 =img1->data;
-    data2 =img2->data;
+    data1 = img1->data;
+    data2 = img2->data;
 
     out_img = icv_create_with_channels(img1->width, img1->height, img1->color_space, img1->channels);
     if (!out_img)
@@ -250,13 +285,16 @@ icv_image_t *icv_divide(icv_image_t *img1, icv_image_t *img2)
     ICV_IMAGE_VAL_PTR(img1);
     ICV_IMAGE_VAL_PTR(img2);
 
+    if (!img1->data || !img2->data)
+	return NULL;
+
     if ((img1->width != img2->width) || (img1->height != img2->height) || (img1->channels != img2->channels)) {
-	bu_log("icv_divide : Image Parameters not Equal");
+	bu_log("icv_divide : Image Parameters not Equal\n");
 	return NULL;
     }
 
-    data1 =img1->data;
-    data2 =img2->data;
+    data1 = img1->data;
+    data2 = img2->data;
 
     out_img = icv_create_with_channels(img1->width, img1->height, img1->color_space, img1->channels);
     if (!out_img)
@@ -264,8 +302,10 @@ icv_image_t *icv_divide(icv_image_t *img1, icv_image_t *img2)
 
     out_data = out_img->data;
 
-    for (size = img1->width*img1->height*img1->channels; size>0; size--)
-	*out_data++ = *data1++ / (*data2++ + VDIVIDE_TOL);
+    for (size = img1->width*img1->height*img1->channels; size>0; size--) {
+	double denom = *data2++ + VDIVIDE_TOL;
+	*out_data++ = ZERO(denom) ? 0.0 : (*data1++ / denom);
+    }
 
     icv_sanitize(out_img);
 
@@ -282,13 +322,13 @@ int icv_saturate(icv_image_t* img, double sat)
 
     ICV_IMAGE_VAL_INT(img);
 
-    if (img == NULL) {
-	bu_log("icv_saturate : Trying to Saturate a Null img");
+    if (!img->data || img->width == 0 || img->height == 0 || img->channels < 3) {
+	bu_log("icv_saturate : Invalid image data, dimensions, or insufficient channels\n");
 	return -1;
     }
 
     if (img->color_space != ICV_COLOR_SPACE_RGB) {
-	bu_log("icv_saturate : Saturates only RGB Images");
+	bu_log("icv_saturate : Saturates only RGB Images\n");
 	return -1;
     }
 
@@ -298,16 +338,14 @@ int icv_saturate(icv_image_t* img, double sat)
     gwgt = 0.61*(1.0-sat);
     bwgt = 0.08*(1.0-sat);
     while (size-- > 0) {
-	rt = *data;
-	gt = *(data+1);
-	bt = *(data+2);
+	rt = data[0];
+	gt = data[1];
+	bt = data[2];
 	bw = (rwgt*rt + gwgt*gt + bwgt*bt);
-	rt = bw + sat*rt;
-	gt = bw + sat*gt;
-	bt = bw + sat*bt;
-	*data++ = rt;
-	*data++ = gt;
-	*data++ = bt;
+	data[0] = bw + sat*rt;
+	data[1] = bw + sat*gt;
+	data[2] = bw + sat*bt;
+	data += img->channels;
     }
     icv_sanitize(img);
     return 0;
@@ -316,7 +354,7 @@ int icv_saturate(icv_image_t* img, double sat)
 int
 icv_fit(icv_image_t *img, struct bu_vls *msg, size_t o_width_req, size_t o_height_req, fastf_t sf)
 {
-    if (!img)
+    if (!img || img->width == 0 || img->height == 0 || o_width_req == 0 || o_height_req == 0 || ZERO(sf) || sf < 0.0)
 	return BRLCAD_ERROR;
 
     size_t i_w, i_n;
