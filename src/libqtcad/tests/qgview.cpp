@@ -63,25 +63,33 @@ open_tops(QgModel *s, int depth)
 
 int main(int argc, char *argv[])
 {
-
-    QApplication app(argc, argv);
+    if (argc < 2 || !argv || !argv[0]) {
+	bu_log("Usage: qgview file.g\n");
+	return 1;
+    }
 
     bu_setprogname(argv[0]);
 
-    argc--; argv++;
+    if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help")) {
+	bu_log("Usage: %s file.g\n", argv[0]);
+	return 0;
+    }
 
-    if (argc != 1)
-	bu_exit(-1, "need to specify .g file\n");
+    if (argc != 2) {
+	bu_log("Usage: %s file.g\n", argv[0]);
+	return 1;
+    }
 
-    QgModel sm(NULL, argv[0]);
+    QApplication app(argc, argv);
+
+    QgModel sm(NULL, argv[1]);
     QgModel *s = &sm;
 
     //open_tops(s, -1);
 
     QgTreeView tree(NULL, s);
-    tree.setWindowTitle(argv[0]);
+    tree.setWindowTitle(argv[1]);
     tree.show();
-
 
     return app.exec();
 }

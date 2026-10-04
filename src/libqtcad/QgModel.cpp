@@ -90,6 +90,10 @@ struct QgItem_cmp {
 
 	struct directory *inst1 = NULL;
 	struct directory *inst2 = NULL;
+	if (!i1->mdl || !i1->mdl->gedp || !i1->mdl->gedp->dbi_state)
+	    return false;
+	if (!i2->mdl || !i2->mdl->gedp || !i2->mdl->gedp->dbi_state)
+	    return false;
 	DbiState *ctx1 = (DbiState *)i1->mdl->gedp->dbi_state;
 	DbiState *ctx2 = (DbiState *)i2->mdl->gedp->dbi_state;
 	if (ctx1->d_map.find(i1->ihash) != ctx1->d_map.end()) {
@@ -118,11 +122,11 @@ struct QgItem_cmp {
 QgItem::QgItem(unsigned long long hash, QgModel *ictx)
 {
     mdl = ictx;
-    DbiState *ctx = (DbiState *)mdl->gedp->dbi_state;
     ihash = hash;
     parentItem = NULL;
-    if (!ctx)
+    if (!mdl || !mdl->gedp || !mdl->gedp->dbi_state)
 	return;
+    DbiState *ctx = (DbiState *)mdl->gedp->dbi_state;
 
     // Get the child count from the .g info
     std::unordered_map<unsigned long long, std::unordered_set<unsigned long long>>::iterator pc_it;
@@ -136,7 +140,8 @@ QgItem::QgItem(unsigned long long hash, QgModel *ictx)
     // Local item information
     ctx->print_hash(&name, ihash);
     dp = ctx->get_hdp(ihash);
-    icon = QgIcon(dp, ictx->gedp->dbip);
+    if (dp && ictx->gedp && ictx->gedp->dbip)
+	icon = QgIcon(dp, ictx->gedp->dbip);
 }
 
 QgItem::~QgItem()
@@ -232,6 +237,8 @@ QgItem::path_items()
 unsigned long long
 QgItem::path_hash()
 {
+    if (!mdl || !mdl->gedp || !mdl->gedp->dbi_state)
+	return 0;
     std::vector<unsigned long long> pitems = path_items();
     DbiState *dbis = (DbiState *)mdl->gedp->dbi_state;
     unsigned long long phash = dbis->path_hash(pitems, 0);
@@ -249,14 +256,13 @@ qgmodel_update_nref_callback(struct db_i *UNUSED(dbip), struct directory *parent
     // when the termination conditions are fully set.
     if (!parent_dp && !child_dp && !child_name && m == NULL && op == DB_OP_SUBTRACT) {
 
-	std::cout << "update nref callback\n";
-
 	// Cycle complete, nref count is current.  Start analyzing.
 	QgModel *ctx = (QgModel *)u_data;
 
 	// If anybody was requesting an nref update, the fact that we're here
 	// means we've done it.
-	ctx->need_update_nref = false;
+	if (ctx)
+	    ctx->need_update_nref = false;
     }
 }
 
@@ -265,6 +271,8 @@ qgmodel_changed_callback(struct db_i *UNUSED(dbip), struct directory *dp, int mo
 {
     unsigned long long hash;
     QgModel *mdl = (QgModel *)u_data;
+    if (!mdl || !mdl->gedp || !mdl->gedp->dbi_state || !dp)
+	return;
     DbiState *ctx = (DbiState *)mdl->gedp->dbi_state;
     mdl->need_update_nref = true;
     mdl->changed_db_flag = 1;
@@ -354,12 +362,34 @@ QgModel::QgModel(QObject *p, const char *npath)
 
 QgModel::~QgModel()
 {
-    delete items;
+    if (items) {
+	std::unordered_set<QgItem *>::iterator s_it;
+	for (s_it = items->begin(); s_it != items->end(); ++s_it) {
+	    QgItem *itm = *s_it;
+	    delete itm;
+	}
+	delete items;
+	items = NULL;
+    }
 
-    bv_free(empty_gvp);
-    BU_PUT(empty_gvp, struct bview);
-    ged_close(gedp);
+    if (empty_gvp) {
+	bv_free(empty_gvp);
+	BU_PUT(empty_gvp, struct bview);
+	empty_gvp = NULL;
+    }
+
     delete rootItem;
+    rootItem = NULL;
+
+    if (gedp) {
+	if (gedp->dbi_state) {
+	    DbiState *ctx = (DbiState *)gedp->dbi_state;
+	    delete ctx;
+	    gedp->dbi_state = NULL;
+	}
+	ged_close(gedp);
+	gedp = NULL;
+    }
 }
 
 // Note - this is a private method and must be run from within g_update's
@@ -455,17 +485,20 @@ QgModel::g_update(struct db_i *n_dbip)
     if (!n_dbip) {
 	// if we have no dbip, clear out everything
 	beginResetModel();
-	std::unordered_set<QgItem *>::iterator s_it;
-	for (s_it = items->begin(); s_it != items->end(); s_it++) {
-	    QgItem *itm = *s_it;
-	    delete itm;
+	if (items) {
+	    std::unordered_set<QgItem *>::iterator s_it;
+	    for (s_it = items->begin(); s_it != items->end(); s_it++) {
+		QgItem *itm = *s_it;
+		delete itm;
+	    }
+	    items->clear();
 	}
 	// Deleted all items, but we need a root item regardless
 	// of whether a .g is open - recreate it
+	delete rootItem;
 	rootItem = new QgItem(0, this);
 	rootItem->mdl = this;
 
-	items->clear();
 	tops_items.clear();
 	emit mdl_changed_db((void *)gedp);
 	emit view_change(QG_VIEW_DRAWN);
@@ -594,6 +627,8 @@ QgModel::g_update(struct db_i *n_dbip)
 int
 QgModel::NodeRow(QgItem *node) const
 {
+    if (!node)
+	return -1;
     QgItem *np = node->parent();
     if (!np)
 	return -1;
@@ -618,11 +653,11 @@ QgModel::NodeIndex(QgItem *node) const
 bool
 QgModel::canFetchMore(const QModelIndex &idx) const
 {
-    if (!idx.isValid())
+    if (!idx.isValid() || !gedp || !gedp->dbi_state)
 	return false;
 
     QgItem *item = static_cast<QgItem*>(idx.internalPointer());
-    if (item == rootItem)
+    if (!item || item == rootItem)
        	return false;
 
     // If there are children to be fetched, we can fetch them
@@ -638,12 +673,12 @@ QgModel::canFetchMore(const QModelIndex &idx) const
 void
 QgModel::fetchMore(const QModelIndex &idx)
 {
-    if (!idx.isValid())
+    if (!idx.isValid() || !gedp || !gedp->dbi_state)
 	return;
 
     QgItem *item = static_cast<QgItem*>(idx.internalPointer());
 
-    if (UNLIKELY(item == rootItem)) {
+    if (UNLIKELY(!item || item == rootItem)) {
 	return;
     }
 
@@ -754,7 +789,9 @@ QgModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid())
 	return QVariant();
-    QgItem *qi= getItem(index);
+    QgItem *qi = getItem(index);
+    if (!qi || !qi->mdl || !qi->mdl->gedp || !qi->mdl->gedp->dbi_state)
+	return QVariant();
     DbiState *dbis = (DbiState *)qi->mdl->gedp->dbi_state;
     if (role == Qt::DisplayRole)
 	return QVariant(bu_vls_cstr(&qi->name));
@@ -763,7 +800,11 @@ QgModel::data(const QModelIndex &index, int role) const
     if (role == DirectoryInternalRole)
 	return QVariant::fromValue((void *)(qi->dp));
     if (role == DrawnDisplayRole) {
+	if (!gedp || !gedp->ged_gvp)
+	    return QVariant();
 	BViewState *vs = dbis->get_view_state(gedp->ged_gvp);
+	if (!vs)
+	    return QVariant();
 	return QVariant(vs->is_hdrawn(-1, qi->path_hash()));
     }
     if (role == SelectDisplayRole) {
@@ -842,6 +883,9 @@ QgModel::columnCount(const QModelIndex &p) const
 int
 QgModel::run_cmd(struct bu_vls *msg, int argc, const char **argv)
 {
+    if (!gedp || argc < 1 || !argv || !argv[0])
+	return BRLCAD_ERROR;
+
     model_dbip = gedp->dbip;
 
     changed_dp.clear();
@@ -881,7 +925,7 @@ QgModel::run_cmd(struct bu_vls *msg, int argc, const char **argv)
 
     model_dbip = gedp->dbip;
 
-    if (msg && gedp)
+    if (msg && gedp && gedp->ged_result_str)
 	bu_vls_printf(msg, "%s", bu_vls_cstr(gedp->ged_result_str));
 
     return ret;
@@ -897,9 +941,11 @@ QgModel::draw_action()
     QTCAD_SLOT("QgModel::draw_action", 1);
     // https://stackoverflow.com/a/28647342/2037687
     QAction *a = qobject_cast<QAction *>(sender());
+    if (!a)
+	return BRLCAD_ERROR;
     QVariant v = a->data();
     QgItem *cnode  = (QgItem *) v.value<void *>();
-    if (!cnode)
+    if (!cnode || !gedp || !gedp->dbi_state)
 	return BRLCAD_ERROR;
     std::vector<unsigned long long> path_hashes = cnode->path_items();
     struct bu_vls path_str = BU_VLS_INIT_ZERO;
@@ -914,6 +960,8 @@ int
 QgModel::draw(const char *inst_path)
 {
     QTCAD_SLOT("QgModel::draw", 1);
+    if (!gedp || !inst_path)
+	return BRLCAD_ERROR;
     const char *argv[2];
     argv[0] = "draw";
     argv[1] = inst_path;
@@ -930,9 +978,11 @@ QgModel::erase_action()
     QTCAD_SLOT("QgModel::erase_action", 1);
     // https://stackoverflow.com/a/28647342/2037687
     QAction *a = qobject_cast<QAction *>(sender());
+    if (!a)
+	return BRLCAD_ERROR;
     QVariant v = a->data();
     QgItem *cnode  = (QgItem *) v.value<void *>();
-    if (!cnode)
+    if (!cnode || !gedp || !gedp->dbi_state)
 	return BRLCAD_ERROR;
     std::vector<unsigned long long> path_hashes = cnode->path_items();
     struct bu_vls path_str = BU_VLS_INIT_ZERO;
@@ -947,6 +997,8 @@ int
 QgModel::erase(const char *inst_path)
 {
     QTCAD_SLOT("QgModel::erase", 1);
+    if (!gedp || !inst_path)
+	return BRLCAD_ERROR;
     const char *argv[2];
     argv[0] = "erase";
     argv[1] = inst_path;
@@ -973,16 +1025,22 @@ void
 QgModel::item_collapsed(const QModelIndex &index)
 {
     QTCAD_SLOT("QgModel::item_collapsed", 1);
+    if (!index.isValid())
+	return;
     QgItem *itm = getItem(index);
-    itm->open_itm = false;
+    if (itm)
+	itm->open_itm = false;
 }
 
 void
 QgModel::item_expanded(const QModelIndex &index)
 {
     QTCAD_SLOT("QgModel::item_expanded", 1);
+    if (!index.isValid())
+	return;
     QgItem *itm = getItem(index);
-    itm->open_itm = true;
+    if (itm)
+	itm->open_itm = true;
 }
 
 // Local Variables:

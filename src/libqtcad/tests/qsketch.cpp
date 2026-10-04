@@ -247,8 +247,10 @@ sketch_write_to_db(struct rt_edit *es, struct db_i *dbip, struct directory *dp)
 static void
 populate_vertex_table(QTableWidget *tw, const struct rt_sketch_internal *skt)
 {
+    if (!tw)
+	return;
     tw->setRowCount(0);
-    if (!skt)
+    if (!skt || !skt->verts)
 	return;
 
     tw->setRowCount((int)skt->vert_count);
@@ -266,8 +268,10 @@ populate_vertex_table(QTableWidget *tw, const struct rt_sketch_internal *skt)
 static void
 populate_segment_table(QTableWidget *tw, const struct rt_sketch_internal *skt)
 {
+    if (!tw)
+	return;
     tw->setRowCount(0);
-    if (!skt)
+    if (!skt || !skt->curve.segment)
 	return;
 
     tw->setRowCount((int)skt->curve.count);
@@ -342,7 +346,7 @@ public:
      * Grabs the Qt window chrome and overlays the swrast DM viewport render,
      * giving a picture that shows both the UI and the sketch wireframe. */
     void screenshot_to_file(const QString &filename) {
-	if (!m_view) return;
+	if (!m_view || filename.isEmpty()) return;
 
 	/* Step 1: Grab the full Qt window (UI chrome) */
 	QPixmap winpix = grab();
@@ -450,6 +454,9 @@ QSketchEditWindow::QSketchEditWindow(struct db_i *dbip,
 				     QWidget *parent)
     : QMainWindow(parent), m_dbip(dbip), m_dp(dp)
 {
+    if (!dp || !dbip)
+	return;
+
     setWindowTitle(QString("qsketch — %1").arg(dp->d_namep));
     resize(1200, 700);
 
@@ -482,6 +489,9 @@ QSketchEditWindow::QSketchEditWindow(struct db_i *dbip,
 
     if (!m_es) {
 	bu_log("qsketch: rt_edit_create failed\n");
+	bv_free(m_bv);
+	BU_PUT(m_bv, struct bview);
+	m_bv = NULL;
 	return;
     }
     m_es->local2base = 1.0;  /* mm database */
@@ -1929,6 +1939,9 @@ static struct directory *
 sketch_create_gear(struct rt_wdb *wdbp, const char *name,
 		   fastf_t r_base, fastf_t r_tooth, int nteeth)
 {
+    if (nteeth <= 0)
+	return NULL;
+
     struct rt_sketch_internal *skt = skt_new();
 
     for (int t = 0; t < nteeth; t++) {
@@ -2014,16 +2027,41 @@ create_demo_sketches(struct rt_wdb *wdbp)
 int
 main(int argc, char *argv[])
 {
+    if (argc < 2 || !argv || !argv[0]) {
+	bu_log("Usage: qsketch [--screenshot <out.png>] <file.g> <sketch_name>\n"
+	       "       qsketch --demo-sketches <file.g>\n");
+	return 1;
+    }
+
     bu_setprogname(argv[0]);
 
+    if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help")) {
+	bu_log("Usage: %s [--screenshot <out.png>] <file.g> <sketch_name>\n"
+	       "       %s --demo-sketches <file.g>\n"
+	       "\n"
+	       "Opens or creates a sketch primitive in the given .g file\n"
+	       "and presents an interactive Qt editing window.\n"
+	       "\n"
+	       "--screenshot <out.png>  Save a screenshot and exit (headless capture)\n"
+	       "--demo-sketches         Create pre-built demo sketches and exit (no display)\n",
+	       argv[0], argv[0]);
+	return 0;
+    }
+
     /* Handle --demo-sketches before creating QApplication (no display needed) */
-    if (argc > 1 && BU_STR_EQUAL(argv[1], "--demo-sketches")) {
-	if (argc < 3) bu_exit(1, "qsketch: --demo-sketches requires <file.g>\n");
+    if (BU_STR_EQUAL(argv[1], "--demo-sketches")) {
+	if (argc < 3) {
+	    bu_log("qsketch: --demo-sketches requires <file.g>\n");
+	    return 1;
+	}
 	const char *g_file = argv[2];
 
 	/* Create/open the .g file; get a wdb for writing */
 	struct rt_wdb *wdbp = wdb_fopen(g_file);
-	if (!wdbp) bu_exit(1, "qsketch: cannot open/create '%s'\n", g_file);
+	if (!wdbp) {
+	    bu_log("qsketch: cannot open/create '%s'\n", g_file);
+	    return 1;
+	}
 
 	auto demos = create_demo_sketches(wdbp);
 	bu_log("qsketch: created %zu demo sketches in '%s':\n",
@@ -2077,18 +2115,23 @@ main(int argc, char *argv[])
     if (dbip == DBI_NULL)
 	bu_exit(1, "qsketch: failed to open '%s'\n", g_file);
 
-    if (db_dirbuild(dbip) < 0)
+    if (db_dirbuild(dbip) < 0) {
+	db_close(dbip);
 	bu_exit(1, "qsketch: db_dirbuild failed\n");
+    }
 
     struct directory *dp = db_lookup(dbip, sk_name, LOOKUP_QUIET);
     if (!dp) {
 	bu_log("qsketch: '%s' not found — creating empty sketch.\n", sk_name);
 	dp = sketch_create_empty(dbip, sk_name);
-	if (!dp)
+	if (!dp) {
+	    db_close(dbip);
 	    bu_exit(1, "qsketch: failed to create sketch '%s'\n", sk_name);
+	}
     }
 
     if (dp->d_minor_type != ID_SKETCH) {
+	db_close(dbip);
 	bu_exit(1, "qsketch: '%s' exists but is not a sketch (type %d)\n",
 		sk_name, dp->d_minor_type);
     }

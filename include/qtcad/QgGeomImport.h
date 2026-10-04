@@ -51,7 +51,7 @@ class QTCAD_EXPORT QgGeomImport : public QObject
     Q_OBJECT
 
     public:
-	QgGeomImport(QWidget *pparent = NULL);
+	explicit QgGeomImport(QWidget *pparent = NULL);
 	~QgGeomImport();
 
 	QString gfile(const char *tfile = NULL);
@@ -72,18 +72,18 @@ class ASCImportDialog : public QDialog
     Q_OBJECT
 
     public:
-	ASCImportDialog(QString filename, QString g_path, QString l_path);
+	explicit ASCImportDialog(QString filename, QString g_path, QString l_path, QWidget *parent = NULL);
 
 	QString command();
 	QStringList options();
-	QLineEdit *db_path;
-	QLineEdit *log_path;
+	QLineEdit *db_path = NULL;
+	QLineEdit *log_path = NULL;
 
     private:
 
 	QString input_file;
-	QGroupBox *formGroupBox;
-	QDialogButtonBox *buttonBox;
+	QGroupBox *formGroupBox = NULL;
+	QDialogButtonBox *buttonBox = NULL;
 };
 
 class RhinoImportDialog : public QDialog
@@ -91,27 +91,26 @@ class RhinoImportDialog : public QDialog
     Q_OBJECT
 
     public:
-	RhinoImportDialog(QString filename, QString g_path, QString l_path);
+	explicit RhinoImportDialog(QString filename, QString g_path, QString l_path, QWidget *parent = NULL);
 
 	QString command();
 	QStringList options();
-	QLineEdit *db_path;
-	QLineEdit *log_path;
+	QLineEdit *db_path = NULL;
+	QLineEdit *log_path = NULL;
 
     private:
 
 	QString input_file;
 
-	QLineEdit *scaling_factor;
-	QLineEdit *tolerance;
-	QLineEdit *verbosity;
-	QCheckBox *debug_printing;
-	QCheckBox *random_colors;
-	QCheckBox *uuid;
+	QLineEdit *scaling_factor = NULL;
+	QLineEdit *tolerance = NULL;
+	QLineEdit *verbosity = NULL;
+	QCheckBox *debug_printing = NULL;
+	QCheckBox *random_colors = NULL;
+	QCheckBox *uuid = NULL;
 
-
-	QGroupBox *formGroupBox;
-	QDialogButtonBox *buttonBox;
+	QGroupBox *formGroupBox = NULL;
+	QDialogButtonBox *buttonBox = NULL;
 };
 
 class STEPImportDialog : public QDialog
@@ -119,21 +118,21 @@ class STEPImportDialog : public QDialog
     Q_OBJECT
 
     public:
-	STEPImportDialog(QString filename, QString g_path, QString l_path);
+	explicit STEPImportDialog(QString filename, QString g_path, QString l_path, QWidget *parent = NULL);
 
 	QString command();
 	QStringList options();
-	QLineEdit *db_path;
-	QLineEdit *log_path;
+	QLineEdit *db_path = NULL;
+	QLineEdit *log_path = NULL;
 
     private:
 
 	QString input_file;
 
-	QCheckBox *verbosity;
+	QCheckBox *verbosity = NULL;
 
-	QGroupBox *formGroupBox;
-	QDialogButtonBox *buttonBox;
+	QGroupBox *formGroupBox = NULL;
+	QDialogButtonBox *buttonBox = NULL;
 };
 
 #endif // QGGEOMIMPORT_H

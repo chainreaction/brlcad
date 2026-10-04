@@ -78,9 +78,8 @@ close_children(QgItem *itm)
 void
 print_children(QgItem *itm, QgModel *s, int depth)
 {
-    if (!itm || !itm->ihash)
+    if (!itm || !itm->ihash || !itm->mdl || !itm->mdl->gedp || !itm->mdl->gedp->dbi_state)
 	return;
-
 
     for (int i = 0; i < depth; i++) {
 	std::cout << "  ";
@@ -90,10 +89,12 @@ print_children(QgItem *itm, QgModel *s, int depth)
 
     struct bu_vls path_str = BU_VLS_INIT_ZERO;
     std::vector<unsigned long long> path_hashes = itm->path_items();
-    DbiState *dbis = (DbiState *)itm->mdl->gedp->dbi_state;
-    dbis->print_hash(&path_str, path_hashes[path_hashes.size()-1]);
-    std::cout << bu_vls_cstr(&path_str) << "\n";
-    bu_vls_free(&path_str);
+    if (!path_hashes.empty()) {
+	DbiState *dbis = (DbiState *)itm->mdl->gedp->dbi_state;
+	dbis->print_hash(&path_str, path_hashes[path_hashes.size()-1]);
+	std::cout << bu_vls_cstr(&path_str) << "\n";
+	bu_vls_free(&path_str);
+    }
 
     for (size_t j = 0; j < itm->children.size(); j++) {
 	QgItem *c = itm->child(j);
@@ -119,15 +120,24 @@ print_tops(QgModel *s)
 
 int main(int argc, char *argv[])
 {
+    if (argc < 2 || !argv || !argv[0]) {
+	bu_log("Usage: qgmodel file.g\n");
+	return 1;
+    }
 
     bu_setprogname(argv[0]);
 
-    argc--; argv++;
+    if (BU_STR_EQUAL(argv[1], "-h") || BU_STR_EQUAL(argv[1], "-?") || BU_STR_EQUAL(argv[1], "--help")) {
+	bu_log("Usage: %s file.g\n", argv[0]);
+	return 0;
+    }
 
-    if (argc != 1)
-	bu_exit(-1, "need to specify .g file\n");
+    if (argc != 2) {
+	bu_log("Usage: %s file.g\n", argv[0]);
+	return 1;
+    }
 
-    QgModel sm(NULL, argv[0]);
+    QgModel sm(NULL, argv[1]);
     QgModel *s = &sm;
 
 #ifdef USE_QTTEST
@@ -273,7 +283,7 @@ int main(int argc, char *argv[])
     // structure to verify.
     //
 
-    return -1;
+    return 0;
 }
 
 /*
