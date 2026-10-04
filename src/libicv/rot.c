@@ -94,22 +94,46 @@ get_args(size_t argc, const char **argv, FILE **ifp, FILE **ofp, double *angle)
 	    case 'i':
 		rot_invert++;
 		break;
-	    case '#':
-		pixbytes = atoi(bu_optarg);
+	    case '#': {
+		long val = strtol(bu_optarg, NULL, 10);
+		if (val <= 0 || val > 1024) {
+		    bu_log("ERROR: %s invalid pixel size: %s\n", argv[0], bu_optarg);
+		    return 0;
+		}
+		pixbytes = (size_t)val;
 		break;
+	    }
 	    case 'S':
-	    case 's':
+	    case 's': {
 		/* square size */
-		nxin = nyin = atoi(bu_optarg);
+		long val = strtol(bu_optarg, NULL, 10);
+		if (val <= 0) {
+		    bu_log("ERROR: %s invalid square size: %s\n", argv[0], bu_optarg);
+		    return 0;
+		}
+		nxin = nyin = (ssize_t)val;
 		break;
+	    }
 	    case 'W':
-	    case 'w':
-		nxin = atoi(bu_optarg);
+	    case 'w': {
+		long val = strtol(bu_optarg, NULL, 10);
+		if (val <= 0) {
+		    bu_log("ERROR: %s invalid width: %s\n", argv[0], bu_optarg);
+		    return 0;
+		}
+		nxin = (ssize_t)val;
 		break;
+	    }
 	    case 'N':
-	    case 'n':
-		nyin = atoi(bu_optarg);
+	    case 'n': {
+		long val = strtol(bu_optarg, NULL, 10);
+		if (val <= 0) {
+		    bu_log("ERROR: %s invalid height: %s\n", argv[0], bu_optarg);
+		    return 0;
+		}
+		nyin = (ssize_t)val;
 		break;
+	    }
 	    case 'a':
 		*angle = atof(bu_optarg);
 		break;
@@ -130,8 +154,14 @@ get_args(size_t argc, const char **argv, FILE **ifp, FILE **ofp, double *angle)
 
     /* XXX - backward compatibility hack */
     if ((size_t)(bu_optind+2) == argc) {
-	nxin = atoi(argv[bu_optind++]);
-	nyin = atoi(argv[bu_optind++]);
+	long w = strtol(argv[bu_optind++], NULL, 10);
+	long h = strtol(argv[bu_optind++], NULL, 10);
+	if (w <= 0 || h <= 0) {
+	    bu_log("ERROR: %s invalid dimensions\n", argv[0]);
+	    return 0;
+	}
+	nxin = (ssize_t)w;
+	nyin = (ssize_t)h;
     }
 
     if ((size_t)bu_optind >= argc) {
@@ -149,6 +179,10 @@ get_args(size_t argc, const char **argv, FILE **ifp, FILE **ofp, double *angle)
 	    bu_log("ERROR: %s cannot open \"%s\" for reading\n", argv[0], in_file_name);
 	    return 0;
 	}
+    }
+
+    if (*ofp == stdout) {
+	setmode(fileno(*ofp), O_BINARY);
     }
 
     /* sanity */
@@ -289,8 +323,9 @@ arbrot(double a, FILE *ifp, FILE *ofp, unsigned char *buf)
 		&& sx < (double)nxin
 		&& sy >= 0.0
 		&& sy < (double)nyin) {
+		size_t base_idx = ((size_t)sy * (size_t)nxin + (size_t)sx) * pixbytes;
 		for (size_t j = 0; j < pixbytes; j++) {
-		    putc(buf[((int)sy*(int)nxin + (int)sx)*pixbytes + j], ofp);
+		    putc(buf[base_idx + j], ofp);
 		}
 	    } else {
 		for (size_t j = 0; j < pixbytes; j++) {
@@ -321,6 +356,9 @@ icv_rot(size_t argc, const char *argv[])
     double angle = 0.0;
     ssize_t wrote = 0;
 
+    if (argc == 0 || !argv || !argv[0])
+	return 1;
+
     buflines = scanbytes = 0;
     firsty = lasty = -1;
     bp = obp = NULL;
@@ -339,13 +377,19 @@ icv_rot(size_t argc, const char *argv[])
 	goto early_done;
     }
 
-    if (nxin <= 0 || nyin <= 0 || (size_t)nxin > MAXPIXELS || (size_t)nyin > MAXPIXELS) {
+    if (nxin <= 0 || nyin <= 0 || (size_t)nxin > MAXPIXELS || (size_t)nyin > MAXPIXELS || pixbytes == 0 || pixbytes > 1024) {
 	bu_log("ERROR: %s invalid dimensions (must be > 0)\n", argv[0]);
 	ret = 1;
 	goto early_done;
     }
 
-    scanbytes = nxin * pixbytes;
+    if ((size_t)nxin > SIZE_MAX / pixbytes || (size_t)nyin > SIZE_MAX / pixbytes) {
+	bu_log("ERROR: %s integer overflow on image dimensions\n", argv[0]);
+	ret = 1;
+	goto early_done;
+    }
+
+    scanbytes = (ssize_t)(nxin * pixbytes);
     buflines = MAXPIXELS / nxin;
     if (buflines <= 0) {
 	bu_log("ERROR: %s is not compiled to handle a scanline that long!\n", argv[0]);
@@ -354,13 +398,20 @@ icv_rot(size_t argc, const char *argv[])
     }
     if (buflines > nyin)
 	buflines = nyin;
-    buffer = (unsigned char *)bu_malloc((size_t)buflines * scanbytes, "buffer");
-    obuf = (unsigned char *)bu_malloc((nyin > nxin) ? nyin*pixbytes : nxin*pixbytes, "obuf");
+
+    if ((size_t)buflines > SIZE_MAX / (size_t)scanbytes) {
+	bu_log("ERROR: %s buffer size integer overflow\n", argv[0]);
+	ret = 1;
+	goto early_done;
+    }
+
+    buffer = (unsigned char *)bu_malloc((size_t)buflines * (size_t)scanbytes, "buffer");
+    obuf = (unsigned char *)bu_malloc(((size_t)nyin > (size_t)nxin) ? (size_t)nyin * pixbytes : (size_t)nxin * pixbytes, "obuf");
 
     /*
      * Break out to added arbitrary angle routine
      */
-    if (angle > 0.0) {
+    if (!ZERO(angle)) {
 	ret = arbrot(angle, ifp, ofp, buffer);
 	goto done;
     }

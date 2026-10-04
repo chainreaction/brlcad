@@ -181,6 +181,15 @@ icv_image_size(const char *name, size_t udpi, size_t file_size, bu_mime_image_t 
     int dpi_ind = 0;
     unsigned long i;
     int pixel_size = 3; /* Start with an assumption of 3 doubles per pixel */
+    double inch_conv;
+
+    if (!widthp || !heightp)
+	return 0;
+
+    inch_conv = bu_units_conversion("inch");
+    if (ZERO(inch_conv))
+	inch_conv = 25.4;
+
     switch (img_type) {
 	case BU_MIME_IMAGE_PIX:
 	    pixel_size = 3;
@@ -217,8 +226,8 @@ icv_image_size(const char *name, size_t udpi, size_t file_size, bu_mime_image_t 
 		/* For paper sizes, dimensions aren't enough by themselves.  We need a dpi.
 		 * If one was supplied, use it. */
 		if (udpi) {
-		    *widthp = (ps->width_mm > 0) ? (size_t)(ps->width_mm * udpi * 1/bu_units_conversion("inch")) : (size_t)(ps->width_in * udpi);
-		    *heightp = (ps->height_mm > 0) ? (size_t)(ps->height_mm * udpi * 1/bu_units_conversion("inch")) : (size_t)(ps->height_in * udpi);
+		    *widthp = (ps->width_mm > 0) ? (size_t)(ps->width_mm * udpi * 1.0 / inch_conv) : (size_t)(ps->width_in * udpi);
+		    *heightp = (ps->height_mm > 0) ? (size_t)(ps->height_mm * udpi * 1.0 / inch_conv) : (size_t)(ps->height_in * udpi);
 		    /* If we don't have a file size, just return success*/
 		    if (!file_size) return 1;
 		    /* If we *do* have a size, validate that the image dimensions match the
@@ -229,8 +238,8 @@ icv_image_size(const char *name, size_t udpi, size_t file_size, bu_mime_image_t 
 		if (file_size) {
 		    i = 0;
 		    while (dpi_array[i]) {
-			size_t tw = (ps->width_mm > 0) ? (size_t)(ps->width_mm * dpi_array[i] * 1/bu_units_conversion("inch")) : (size_t)(ps->width_in * dpi_array[i]);
-			size_t th = (ps->height_mm > 0) ? (size_t)(ps->height_mm * dpi_array[i] * 1/bu_units_conversion("inch")) : (size_t)(ps->height_in * dpi_array[i]);
+			size_t tw = (ps->width_mm > 0) ? (size_t)(ps->width_mm * dpi_array[i] * 1.0 / inch_conv) : (size_t)(ps->width_in * dpi_array[i]);
+			size_t th = (ps->height_mm > 0) ? (size_t)(ps->height_mm * dpi_array[i] * 1.0 / inch_conv) : (size_t)(ps->height_in * dpi_array[i]);
 			if (npixels == tw * th) {
 			    *widthp = tw;
 			    *heightp = th;
@@ -241,8 +250,8 @@ icv_image_size(const char *name, size_t udpi, size_t file_size, bu_mime_image_t 
 		    return 0;
 		}
 		/* If we don't have a file size, go with 300 dpi */
-		*widthp = (ps->width_mm > 0) ? (size_t)(ps->width_mm * 300 * 1/bu_units_conversion("inch")) : (size_t)(ps->width_in * 300);
-		*heightp = (ps->height_mm > 0) ? (size_t)(ps->height_mm * 300 * 1/bu_units_conversion("inch")) : (size_t)(ps->height_in * 300);
+		*widthp = (ps->width_mm > 0) ? (size_t)(ps->width_mm * 300 * 1.0 / inch_conv) : (size_t)(ps->width_in * 300);
+		*heightp = (ps->height_mm > 0) ? (size_t)(ps->height_mm * 300 * 1.0 / inch_conv) : (size_t)(ps->height_in * 300);
 		return 1;
 	    }
 	    ps++;
@@ -300,7 +309,13 @@ shrink_image(icv_image_t* bif, size_t factor)
     double *p;
     size_t facsq, py, px;
     size_t x, y, c;
-    size_t widthstep =  bif->width*bif->channels;
+    size_t widthstep;
+    size_t out_w, out_h;
+    size_t new_size;
+
+    if (!bif || !bif->data || bif->channels == 0 || bif->width == 0 || bif->height == 0)
+	return -1;
+
     if (UNLIKELY(factor < 1)) {
 	bu_log("Cannot shrink image to 0 factor, factor should be a positive value.");
 	return -1;
@@ -309,17 +324,18 @@ shrink_image(icv_image_t* bif, size_t factor)
 	bu_log("Cannot shrink image: factor is larger than image dimensions.");
 	return -1;
     }
-    if (factor > (size_t)-1 / factor) {
+    if (factor > SIZE_MAX / factor) {
 	bu_log("Cannot shrink image: factor is too large.");
 	return -1;
     }
 
-    facsq = factor*factor;
+    widthstep = bif->width * bif->channels;
+    facsq = factor * factor;
     res_p = bif->data;
-    p = (double *)bu_malloc(bif->channels*sizeof(double), "shrink_image : Pixel Values Temp Buffer");
+    p = (double *)bu_malloc(bif->channels * sizeof(double), "shrink_image : Pixel Values Temp Buffer");
 
-    size_t out_w = bif->width / factor;
-    size_t out_h = bif->height / factor;
+    out_w = bif->width / factor;
+    out_h = bif->height / factor;
     if (out_w == 0 || out_h == 0) {
 	bu_free(p, "shrink_image : Pixel Values Temp Buffer");
 	return -1;
@@ -345,16 +361,19 @@ shrink_image(icv_image_t* bif, size_t factor)
 		*res_p++ = p[c]/facsq;
 	}
 
-    bif->width = (int)bif->width/factor;
-    bif->height = (int)bif->height/factor;
-    if (icv_image_data_realloc(bif, (size_t)(bif->width*bif->height*bif->channels)*sizeof(double), "shrink_image : Reallocation") != 0) {
-	bu_free(p, "shrink_image : Pixel Values Temp Buffer");
-	return -1;
-    }
     bu_free(p, "shrink_image : Pixel Values Temp Buffer");
 
-    return 0;
+    if (out_w > 0 && out_h > SIZE_MAX / out_w / bif->channels / sizeof(double))
+	return -1;
 
+    new_size = out_w * out_h * bif->channels;
+    bif->width = out_w;
+    bif->height = out_h;
+    if (icv_image_data_realloc(bif, new_size * sizeof(double), "shrink_image : Reallocation") != 0) {
+	return -1;
+    }
+
+    return 0;
 }
 
 
@@ -363,6 +382,11 @@ under_sample(icv_image_t* bif, size_t factor)
 {
     double *data_p, *res_p;
     size_t x, y, widthstep;
+    size_t out_w, out_h;
+    size_t new_size;
+
+    if (!bif || !bif->data || bif->channels == 0 || bif->width == 0 || bif->height == 0)
+	return -1;
 
     if (UNLIKELY(factor < 1)) {
 	bu_log("Cannot shrink image to 0 factor, factor should be a positive value.");
@@ -373,11 +397,11 @@ under_sample(icv_image_t* bif, size_t factor)
 	return -1;
     }
 
-    widthstep = bif->width*bif->channels;
+    widthstep = bif->width * bif->channels;
     res_p = bif->data;
 
-    size_t out_w = bif->width / factor;
-    size_t out_h = bif->height / factor;
+    out_w = bif->width / factor;
+    out_h = bif->height / factor;
     if (out_w == 0 || out_h == 0)
 	return -1;
 
@@ -388,9 +412,13 @@ under_sample(icv_image_t* bif, size_t factor)
 	    VMOVEN(res_p, data_p, bif->channels);
     }
 
-    bif->width = (int)bif->width/factor;
-    bif->height = (int)bif->height/factor;
-    if (icv_image_data_realloc(bif, (size_t)(bif->width*bif->height*bif->channels)*sizeof(double), "under_sample : Reallocation") != 0)
+    if (out_w > 0 && out_h > SIZE_MAX / out_w / bif->channels / sizeof(double))
+	return -1;
+
+    new_size = out_w * out_h * bif->channels;
+    bif->width = out_w;
+    bif->height = out_h;
+    if (icv_image_data_realloc(bif, new_size * sizeof(double), "under_sample : Reallocation") != 0)
 	return -1;
 
     return 0;
@@ -399,7 +427,7 @@ under_sample(icv_image_t* bif, size_t factor)
 static int
 resize_output_valid(const icv_image_t *bif, size_t out_width, size_t out_height)
 {
-    if (out_width == 0 || out_height == 0 || bif->width == 0 || bif->height == 0) {
+    if (!bif || !bif->data || bif->channels == 0 || out_width == 0 || out_height == 0 || bif->width == 0 || bif->height == 0) {
 	bu_log("icv_resize : input and output dimensions must be non-zero.\n");
 	return 0;
     }

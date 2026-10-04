@@ -176,7 +176,7 @@ icv_read(const char *filename, bu_mime_image_t format, size_t width, size_t heig
 
     FILE *fp = (!ifname) ? stdin : fopen(ifname, "rb");
     if (!fp) {
-	bu_log("ERROR: Cannot open file %s for reading\n", filename);
+	bu_log("ERROR: Cannot open file %s for reading\n", filename ? filename : "(stdin)");
 	bu_vls_free(&ifilename);
 	return NULL;
     }
@@ -208,7 +208,8 @@ icv_read(const char *filename, bu_mime_image_t format, size_t width, size_t heig
 	    break;
 	default:
 	    bu_log("icv_read not implemented for this format\n");
-	    fclose(fp);
+	    if (fp != stdin)
+		fclose(fp);
 	    bu_vls_free(&ifilename);
 	    return NULL;
     }
@@ -269,6 +270,11 @@ icv_write(icv_image_t *bif, const char *filename, bu_mime_image_t format)
     int ret = 0;
     struct bu_vls ofilename = BU_VLS_INIT_ZERO;
     const char *ofname = filename;
+    FILE *fp;
+
+    ICV_IMAGE_VAL_INT(bif);
+    if (!bif->data || bif->width == 0 || bif->height == 0 || bif->channels == 0)
+	return BRLCAD_ERROR;
 
     if (format == BU_MIME_IMAGE_AUTO) {
 	format = icv_guess_file_format(filename, &ofilename);
@@ -276,12 +282,11 @@ icv_write(icv_image_t *bif, const char *filename, bu_mime_image_t format)
 	    ofname = bu_vls_cstr(&ofilename);
     }
 
-    ICV_IMAGE_VAL_INT(bif);
-
-    FILE *fp = (ofname==NULL) ? stdout : fopen(ofname, "wb");
+    fp = (ofname==NULL) ? stdout : fopen(ofname, "wb");
     if (UNLIKELY(fp==NULL)) {
 	perror("fopen");
-	bu_log("ERROR: icv_write failed to get a FILE pointer for %s\n", filename);
+	bu_log("ERROR: icv_write failed to get a FILE pointer for %s\n", filename ? filename : "(stdout)");
+	bu_vls_free(&ofilename);
 	return BRLCAD_ERROR;
     }
 
@@ -339,6 +344,8 @@ icv_write_mem(icv_image_t *bif, unsigned char **buffer, size_t *size, bu_mime_im
     *size = 0;
 
     ICV_IMAGE_VAL_INT(bif);
+    if (!bif->data || bif->width == 0 || bif->height == 0 || bif->channels == 0)
+	return BRLCAD_ERROR;
 
     switch (format) {
 	case BU_MIME_IMAGE_JPEG:
@@ -382,11 +389,20 @@ icv_writeline(icv_image_t *bif, size_t y, void *data, ICV_DATA type)
 
     ICV_IMAGE_VAL_INT(bif);
 
+    if (!bif->data || bif->channels == 0)
+	return -1;
+
     if (y >= bif->height)
 	return -1;
 
-    width_size = (size_t) bif->width*bif->channels;
-    dst = bif->data + width_size*y;
+    if (bif->width > 0 && bif->channels > SIZE_MAX / bif->width)
+	return -1;
+
+    width_size = bif->width * bif->channels;
+    if (y > 0 && width_size > SIZE_MAX / y)
+	return -1;
+
+    dst = bif->data + width_size * y;
 
     if (type == ICV_DATA_UCHAR) {
 	p = (unsigned char *)data;
@@ -395,9 +411,13 @@ icv_writeline(icv_image_t *bif, size_t y, void *data, ICV_DATA type)
 	    p++;
 	    dst++;
 	}
-    } else
-	memcpy(dst, data, width_size*sizeof(double));
-
+    } else if (type == ICV_DATA_DOUBLE) {
+	if (width_size > SIZE_MAX / sizeof(double))
+	    return -1;
+	memcpy(dst, data, width_size * sizeof(double));
+    } else {
+	return -1;
+    }
 
     return 0;
 }
@@ -407,19 +427,21 @@ int
 icv_writepixel(icv_image_t *bif, size_t x, size_t y, double *data)
 {
     double *dst;
+    size_t offset;
 
     ICV_IMAGE_VAL_INT(bif);
 
-    if (x >= bif->width)
+    if (x >= bif->width || y >= bif->height || data == NULL || !bif->data || bif->channels == 0)
 	return -1;
 
-    if (y >= bif->height)
+    if (bif->width > 0 && y > (SIZE_MAX - x) / bif->width)
 	return -1;
 
-    if (data == NULL)
+    offset = y * bif->width + x;
+    if (offset > SIZE_MAX / bif->channels)
 	return -1;
 
-    dst = bif->data + (y*bif->width + x)*bif->channels;
+    dst = bif->data + offset * bif->channels;
 
     /* can copy float to double also double to double */
     VMOVEN(dst, data, bif->channels);
@@ -646,6 +668,9 @@ icv_zero(icv_image_t *bif)
 
     ICV_IMAGE_VAL_PTR(bif);
 
+    if (!bif->data)
+	return bif;
+
     data = bif->data;
     size = bif->width * bif->height * bif->channels;
     for (i = 0; i < size; i++)
@@ -660,6 +685,7 @@ icv_destroy(icv_image_t *bif)
 {
     ICV_IMAGE_VAL_INT(bif);
 
+    bif->magic = 0;
     icv_image_data_free(bif, "Image Data");
     if (bif->render_info)
 	icv_render_info_destroy(bif->render_info);

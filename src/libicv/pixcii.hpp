@@ -28,6 +28,8 @@
 
 #include "common.h"
 
+#include <algorithm>
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -79,20 +81,32 @@ PixelInfo getPixelInfo(const icv_image_t *img, size_t x, size_t y, const AsciiAr
     // --- Bounds Check ---
     // Basic bounds check to ensure coordinates are within image dimensions
     // Although calling code should ideally provide valid coordinates, this adds safety
-    if (x >= img->width || y >= img->height)
+    if (!img || !img->data || img->channels == 0 || x >= img->width || y >= img->height)
     {
 	// If out of bounds, return default (zero-initialized) info
 	return info;
     }
 
-    // Calculate the starting index of the pixel's data in the image vector
-    int pixel_index = (y * img->width + x) * img->channels;
+    if (img->width > 0 && y > (SIZE_MAX - x) / img->width)
+	return info;
+
+    size_t offset = y * img->width + x;
+    if (img->channels > 0 && offset > SIZE_MAX / img->channels)
+	return info;
+
+    size_t pixel_index = offset * img->channels;
+
+    auto clamp_val = [](double val) -> uint8_t {
+	if (std::isnan(val) || val <= 0.0) return 0;
+	if (val >= 1.0) return 255;
+	return static_cast<uint8_t>(val * 255.0);
+    };
 
     // Get the color components based on the number of channels
     // Safely access channels if they exist
-    uint8_t r = (img->channels >= 1) ? img->data[pixel_index]*255.0 : 0;
-    uint8_t g = (img->channels >= 2) ? img->data[pixel_index + 1]*255.0 : 0;
-    uint8_t b = (img->channels >= 3) ? img->data[pixel_index + 2]*255.0 : 0;
+    uint8_t r = (img->channels >= 1) ? clamp_val(img->data[pixel_index]) : 0;
+    uint8_t g = (img->channels >= 2) ? clamp_val(img->data[pixel_index + 1]) : 0;
+    uint8_t b = (img->channels >= 3) ? clamp_val(img->data[pixel_index + 2]) : 0;
 
 
     // Calculate grayscale brightness using standard luminance weights
@@ -124,13 +138,19 @@ PixelInfo getPixelInfo(const icv_image_t *img, size_t x, size_t y, const AsciiAr
 // Select an ASCII character based on block brightness
 inline char selectAsciiChar(const PixelInfo &pixel_info, const AsciiArtParams &params)
 {
+    if (params.ascii_chars.empty())
+	return ' ';
+
     uint64_t value; // Value used for character selection (brightness or edge magnitude)
 
     // Use brightness
     uint64_t brightness = pixel_info.brightness;
     // Apply brightness boost and clamp between 0 and 255
-    float boosted_brightness = static_cast<float>(brightness) * params.brightness_boost;
-    value = std::min(static_cast<uint64_t>(std::max(boosted_brightness, 0.0f)), static_cast<uint64_t>(255));
+    float boost = (std::isnan(params.brightness_boost) || params.brightness_boost < 0.0f) ? 0.0f : params.brightness_boost;
+    float boosted_brightness = static_cast<float>(brightness) * boost;
+    if (std::isnan(boosted_brightness) || boosted_brightness < 0.0f)
+	boosted_brightness = 0.0f;
+    value = std::min(static_cast<uint64_t>(boosted_brightness), static_cast<uint64_t>(255));
 
     // Handle the case where the value is 0. Map to the first character unless inverted.
     // The first character is typically space for brightness.
@@ -159,15 +179,15 @@ inline char selectAsciiChar(const PixelInfo &pixel_info, const AsciiArtParams &p
 // Generate ASCII art as text
 std::string generateAsciiText(const icv_image_t *i, const AsciiArtParams &params)
 {
-    if (!i)
+    if (!i || !i->data || i->channels == 0 || i->height == 0 || i->width == 0)
+	return std::string("");
+
+    if (i->width > 0 && i->height > SIZE_MAX / i->width / i->channels)
 	return std::string("");
 
     std::string ascii_text;
     bool use_color = params.color && i->channels >= 3;
     const icv_image_t *img = i;
-
-    if (img->height == 0 || img->width == 0)
-	return ascii_text;
 
     for (size_t y_inv = 0; y_inv < img->height; y_inv++)
     {

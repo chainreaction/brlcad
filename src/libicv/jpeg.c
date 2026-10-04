@@ -51,8 +51,8 @@ jpeg_write(icv_image_t *bif, FILE *fp, int quality)
 {
     struct jpeg_compress_struct cinfo;
     struct icv_jpeg_error_mgr jerr;
-    unsigned char *data = NULL;
-    icv_image_t *wimg = NULL;
+    unsigned char * volatile data = NULL;
+    icv_image_t * volatile wimg = NULL;
     JSAMPROW row_pointer[1];
     size_t row;
 
@@ -115,6 +115,11 @@ jpeg_write(icv_image_t *bif, FILE *fp, int quality)
     jpeg_start_compress(&cinfo, TRUE);
 
     data = icv_data2uchar(wimg);
+    if (!data) {
+	jpeg_destroy_compress(&cinfo);
+	icv_destroy(wimg);
+	return BRLCAD_ERROR;
+    }
 
     /* Write rows top-to-bottom (JPEG convention).
      * BRL-CAD images are stored bottom-up, so row 0 in data is the
@@ -138,11 +143,11 @@ jpeg_write_mem(icv_image_t *bif, unsigned char **outbuffer, size_t *outsize, int
 {
     struct jpeg_compress_struct cinfo;
     struct icv_jpeg_error_mgr jerr;
-    unsigned char *data = NULL;
-    icv_image_t *wimg = NULL;
+    unsigned char * volatile data = NULL;
+    icv_image_t * volatile wimg = NULL;
+    unsigned char * volatile mem_buf = NULL;
     JSAMPROW row_pointer[1];
     size_t row;
-    unsigned char *mem_buf = NULL;
     unsigned long mem_size = 0;
 
     if (UNLIKELY(!bif))
@@ -179,7 +184,7 @@ jpeg_write_mem(icv_image_t *bif, unsigned char **outbuffer, size_t *outsize, int
     jpeg_create_compress(&cinfo);
 
     // Write to a memory buffer instead of FILE*
-    jpeg_mem_dest(&cinfo, &mem_buf, &mem_size);
+    jpeg_mem_dest(&cinfo, (unsigned char **)&mem_buf, &mem_size);
 
     cinfo.image_width = (JDIMENSION)wimg->width;
     cinfo.image_height = (JDIMENSION)wimg->height;
@@ -210,6 +215,12 @@ jpeg_write_mem(icv_image_t *bif, unsigned char **outbuffer, size_t *outsize, int
     jpeg_start_compress(&cinfo, TRUE);
 
     data = icv_data2uchar(wimg);
+    if (!data) {
+	jpeg_destroy_compress(&cinfo);
+	if (mem_buf) free(mem_buf);
+	icv_destroy(wimg);
+	return BRLCAD_ERROR;
+    }
 
     /* Write rows top-to-bottom (JPEG convention).
      * BRL-CAD images are stored bottom-up, so row 0 in data is the
@@ -236,7 +247,7 @@ jpeg_write_mem(icv_image_t *bif, unsigned char **outbuffer, size_t *outsize, int
 	memcpy(*outbuffer, mem_buf, *outsize);
 	free(mem_buf);
     } else {
-	if (wimg) icv_destroy(wimg);
+	if (mem_buf) free(mem_buf);
 	return BRLCAD_ERROR;
     }
 
@@ -248,10 +259,10 @@ jpeg_read(FILE *fp)
 {
     struct jpeg_decompress_struct cinfo;
     struct icv_jpeg_error_mgr jerr;
-    unsigned char *image = NULL;
+    unsigned char * volatile image = NULL;
+    icv_image_t * volatile bif = NULL;
     JSAMPROW row_pointer[1];
     size_t width, height;
-    icv_image_t *bif = NULL;
 
     if (UNLIKELY(!fp))
 	return NULL;
@@ -282,8 +293,8 @@ jpeg_read(FILE *fp)
 	return NULL;
     }
 
-    if (width > 0 && height > (size_t)-1 / width / 3 / sizeof(double)) {
-	bu_log("jpeg_read: dimensions excessively large, causing integer overflow\n");
+    if (width == 0 || height == 0 || width > (SIZE_MAX / 3 / sizeof(double) / height)) {
+	bu_log("jpeg_read: dimensions excessively large or invalid\n");
 	jpeg_destroy_decompress(&cinfo);
 	return NULL;
     }
@@ -309,6 +320,10 @@ jpeg_read(FILE *fp)
     bif->magic = ICV_IMAGE_MAGIC;
     bif->data = icv_uchar2double(image, 3 * width * height);
     bu_free(image, "jpeg_read uchar data");
+    if (!bif->data) {
+	icv_destroy(bif);
+	return NULL;
+    }
 
     return bif;
 }
@@ -318,10 +333,10 @@ jpeg_read_mem(const unsigned char *buffer, size_t size)
 {
     struct jpeg_decompress_struct cinfo;
     struct icv_jpeg_error_mgr jerr;
-    unsigned char *image = NULL;
+    unsigned char * volatile image = NULL;
+    icv_image_t * volatile bif = NULL;
     JSAMPROW row_pointer[1];
     size_t width, height;
-    icv_image_t *bif = NULL;
 
     if (UNLIKELY(!buffer || size == 0))
 	return NULL;
@@ -355,8 +370,8 @@ jpeg_read_mem(const unsigned char *buffer, size_t size)
 	return NULL;
     }
 
-    if (width > 0 && height > (size_t)-1 / width / 3 / sizeof(double)) {
-	bu_log("jpeg_read_mem: dimensions excessively large, causing integer overflow\n");
+    if (width == 0 || height == 0 || width > (SIZE_MAX / 3 / sizeof(double) / height)) {
+	bu_log("jpeg_read_mem: dimensions excessively large or invalid\n");
 	jpeg_destroy_decompress(&cinfo);
 	return NULL;
     }
@@ -382,6 +397,10 @@ jpeg_read_mem(const unsigned char *buffer, size_t size)
     bif->magic = ICV_IMAGE_MAGIC;
     bif->data = icv_uchar2double(image, 3 * width * height);
     bu_free(image, "jpeg_read_mem uchar data");
+    if (!bif->data) {
+	icv_destroy(bif);
+	return NULL;
+    }
 
     return bif;
 }

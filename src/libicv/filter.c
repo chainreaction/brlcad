@@ -24,6 +24,10 @@
  * images are taken care.
  */
 
+#include "common.h"
+
+#include <math.h>
+
 #include "bu/log.h"
 #include "bu/malloc.h"
 #include "icv_private.h"
@@ -37,6 +41,9 @@
 static int
 get_kernel(ICV_FILTER filter_type, double *kern, double *offset)
 {
+    if (!kern || !offset)
+	return -1;
+
     switch (filter_type) {
 	case ICV_FILTER_LOW_PASS :
 	    kern[0] = 3.0/42.0;
@@ -132,6 +139,9 @@ get_kernel(ICV_FILTER filter_type, double *kern, double *offset)
 static int
 get_kernel3(ICV_FILTER3 filter_type, double *kern, double *offset)
 {
+    if (!kern || !offset)
+	return -1;
+
     switch (filter_type) {
 	case ICV_FILTER3_LOW_PASS :
 	    kern[0] = 1.0/84;
@@ -321,28 +331,21 @@ icv_filter(icv_image_t *img, ICV_FILTER filter_type)
 
     ICV_IMAGE_VAL_INT(img);
 
+    if (!img->data || img->channels == 0 || img->width == 0 || img->height == 0)
+	return -1;
+
+    if (img->width > 0 && img->height > SIZE_MAX / img->width / img->channels / sizeof(double))
+	return -1;
+
+    size = img->height * img->width * img->channels;
+
     kern = (double *)bu_malloc(k_dim*k_dim*sizeof(double), "icv_filter : Kernel Allocation");
     if (get_kernel(filter_type, kern, &offset) < 0) {
 	bu_free(kern, "icv_filter : Kernel Allocation");
 	return -1;
     }
 
-    if (!kern)
-	return -1;
-
     in_data = img->data;
-    size = img->height*img->width*img->channels;
-
-    if (size == 0) {
-	bu_free(kern, "icv_filter : Kernel Allocation");
-	return -1;
-    }
-
-    if (img->width > 0 && img->height > (size_t)-1 / img->width / img->channels / sizeof(double)) {
-	bu_free(kern, "icv_filter : Kernel Allocation");
-	return -1;
-    }
-
     out_data = (double*)bu_malloc(size*sizeof(double), "icv_filter : out_image_data");
 
     /* Convolve in pixel coordinates and clamp border samples to the closest
@@ -387,25 +390,31 @@ icv_filter3(icv_image_t *old_img, icv_image_t *curr_img, icv_image_t *new_img, I
     ICV_IMAGE_VAL_PTR(curr_img);
     ICV_IMAGE_VAL_PTR(new_img);
 
+    if (!old_img->data || !curr_img->data || !new_img->data)
+	return NULL;
+
+    if (curr_img->channels == 0 || curr_img->width == 0 || curr_img->height == 0)
+	return NULL;
+
     if (old_img->width != curr_img->width || curr_img->width != new_img->width || \
 	old_img->height != curr_img->height || curr_img->height != new_img->height || \
 	old_img->channels != curr_img->channels || curr_img->channels != new_img->channels) {
-	bu_log("icv_filter3 : Image Parameters not Equal");
+	bu_log("icv_filter3 : Image Parameters not Equal\n");
 	return NULL;
     }
     if (old_img->color_space != curr_img->color_space || curr_img->color_space != new_img->color_space) {
-	bu_log("icv_filter3 : Image Color Spaces not Equal");
+	bu_log("icv_filter3 : Image Color Spaces not Equal\n");
 	return NULL;
     }
+
+    if (curr_img->width > 0 && curr_img->height > SIZE_MAX / curr_img->width / curr_img->channels / sizeof(double))
+	return NULL;
 
     kern = (double *)bu_malloc(k_dim*k_dim*3*sizeof(double), "icv_filter3 : Kernel Allocation");
     if (get_kernel3(filter_type, kern, &offset) < 0) {
 	bu_free(kern, "icv_filter3 : Kernel Allocation");
 	return NULL;
     }
-
-    if (!kern)
-	return NULL;
 
     old_data = old_img->data;
     curr_data = curr_img->data;
@@ -459,22 +468,24 @@ icv_fade(icv_image_t *img, double fraction)
 
     ICV_IMAGE_VAL_INT(img);
 
-    size= img->height*img->width*img->channels;
-
-    if (size == 0)
+    if (!img->data || img->channels == 0 || img->width == 0 || img->height == 0)
 	return -1;
 
-    if (fraction < 0.0 || fraction > 1.0) {
-	bu_log("ERROR : Multiplier invalid. Image not Faded.");
+    if (isnan(fraction) || fraction < 0.0 || fraction > 1.0) {
+	bu_log("ERROR : Multiplier invalid. Image not Faded.\n");
 	return -1;
     }
 
+    if (img->width > 0 && img->height > SIZE_MAX / img->width / img->channels)
+	return -1;
+
+    size = img->height * img->width * img->channels;
     data = img->data;
 
     while (size--) {
-	*data = *data*fraction;
-	if (*data > 1)
-	    *data= 1.0;
+	*data = *data * fraction;
+	if (*data > 1.0)
+	    *data = 1.0;
 	data++;
     }
     return 0;
