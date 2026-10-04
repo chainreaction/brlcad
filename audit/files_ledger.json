@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1587,
-    "pending_files": 1906,
-    "last_updated": "2026-10-04T16:00:00Z",
-    "total_issues": 351,
-    "reviewed_count": 1587
+    "reviewed_files": 1589,
+    "pending_files": 1904,
+    "last_updated": "2026-10-04T16:30:00Z",
+    "total_issues": 352,
+    "reviewed_count": 1589
   },
   "files": [
     {
@@ -27647,20 +27647,24 @@
       "path": "src/libnmg/bool.c",
       "subsystem": "src/libnmg",
       "lines": 1128,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T16:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0331"
+      ]
     },
     {
       "id": 2586,
       "path": "src/libnmg/ck.c",
       "subsystem": "src/libnmg",
       "lines": 1673,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T16:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0331"
+      ]
     },
     {
       "id": 2587,
