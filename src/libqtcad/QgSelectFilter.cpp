@@ -36,10 +36,18 @@ extern "C" {
 #include "qtcad/QgSelectFilter.h"
 #include "qtcad/QgSignalFlags.h"
 
+QgSelectFilter::~QgSelectFilter()
+{
+    bu_ptbl_free(&selected_set);
+}
+
 // Find the first bbox intersection under the XY view point.
 static struct bv_scene_obj *
 closest_obj_bbox(struct bu_ptbl *sset, struct bview *v)
 {
+    if (!sset || !v)
+	return NULL;
+
     fastf_t vx = -FLT_MAX;
     fastf_t vy = -FLT_MAX;
     struct bv_scene_obj *s_closest = NULL;
@@ -51,13 +59,21 @@ closest_obj_bbox(struct bu_ptbl *sset, struct bview *v)
     point_t rmin, rmax;
     vect_t dir;
     VMOVEN(dir, v->gv_rotation + 8, 3);
-    VUNITIZE(dir);
+    fastf_t mag = MAGNITUDE(dir);
+    if (ZERO(mag))
+	return NULL;
+    VSCALE(dir, dir, 1.0 / mag);
     VSCALE(dir, dir, v->radius);
     VADD2(mpnt, mpnt, dir);
-    VUNITIZE(dir);
+    mag = MAGNITUDE(dir);
+    if (ZERO(mag))
+	return NULL;
+    VSCALE(dir, dir, 1.0 / mag);
     bg_ray_invdir(&dir, dir);
     for (size_t i = 0; i < BU_PTBL_LEN(sset); i++) {
 	struct bv_scene_obj *s = (struct bv_scene_obj *)BU_PTBL_GET(sset, i);
+	if (!s)
+	    continue;
 	if (bg_isect_aabb_ray(rmin, rmax, mpnt, dir, s->bmin, s->bmax)){
 	    double ndist = DIST_PNT_PNT(rmin, v->gv_vc_backout);
 	    if (ndist < dist) {
@@ -154,7 +170,7 @@ QgSelectBoxFilter::eventFilter(QObject *, QEvent *e)
     if (!m_e)
 	return false;
 
-    if (!v)
+    if (!v || !v->gv_s)
 	return false;
 
     // Eat double clicks
@@ -168,6 +184,8 @@ QgSelectBoxFilter::eventFilter(QObject *, QEvent *e)
     if (e->type() == QEvent::MouseButtonPress) {
 	px = v->gv_mouse_x;
 	py = v->gv_mouse_y;
+	if (v->gv_height <= 0 || v->gv_width <= 0)
+	    return true;
 	struct bv_interactive_rect_state *grsp = &v->gv_s->gv_rect;
 	grsp->line_width = 1;
 	grsp->dim[0] = 0;
@@ -185,6 +203,8 @@ QgSelectBoxFilter::eventFilter(QObject *, QEvent *e)
 
     if (e->type() == QEvent::MouseMove) {
 	struct bv_interactive_rect_state *grsp = &v->gv_s->gv_rect;
+	if (grsp->cdim[X] <= 0 || grsp->cdim[Y] <= 0 || ZERO(grsp->aspect))
+	    return true;
 	grsp->draw = 1;
 	grsp->dim[0] = v->gv_mouse_x - px;
 	grsp->dim[1] = (v->gv_height - v->gv_mouse_y) - v->gv_s->gv_rect.pos[1];
@@ -253,7 +273,6 @@ _obj_record(struct application *ap, struct partition *p_hp, struct seg *UNUSED(s
 	    }
 	}
     }
-    bu_log("hit\n");
     return 1;
 }
 
@@ -268,7 +287,6 @@ _ovlp_record(struct application *ap, struct partition *pp, struct region *reg1, 
 	rc->closest = std::string(reg1->reg_name);
 	rc->cdist = pp->pt_inhit->hit_dist;
     }
-    bu_log("ovlp\n");
     return 1;
 }
 
@@ -321,6 +339,7 @@ QgSelectRayFilter::eventFilter(QObject *, QEvent *e)
     }
     if (rt_gettrees_and_attrs(rtip, NULL, scnt, objs, 1)) {
 	bu_free(objs, "objs");
+	rt_clean_resource(rtip, resp);
 	rt_i_destroy(rtip);
 	BU_PUT(resp, struct resource);
 	BU_PUT(ap, struct application);
@@ -336,10 +355,28 @@ QgSelectRayFilter::eventFilter(QObject *, QEvent *e)
     MAT4X3PNT(mpnt, v->gv_view2model, vpnt);
     vect_t dir;
     VMOVEN(dir, v->gv_rotation + 8, 3);
-    VUNITIZE(dir);
+    fastf_t mag = MAGNITUDE(dir);
+    if (ZERO(mag)) {
+	bu_free(objs, "objs");
+	rt_clean_resource(rtip, resp);
+	rt_i_destroy(rtip);
+	BU_PUT(resp, struct resource);
+	BU_PUT(ap, struct application);
+	return false;
+    }
+    VSCALE(dir, dir, 1.0 / mag);
     VSCALE(dir, dir, v->radius);
     VADD2(ap->a_ray.r_pt, mpnt, dir);
-    VUNITIZE(dir);
+    mag = MAGNITUDE(dir);
+    if (ZERO(mag)) {
+	bu_free(objs, "objs");
+	rt_clean_resource(rtip, resp);
+	rt_i_destroy(rtip);
+	BU_PUT(resp, struct resource);
+	BU_PUT(ap, struct application);
+	return false;
+    }
+    VSCALE(dir, dir, 1.0 / mag);
     VSCALE(ap->a_ray.r_dir, dir, -1);
 
     struct select_rec_state rc;
@@ -356,6 +393,7 @@ QgSelectRayFilter::eventFilter(QObject *, QEvent *e)
 
     (void)rt_shootray(ap);
     bu_free(objs, "objs");
+    rt_clean_resource(rtip, resp);
     rt_i_destroy(rtip);
     BU_PUT(resp, struct resource);
     BU_PUT(ap, struct application);

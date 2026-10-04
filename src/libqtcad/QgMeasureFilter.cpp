@@ -34,6 +34,14 @@ extern "C" {
 #include "qtcad/QgMeasureFilter.h"
 #include "qtcad/QgSignalFlags.h"
 
+QgMeasureFilter::~QgMeasureFilter()
+{
+    if (s) {
+	bv_obj_put(s);
+	s = NULL;
+    }
+}
+
 QMouseEvent *
 QgMeasureFilter::view_sync(QEvent *e)
 {
@@ -95,12 +103,21 @@ QgMeasureFilter::angle(bool radians)
     vect_t v1, v2;
     VSUB2(v1, p1, p2);
     VSUB2(v2, p3, p2);
-    VUNITIZE(v1);
-    VUNITIZE(v2);
-    double a = acos(VDOT(v1, v2));
+    fastf_t mag1 = MAGNITUDE(v1);
+    fastf_t mag2 = MAGNITUDE(v2);
+    if (ZERO(mag1) || ZERO(mag2))
+	return 0.0;
+    VSCALE(v1, v1, 1.0 / mag1);
+    VSCALE(v2, v2, 1.0 / mag2);
+    double dot = VDOT(v1, v2);
+    if (dot > 1.0)
+	dot = 1.0;
+    else if (dot < -1.0)
+	dot = -1.0;
+    double a = acos(dot);
     if (radians)
-	return a*180/M_PI;
-    return a;
+	return a;
+    return a * 180.0 / M_PI;
 }
 
 void
@@ -120,8 +137,10 @@ QgMeasureFilter::eventFilter(QObject *, QEvent *e)
 
     if (e->type() == QEvent::MouseButtonPress) {
 	if (m_e->button() == Qt::RightButton) {
-	    if (s)
+	    if (s) {
 		bv_obj_put(s);
+		s = NULL;
+	    }
 	    mode = 0;
 	    VSETALL(p1, 0.0);
 	    VSETALL(p2, 0.0);
@@ -130,8 +149,10 @@ QgMeasureFilter::eventFilter(QObject *, QEvent *e)
 	    return true;
 	}
 	if (mode == 4) {
-	    if (s)
+	    if (s) {
 		bv_obj_put(s);
+		s = NULL;
+	    }
 	    mode = 0;
 	    emit view_updated(QG_VIEW_REFRESH);
 	    return true;
@@ -144,9 +165,13 @@ QgMeasureFilter::eventFilter(QObject *, QEvent *e)
 	    VSETALL(p2, 0.0);
 	    VSETALL(p3, 0.0);
 
-	    if (s)
+	    if (s) {
 		bv_obj_put(s);
+		s = NULL;
+	    }
 	    s = bv_obj_get(v, BV_VIEW_OBJS);
+	    if (!s)
+		return true;
 
 	    mode = 1;
 	    VMOVE(p1, mpnt);
@@ -167,6 +192,8 @@ QgMeasureFilter::eventFilter(QObject *, QEvent *e)
 	if (mode == 2) {
 	    if (!get_point())
 		return true;
+	    if (!s)
+		return true;
 	    mode = 3;
 	    BV_FREE_VLIST(s->vlfree, &s->s_vlist);
 	    BV_ADD_VLIST(s->vlfree, &s->s_vlist, p1, BV_VLIST_LINE_MOVE);
@@ -179,7 +206,7 @@ QgMeasureFilter::eventFilter(QObject *, QEvent *e)
     }
 
     if (e->type() == QEvent::MouseMove) {
-	if (!mode)
+	if (!mode || !s)
 	    return false;
 	if (mode == 1) {
 	    if (!get_point())
@@ -210,12 +237,12 @@ QgMeasureFilter::eventFilter(QObject *, QEvent *e)
 	    mode = 0;
 	    if (s) {
 		bv_obj_put(s);
+		s = NULL;
 		emit view_updated(QG_VIEW_REFRESH);
 	    }
-	    s = NULL;
 	    return true;
 	}
-	if (!mode)
+	if (!mode || !s)
 	    return false;
 	if (mode == 1 && DIST_PNT_PNT(p1, p2) < SMALL_FASTF) {
 	    return true;
@@ -262,6 +289,8 @@ QgMeasureFilter::eventFilter(QObject *, QEvent *e)
 bool
 QMeasure2DFilter::get_point()
 {
+    if (!v)
+	return false;
     fastf_t vx, vy;
     bv_screen_to_view(v, &vx, &vy, v->gv_mouse_x, v->gv_mouse_y);
     point_t vpnt;
@@ -282,6 +311,19 @@ QMeasure3DFilter::QMeasure3DFilter()
 
 QMeasure3DFilter::~QMeasure3DFilter()
 {
+    if (ap) {
+	if (ap->a_resource) {
+	    rt_clean_resource(rtip, ap->a_resource);
+	    BU_PUT(ap->a_resource, struct resource);
+	    ap->a_resource = NULL;
+	}
+	BU_PUT(ap, struct application);
+	ap = NULL;
+    }
+    if (rtip) {
+	rt_i_destroy(rtip);
+	rtip = NULL;
+    }
     bu_ptbl_free(&scene_obj_set);
 }
 
@@ -317,7 +359,7 @@ _cpnt_ovlp(struct application *ap, struct partition *pp, struct region *UNUSED(r
 bool
 QMeasure3DFilter::get_point()
 {
-    if (!dbip)
+    if (!dbip || !v)
 	return false;
 
     fastf_t vx, vy;
@@ -375,6 +417,11 @@ QMeasure3DFilter::get_point()
 	    ap->a_overlap = _cpnt_ovlp;
 	    ap->a_logoverlap = NULL;
 	}
+	if (ap->a_resource) {
+	    rt_clean_resource(rtip, ap->a_resource);
+	    BU_PUT(ap->a_resource, struct resource);
+	    ap->a_resource = NULL;
+	}
 	if (rtip) {
 	    rt_i_destroy(rtip);
 	    rtip = NULL;
@@ -393,9 +440,11 @@ QMeasure3DFilter::get_point()
 	}
 	if (rt_gettrees_and_attrs(rtip, NULL, scnt, objs, 1)) {
 	    bu_free(objs, "objs");
+	    rt_clean_resource(rtip, resp);
+	    BU_PUT(resp, struct resource);
+	    ap->a_resource = NULL;
 	    rt_i_destroy(rtip);
 	    rtip = NULL;
-	    BU_PUT(resp, struct resource);
 	    bu_ptbl_free(&sset);
 	    return false;
 	}
@@ -414,10 +463,16 @@ QMeasure3DFilter::get_point()
     // Set up the ray itself
     vect_t dir;
     VMOVEN(dir, v->gv_rotation + 8, 3);
-    VUNITIZE(dir);
+    fastf_t mag = MAGNITUDE(dir);
+    if (ZERO(mag))
+	return false;
+    VSCALE(dir, dir, 1.0 / mag);
     VSCALE(dir, dir, v->radius);
     VADD2(ap->a_ray.r_pt, mpnt, dir);
-    VUNITIZE(dir);
+    mag = MAGNITUDE(dir);
+    if (ZERO(mag))
+	return false;
+    VSCALE(dir, dir, 1.0 / mag);
     VSCALE(ap->a_ray.r_dir, dir, -1);
 
     (void)rt_shootray(ap);

@@ -73,6 +73,8 @@ class QTCAD_EXPORT QgSketchFilter : public QObject
     Q_OBJECT
 
 public:
+    virtual ~QgSketchFilter() = default;
+
     /**
      * Synchronise Qt mouse event with the bview coordinate state.
      *

@@ -48,6 +48,8 @@ class QTCAD_EXPORT QgSelectFilter : public QObject
     Q_OBJECT
 
     public:
+	virtual ~QgSelectFilter();
+
 	// Primary mouse interaction.  This differs a bit for the
 	// various selection types, hence the virtual definition
 	// in the base class.

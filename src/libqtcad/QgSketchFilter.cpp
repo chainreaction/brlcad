@@ -98,14 +98,13 @@ bool
 QgSketchFilter::screen_to_uv(int sx, int sy,
 			     fastf_t *u_out, fastf_t *v_out) const
 {
-    if (!v || !es)
+    if (!v || !es || !u_out || !v_out)
 	return false;
 
     const struct rt_sketch_internal *skt =
 	(const struct rt_sketch_internal *)es->es_int.idb_ptr;
-    if (!skt)
+    if (!skt || skt->magic != RT_SKETCH_INTERNAL_MAGIC)
 	return false;
-    RT_SKETCH_CK_MAGIC(skt);
 
     /* Unproject screen pixel → model-space 3-D point */
     point_t p3d;
@@ -131,6 +130,9 @@ QgSketchFilter::snap_vertex_uv(int sx, int sy,
     if (snapped_idx)
 	*snapped_idx = -1;
 
+    if (!u_out || !v_out)
+	return false;
+
     if (!screen_to_uv(sx, sy, u_out, v_out))
 	return false;
 
@@ -139,7 +141,7 @@ QgSketchFilter::snap_vertex_uv(int sx, int sy,
 
     const struct rt_sketch_internal *skt =
 	(const struct rt_sketch_internal *)es->es_int.idb_ptr;
-    if (!skt || skt->vert_count == 0)
+    if (!skt || skt->magic != RT_SKETCH_INTERNAL_MAGIC || skt->vert_count == 0 || !skt->verts)
 	return true;
 
     /* Model→view transform (including any edit transform) */
@@ -201,7 +203,7 @@ QgSketchPickVertexFilter::eventFilter(QObject *, QEvent *e)
     if (!m_e)
 	return false;
 
-    if (!es)
+    if (!es || !v)
 	return false;
 
     /* Act on left button press only */
@@ -210,7 +212,7 @@ QgSketchPickVertexFilter::eventFilter(QObject *, QEvent *e)
 
 	const struct rt_sketch_internal *skt =
 	    (const struct rt_sketch_internal *)es->es_int.idb_ptr;
-	if (!skt || skt->vert_count == 0)
+	if (!skt || skt->magic != RT_SKETCH_INTERNAL_MAGIC || skt->vert_count == 0)
 	    return true;
 
 	/* Store view-space cursor; edsketch.c's proximity search will use it */
@@ -224,9 +226,11 @@ QgSketchPickVertexFilter::eventFilter(QObject *, QEvent *e)
 	se->v_pos_valid = 1;
 
 	es->e_inpara = 0;
-	EDOBJ[es->es_int.idb_type].ft_set_edit_mode(es,
-		ECMD_SKETCH_PICK_VERTEX);
-	rt_edit_process(es);
+	if (es->es_int.idb_type >= 0 && EDOBJ[es->es_int.idb_type].ft_set_edit_mode) {
+	    EDOBJ[es->es_int.idb_type].ft_set_edit_mode(es,
+		    ECMD_SKETCH_PICK_VERTEX);
+	    rt_edit_process(es);
+	}
 
 	emit sketch_changed();
 	emit view_updated(QG_VIEW_REFRESH);
@@ -253,7 +257,7 @@ QgSketchMoveVertexFilter::eventFilter(QObject *, QEvent *e)
     if (!m_e)
 	return false;
 
-    if (!es)
+    if (!es || !v)
 	return false;
 
     struct rt_sketch_edit *se = (struct rt_sketch_edit *)es->ipe_ptr;
@@ -284,9 +288,11 @@ QgSketchMoveVertexFilter::eventFilter(QObject *, QEvent *e)
 	es->e_para[1] = vv * scale;
 	es->e_inpara  = 2;
 
-	EDOBJ[es->es_int.idb_type].ft_set_edit_mode(es,
-		ECMD_SKETCH_MOVE_VERTEX);
-	rt_edit_process(es);
+	if (es->es_int.idb_type >= 0 && EDOBJ[es->es_int.idb_type].ft_set_edit_mode) {
+	    EDOBJ[es->es_int.idb_type].ft_set_edit_mode(es,
+		    ECMD_SKETCH_MOVE_VERTEX);
+	    rt_edit_process(es);
+	}
 
 	emit sketch_changed();
 	emit view_updated(QG_VIEW_REFRESH);
@@ -308,7 +314,7 @@ QgSketchAddVertexFilter::eventFilter(QObject *, QEvent *e)
     if (!m_e)
 	return false;
 
-    if (!es)
+    if (!es || !v)
 	return false;
 
     if (m_e->type() == QEvent::MouseButtonPress
@@ -325,9 +331,11 @@ QgSketchAddVertexFilter::eventFilter(QObject *, QEvent *e)
 	es->e_para[1] = vv * scale;
 	es->e_inpara  = 2;
 
-	EDOBJ[es->es_int.idb_type].ft_set_edit_mode(es,
-		ECMD_SKETCH_ADD_VERTEX);
-	rt_edit_process(es);
+	if (es->es_int.idb_type >= 0 && EDOBJ[es->es_int.idb_type].ft_set_edit_mode) {
+	    EDOBJ[es->es_int.idb_type].ft_set_edit_mode(es,
+		    ECMD_SKETCH_ADD_VERTEX);
+	    rt_edit_process(es);
+	}
 
 	emit sketch_changed();
 	emit view_updated(QG_VIEW_REFRESH);
@@ -356,6 +364,11 @@ sketch_seg_sample(const struct rt_sketch_internal *skt,
 		  int seg_idx, fastf_t t,
 		  point_t *p3d_out)
 {
+    if (!skt || skt->magic != RT_SKETCH_INTERNAL_MAGIC || !p3d_out)
+	return false;
+    if (seg_idx < 0 || (size_t)seg_idx >= skt->curve.count || !skt->curve.segment || !skt->verts)
+	return false;
+
     void *seg = skt->curve.segment[seg_idx];
     if (!seg)
 	return false;
@@ -366,6 +379,9 @@ sketch_seg_sample(const struct rt_sketch_internal *skt,
 
     if (magic == CURVE_LSEG_MAGIC) {
 	struct line_seg *ls = (struct line_seg *)seg;
+	if (ls->start < 0 || (size_t)ls->start >= skt->vert_count ||
+	    ls->end < 0 || (size_t)ls->end >= skt->vert_count)
+	    return false;
 	u  = (1.0 - t) * skt->verts[ls->start][0]
 	   + t          * skt->verts[ls->end  ][0];
 	vv = (1.0 - t) * skt->verts[ls->start][1]
@@ -375,6 +391,8 @@ sketch_seg_sample(const struct rt_sketch_internal *skt,
 	struct carc_seg *cs = (struct carc_seg *)seg;
 	if (cs->radius < 0.0) {
 	    /* Full circle: parametrise by angle */
+	    if (cs->end < 0 || (size_t)cs->end >= skt->vert_count)
+		return false;
 	    fastf_t cx = skt->verts[cs->end][0];
 	    fastf_t cy = skt->verts[cs->end][1];
 	    fastf_t r  = -cs->radius;
@@ -383,6 +401,9 @@ sketch_seg_sample(const struct rt_sketch_internal *skt,
 	    vv = cy + r * sin(theta);
 	} else {
 	    /* Partial arc: interpolate between start and end angles */
+	    if (cs->start < 0 || (size_t)cs->start >= skt->vert_count ||
+		cs->end < 0 || (size_t)cs->end >= skt->vert_count)
+		return false;
 	    fastf_t sx = skt->verts[cs->start][0];
 	    fastf_t sy = skt->verts[cs->start][1];
 	    fastf_t ex = skt->verts[cs->end  ][0];
@@ -395,13 +416,15 @@ sketch_seg_sample(const struct rt_sketch_internal *skt,
 	struct bezier_seg *bs = (struct bezier_seg *)seg;
 	int deg = bs->degree;
 
-	/* Guard against pathologically high degree (RT_EDIT_MAXPARA - 1 = 19) */
-	if (deg >= RT_EDIT_MAXPARA)
+	/* Guard against negative or pathologically high degree (RT_EDIT_MAXPARA - 1 = 19) */
+	if (deg < 0 || deg >= RT_EDIT_MAXPARA)
 	    return false;
 
 	/* De Casteljau evaluation — RT_EDIT_MAXPARA slots is always sufficient */
 	fastf_t pu[RT_EDIT_MAXPARA], pv[RT_EDIT_MAXPARA];
 	for (int i = 0; i <= deg; i++) {
+	    if (bs->ctl_points[i] < 0 || (size_t)bs->ctl_points[i] >= skt->vert_count)
+		return false;
 	    pu[i] = skt->verts[bs->ctl_points[i]][0];
 	    pv[i] = skt->verts[bs->ctl_points[i]][1];
 	}
@@ -431,7 +454,7 @@ QgSketchPickSegmentFilter::eventFilter(QObject *, QEvent *e)
     if (!m_e)
 	return false;
 
-    if (!es)
+    if (!es || !v)
 	return false;
 
     if (m_e->type() == QEvent::MouseButtonPress
@@ -439,7 +462,7 @@ QgSketchPickSegmentFilter::eventFilter(QObject *, QEvent *e)
 
 	const struct rt_sketch_internal *skt =
 	    (const struct rt_sketch_internal *)es->es_int.idb_ptr;
-	if (!skt || skt->curve.count == 0)
+	if (!skt || skt->magic != RT_SKETCH_INTERNAL_MAGIC || skt->curve.count == 0)
 	    return true;
 
 	/* Build model→view matrix including any edit transform */
@@ -479,9 +502,11 @@ QgSketchPickSegmentFilter::eventFilter(QObject *, QEvent *e)
 
 	es->e_para[0] = (fastf_t)best_seg;
 	es->e_inpara  = 1;
-	EDOBJ[es->es_int.idb_type].ft_set_edit_mode(es,
-		ECMD_SKETCH_PICK_SEGMENT);
-	rt_edit_process(es);
+	if (es->es_int.idb_type >= 0 && EDOBJ[es->es_int.idb_type].ft_set_edit_mode) {
+	    EDOBJ[es->es_int.idb_type].ft_set_edit_mode(es,
+		    ECMD_SKETCH_PICK_SEGMENT);
+	    rt_edit_process(es);
+	}
 
 	emit sketch_changed();
 	emit view_updated(QG_VIEW_REFRESH);
@@ -507,7 +532,7 @@ QgSketchMoveSegmentFilter::eventFilter(QObject *, QEvent *e)
     if (!m_e)
 	return false;
 
-    if (!es)
+    if (!es || !v)
 	return false;
 
     struct rt_sketch_edit *se = (struct rt_sketch_edit *)es->ipe_ptr;
@@ -543,9 +568,11 @@ QgSketchMoveSegmentFilter::eventFilter(QObject *, QEvent *e)
 	es->e_para[1] = dv * scale;
 	es->e_inpara  = 2;
 
-	EDOBJ[es->es_int.idb_type].ft_set_edit_mode(es,
-		ECMD_SKETCH_MOVE_SEGMENT);
-	rt_edit_process(es);
+	if (es->es_int.idb_type >= 0 && EDOBJ[es->es_int.idb_type].ft_set_edit_mode) {
+	    EDOBJ[es->es_int.idb_type].ft_set_edit_mode(es,
+		    ECMD_SKETCH_MOVE_SEGMENT);
+	    rt_edit_process(es);
+	}
 
 	m_prev_u = cur_u;
 	m_prev_v = cur_v;
@@ -580,6 +607,13 @@ sketch_arc_center_uv(const struct rt_sketch_internal *skt,
 		     const struct carc_seg *cs,
 		     fastf_t *cu_out, fastf_t *cv_out)
 {
+    if (!skt || skt->magic != RT_SKETCH_INTERNAL_MAGIC || !cs || !cu_out || !cv_out || !skt->verts)
+	return false;
+
+    if (cs->start < 0 || (size_t)cs->start >= skt->vert_count ||
+	cs->end < 0 || (size_t)cs->end >= skt->vert_count)
+	return false;
+
     fastf_t sx = skt->verts[cs->start][0];
     fastf_t sy = skt->verts[cs->start][1];
     fastf_t ex = skt->verts[cs->end  ][0];
@@ -602,6 +636,8 @@ sketch_arc_center_uv(const struct rt_sketch_internal *skt,
     fastf_t dirx = -s2my;
     fastf_t diry =  s2mx;
     fastf_t dir_len = sqrt(dirx*dirx + diry*diry);
+    if (ZERO(dir_len))
+	return false;
     dirx /= dir_len;
     diry /= dir_len;
 
@@ -663,7 +699,10 @@ QgSketchArcRadiusFilter::eventFilter(QObject *, QEvent *e)
 
     const struct rt_sketch_internal *skt =
 	(const struct rt_sketch_internal *)es->es_int.idb_ptr;
-    if (!skt)
+    if (!skt || skt->magic != RT_SKETCH_INTERNAL_MAGIC)
+	return false;
+
+    if ((size_t)se->curr_seg >= skt->curve.count || !skt->curve.segment)
 	return false;
 
     void *seg = skt->curve.segment[se->curr_seg];
@@ -677,6 +716,8 @@ QgSketchArcRadiusFilter::eventFilter(QObject *, QEvent *e)
 
 	if (cs->radius < 0.0) {
 	    /* Full circle: centre is the end vertex */
+	    if (cs->end < 0 || (size_t)cs->end >= skt->vert_count || !skt->verts)
+		return false;
 	    m_center_u  = skt->verts[cs->end][0];
 	    m_center_v  = skt->verts[cs->end][1];
 	    m_full_circle = true;
@@ -718,9 +759,11 @@ QgSketchArcRadiusFilter::eventFilter(QObject *, QEvent *e)
 	es->e_para[0] = new_r * scale;
 	es->e_inpara  = 1;
 
-	EDOBJ[es->es_int.idb_type].ft_set_edit_mode(es,
-		ECMD_SKETCH_SET_ARC_RADIUS);
-	rt_edit_process(es);
+	if (es->es_int.idb_type >= 0 && EDOBJ[es->es_int.idb_type].ft_set_edit_mode) {
+	    EDOBJ[es->es_int.idb_type].ft_set_edit_mode(es,
+		    ECMD_SKETCH_SET_ARC_RADIUS);
+	    rt_edit_process(es);
+	}
 
 	emit sketch_changed();
 	emit view_updated(QG_VIEW_REFRESH);
@@ -738,7 +781,7 @@ QgSketchArcRadiusFilter::eventFilter(QObject *, QEvent *e)
 bool
 QgSketchCursorTracker::eventFilter(QObject *, QEvent *e)
 {
-    if (e->type() != QEvent::MouseMove)
+    if (!e || e->type() != QEvent::MouseMove)
 	return false;
 
     QMouseEvent *m_e = (QMouseEvent *)e;
@@ -771,7 +814,7 @@ QgSketchSetTangencyFilter::eventFilter(QObject *, QEvent *e)
     if (!m_e)
 	return false;
 
-    if (!es)
+    if (!es || !v)
 	return false;
 
     if (m_e->type() == QEvent::MouseButtonPress
@@ -779,7 +822,7 @@ QgSketchSetTangencyFilter::eventFilter(QObject *, QEvent *e)
 
 	const struct rt_sketch_internal *skt =
 	    (const struct rt_sketch_internal *)es->es_int.idb_ptr;
-	if (!skt || skt->curve.count == 0)
+	if (!skt || skt->magic != RT_SKETCH_INTERNAL_MAGIC || skt->curve.count == 0)
 	    return true;
 
 	/* Build model→view matrix */
@@ -794,11 +837,13 @@ QgSketchSetTangencyFilter::eventFilter(QObject *, QEvent *e)
 	fastf_t best_d2 = INFINITY;
 	int nsamples    = 16;
 
+	struct rt_sketch_edit *se =
+	    (struct rt_sketch_edit *)es->ipe_ptr;
+	int curr_seg = se ? se->curr_seg : -1;
+
 	for (size_t si = 0; si < skt->curve.count; si++) {
 	    /* skip the currently selected CARC itself */
-	    struct rt_sketch_edit *se =
-		(struct rt_sketch_edit *)es->ipe_ptr;
-	    if ((int)si == se->curr_seg)
+	    if ((int)si == curr_seg)
 		continue;
 
 	    for (int k = 0; k <= nsamples; k++) {
@@ -825,9 +870,11 @@ QgSketchSetTangencyFilter::eventFilter(QObject *, QEvent *e)
 	es->e_para[0] = (fastf_t)best_seg;
 	es->e_para[1] = tangency_angle;
 	es->e_inpara  = 2;
-	EDOBJ[es->es_int.idb_type].ft_set_edit_mode(es,
-		ECMD_SKETCH_SET_TANGENCY);
-	rt_edit_process(es);
+	if (es->es_int.idb_type >= 0 && EDOBJ[es->es_int.idb_type].ft_set_edit_mode) {
+	    EDOBJ[es->es_int.idb_type].ft_set_edit_mode(es,
+		    ECMD_SKETCH_SET_TANGENCY);
+	    rt_edit_process(es);
+	}
 
 	emit sketch_changed();
 	emit view_updated(QG_VIEW_REFRESH);

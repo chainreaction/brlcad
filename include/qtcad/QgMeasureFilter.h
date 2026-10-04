@@ -49,6 +49,8 @@ class QTCAD_EXPORT QgMeasureFilter : public QObject
     Q_OBJECT
 
     public:
+	virtual ~QgMeasureFilter();
+
 	// Primary mouse interaction.  As it happens the 2D and 3D mouse event
 	// filtering is the same, so this is not a virtual function.  See
 	// get_point for the 2D/3D specific logic.

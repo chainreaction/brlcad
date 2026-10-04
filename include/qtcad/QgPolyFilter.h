@@ -46,6 +46,8 @@ class QTCAD_EXPORT QgPolyFilter : public QObject
     Q_OBJECT
 
     public:
+	virtual ~QgPolyFilter();
+
 	// Initialization common to the various polygon filter types
 	QMouseEvent *view_sync(QEvent *e);
 
@@ -81,6 +83,7 @@ class QTCAD_EXPORT QPolyCreateFilter : public QgPolyFilter
     Q_OBJECT
 
     public:
+	virtual ~QPolyCreateFilter();
 	bool eventFilter(QObject *, QEvent *e);
 	void finalize(bool);
 
@@ -92,6 +95,7 @@ class QTCAD_EXPORT QPolyUpdateFilter : public QgPolyFilter
     Q_OBJECT
 
     public:
+	virtual ~QPolyUpdateFilter();
 	bool eventFilter(QObject *, QEvent *e);
 
 	struct bu_ptbl bool_objs = BU_PTBL_INIT_ZERO;
@@ -118,6 +122,7 @@ class QTCAD_EXPORT QPolyMoveFilter : public QgPolyFilter
     Q_OBJECT
 
     public:
+	virtual ~QPolyMoveFilter();
 	bool eventFilter(QObject *, QEvent *e);
 	struct bu_ptbl move_objs = BU_PTBL_INIT_ZERO;
 };
