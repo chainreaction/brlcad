@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1547,
-    "pending_files": 1946,
-    "last_updated": "2026-10-04T04:45:00Z",
-    "total_issues": 342,
-    "reviewed_count": 1547
+    "reviewed_files": 1549,
+    "pending_files": 1944,
+    "last_updated": "2026-10-04T04:30:00Z",
+    "total_issues": 343,
+    "reviewed_count": 1549
   },
   "files": [
     {
@@ -32834,10 +32834,12 @@
       "path": "src/libtclcad/bn.c",
       "subsystem": "src/libtclcad",
       "lines": 1374,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T04:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0322"
+      ]
     },
     {
       "id": 3105,
@@ -32906,10 +32908,12 @@
       "path": "src/libtclcad/fb.c",
       "subsystem": "src/libtclcad",
       "lines": 1161,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T04:30:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0322"
+      ]
     },
     {
       "id": 3112,
