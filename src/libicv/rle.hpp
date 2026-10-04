@@ -235,12 +235,13 @@ struct MemReadStream {
     {
 	size_t avail = size - pos;
 	size_t take = (n < avail) ? n : avail;
-	if (take > 0) std::memcpy(p, buf + pos, take);
+	if (take > 0 && p && buf) std::memcpy(p, buf + pos, take);
 	pos += take;
 	return take;
     }
     long tell()
     {
+	if (pos > static_cast<size_t>(std::numeric_limits<long>::max())) return -1L;
 	return static_cast<long>(pos);
     }
     bool seek(long p)
@@ -940,8 +941,13 @@ public:
 	uint32_t scan_y = ymin;
 	int current_channel = -1;
 	uint32_t scan_x = xmin;
+	uint64_t opsThisRow = 0;
 
 	while (scan_y < ymin + H) {
+	    if (++opsThisRow > uint64_t(MAX_OPS_PER_ROW_FACTOR) * W + 1000) {
+		res.error = Error::OP_COUNT_EXCEEDED;
+		return res;
+	    }
 	    uint8_t op0, op1;
 	    if (!read_u8(f, op0)) break;
 	    if (!read_u8(f, op1)) {
@@ -960,9 +966,14 @@ public:
 			    return res;
 			}
 		    } else lines = op1;
-		    scan_y += lines;
+		    if (uint32_t(lines) > (ymin + H > scan_y ? (ymin + H - scan_y) : 0)) {
+			scan_y = ymin + H;
+		    } else {
+			scan_y += lines;
+		    }
 		    scan_x = xmin;
 		    current_channel = -1;
+		    opsThisRow = 0;
 		    continue;
 		}
 		case OPC_SET_COLOR: {
@@ -984,7 +995,11 @@ public:
 			    return res;
 			}
 		    } else skip = op1;
-		    scan_x += skip;
+		    if (uint32_t(skip) > (xmin + W > scan_x ? (xmin + W - scan_x) : 0)) {
+			scan_x = xmin + W;
+		    } else {
+			scan_x += skip;
+		    }
 		}
 		break;
 		case OPC_BYTE_DATA: {
@@ -1017,7 +1032,7 @@ public:
 			    res.error = Error::TRUNCATED_OPCODE;
 			    return res;
 			}
-			++scan_x;
+			if (scan_x < xmin + W) ++scan_x;
 		    }
 		    if (count & 1) {
 			uint8_t filler;
@@ -1053,7 +1068,11 @@ public:
 			}
 			++scan_x;
 		    }
-		    scan_x += to_skip;
+		    if (to_skip > (xmin + W > scan_x ? (xmin + W - scan_x) : 0)) {
+			scan_x = xmin + W;
+		    } else {
+			scan_x += to_skip;
+		    }
 		}
 		break;
 		case OPC_EOF:
@@ -1100,6 +1119,8 @@ private:
 	const size_t num_pixels = size_t(h.width()) * h.height();
 	const uint8_t num_channels = h.channels();
 
+	if (!img.pixels.data() || img.pixels.size() < num_pixels * num_channels) return;
+
 	// For each pixel, apply colormap to color channels (not alpha)
 	for (size_t i = 0; i < num_pixels; ++i) {
 	    uint8_t* pixel = img.pixels.data() + i * num_channels;
@@ -1138,6 +1159,11 @@ write_rgb(Stream& f,
 	  Encoder::BackgroundMode bg_mode,
 	  Error& err)
 {
+    if (!interleaved || width == 0 || height == 0) {
+	err = Error::INTERNAL_ERROR;
+	return false;
+    }
+
     Header h;
     h.xpos = 0;
     h.ypos = 0;

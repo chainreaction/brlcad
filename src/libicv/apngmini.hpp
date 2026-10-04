@@ -539,9 +539,16 @@ struct LibpngBackend {
 	uint32_t width = png_get_image_width(png, info);
 	uint32_t height = png_get_image_height(png, info);
 
+	if (width == 0 || height == 0 || static_cast<uint64_t>(width) * height > APNGMINI_MAX_PIXELS) {
+	    return std::nullopt;
+	}
+
 	result.width = width;
 	result.height = height;
 	size_t rowbytes = png_get_rowbytes(png, info);
+	if (rowbytes < static_cast<size_t>(width) * 4 || (height > 0 && rowbytes > SIZE_MAX / height)) {
+	    return std::nullopt;
+	}
 	result.pixels.resize(rowbytes * height);
 	row_pointers.resize(height);
 
@@ -578,6 +585,10 @@ struct LibpngBackend {
 
     static std::optional<apngmini::vector<uint8_t>> encode_png(const uint8_t* rgba, uint32_t width, uint32_t height, int compression_level = -1)
     {
+	if (!rgba || width == 0 || height == 0 || static_cast<uint64_t>(width) * height > APNGMINI_MAX_PIXELS) {
+	    return std::nullopt;
+	}
+
 	png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
 	if (!png) return std::nullopt;
 
@@ -611,7 +622,7 @@ struct LibpngBackend {
 	png_write_info(png, info);
 
 	for (uint32_t y = 0; y < height; ++y) {
-	    row_pointers[y] = const_cast<png_bytep>(rgba + y * width * 4);
+	    row_pointers[y] = const_cast<png_bytep>(rgba + static_cast<size_t>(y) * width * 4);
 	}
 
 	png_write_image(png, row_pointers.data());
@@ -636,6 +647,7 @@ constexpr uint32_t CHUNK_IEND = 0x49454E44;
 inline void write_chunk(apngmini::vector<uint8_t>& out, uint32_t type, const uint8_t* data, uint32_t len)
 {
     size_t start = out.size();
+    if (start > SIZE_MAX - 12 || static_cast<size_t>(len) > SIZE_MAX - 12 - start) return;
     out.resize(start + 12 + len);
     write_be32(&out[start], len);
     write_be32(&out[start + 4], type);
@@ -690,6 +702,10 @@ changed_pixel_bounds(const apngmini::vector<uint8_t>& previous, const apngmini::
 		     uint32_t width, uint32_t height)
 {
     PixelBounds bounds;
+    uint64_t expected = static_cast<uint64_t>(width) * height * 4;
+    if (expected > previous.size() || expected > current.size()) {
+	return bounds;
+    }
 
     for (uint32_t y = 0; y < height; ++y) {
 	for (uint32_t x = 0; x < width; ++x) {
@@ -751,9 +767,11 @@ inline bool
 bounds_can_use_over(const apngmini::vector<uint8_t>& previous, const apngmini::vector<uint8_t>& current,
 		    uint32_t canvas_width, const PixelBounds& bounds)
 {
+    if (bounds.empty) return false;
     for (uint32_t y = bounds.y_min; y < bounds.y_max; ++y) {
 	for (uint32_t x = bounds.x_min; x < bounds.x_max; ++x) {
 	    size_t idx = (static_cast<size_t>(y) * canvas_width + x) * 4;
+	    if (idx + 4 > previous.size() || idx + 4 > current.size()) return false;
 	    if (!over_reproduces_pixel(current.data() + idx, previous.data() + idx)) {
 		return false;
 	    }
@@ -767,18 +785,27 @@ inline Frame
 crop_frame_to_bounds(const Frame& frame, const PixelBounds& bounds)
 {
     Frame cropped;
+    if (bounds.empty || bounds.x_max <= bounds.x_min || bounds.y_max <= bounds.y_min ||
+	bounds.x_max > frame.width || bounds.y_max > frame.height) {
+	return cropped;
+    }
     cropped.width = bounds.x_max - bounds.x_min;
     cropped.height = bounds.y_max - bounds.y_min;
     cropped.x_offset = bounds.x_min;
     cropped.y_offset = bounds.y_min;
     cropped.delay = frame.delay;
     cropped.dispose_op = DisposeOp::None;
-    cropped.pixels.resize(static_cast<size_t>(cropped.width) * cropped.height * 4);
+    uint64_t crop_pixels = static_cast<uint64_t>(cropped.width) * cropped.height * 4;
+    if (crop_pixels > SIZE_MAX) return cropped;
+    cropped.pixels.resize(static_cast<size_t>(crop_pixels));
 
     for (uint32_t y = 0; y < cropped.height; ++y) {
 	size_t src_idx = (static_cast<size_t>(bounds.y_min + y) * frame.width + bounds.x_min) * 4;
 	size_t dst_idx = static_cast<size_t>(y) * cropped.width * 4;
-	std::memcpy(cropped.pixels.data() + dst_idx, frame.pixels.data() + src_idx, static_cast<size_t>(cropped.width) * 4);
+	if (src_idx + static_cast<size_t>(cropped.width) * 4 <= frame.pixels.size() &&
+	    dst_idx + static_cast<size_t>(cropped.width) * 4 <= cropped.pixels.size()) {
+	    std::memcpy(cropped.pixels.data() + dst_idx, frame.pixels.data() + src_idx, static_cast<size_t>(cropped.width) * 4);
+	}
     }
 
     return cropped;
@@ -1033,6 +1060,10 @@ apngmini::vector<apngmini::vector<uint8_t>> Animation::compose() const
 
     for (size_t i = 0; i < frames.size(); ++i) {
 	const auto& frame = frames[i];
+	uint64_t frame_total = static_cast<uint64_t>(frame.width) * frame.height * 4;
+	if (frame_total > frame.pixels.size() || frame.width == 0 || frame.height == 0) {
+	    continue;
+	}
 
 	// Per spec: first frame dispose_op PREVIOUS is treated as BACKGROUND
 	DisposeOp effective_dispose = frame.dispose_op;
@@ -1056,8 +1087,8 @@ apngmini::vector<apngmini::vector<uint8_t>> Animation::compose() const
 		uint32_t out_x = frame.x_offset + x;
 		if (out_x >= canvas_width) continue;
 
-		size_t out_idx = (out_y * canvas_width + out_x) * 4;
-		size_t src_idx = (y * frame.width + x) * 4;
+		size_t out_idx = (static_cast<size_t>(out_y) * canvas_width + out_x) * 4;
+		size_t src_idx = (static_cast<size_t>(y) * frame.width + x) * 4;
 
 		if (effective_blend == BlendOp::Source) {
 		    std::memcpy(&output_buffer[out_idx], &frame.pixels[src_idx], 4);
@@ -1097,13 +1128,15 @@ apngmini::vector<apngmini::vector<uint8_t>> Animation::compose() const
 
 	// Apply dispose op for next frame
 	if (effective_dispose == DisposeOp::Background) {
-	    for (uint32_t y = 0; y < frame.height; ++y) {
-		uint32_t out_y = frame.y_offset + y;
-		if (out_y >= canvas_height) continue;
-
-		size_t out_idx = (out_y * canvas_width + frame.x_offset) * 4;
+	    if (frame.x_offset < canvas_width) {
 		uint32_t w = std::min(frame.width, canvas_width - frame.x_offset);
-		std::memset(&output_buffer[out_idx], 0, w * 4);
+		for (uint32_t y = 0; y < frame.height; ++y) {
+		    uint32_t out_y = frame.y_offset + y;
+		    if (out_y >= canvas_height) continue;
+
+		    size_t out_idx = (static_cast<size_t>(out_y) * canvas_width + frame.x_offset) * 4;
+		    std::memset(&output_buffer[out_idx], 0, static_cast<size_t>(w) * 4);
+		}
 	    }
 	} else if (effective_dispose == DisposeOp::Previous) {
 	    output_buffer = previous_buffer;
@@ -1119,9 +1152,9 @@ apngmini::vector<apngmini::vector<uint8_t>> Animation::compose() const
 
 std::optional<Reader::Chunk> Reader::peek_chunk(size_t at_offset) const
 {
-    if (at_offset + 8 > size_) return std::nullopt;
+    if (at_offset > size_ || size_ - at_offset < 12) return std::nullopt;
     uint32_t len = detail::read_be32(data_ + at_offset);
-    if (at_offset + 12 + len > size_) return std::nullopt;
+    if (len > size_ - at_offset - 12) return std::nullopt;
     uint32_t type = detail::read_be32(data_ + at_offset + 4);
     uint32_t expected_crc = detail::read_be32(data_ + at_offset + 8 + len);
     uint32_t actual_crc = detail::crc32_data(data_ + at_offset + 4, 4 + len);
@@ -1290,15 +1323,18 @@ Frame Reader::next_frame()
 		    break; // IDAT belongs to something else or is unexpected
 		}
 	    } else if (chunk->type == detail::CHUNK_fdAT) {
-		if (chunk->length >= 4) { // Strip 4-byte sequence number
-		    uint32_t fdat_seq = detail::read_be32(chunk->data);
-		    if (fdat_seq != expected_seq_++) {
-			error_ = true;
-			detail::throw_error("Invalid fdAT sequence number");
-			return {};
-		    }
-		    frame_compressed_data.insert(frame_compressed_data.end(), chunk->data + 4, chunk->data + chunk->length);
+		if (chunk->length < 4) {
+		    error_ = true;
+		    detail::throw_error("Invalid fdAT chunk length");
+		    return {};
 		}
+		uint32_t fdat_seq = detail::read_be32(chunk->data);
+		if (fdat_seq != expected_seq_++) {
+		    error_ = true;
+		    detail::throw_error("Invalid fdAT sequence number");
+		    return {};
+		}
+		frame_compressed_data.insert(frame_compressed_data.end(), chunk->data + 4, chunk->data + chunk->length);
 		offset_ += 12 + chunk->length;
 	    } else if (chunk->type == detail::CHUNK_fcTL || chunk->type == detail::CHUNK_IEND) {
 		break; // Start of next frame or end of file
@@ -1315,9 +1351,9 @@ Frame Reader::next_frame()
 
 Frame Reader::decode_frame_data(const apngmini::vector<uint8_t>& frame_data, uint32_t width, uint32_t height, const Frame& metadata)
 {
-    if (frame_data.empty()) {
+    if (frame_data.empty() || ihdr_chunk_.size() < 25) {
 	error_ = true;
-	detail::throw_error("Empty frame data");
+	detail::throw_error("Empty frame data or invalid IHDR chunk");
 	return metadata;
     }
 
@@ -1393,9 +1429,13 @@ Animation read_file(const char* path)
 	return {};
     }
     auto size = static_cast<size_t>(fsize);
+    if (size > 512 * 1024 * 1024) {
+	detail::throw_error("File exceeds maximum supported size (512MB)");
+	return {};
+    }
     file.seekg(0, std::ios::beg);
     apngmini::vector<uint8_t> buffer(size);
-    if (!file.read(reinterpret_cast<char*>(buffer.data()), static_cast<std::streamsize>(size))) {
+    if (size > 0 && !file.read(reinterpret_cast<char*>(buffer.data()), static_cast<std::streamsize>(size))) {
 	detail::throw_error("Failed to read file contents");
 	return {};
     }

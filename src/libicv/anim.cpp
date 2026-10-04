@@ -112,10 +112,26 @@ extern "C" {
 
 }
 
+    static inline uint8_t
+    float_to_u8(double v)
+    {
+	if (!std::isfinite(v) || v <= 0.0) return 0;
+	if (v >= 1.0) return 255;
+	return static_cast<uint8_t>(v * 255.0 + 0.5);
+    }
+
     static apngmini::Frame
     icv_to_apng(const icv_image_t *img, uint32_t delay_usec)
     {
 	apngmini::Frame f;
+	if (!img || !img->data || img->width == 0 || img->height == 0 || img->channels == 0) {
+	    return f;
+	}
+	uint64_t total_pix = static_cast<uint64_t>(img->width) * img->height;
+	if (total_pix > APNGMINI_MAX_PIXELS || total_pix > SIZE_MAX / 4) {
+	    return f;
+	}
+
 	f.width = img->width;
 	f.height = img->height;
 	f.x_offset = 0;
@@ -131,7 +147,7 @@ extern "C" {
 	    f.delay.denominator = 10;
 	}
 
-	size_t num_pixels = img->width * img->height;
+	size_t num_pixels = static_cast<size_t>(img->width) * img->height;
 	f.pixels.resize(num_pixels * 4, 255); // Alpha = 255
 
 	for (size_t y = 0; y < (size_t)img->height; ++y) {
@@ -140,16 +156,16 @@ extern "C" {
 		size_t p_src = (flip_y * img->width + x) * img->channels; // img is bottom-up
 		size_t p_dst = y * img->width + x;      // apng is top-down
 		if (img->color_space == ICV_COLOR_SPACE_GRAY) {
-		    uint8_t val = (uint8_t)(img->data[p_src] * 255.0 + 0.5);
+		    uint8_t val = float_to_u8(img->data[p_src]);
 		    f.pixels[p_dst*4 + 0] = val;
 		    f.pixels[p_dst*4 + 1] = val;
 		    f.pixels[p_dst*4 + 2] = val;
-		    if (img->channels >= 2) f.pixels[p_dst*4 + 3] = (uint8_t)(img->data[p_src + 1] * 255.0 + 0.5);
+		    if (img->channels >= 2) f.pixels[p_dst*4 + 3] = float_to_u8(img->data[p_src + 1]);
 		} else {
-		    f.pixels[p_dst*4 + 0] = (uint8_t)(img->data[p_src + 0] * 255.0 + 0.5);
-		    f.pixels[p_dst*4 + 1] = (uint8_t)(img->data[p_src + 1] * 255.0 + 0.5);
-		    f.pixels[p_dst*4 + 2] = (uint8_t)(img->data[p_src + 2] * 255.0 + 0.5);
-		    if (img->channels >= 4) f.pixels[p_dst*4 + 3] = (uint8_t)(img->data[p_src + 3] * 255.0 + 0.5);
+		    f.pixels[p_dst*4 + 0] = float_to_u8(img->data[p_src + 0]);
+		    f.pixels[p_dst*4 + 1] = (img->channels > 1) ? float_to_u8(img->data[p_src + 1]) : f.pixels[p_dst*4 + 0];
+		    f.pixels[p_dst*4 + 2] = (img->channels > 2) ? float_to_u8(img->data[p_src + 2]) : f.pixels[p_dst*4 + 0];
+		    if (img->channels >= 4) f.pixels[p_dst*4 + 3] = float_to_u8(img->data[p_src + 3]);
 		}
 	    }
 	}
@@ -220,17 +236,19 @@ extern "C" {
 	    uint32_t chunk_size = avi_read_u32(fp);
 
 	    if (chunk_id[0] == 'L' && chunk_id[1] == 'I' && chunk_id[2] == 'S' && chunk_id[3] == 'T') {
+		if (chunk_size < 4) break;
 		unsigned char list_type[4];
 		if (fread(list_type, 1, 4, fp) != 4) break;
 		if (list_type[0] == 'm' && list_type[1] == 'o' && list_type[2] == 'v' && list_type[3] == 'i') {
-		    long movi_end = ftell(fp) + chunk_size - 4;
+		    long movi_end = ftell(fp) + (long)chunk_size - 4;
 		    while (ftell(fp) < movi_end && !feof(fp)) {
 			unsigned char sub_id[4];
 			if (fread(sub_id, 1, 4, fp) != 4) break;
 			uint32_t sub_size = avi_read_u32(fp);
 			if (sub_id[0] == '0' && sub_id[1] == '0' && sub_id[2] == 'd' && sub_id[3] == 'c') {
-			    if (sub_size > 256 * 1024 * 1024) break; /* Sanity limit 256MB */
+			    if (sub_size == 0 || sub_size > 256 * 1024 * 1024) break; /* Sanity limit 256MB */
 			    unsigned char *buf = (unsigned char *)bu_malloc(sub_size, "avi jpeg frame");
+			    if (!buf) break;
 			    if (fread(buf, 1, sub_size, fp) == sub_size) {
 				icv_image_t *img = icv_read_mem(buf, sub_size, BU_MIME_IMAGE_JPEG, 0, 0);
 				if (img) {
@@ -249,14 +267,15 @@ extern "C" {
 			if (sub_size & 1) fseek(fp, 1, SEEK_CUR);
 		    }
 		} else if (list_type[0] == 'h' && list_type[1] == 'd' && list_type[2] == 'r' && list_type[3] == 'l') {
-		    long hdrl_end = ftell(fp) + chunk_size - 4;
+		    long hdrl_end = ftell(fp) + (long)chunk_size - 4;
 		    while (ftell(fp) < hdrl_end && !feof(fp)) {
 			unsigned char sub_id[4];
 			if (fread(sub_id, 1, 4, fp) != 4) break;
 			uint32_t sub_size = avi_read_u32(fp);
 			if (sub_id[0] == 'a' && sub_id[1] == 'v' && sub_id[2] == 'i' && sub_id[3] == 'h') {
+			    if (sub_size < 4) break;
 			    usec_per_frame = avi_read_u32(fp);
-			    if (sub_size >= 4) {
+			    if (sub_size > 4) {
 				fseek(fp, sub_size - 4, SEEK_CUR);
 			    }
 			} else {
@@ -274,7 +293,10 @@ extern "C" {
 	}
 	fclose(fp);
 
-	if (usec_per_frame > 0) anim->fps = 1000000 / usec_per_frame;
+	if (usec_per_frame > 0) {
+	    anim->fps = (int)(1000000u / usec_per_frame);
+	    if (anim->fps <= 0) anim->fps = 1;
+	}
 
 	if (anim->frames.empty()) {
 	    icv_anim_destroy(anim);
@@ -319,10 +341,24 @@ extern "C" {
 		for (size_t i = 0; i < aapng.frames.size(); ++i) {
 		    uint32_t frame_width = use_composed_frames ? aapng.canvas_width : aapng.frames[i].width;
 		    uint32_t frame_height = use_composed_frames ? aapng.canvas_height : aapng.frames[i].height;
+		    if (frame_width == 0 || frame_height == 0) {
+			icv_anim_destroy(anim);
+			return NULL;
+		    }
+		    uint64_t total_pix = static_cast<uint64_t>(frame_width) * frame_height;
+		    if (total_pix > APNGMINI_MAX_PIXELS || total_pix > SIZE_MAX / 4) {
+			icv_anim_destroy(anim);
+			return NULL;
+		    }
 		    const apngmini::vector<uint8_t>& frame_pixels = use_composed_frames ? composed_frames[i] : aapng.frames[i].pixels;
+		    if (frame_pixels.size() < static_cast<size_t>(total_pix) * 4) {
+			icv_anim_destroy(anim);
+			return NULL;
+		    }
 		    icv_image_t *img = icv_create(frame_width, frame_height, ICV_COLOR_SPACE_RGB);
-		    if (!img) {
+		    if (!img || !img->data) {
 			bu_log("Failed to create img!\n");
+			if (img) icv_destroy(img);
 			icv_anim_destroy(anim);
 			return NULL;
 		    }
@@ -410,7 +446,8 @@ extern "C" {
 	avi_write_cc(fp, "avih");
 	avi_write_u32(fp, 56);
 	avi_write_u32(fp, usec_per_frame);
-	avi_write_u32(fp, max_frame_bytes * (uint32_t)fps);
+	uint64_t rate = (uint64_t)max_frame_bytes * (fps > 0 ? (uint32_t)fps : 1u);
+	avi_write_u32(fp, rate > UINT32_MAX ? UINT32_MAX : (uint32_t)rate);
 	avi_write_u32(fp, 0);
 	avi_write_u32(fp, 0x10);
 	avi_write_u32(fp, num_frames);
@@ -455,7 +492,8 @@ extern "C" {
 	avi_write_u16(fp, 1);
 	avi_write_u16(fp, 24);
 	avi_write_cc(fp, "MJPG");
-	avi_write_u32(fp, (uint32_t)(width * height * 3));
+	uint64_t frame_bytes = (uint64_t)width * height * 3;
+	avi_write_u32(fp, frame_bytes > UINT32_MAX ? UINT32_MAX : (uint32_t)frame_bytes);
 	avi_write_u32(fp, 0);
 	avi_write_u32(fp, 0);
 	avi_write_u32(fp, 0);
@@ -485,7 +523,8 @@ extern "C" {
 	long movi_end = ftell(fp);
 	avi_patch_size(fp, movi_size_pos, (uint32_t)(movi_end - movi_start));
 	avi_write_cc(fp, "idx1");
-	avi_write_u32(fp, num_frames * 16u);
+	uint64_t idx_bytes = (uint64_t)num_frames * 16u;
+	avi_write_u32(fp, idx_bytes > UINT32_MAX ? UINT32_MAX : (uint32_t)idx_bytes);
 	for (uint32_t i = 0; i < num_frames; ++i) {
 	    avi_write_cc(fp, "00dc");
 	    avi_write_u32(fp, 0x10);
@@ -506,12 +545,12 @@ extern "C" {
 	// Recalculate max width/height if not explicitly set
 	uint32_t w = anim->width;
 	uint32_t h = anim->height;
-	if (w == 0 || h == 0) {
-	    for (size_t i = 0; i < anim->frames.size(); ++i) {
-		w = std::max(w, (uint32_t)anim->frames[i].img->width);
-		h = std::max(h, (uint32_t)anim->frames[i].img->height);
-	    }
+	for (size_t i = 0; i < anim->frames.size(); ++i) {
+	    if (!anim->frames[i].img || !anim->frames[i].img->data) return -1;
+	    w = std::max(w, (uint32_t)anim->frames[i].img->width);
+	    h = std::max(h, (uint32_t)anim->frames[i].img->height);
 	}
+	if (w == 0 || h == 0) return -1;
 
 	if (anim->format == ICV_ANIM_APNG) {
 	    apngmini::Animation aapng;
@@ -536,7 +575,7 @@ extern "C" {
 
 		// Write image straight to memory buffer
 		if (icv_write_mem(anim->frames[i].img, &jpg_data, &jpg_size, BU_MIME_IMAGE_JPEG) != 0) {
-		    // Free any successfully compressed frames before returning on failure
+		    if (jpg_data) bu_free(jpg_data, "icv_write_mem buffer");
 		    return -1;
 		}
 
@@ -558,7 +597,7 @@ extern "C" {
     int
     icv_anim_add_frame(icv_anim_t *anim, const icv_image_t *img)
     {
-	if (!anim || !img) return -1;
+	if (!anim || !img || !img->data || img->width == 0 || img->height == 0) return -1;
 	icv_anim_frame f;
 	f.img = icv_clone(img);
 	if (!f.img) return -1;
@@ -570,7 +609,7 @@ extern "C" {
     int
     icv_anim_insert_frame(icv_anim_t *anim, size_t index, const icv_image_t *img)
     {
-	if (!anim || !img || index > anim->frames.size()) return -1;
+	if (!anim || !img || !img->data || img->width == 0 || img->height == 0 || index > anim->frames.size()) return -1;
 	icv_anim_frame f;
 	f.img = icv_clone(img);
 	if (!f.img) return -1;
@@ -582,7 +621,7 @@ extern "C" {
     int
     icv_anim_replace_frame(icv_anim_t *anim, size_t index, const icv_image_t *img)
     {
-	if (!anim || !img || index >= anim->frames.size()) return -1;
+	if (!anim || !img || !img->data || img->width == 0 || img->height == 0 || index >= anim->frames.size()) return -1;
 	icv_image_t *clone = icv_clone(img);
 	if (!clone) return -1;
 	if (anim->frames[index].img) {
@@ -610,7 +649,7 @@ extern "C" {
     icv_image_t *
     icv_anim_get_frame(const icv_anim_t *anim, size_t index)
     {
-	if (!anim || index >= anim->frames.size()) return NULL;
+	if (!anim || index >= anim->frames.size() || !anim->frames[index].img) return NULL;
 	icv_image_t *src = anim->frames[index].img;
 	return icv_clone(src);
     }

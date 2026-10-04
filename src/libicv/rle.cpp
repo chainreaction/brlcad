@@ -42,8 +42,8 @@ inline bool safe_mul_u64(uint64_t a, uint64_t b, uint64_t limit, uint64_t &out)
 
 inline uint8_t dbl_to_u8(double v)
 {
-    if (v < 0.0) v = 0.0;
-    if (v > 1.0) v = 1.0;
+    if (!std::isfinite(v) || v <= 0.0) return 0;
+    if (v >= 1.0) return 255;
     return static_cast<uint8_t>(lrint(v * 255.0));
 }
 inline double u8_to_dbl(uint8_t v)
@@ -222,8 +222,12 @@ void log_rle_error(const char *context, rle::Error e)
 extern "C" int
 rle_write(icv_image_t *bif, FILE *fp)
 {
-    if (!bif || !fp) {
-	bu_log("rle_write: null image or file pointer\n");
+    if (!bif || !bif->data || !fp) {
+	bu_log("rle_write: null image, data, or file pointer\n");
+	return BRLCAD_ERROR;
+    }
+    if (bif->width == 0 || bif->height == 0) {
+	bu_log("rle_write: image dimensions cannot be zero\n");
 	return BRLCAD_ERROR;
     }
     if (bif->channels < 3) {
@@ -247,7 +251,7 @@ rle_write(icv_image_t *bif, FILE *fp)
     // Extract RGB for background detection if we have alpha
     std::vector<uint8_t> rgb_only;
     if (has_alpha) {
-	size_t npix = bif->width * bif->height;
+	size_t npix = static_cast<size_t>(bif->width) * bif->height;
 	rgb_only.resize(npix * 3);
 	for (size_t i = 0; i < npix; ++i) {
 	    rgb_only[3*i + 0] = data[4*i + 0];  // R
@@ -279,14 +283,18 @@ rle_write(icv_image_t *bif, FILE *fp)
 extern "C" int
 rle_write_mem(icv_image_t *bif, unsigned char **outbuffer, size_t *outsize)
 {
-    if (!bif || !outbuffer || !outsize) {
-	bu_log("rle_write_mem: null image or buffer pointers\n");
+    if (!bif || !bif->data || !outbuffer || !outsize) {
+	bu_log("rle_write_mem: null image, data, or buffer pointers\n");
 	return BRLCAD_ERROR;
     }
 
     *outbuffer = NULL;
     *outsize = 0;
 
+    if (bif->width == 0 || bif->height == 0) {
+	bu_log("rle_write_mem: image dimensions cannot be zero\n");
+	return BRLCAD_ERROR;
+    }
     if (bif->channels < 3) {
 	bu_log("rle_write_mem: image must have at least 3 channels (RGB)\n");
 	return BRLCAD_ERROR;
@@ -305,7 +313,7 @@ rle_write_mem(icv_image_t *bif, unsigned char **outbuffer, size_t *outsize)
 
     std::vector<uint8_t> rgb_only;
     if (has_alpha) {
-	size_t npix = bif->width * bif->height;
+	size_t npix = static_cast<size_t>(bif->width) * bif->height;
 	rgb_only.resize(npix * 3);
 	for (size_t i = 0; i < npix; ++i) {
 	    rgb_only[3*i + 0] = data[4*i + 0];
@@ -332,7 +340,14 @@ rle_write_mem(icv_image_t *bif, unsigned char **outbuffer, size_t *outsize)
 
     // Allocate exact capacity and fulfill the API contract
     *outsize = out_vec.size();
+    if (*outsize == 0) {
+	return BRLCAD_ERROR;
+    }
     *outbuffer = (unsigned char *)bu_malloc(*outsize, "rle_write_mem buffer");
+    if (!*outbuffer) {
+	*outsize = 0;
+	return BRLCAD_ERROR;
+    }
     std::memcpy(*outbuffer, out_vec.data(), *outsize);
 
     return BRLCAD_OK;
