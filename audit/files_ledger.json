@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1575,
-    "pending_files": 1918,
-    "last_updated": "2026-10-04T12:00:00Z",
-    "total_issues": 349,
-    "reviewed_count": 1575
+    "reviewed_files": 1579,
+    "pending_files": 1914,
+    "last_updated": "2026-10-04T16:00:00Z",
+    "total_issues": 350,
+    "reviewed_count": 1579
   },
   "files": [
     {
@@ -27263,20 +27263,24 @@
       "path": "src/libicv/anim.cpp",
       "subsystem": "src/libicv",
       "lines": 627,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T16:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0329"
+      ]
     },
     {
       "id": 2554,
       "path": "src/libicv/apngmini.hpp",
       "subsystem": "src/libicv",
       "lines": 1422,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T16:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0329"
+      ]
     },
     {
       "id": 2555,
@@ -27487,20 +27491,24 @@
       "path": "src/libicv/rle.cpp",
       "subsystem": "src/libicv",
       "lines": 435,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T16:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0329"
+      ]
     },
     {
       "id": 2573,
       "path": "src/libicv/rle.hpp",
       "subsystem": "src/libicv",
       "lines": 1294,
-      "status": "PENDING",
-      "reviewed_at": null,
-      "issues_count": 0,
-      "issue_ids": []
+      "status": "COMPLETED",
+      "reviewed_at": "2026-10-04T16:00:00Z",
+      "issues_count": 1,
+      "issue_ids": [
+        "SEC-0329"
+      ]
     },
     {
       "id": 2574,
@@ -37138,5 +37146,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-10-04T12:00:00Z"
+  "last_updated": "2026-10-04T16:00:00Z"
 }
