@@ -42,7 +42,11 @@ struct path_match_data {
 static struct bu_hash_entry *
 key_matches_paths(struct bu_hash_tbl *t, void *udata)
 {
+    if (!t || !udata)
+	return NULL;
     struct path_match_data *data = (struct path_match_data *)udata;
+    if (!data->s_fpath || !data->dbip)
+	return NULL;
     struct db_full_path entry_fpath;
     uint8_t *key;
     char *path_string;
@@ -51,16 +55,13 @@ key_matches_paths(struct bu_hash_tbl *t, void *udata)
     while (entry) {
 	(void)bu_hash_key(entry, &key, NULL);
 	path_string = (char *)key;
-	if (db_string_to_path(&entry_fpath, data->dbip, path_string) < 0) {
-	    continue;
-	}
-
-	if (db_full_path_match_top(&entry_fpath, data->s_fpath)) {
+	if (path_string && db_string_to_path(&entry_fpath, data->dbip, path_string) >= 0) {
+	    if (db_full_path_match_top(&entry_fpath, data->s_fpath)) {
+		db_free_full_path(&entry_fpath);
+		return entry;
+	    }
 	    db_free_full_path(&entry_fpath);
-	    return entry;
 	}
-
-	db_free_full_path(&entry_fpath);
 	entry = bu_hash_next(t, entry);
     }
 
@@ -70,8 +71,12 @@ key_matches_paths(struct bu_hash_tbl *t, void *udata)
 static void
 go_draw_solid(struct bview *gdvp, struct bv_scene_obj *sp)
 {
+    if (!gdvp || !sp || !gdvp->u_data || !gdvp->dmp)
+	return;
     struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
     struct ged *gedp = tvd->gedp;
+    if (!gedp || !gedp->u_data || !gedp->dbip)
+	return;
     struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)gedp->u_data;
     struct dm *dmp = (struct dm *)gdvp->dmp;
     struct bu_hash_entry *entry;
@@ -79,16 +84,17 @@ go_draw_solid(struct bview *gdvp, struct bv_scene_obj *sp)
     mat_t save_mat, edit_model2view;
     struct path_match_data data;
 
-    if (!sp->s_u_data)
+    if (!sp->s_u_data || !sp->s_os)
 	return;
     struct ged_bv_data *bdata = (struct ged_bv_data *)sp->s_u_data;
 
     data.s_fpath = &bdata->s_fullpath;
     data.dbip = gedp->dbip;
-    entry = key_matches_paths(tgd->go_dmv.edited_paths, &data);
-
-    if (entry != NULL) {
-	params = (struct dm_path_edit_params *)bu_hash_value(entry, NULL);
+    if (tgd->go_dmv.edited_paths) {
+	entry = key_matches_paths(tgd->go_dmv.edited_paths, &data);
+	if (entry != NULL) {
+	    params = (struct dm_path_edit_params *)bu_hash_value(entry, NULL);
+	}
     }
     if (params) {
 	MAT_COPY(save_mat, gdvp->gv_model2view);
@@ -118,7 +124,6 @@ go_draw_solid(struct bview *gdvp, struct bv_scene_obj *sp)
     }
 }
 
-/* Draw all display lists */
 static int
 go_draw_dlist(struct bview *gdvp)
 {
@@ -126,9 +131,18 @@ go_draw_dlist(struct bview *gdvp)
     register struct display_list *next_gdlp;
     struct bv_scene_obj *sp;
     int line_style = -1;
+
+    if (!gdvp || !gdvp->dmp || !gdvp->u_data)
+	return BRLCAD_ERROR;
+
     struct dm *dmp = (struct dm *)gdvp->dmp;
     struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
+    if (!tvd->gedp)
+	return BRLCAD_ERROR;
+
     struct bu_list *hdlp = (struct bu_list *)ged_dl(tvd->gedp);
+    if (!hdlp)
+	return BRLCAD_ERROR;
 
     if (dm_get_transparency(dmp)) {
 	/* First, draw opaque stuff */
@@ -137,7 +151,7 @@ go_draw_dlist(struct bview *gdvp)
 	    next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
 
 	    for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
-		if (sp->s_os->transparency < 1.0)
+		if (!sp->s_os || sp->s_os->transparency < 1.0)
 		    continue;
 
 		if (line_style != sp->s_soldash) {
@@ -161,7 +175,7 @@ go_draw_dlist(struct bview *gdvp)
 
 	    for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
 		/* already drawn above */
-		if (ZERO(sp->s_os->transparency - 1.0))
+		if (!sp->s_os || ZERO(sp->s_os->transparency - 1.0))
 		    continue;
 
 		if (line_style != sp->s_soldash) {
@@ -183,6 +197,9 @@ go_draw_dlist(struct bview *gdvp)
 	    next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
 
 	    for (BU_LIST_FOR(sp, bv_scene_obj, &gdlp->dl_head_scene_obj)) {
+		if (!sp->s_os)
+		    continue;
+
 		if (line_style != sp->s_soldash) {
 		    line_style = sp->s_soldash;
 		    (void)dm_set_line_attr(dmp, dm_get_linewidth(dmp), line_style);
@@ -201,6 +218,9 @@ go_draw_dlist(struct bview *gdvp)
 void
 go_draw(struct bview *gdvp)
 {
+    if (!gdvp || !gdvp->dmp)
+	return;
+
     (void)dm_loadmatrix((struct dm *)gdvp->dmp, gdvp->gv_model2view, 0);
 
     if (SMALL_FASTF < gdvp->gv_perspective)
@@ -222,19 +242,23 @@ to_edit_redraw(struct ged *gedp,
     struct db_full_path subpath;
     int ret = BRLCAD_OK;
 
-    if (argc != 2)
+    if (!gedp || !gedp->dbip || argc != 2 || !argv || !argv[0] || !argv[1])
 	return BRLCAD_ERROR;
 
-    gdlp = BU_LIST_NEXT(display_list, (struct bu_list *)ged_dl(gedp));
-    while (BU_LIST_NOT_HEAD(gdlp, ged_dl(gedp))) {
+    struct bu_list *hdlp = (struct bu_list *)ged_dl(gedp);
+    if (!hdlp)
+	return BRLCAD_ERROR;
+
+    gdlp = BU_LIST_NEXT(display_list, hdlp);
+    while (BU_LIST_NOT_HEAD(gdlp, hdlp)) {
 	gdlp->dl_wflag = 0;
 	gdlp = BU_LIST_PNEXT(display_list, gdlp);
     }
 
     if (db_string_to_path(&subpath, gedp->dbip, argv[1]) == 0) {
 	for (i = 0; i < subpath.fp_len; ++i) {
-	    gdlp = BU_LIST_NEXT(display_list, (struct bu_list *)ged_dl(gedp));
-	    while (BU_LIST_NOT_HEAD(gdlp, (struct bu_list *)ged_dl(gedp))) {
+	    gdlp = BU_LIST_NEXT(display_list, hdlp);
+	    while (BU_LIST_NOT_HEAD(gdlp, hdlp)) {
 		register struct bv_scene_obj *curr_sp;
 
 		next_gdlp = BU_LIST_PNEXT(display_list, gdlp);
@@ -257,6 +281,9 @@ to_edit_redraw(struct ged *gedp,
 			struct bu_vls xflag = BU_VLS_INIT_ZERO;
 			const char *av[5] = {0};
 			int arg = 0;
+
+			if (BU_LIST_IS_HEAD(sp, &gdlp->dl_head_scene_obj) || !sp->s_os)
+			    break;
 
 			av[arg++] = (char *)argv[0];
 			if (sp->s_os->s_dmode == 4) {
@@ -284,10 +311,12 @@ to_edit_redraw(struct ged *gedp,
 			 * second to last list items play leap frog
 			 * with the end of list.
 			 */
-			last_gdlp = BU_LIST_PREV(display_list, (struct bu_list *)ged_dl(gedp));
-			BU_LIST_DEQUEUE(&last_gdlp->l);
-			BU_LIST_INSERT(&next_gdlp->l, &last_gdlp->l);
-			last_gdlp->dl_wflag = 1;
+			last_gdlp = BU_LIST_PREV(display_list, hdlp);
+			if (BU_LIST_NOT_HEAD(last_gdlp, hdlp)) {
+			    BU_LIST_DEQUEUE(&last_gdlp->l);
+			    BU_LIST_INSERT(&next_gdlp->l, &last_gdlp->l);
+			    last_gdlp->dl_wflag = 1;
+			}
 
 			goto end;
 		    }
@@ -314,17 +343,20 @@ to_redraw(struct ged *gedp,
 	  const char *usage,
 	  int UNUSED(maxargs))
 {
+    if (!gedp || !gedp->ged_result_str || !argv)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", (argv && argv[0]) ? argv[0] : "redraw", usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 2 || !argv[0] || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", (argv && argv[0]) ? argv[0] : "redraw", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -340,6 +372,9 @@ to_blast(struct ged *gedp,
 	 int UNUSED(maxargs))
 {
     int ret;
+
+    if (!gedp || !argv)
+	return BRLCAD_ERROR;
 
     ret = ged_exec(gedp, argc, argv);
 

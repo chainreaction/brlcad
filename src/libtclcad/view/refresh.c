@@ -37,6 +37,11 @@
 void
 go_refresh_draw(struct ged *gedp, struct bview *gdvp, int restore_zbuffer)
 {
+    if (!gedp || !gdvp || !gdvp->u_data || !current_top || !current_top->to_gedp || !current_top->to_gedp->u_data)
+	return;
+    if (!gedp->dbip || !gdvp->gv_s || !gdvp->dmp)
+	return;
+
     struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
     struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
     struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
@@ -137,7 +142,6 @@ go_refresh_draw(struct ged *gedp, struct bview *gdvp, int restore_zbuffer)
     gdvp->gv_local2base = gedp->dbip->dbi_local2base;
     gdvp->gv_base2local = gedp->dbip->dbi_base2local;
     dm_draw_viewobjs(wdbp, gdvp, &tgd->go_dmv);
-    dm_draw_viewobjs(wdbp, gdvp, &tgd->go_dmv);
     gdvp->gv_local2base = l2b;
     gdvp->gv_base2local = b2l;
 }
@@ -146,6 +150,9 @@ void
 go_refresh(struct ged *gedp, struct bview *gdvp)
 {
     int restore_zbuffer = 0;
+
+    if (!gedp || !gdvp || !gdvp->u_data || !gdvp->dmp)
+	return;
 
     /* Turn off the zbuffer if the framebuffer is active AND the zbuffer is on. */
     struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
@@ -162,8 +169,7 @@ go_refresh(struct ged *gedp, struct bview *gdvp)
 void
 to_refresh_view(struct bview *gdvp)
 {
-
-    if (current_top == NULL)
+    if (!gdvp || current_top == NULL || !current_top->to_gedp || !current_top->to_gedp->u_data)
 	return;
 
     struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
@@ -179,10 +185,17 @@ to_refresh_all_views(struct tclcad_obj *top)
 {
     struct bview *gdvp;
 
+    if (!top || !top->to_gedp)
+	return;
+
     struct bu_ptbl *views = bv_set_views(&top->to_gedp->ged_views);
+    if (!views)
+	return;
+
     for (size_t i = 0; i < BU_PTBL_LEN(views); i++) {
 	gdvp = (struct bview *)BU_PTBL_GET(views, i);
-	to_refresh_view(gdvp);
+	if (gdvp)
+	    to_refresh_view(gdvp);
     }
 }
 
@@ -194,17 +207,20 @@ to_refresh(struct ged *gedp,
 	   const char *usage,
 	   int UNUSED(maxargs))
 {
+    if (!gedp || !gedp->ged_result_str || !argv)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", (argv && argv[0]) ? argv[0] : "refresh", usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 2 || !argv[0] || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", (argv && argv[0]) ? argv[0] : "refresh", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -220,8 +236,13 @@ to_refresh_all(struct ged *gedp,
 	       const char *UNUSED(usage),
 	       int UNUSED(maxargs))
 {
-    if (argc != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s", argv[0]);
+    if (!gedp || !gedp->ged_result_str || !argv)
+	return BRLCAD_ERROR;
+
+    bu_vls_trunc(gedp->ged_result_str, 0);
+
+    if (argc != 1 || !argv[0]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s", (argv && argv[0]) ? argv[0] : "refresh_all");
 	return BRLCAD_ERROR;
     }
 
@@ -240,13 +261,22 @@ to_refresh_on(struct ged *gedp,
 	      int UNUSED(maxargs))
 {
     int on;
+
+    if (!gedp || !gedp->ged_result_str || !argv)
+	return BRLCAD_ERROR;
+
+    if (!current_top || !current_top->to_gedp || !current_top->to_gedp->u_data) {
+	bu_vls_printf(gedp->ged_result_str, "No active tclcad object");
+	return BRLCAD_ERROR;
+    }
+
     struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
-    if (2 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s", argv[0]);
+    if (argc < 1 || 2 < argc || !argv[0]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s", (argv && argv[0]) ? argv[0] : "refresh_on");
 	return BRLCAD_ERROR;
     }
 
@@ -257,12 +287,12 @@ to_refresh_on(struct ged *gedp,
     }
 
     /* Set refresh_on state */
-    if (bu_sscanf(argv[1], "%d", &on) != 1) {
+    if (!argv[1] || bu_sscanf(argv[1], "%d", &on) != 1) {
 	bu_vls_printf(gedp->ged_result_str, "Usage: %s", argv[0]);
 	return BRLCAD_ERROR;
     }
 
-    tgd->go_dmv.refresh_on = on;
+    tgd->go_dmv.refresh_on = on ? 1 : 0;
 
     return BRLCAD_OK;
 }
@@ -273,9 +303,13 @@ to_handle_refresh(struct ged *gedp,
 {
     struct bview *gdvp;
 
+    if (!gedp || !name)
+	return BRLCAD_ERROR;
+
     gdvp = bv_set_find_view(&gedp->ged_views, name);
     if (!gdvp) {
-	bu_vls_printf(gedp->ged_result_str, "View not found - %s", name);
+	if (gedp->ged_result_str)
+	    bu_vls_printf(gedp->ged_result_str, "View not found - %s", name);
 	return BRLCAD_ERROR;
     }
 
@@ -288,6 +322,9 @@ to_handle_refresh(struct ged *gedp,
 void
 to_refresh_handler(void *clientdata)
 {
+    if (!clientdata)
+	return;
+
     struct bview *gdvp = (struct bview *)clientdata;
 
     /* Possibly do more here */

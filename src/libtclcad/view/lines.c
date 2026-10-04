@@ -45,26 +45,28 @@ go_data_lines(Tcl_Interp *UNUSED(interp),
 {
     int ret;
 
+    if (!gedp || !gedp->ged_result_str || !argv)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", (argv && argv[0]) ? argv[0] : "data_lines", usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc < 2 || 5 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc < 2 || 5 < argc || !argv[0]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", (argv && argv[0]) ? argv[0] : "data_lines", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
     /* Don't allow go_refresh() to be called */
-    if (current_top != NULL) {
+    if (current_top != NULL && current_top->to_gedp && current_top->to_gedp->u_data) {
 	struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
 	tgd->go_dmv.refresh_on = 0;
     }
-
 
     struct bview *btmp = gedp->ged_gvp;
     gedp->ged_gvp = gdvp;
@@ -92,17 +94,20 @@ to_data_lines(struct ged *gedp,
     struct bview *gdvp;
     int ret;
 
+    if (!gedp || !gedp->ged_result_str || !argv)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", (argv && argv[0]) ? argv[0] : "data_lines", usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc < 3 || 6 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc < 3 || 6 < argc || !argv[0] || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", (argv && argv[0]) ? argv[0] : "data_lines", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 

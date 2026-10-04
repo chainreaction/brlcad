@@ -44,21 +44,29 @@ to_faceplate(struct ged *gedp,
     int i;
     struct bview *gdvp;
 
+    if (!gedp || !gedp->ged_result_str || !argv)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", (argv && argv[0]) ? argv[0] : "faceplate", usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc < 4 || 7 < argc)
+    if (argc < 4 || 7 < argc || !argv[0] || !argv[1] || !argv[2] || !argv[3])
 	goto bad;
 
     gdvp = bv_set_find_view(&gedp->ged_views, argv[1]);
     if (!gdvp) {
 	bu_vls_printf(gedp->ged_result_str, "View not found - %s", argv[1]);
+	return BRLCAD_ERROR;
+    }
+
+    if (!gdvp->gv_s) {
+	bu_vls_printf(gedp->ged_result_str, "View state not initialized - %s", argv[1]);
 	return BRLCAD_ERROR;
     }
 
@@ -91,6 +99,11 @@ to_faceplate(struct ged *gedp,
 		if (bu_sscanf(argv[4], "%d", &r) != 1 ||
 		    bu_sscanf(argv[5], "%d", &g) != 1 ||
 		    bu_sscanf(argv[6], "%d", &b) != 1)
+		    goto bad;
+
+		if (r < 0 || 255 < r ||
+		    g < 0 || 255 < g ||
+		    b < 0 || 255 < b)
 		    goto bad;
 
 		VSET(gdvp->gv_s->gv_center_dot.gos_line_color, r, g, b);
@@ -133,6 +146,11 @@ to_faceplate(struct ged *gedp,
 		    bu_sscanf(argv[6], "%d", &b) != 1)
 		    goto bad;
 
+		if (r < 0 || 255 < r ||
+		    g < 0 || 255 < g ||
+		    b < 0 || 255 < b)
+		    goto bad;
+
 		VSET(gdvp->gv_tcl.gv_prim_labels.gos_text_color, r, g, b);
 		to_refresh_view(gdvp);
 		return BRLCAD_OK;
@@ -171,6 +189,11 @@ to_faceplate(struct ged *gedp,
 		if (bu_sscanf(argv[4], "%d", &r) != 1 ||
 		    bu_sscanf(argv[5], "%d", &g) != 1 ||
 		    bu_sscanf(argv[6], "%d", &b) != 1)
+		    goto bad;
+
+		if (r < 0 || 255 < r ||
+		    g < 0 || 255 < g ||
+		    b < 0 || 255 < b)
 		    goto bad;
 
 		VSET(gdvp->gv_s->gv_view_params.color, r, g, b);
@@ -213,6 +236,11 @@ to_faceplate(struct ged *gedp,
 		    bu_sscanf(argv[6], "%d", &b) != 1)
 		    goto bad;
 
+		if (r < 0 || 255 < r ||
+		    g < 0 || 255 < g ||
+		    b < 0 || 255 < b)
+		    goto bad;
+
 		VSET(gdvp->gv_s->gv_view_scale.gos_line_color, r, g, b);
 		to_refresh_view(gdvp);
 		return BRLCAD_OK;
@@ -223,7 +251,7 @@ to_faceplate(struct ged *gedp,
     }
 
 bad:
-    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", (argv && argv[0]) ? argv[0] : "faceplate", usage ? usage : "");
     return BRLCAD_ERROR;
 }
 

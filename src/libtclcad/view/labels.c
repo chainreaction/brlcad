@@ -33,6 +33,26 @@
 #include "../tclcad_private.h"
 #include "../view/view.h"
 
+static void
+_free_data_labels(struct bv_data_label_state *gdlsp, size_t count)
+{
+    if (gdlsp->gdls_labels) {
+	for (size_t j = 0; j < count; ++j) {
+	    if (gdlsp->gdls_labels[j]) {
+		bu_free(gdlsp->gdls_labels[j], "label string");
+		gdlsp->gdls_labels[j] = NULL;
+	    }
+	}
+	bu_free((void *)gdlsp->gdls_labels, "data labels");
+	gdlsp->gdls_labels = (char **)0;
+    }
+    if (gdlsp->gdls_points) {
+	bu_free((void *)gdlsp->gdls_points, "data points");
+	gdlsp->gdls_points = (point_t *)0;
+    }
+    gdlsp->gdls_num_labels = 0;
+}
+
 int
 go_data_labels(Tcl_Interp *interp,
 	       struct ged *gedp,
@@ -43,22 +63,25 @@ go_data_labels(Tcl_Interp *interp,
 {
     int ret;
 
+    if (!gedp || !gedp->ged_result_str || !argv)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", (argv && argv[0]) ? argv[0] : "data_labels", usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc < 2 || 5 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc < 2 || 5 < argc || !argv[0]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", (argv && argv[0]) ? argv[0] : "data_labels", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
     /* Don't allow go_refresh() to be called */
-    if (current_top != NULL) {
+    if (current_top != NULL && current_top->to_gedp && current_top->to_gedp->u_data) {
 	struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
 	tgd->go_dmv.refresh_on = 0;
     }
@@ -82,17 +105,25 @@ to_data_labels(struct ged *gedp,
     struct bview *gdvp;
     int ret;
 
+    if (!gedp || !gedp->ged_result_str || !argv)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", (argv && argv[0]) ? argv[0] : "data_labels", usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc < 3 || 6 < argc) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc < 3 || 6 < argc || !argv[0] || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", (argv && argv[0]) ? argv[0] : "data_labels", usage ? usage : "");
+	return BRLCAD_ERROR;
+    }
+
+    if (!current_top || !current_top->to_interp) {
+	bu_vls_printf(gedp->ged_result_str, "No active tclcad object");
 	return BRLCAD_ERROR;
     }
 
@@ -120,6 +151,9 @@ to_data_labels_func(Tcl_Interp *interp,
 		    const char *argv[])
 {
     struct bv_data_label_state *gdlsp;
+
+    if (!gedp || !gdvp || !argv || argc < 2 || !argv[0] || !argv[1])
+	return BRLCAD_ERROR;
 
     if (argv[0][0] == 's')
 	gdlsp = &gdvp->gv_tcl.gv_sdata_labels;
@@ -205,11 +239,7 @@ to_data_labels_func(Tcl_Interp *interp,
 	    }
 
 	    if (gdlsp->gdls_num_labels) {
-		bu_argv_free(gdlsp->gdls_num_labels, gdlsp->gdls_labels);
-		bu_free((void *)gdlsp->gdls_points, "data points");
-		gdlsp->gdls_labels = (char **)0;
-		gdlsp->gdls_points = (point_t *)0;
-		gdlsp->gdls_num_labels = 0;
+		_free_data_labels(gdlsp, (size_t)gdlsp->gdls_num_labels);
 	    }
 
 	    /* Clear out data points */
@@ -228,13 +258,7 @@ to_data_labels_func(Tcl_Interp *interp,
 		double scan[ELEMENTS_PER_VECT];
 
 		if (Tcl_SplitList(interp, av[i], &sub_ac, &sub_av) != TCL_OK) {
-		    /*XXX Need a macro for the following lines. Do something similar for the rest. */
-		    bu_free((void *)gdlsp->gdls_labels, "data labels");
-		    bu_free((void *)gdlsp->gdls_points, "data points");
-		    gdlsp->gdls_labels = (char **)0;
-		    gdlsp->gdls_points = (point_t *)0;
-		    gdlsp->gdls_num_labels = 0;
-
+		    _free_data_labels(gdlsp, (size_t)i);
 		    bu_vls_printf(gedp->ged_result_str, "%s", Tcl_GetStringResult(interp));
 		    Tcl_Free((char *)av);
 		    to_refresh_view(gdvp);
@@ -242,13 +266,7 @@ to_data_labels_func(Tcl_Interp *interp,
 		}
 
 		if (sub_ac != 2) {
-		    /*XXX Need a macro for the following lines. Do something similar for the rest. */
-		    bu_free((void *)gdlsp->gdls_labels, "data labels");
-		    bu_free((void *)gdlsp->gdls_points, "data points");
-		    gdlsp->gdls_labels = (char **)0;
-		    gdlsp->gdls_points = (point_t *)0;
-		    gdlsp->gdls_num_labels = 0;
-
+		    _free_data_labels(gdlsp, (size_t)i);
 		    bu_vls_printf(gedp->ged_result_str, "Each list element must contain a label and a point (i.e. {{some label} {0 0 0}})");
 		    Tcl_Free((char *)sub_av);
 		    Tcl_Free((char *)av);
@@ -258,14 +276,7 @@ to_data_labels_func(Tcl_Interp *interp,
 
 		if (bu_sscanf(sub_av[1], "%lf %lf %lf", &scan[X], &scan[Y], &scan[Z]) != 3) {
 		    bu_vls_printf(gedp->ged_result_str, "bad data point - %s\n", sub_av[1]);
-
-		    /*XXX Need a macro for the following lines. Do something similar for the rest. */
-		    bu_free((void *)gdlsp->gdls_labels, "data labels");
-		    bu_free((void *)gdlsp->gdls_points, "data points");
-		    gdlsp->gdls_labels = (char **)0;
-		    gdlsp->gdls_points = (point_t *)0;
-		    gdlsp->gdls_num_labels = 0;
-
+		    _free_data_labels(gdlsp, (size_t)i);
 		    Tcl_Free((char *)sub_av);
 		    Tcl_Free((char *)av);
 		    to_refresh_view(gdvp);
@@ -293,7 +304,7 @@ to_data_labels_func(Tcl_Interp *interp,
 	if (argc == 3) {
 	    int size;
 
-	    if (bu_sscanf(argv[2], "%d", &size) != 1)
+	    if (bu_sscanf(argv[2], "%d", &size) != 1 || size < 0)
 		goto bad;
 
 	    gdlsp->gdls_size = size;
@@ -319,29 +330,40 @@ to_prim_label(struct ged *gedp,
 	      int UNUSED(maxargs))
 {
     register int i;
+
+    if (!gedp || !gedp->ged_result_str || !argv || argc < 1)
+	return BRLCAD_ERROR;
+
+    if (!current_top || !current_top->to_gedp || !current_top->to_gedp->u_data) {
+	bu_vls_printf(gedp->ged_result_str, "No active tclcad object");
+	return BRLCAD_ERROR;
+    }
+
     struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
     /* Free the previous list of primitives scheduled for labeling */
-    if (tgd->go_dmv.prim_label_list_size) {
+    if (tgd->go_dmv.prim_label_list_size > 0 && tgd->go_dmv.prim_label_list) {
 	for (i = 0; i < tgd->go_dmv.prim_label_list_size; ++i)
 	    bu_vls_free(&tgd->go_dmv.prim_label_list[i]);
 	bu_free((void *)tgd->go_dmv.prim_label_list, "prim_label");
 	tgd->go_dmv.prim_label_list = (struct bu_vls *)0;
     }
+    tgd->go_dmv.prim_label_list_size = 0;
 
     /* Set the list of primitives scheduled for labeling */
-    tgd->go_dmv.prim_label_list_size = argc - 1;
-    if (tgd->go_dmv.prim_label_list_size < 1)
+    if (argc == 1)
 	return BRLCAD_OK;
 
+    tgd->go_dmv.prim_label_list_size = argc - 1;
     tgd->go_dmv.prim_label_list = (struct bu_vls *)bu_calloc(tgd->go_dmv.prim_label_list_size,
-									 sizeof(struct bu_vls), "prim_label");
+								 sizeof(struct bu_vls), "prim_label");
     for (i = 0; i < tgd->go_dmv.prim_label_list_size; ++i) {
 	bu_vls_init(&tgd->go_dmv.prim_label_list[i]);
-	bu_vls_printf(&tgd->go_dmv.prim_label_list[i], "%s", argv[i+1]);
+	if (argv[i+1])
+	    bu_vls_printf(&tgd->go_dmv.prim_label_list[i], "%s", argv[i+1]);
     }
 
     return BRLCAD_OK;

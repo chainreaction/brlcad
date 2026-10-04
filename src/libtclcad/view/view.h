@@ -23,10 +23,15 @@
  *
  */
 
+#ifndef LIBTCLCAD_VIEW_VIEW_H
+#define LIBTCLCAD_VIEW_VIEW_H
+
 #include "common.h"
 #include "vmath.h"
 #include "ged.h"
 #include "tclcad.h"
+
+__BEGIN_DECLS
 
 /* Arrows */
 extern int to_data_arrows(struct ged *gedp,
@@ -134,7 +139,7 @@ extern int to_prim_label(struct ged *gedp,
 			 int maxargs);
 
 /* Lines */
-int to_data_lines(struct ged *gedp,
+extern int to_data_lines(struct ged *gedp,
 			 int argc,
 			 const char *argv[],
 			 ged_func_ptr func,
@@ -168,6 +173,10 @@ extern void to_refresh_view(struct bview *gdvp);
 
 /* Util */
 extern int to_is_viewable(struct bview *gdvp);
+
+__END_DECLS
+
+#endif /* LIBTCLCAD_VIEW_VIEW_H */
 
 /*
  * Local Variables:

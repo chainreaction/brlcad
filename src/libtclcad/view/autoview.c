@@ -39,7 +39,13 @@ to_autoview_view(struct bview *gdvp, const char *scale)
     int ret;
     const char *av[3];
 
+    if (!gdvp || !gdvp->u_data)
+	return;
+
     struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
+    if (!tvd->gedp)
+	return;
+
     tvd->gedp->ged_gvp = gdvp;
     av[0] = "autoview";
     av[1] = scale;
@@ -51,7 +57,7 @@ to_autoview_view(struct bview *gdvp, const char *scale)
 	ret = ged_exec_autoview(tvd->gedp, 1, (const char **)av);
 
     if (ret == BRLCAD_OK) {
-	if (0 < bu_vls_strlen(&tvd->gdv_callback)) {
+	if (0 < bu_vls_strlen(&tvd->gdv_callback) && current_top && current_top->to_interp) {
 	    Tcl_Eval(current_top->to_interp, bu_vls_addr(&tvd->gdv_callback));
 	}
 
@@ -69,11 +75,14 @@ to_autoview(struct ged *gedp,
 {
     struct bview *gdvp;
 
+    if (!gedp || !gedp->ged_result_str || !argv)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
-    if (argc > 3) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s [scale]", argv[0], usage);
+    if (argc < 2 || argc > 3 || !argv[0] || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s [scale]", (argv && argv[0]) ? argv[0] : "autoview", usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -97,10 +106,17 @@ to_autoview_all_views(struct tclcad_obj *top)
 {
     struct bview *gdvp;
 
+    if (!top || !top->to_gedp)
+	return;
+
     struct bu_ptbl *views = bv_set_views(&top->to_gedp->ged_views);
+    if (!views)
+	return;
+
     for (size_t i = 0; i < BU_PTBL_LEN(views); i++) {
 	gdvp = (struct bview *)BU_PTBL_GET(views, i);
-	to_autoview_view(gdvp, NULL);
+	if (gdvp)
+	    to_autoview_view(gdvp, NULL);
     }
 }
 

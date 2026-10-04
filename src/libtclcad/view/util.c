@@ -41,7 +41,11 @@
 int
 to_is_viewable(struct bview *gdvp)
 {
-    int result_int;
+    int result_int = 0;
+
+    if (!gdvp || !gdvp->dmp || !current_top || !current_top->to_interp) {
+	return 0;
+    }
 
     const struct bu_vls *pathvls = dm_get_pathname((struct dm *)gdvp->dmp);
     if (!pathvls || !bu_vls_strlen(pathvls)) {
@@ -50,19 +54,27 @@ to_is_viewable(struct bview *gdvp)
 
     /* stash any existing result so we can inspect our own */
     Tcl_Obj *saved_result = Tcl_GetObjResult(current_top->to_interp);
-    Tcl_IncrRefCount(saved_result);
+    if (saved_result)
+	Tcl_IncrRefCount(saved_result);
 
     const char *pathname = bu_vls_cstr(pathvls);
-    if (pathname && tclcad_eval(current_top->to_interp, "winfo viewable", 1, &pathname) != TCL_OK) {
+    if (!pathname || tclcad_eval(current_top->to_interp, "winfo viewable", 1, &pathname) != TCL_OK) {
+	if (saved_result) {
+	    Tcl_SetObjResult(current_top->to_interp, saved_result);
+	    Tcl_DecrRefCount(saved_result);
+	}
 	return 0;
     }
 
     Tcl_Obj *our_result = Tcl_GetObjResult(current_top->to_interp);
-    Tcl_GetIntFromObj(current_top->to_interp, our_result, &result_int);
+    if (our_result)
+	Tcl_GetIntFromObj(current_top->to_interp, our_result, &result_int);
 
     /* restore previous result */
-    Tcl_SetObjResult(current_top->to_interp, saved_result);
-    Tcl_DecrRefCount(saved_result);
+    if (saved_result) {
+	Tcl_SetObjResult(current_top->to_interp, saved_result);
+	Tcl_DecrRefCount(saved_result);
+    }
 
     if (!result_int) {
 	return 0;
