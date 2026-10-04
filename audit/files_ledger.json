@@ -12,11 +12,11 @@
       ".hpp",
       ".hxx"
     ],
-    "reviewed_files": 1532,
-    "pending_files": 1961,
-    "last_updated": "2026-10-04T04:27:11Z",
-    "total_issues": 340,
-    "reviewed_count": 1532
+    "reviewed_files": 1542,
+    "pending_files": 1951,
+    "last_updated": "2026-10-04T04:35:00Z",
+    "total_issues": 341,
+    "reviewed_count": 1542
   },
   "files": [
     {
@@ -33024,7 +33024,7 @@
       "path": "src/libtclcad/view/arrows.c",
       "subsystem": "src/libtclcad",
       "lines": 322,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -33034,7 +33034,7 @@
       "path": "src/libtclcad/view/autoview.c",
       "subsystem": "src/libtclcad",
       "lines": 117,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -33044,7 +33044,7 @@
       "path": "src/libtclcad/view/axes.c",
       "subsystem": "src/libtclcad",
       "lines": 794,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -33054,7 +33054,7 @@
       "path": "src/libtclcad/view/draw.c",
       "subsystem": "src/libtclcad",
       "lines": 364,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -33064,7 +33064,7 @@
       "path": "src/libtclcad/view/faceplate.c",
       "subsystem": "src/libtclcad",
       "lines": 238,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -33074,7 +33074,7 @@
       "path": "src/libtclcad/view/labels.c",
       "subsystem": "src/libtclcad",
       "lines": 360,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -33084,7 +33084,7 @@
       "path": "src/libtclcad/view/lines.c",
       "subsystem": "src/libtclcad",
       "lines": 146,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -33094,7 +33094,7 @@
       "path": "src/libtclcad/view/refresh.c",
       "subsystem": "src/libtclcad",
       "lines": 309,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -33104,7 +33104,7 @@
       "path": "src/libtclcad/view/util.c",
       "subsystem": "src/libtclcad",
       "lines": 82,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -33114,7 +33114,7 @@
       "path": "src/libtclcad/view/view.h",
       "subsystem": "src/libtclcad",
       "lines": 180,
-      "status": "PENDING",
+      "status": "COMPLETED",
       "reviewed_at": null,
       "issues_count": 0,
       "issue_ids": []
@@ -37066,5 +37066,5 @@
       "issue_ids": []
     }
   ],
-  "last_updated": "2026-10-04T04:27:11Z"
+  "last_updated": "2026-10-04T04:35:00Z"
 }
