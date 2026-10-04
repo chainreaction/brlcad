@@ -36,17 +36,22 @@ to_get_prev_mouse(struct ged *gedp,
 		  const char *usage,
 		  int UNUSED(maxargs))
 {
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    const char *cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "get_prev_mouse";
+
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 2) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 2 || !argv || !argv[1]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -77,17 +82,22 @@ to_mouse_append_pnt_common(struct ged *gedp,
     /* must be double for scanf */
     double x, y;
 
+    if (!gedp || !gedp->ged_result_str || !func)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    const char *cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "mouse_append_pnt";
+
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 5) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 5 || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -99,34 +109,32 @@ to_mouse_append_pnt_common(struct ged *gedp,
 
     if (bu_sscanf(argv[3], "%lf", &x) != 1 ||
 	bu_sscanf(argv[4], "%lf", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    if (gdvp->dmp) {
+	gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
+	gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    }
     bv_screen_to_view(gdvp, &x, &y, x, y);
     VSET(view, x, y, 0.0);
 
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
-
     gedp->ged_gvp = gdvp;
     int snapped = 0;
-    if (gedp->ged_gvp->gv_s->gv_snap_lines) {
-	gedp->ged_gvp->gv_s->gv_snap_flags = BV_SNAP_TCL;
+    if (gdvp->gv_s && gdvp->gv_s->gv_snap_lines) {
+	gdvp->gv_s->gv_snap_flags = BV_SNAP_TCL;
 	snapped = bv_snap_lines_2d(gedp->ged_gvp, &view[X], &view[Y]);
     }
-    if (!snapped && gedp->ged_gvp->gv_s->gv_grid.snap) {
+    if (!snapped && gdvp->gv_s && gdvp->gv_s->gv_grid.snap) {
 	bv_snap_grid_2d(gedp->ged_gvp, &view[X], &view[Y]);
     }
 
     bu_vls_printf(&pt_vls, "%lf %lf %lf", view[X], view[Y], view[Z]);
 
-    gedp->ged_gvp = gdvp;
-    av[0] = (char *)argv[0];
-    av[1] = (char *)argv[2];
-    av[2] = bu_vls_addr(&pt_vls);
+    av[0] = cmd;
+    av[1] = argv[2];
+    av[2] = bu_vls_cstr(&pt_vls);
     av[3] = (char *)0;
 
     ret = (*func)(gedp, 3, (const char **)av);
@@ -134,7 +142,7 @@ to_mouse_append_pnt_common(struct ged *gedp,
 
     if (ret == BRLCAD_OK) {
 	av[0] = "draw";
-	av[1] = (char *)argv[2];
+	av[1] = argv[2];
 	av[2] = (char *)0;
 	to_edit_redraw(gedp, 2, (const char **)av);
     }
@@ -162,11 +170,17 @@ to_mouse_brep_selection_append(struct ged *gedp,
     vect_t view_dir, model_dir;
     mat_t invRot;
 
-    if (argc != maxargs) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    bu_vls_trunc(gedp->ged_result_str, 0);
+
+    const char *cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "mouse_brep_selection_append";
+
+    if (argc != maxargs || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
-
 
     struct bview *gdvp = bv_set_find_view(&gedp->ged_views, argv[1]);
     if (!gdvp) {
@@ -174,37 +188,39 @@ to_mouse_brep_selection_append(struct ged *gedp,
 	return BRLCAD_ERROR;
     }
 
-    /* parse args */
-    brep_name = bu_path_basename(argv[2], NULL);
-
     screen_pt[X] = strtol(argv[3], &end, 10);
     if (*end != '\0') {
 	bu_vls_printf(gedp->ged_result_str, "ERROR: bad x value %f\n", screen_pt[X]);
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
     screen_pt[Y] = strtol(argv[4], &end, 10);
     if (*end != '\0') {
 	bu_vls_printf(gedp->ged_result_str, "ERROR: bad y value: %f\n", screen_pt[Y]);
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
+
+    /* parse args */
+    brep_name = bu_path_basename(argv[2], NULL);
 
     /* stash point coordinates for future drag handling */
     gdvp->gv_prevMouseX = screen_pt[X];
     gdvp->gv_prevMouseY = screen_pt[Y];
 
     /* convert screen point to model-space start point and direction */
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    if (gdvp->dmp) {
+	gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
+	gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    }
     bv_screen_to_view(gdvp, &view_pt[X], &view_pt[Y], screen_pt[X], screen_pt[Y]);
     view_pt[Z] = 1.0;
 
     MAT4X3PNT(model_pt, gdvp->gv_view2model, view_pt);
 
     VSET(view_dir, 0.0, 0.0, -1.0);
-    bn_mat_inv(invRot, gedp->ged_gvp->gv_rotation);
+    bn_mat_inv(invRot, gdvp->gv_rotation);
     MAT4X3PNT(model_dir, invRot, view_dir);
 
     /* brep brep_name selection append selection_name startx starty startz dirx diry dirz */
@@ -213,17 +229,17 @@ to_mouse_brep_selection_append(struct ged *gedp,
     bu_vls_printf(&start[Z], "%f", model_pt[Z]);
 
     cmd_argv[1] = brep_name;
-    cmd_argv[5] = bu_vls_addr(&start[X]);
-    cmd_argv[6] = bu_vls_addr(&start[Y]);
-    cmd_argv[7] = bu_vls_addr(&start[Z]);
+    cmd_argv[5] = bu_vls_cstr(&start[X]);
+    cmd_argv[6] = bu_vls_cstr(&start[Y]);
+    cmd_argv[7] = bu_vls_cstr(&start[Z]);
 
     bu_vls_printf(&dir[X], "%f", model_dir[X]);
     bu_vls_printf(&dir[Y], "%f", model_dir[Y]);
     bu_vls_printf(&dir[Z], "%f", model_dir[Z]);
 
-    cmd_argv[8] = bu_vls_addr(&dir[X]);
-    cmd_argv[9] = bu_vls_addr(&dir[Y]);
-    cmd_argv[10] = bu_vls_addr(&dir[Z]);
+    cmd_argv[8] = bu_vls_cstr(&dir[X]);
+    cmd_argv[9] = bu_vls_cstr(&dir[Y]);
+    cmd_argv[10] = bu_vls_cstr(&dir[Z]);
 
     gedp->ged_gvp = gdvp;
     ret = ged_exec_brep(gedp, cmd_argc, cmd_argv);
@@ -236,20 +252,23 @@ to_mouse_brep_selection_append(struct ged *gedp,
     bu_vls_free(&dir[Z]);
 
     if (ret != BRLCAD_OK) {
+	bu_free((void *)brep_name, "brep_name");
 	return BRLCAD_ERROR;
     }
 
-    struct bu_vls *dname = dm_get_pathname((struct dm *)gdvp->dmp);
-    if (dname && bu_vls_strlen(dname)) {
-	bu_vls_printf(&bindings, "bind %s <Motion> {%s mouse_brep_selection_translate %s %s %%x %%y; "
-		      "%s brep %s plot SCV}",
-		      bu_vls_cstr(dname),
-		      bu_vls_cstr(&current_top->to_gedp->go_name),
-		      bu_vls_cstr(&gdvp->gv_name),
-		      brep_name,
-		      bu_vls_cstr(&current_top->to_gedp->go_name),
-		      brep_name);
-	Tcl_Eval(current_top->to_interp, bu_vls_cstr(&bindings));
+    if (gdvp->dmp && current_top && current_top->to_gedp && current_top->to_interp) {
+	struct bu_vls *dname = dm_get_pathname((struct dm *)gdvp->dmp);
+	if (dname && bu_vls_strlen(dname)) {
+	    bu_vls_printf(&bindings, "bind %s <Motion> {%s mouse_brep_selection_translate %s %s %%x %%y; "
+			  "%s brep %s plot SCV}",
+			  bu_vls_cstr(dname),
+			  bu_vls_cstr(&current_top->to_gedp->go_name),
+			  bu_vls_cstr(&gdvp->gv_name),
+			  brep_name,
+			  bu_vls_cstr(&current_top->to_gedp->go_name),
+			  brep_name);
+	    Tcl_Eval(current_top->to_interp, bu_vls_cstr(&bindings));
+	}
     }
     bu_vls_free(&bindings);
 
@@ -275,8 +294,15 @@ to_mouse_brep_selection_translate(struct ged *gedp,
     vect_t model_delta;
     struct bu_vls delta[] = {BU_VLS_INIT_ZERO, BU_VLS_INIT_ZERO, BU_VLS_INIT_ZERO};
 
-    if (argc != maxargs) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    bu_vls_trunc(gedp->ged_result_str, 0);
+
+    const char *cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "mouse_brep_selection_translate";
+
+    if (argc != maxargs || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -286,31 +312,31 @@ to_mouse_brep_selection_translate(struct ged *gedp,
 	return BRLCAD_ERROR;
     }
 
-    brep_name = bu_path_basename(argv[2], NULL);
-
     screen_end[X] = strtol(argv[3], &end, 10);
     if (*end != '\0') {
 	bu_vls_printf(gedp->ged_result_str, "ERROR: bad x value %f\n", screen_end[X]);
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
     screen_end[Y] = strtol(argv[4], &end, 10);
     if (*end != '\0') {
 	bu_vls_printf(gedp->ged_result_str, "ERROR: bad y value: %f\n", screen_end[Y]);
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
+    brep_name = bu_path_basename(argv[2], NULL);
+
     /* convert screen-space delta to model-space delta */
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    if (gdvp->dmp) {
+	gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
+	gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    }
     bv_screen_to_view(gdvp, &view_start[X], &view_start[Y], gdvp->gv_prevMouseX, gdvp->gv_prevMouseY);
     view_start[Z] = 1;
     MAT4X3PNT(model_start, gdvp->gv_view2model, view_start);
 
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
     bv_screen_to_view(gdvp, &view_end[X], &view_end[Y], screen_end[X], screen_end[Y]);
     view_end[Z] = 1;
     MAT4X3PNT(model_end, gdvp->gv_view2model, view_end);
@@ -322,10 +348,11 @@ to_mouse_brep_selection_translate(struct ged *gedp,
     bu_vls_printf(&delta[Z], "%f", model_delta[Z]);
 
     cmd_argv[1] = brep_name;
-    cmd_argv[5] = bu_vls_addr(&delta[X]);
-    cmd_argv[6] = bu_vls_addr(&delta[Y]);
-    cmd_argv[7] = bu_vls_addr(&delta[Z]);
+    cmd_argv[5] = bu_vls_cstr(&delta[X]);
+    cmd_argv[6] = bu_vls_cstr(&delta[Y]);
+    cmd_argv[7] = bu_vls_cstr(&delta[Z]);
 
+    gedp->ged_gvp = gdvp;
     ret = ged_exec_brep(gedp, cmd_argc, cmd_argv);
 
     bu_free((void *)brep_name, "brep_name");
@@ -338,7 +365,8 @@ to_mouse_brep_selection_translate(struct ged *gedp,
     }
 
     /* need to tell front-end that we've modified the db */
-    tclcad_eval_noresult(current_top->to_interp, "$::ArcherCore::application setSave", 0, NULL);
+    if (current_top && current_top->to_interp)
+	tclcad_eval_noresult(current_top->to_interp, "$::ArcherCore::application setSave", 0, NULL);
 
     gdvp->gv_prevMouseX = screen_end[X];
     gdvp->gv_prevMouseY = screen_end[Y];
@@ -371,17 +399,22 @@ to_mouse_constrain_rot(struct ged *gedp,
     /* must be double for scanf */
     double x, y;
 
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    const char *cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "mouse_constrain_rot";
+
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 5) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 5 || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -391,15 +424,14 @@ to_mouse_constrain_rot(struct ged *gedp,
 	return BRLCAD_ERROR;
     }
 
-
     if ((argv[2][0] != 'x' && argv[2][0] != 'y' && argv[2][0] != 'z') || argv[2][1] != '\0') {
-	bu_vls_printf(gedp->ged_result_str, "View not found - %s", argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "Invalid axis - %s", argv[2]);
 	return BRLCAD_ERROR;
     }
 
     if (bu_sscanf(argv[3], "%lf", &x) != 1 ||
 	bu_sscanf(argv[4], "%lf", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -442,7 +474,7 @@ to_mouse_constrain_rot(struct ged *gedp,
     ac = 3;
     av[0] = "rot";
     av[1] = "-m";
-    av[2] = bu_vls_addr(&rot_vls);
+    av[2] = bu_vls_cstr(&rot_vls);
     av[3] = (char *)0;
 
     ret = ged_exec_rot(gedp, ac, (const char **)av);
@@ -450,8 +482,8 @@ to_mouse_constrain_rot(struct ged *gedp,
 
     if (ret == BRLCAD_OK) {
 	struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
-	if (0 < bu_vls_strlen(&tvd->gdv_callback)) {
-	    tclcad_eval_noresult(current_top->to_interp, bu_vls_addr(&tvd->gdv_callback), 0, NULL);
+	if (tvd && 0 < bu_vls_strlen(&tvd->gdv_callback) && current_top && current_top->to_interp) {
+	    tclcad_eval_noresult(current_top->to_interp, bu_vls_cstr(&tvd->gdv_callback), 0, NULL);
 	}
 
 	to_refresh_view(gdvp);
@@ -481,17 +513,22 @@ to_mouse_constrain_trans(struct ged *gedp,
     /* must be double for scanf */
     double x, y;
 
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    const char *cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "mouse_constrain_trans";
+
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 5) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 5 || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -502,13 +539,13 @@ to_mouse_constrain_trans(struct ged *gedp,
     }
 
     if ((argv[2][0] != 'x' && argv[2][0] != 'y' && argv[2][0] != 'z') || argv[2][1] != '\0') {
-	bu_vls_printf(gedp->ged_result_str, "View not found - %s", argv[1]);
+	bu_vls_printf(gedp->ged_result_str, "Invalid axis - %s", argv[2]);
 	return BRLCAD_ERROR;
     }
 
     if (bu_sscanf(argv[3], "%lf", &x) != 1 ||
 	bu_sscanf(argv[4], "%lf", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -528,10 +565,13 @@ to_mouse_constrain_trans(struct ged *gedp,
     else if (gdvp->gv_maxMouseDelta < dy)
 	dy = gdvp->gv_maxMouseDelta;
 
-    width = dm_get_width((struct dm *)gdvp->dmp);
+    width = gdvp->dmp ? dm_get_width((struct dm *)gdvp->dmp) : 0;
+    if (width <= 0)
+	width = 1;
     inv_width = 1.0 / (fastf_t)width;
-    dx *= inv_width * gdvp->gv_size * gedp->dbip->dbi_local2base;
-    dy *= inv_width * gdvp->gv_size * gedp->dbip->dbi_local2base;
+    fastf_t conv = gedp->dbip ? gedp->dbip->dbi_local2base : 1.0;
+    dx *= inv_width * gdvp->gv_size * conv;
+    dy *= inv_width * gdvp->gv_size * conv;
 
     if (fabs(dx) > fabs(dy))
 	sf = dx;
@@ -553,7 +593,7 @@ to_mouse_constrain_trans(struct ged *gedp,
     ac = 3;
     av[0] = "tra";
     av[1] = "-m";
-    av[2] = bu_vls_addr(&tran_vls);
+    av[2] = bu_vls_cstr(&tran_vls);
     av[3] = (char *)0;
 
     ret = ged_exec_tra(gedp, ac, (const char **)av);
@@ -561,8 +601,8 @@ to_mouse_constrain_trans(struct ged *gedp,
 
     if (ret == BRLCAD_OK) {
 	struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
-	if (0 < bu_vls_strlen(&tvd->gdv_callback)) {
-	    tclcad_eval_noresult(current_top->to_interp, bu_vls_addr(&tvd->gdv_callback), 0, NULL);
+	if (tvd && 0 < bu_vls_strlen(&tvd->gdv_callback) && current_top && current_top->to_interp) {
+	    tclcad_eval_noresult(current_top->to_interp, bu_vls_cstr(&tvd->gdv_callback), 0, NULL);
 	}
 
 	to_refresh_view(gdvp);
@@ -587,17 +627,22 @@ to_mouse_find_arb_edge(struct ged *gedp,
     /* must be double for scanf */
     double x, y;
 
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    const char *cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "find_arb_edge";
+
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 6) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 6 || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4] || !argv[5]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -609,12 +654,14 @@ to_mouse_find_arb_edge(struct ged *gedp,
 
     if (bu_sscanf(argv[3], "%lf", &x) != 1 ||
 	bu_sscanf(argv[4], "%lf", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    if (gdvp->dmp) {
+	gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
+	gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    }
     bv_screen_to_view(gdvp, &x, &y, x, y);
     VSET(view, x, y, 0.0);
 
@@ -623,7 +670,7 @@ to_mouse_find_arb_edge(struct ged *gedp,
     gedp->ged_gvp = gdvp;
     av[0] = "find_arb_edge_nearest_pnt";
     av[1] = (char *)argv[2];
-    av[2] = bu_vls_addr(&pt_vls);
+    av[2] = bu_vls_cstr(&pt_vls);
     av[3] = (char *)argv[5];
     av[4] = (char *)0;
 
@@ -650,17 +697,22 @@ to_mouse_find_bot_edge(struct ged *gedp,
     /* must be double for scanf */
     double x, y;
 
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    const char *cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "find_bot_edge";
+
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 5) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 5 || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -672,12 +724,14 @@ to_mouse_find_bot_edge(struct ged *gedp,
 
     if (bu_sscanf(argv[3], "%lf", &x) != 1 ||
 	bu_sscanf(argv[4], "%lf", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    if (gdvp->dmp) {
+	gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
+	gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    }
     bv_screen_to_view(gdvp, &x, &y, x, y);
     VSET(view, x, y, 0.0);
 
@@ -686,7 +740,7 @@ to_mouse_find_bot_edge(struct ged *gedp,
     gedp->ged_gvp = gdvp;
     av[0] = "find_bot_edge_nearest_pnt";
     av[1] = (char *)argv[2];
-    av[2] = bu_vls_addr(&pt_vls);
+    av[2] = bu_vls_cstr(&pt_vls);
     av[3] = (char *)0;
 
     // TODO - above is not a current GED command - broken
@@ -712,17 +766,22 @@ to_mouse_find_bot_pnt(struct ged *gedp,
     /* must be double for scanf */
     double x, y;
 
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    const char *cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "find_bot_pnt";
+
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 5) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 5 || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -734,12 +793,14 @@ to_mouse_find_bot_pnt(struct ged *gedp,
 
     if (bu_sscanf(argv[3], "%lf", &x) != 1 ||
 	bu_sscanf(argv[4], "%lf", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    if (gdvp->dmp) {
+	gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
+	gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    }
     bv_screen_to_view(gdvp, &x, &y, x, y);
     VSET(view, x, y, 0.0);
 
@@ -748,7 +809,7 @@ to_mouse_find_bot_pnt(struct ged *gedp,
     gedp->ged_gvp = gdvp;
     av[0] = "find_bot_pnt_nearest_pnt";
     av[1] = (char *)argv[2];
-    av[2] = bu_vls_addr(&pt_vls);
+    av[2] = bu_vls_cstr(&pt_vls);
     av[3] = (char *)0;
 
     // TODO - above is not a current GED command - broken
@@ -775,17 +836,22 @@ to_mouse_find_metaball_pnt(struct ged *gedp,
     /* must be double for scanf */
     double x, y;
 
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    const char *cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "find_metaball_pnt";
+
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 5) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 5 || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -797,12 +863,14 @@ to_mouse_find_metaball_pnt(struct ged *gedp,
 
     if (bu_sscanf(argv[3], "%lf", &x) != 1 ||
 	bu_sscanf(argv[4], "%lf", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    if (gdvp->dmp) {
+	gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
+	gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    }
     bv_screen_to_view(gdvp, &x, &y, x, y);
     VSET(view, x, y, 0.0);
     MAT4X3PNT(model, gdvp->gv_view2model, view);
@@ -812,7 +880,7 @@ to_mouse_find_metaball_pnt(struct ged *gedp,
     gedp->ged_gvp = gdvp;
     av[0] = "find_metaball_pnt_nearest_pnt";
     av[1] = (char *)argv[2];
-    av[2] = bu_vls_addr(&pt_vls);
+    av[2] = bu_vls_cstr(&pt_vls);
     av[3] = (char *)0;
 
     // TODO - above is not a current GED command - broken
@@ -839,17 +907,22 @@ to_mouse_find_pipe_pnt(struct ged *gedp,
     /* must be double for scanf */
     double x, y;
 
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    const char *cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "find_pipe_pnt";
+
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 5) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 5 || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -861,12 +934,14 @@ to_mouse_find_pipe_pnt(struct ged *gedp,
 
     if (bu_sscanf(argv[3], "%lf", &x) != 1 ||
 	bu_sscanf(argv[4], "%lf", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    if (gdvp->dmp) {
+	gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
+	gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    }
     bv_screen_to_view(gdvp, &x, &y, x, y);
     VSET(view, x, y, 0.0);
     MAT4X3PNT(model, gdvp->gv_view2model, view);
@@ -876,7 +951,7 @@ to_mouse_find_pipe_pnt(struct ged *gedp,
     gedp->ged_gvp = gdvp;
     av[0] = "find_pipe_pnt_nearest_pnt";
     av[1] = (char *)argv[2];
-    av[2] = bu_vls_addr(&pt_vls);
+    av[2] = bu_vls_cstr(&pt_vls);
     av[3] = (char *)0;
 
     // TODO - above is not a current GED command - broken
@@ -907,8 +982,15 @@ to_mouse_joint_select(
     vect_t view_dir, model_dir;
     mat_t invRot;
 
-    if (argc != maxargs) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    bu_vls_trunc(gedp->ged_result_str, 0);
+
+    const char *cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "mouse_joint_select";
+
+    if (argc != maxargs || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -918,37 +1000,39 @@ to_mouse_joint_select(
 	return BRLCAD_ERROR;
     }
 
-    /* parse args */
-    joint_name = bu_path_basename(argv[2], NULL);
-
     screen_pt[X] = strtol(argv[3], &end, 10);
     if (*end != '\0') {
 	bu_vls_printf(gedp->ged_result_str, "ERROR: bad x value %f\n", screen_pt[X]);
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
     screen_pt[Y] = strtol(argv[4], &end, 10);
     if (*end != '\0') {
 	bu_vls_printf(gedp->ged_result_str, "ERROR: bad y value: %f\n", screen_pt[Y]);
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
+
+    /* parse args */
+    joint_name = bu_path_basename(argv[2], NULL);
 
     /* stash point coordinates for future drag handling */
     gdvp->gv_prevMouseX = screen_pt[X];
     gdvp->gv_prevMouseY = screen_pt[Y];
 
     /* convert screen point to model-space start point and direction */
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    if (gdvp->dmp) {
+	gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
+	gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    }
     bv_screen_to_view(gdvp, &view_pt[X], &view_pt[Y], screen_pt[X], screen_pt[Y]);
     view_pt[Z] = 1.0;
 
     MAT4X3PNT(model_pt, gdvp->gv_view2model, view_pt);
 
     VSET(view_dir, 0.0, 0.0, -1.0);
-    bn_mat_inv(invRot, gedp->ged_gvp->gv_rotation);
+    bn_mat_inv(invRot, gdvp->gv_rotation);
     MAT4X3PNT(model_dir, invRot, view_dir);
 
     /* joint2 joint_name selection append selection_name startx starty startz dirx diry dirz */
@@ -957,17 +1041,17 @@ to_mouse_joint_select(
     bu_vls_printf(&start[Z], "%f", model_pt[Z]);
 
     cmd_argv[1] = joint_name;
-    cmd_argv[5] = bu_vls_addr(&start[X]);
-    cmd_argv[6] = bu_vls_addr(&start[Y]);
-    cmd_argv[7] = bu_vls_addr(&start[Z]);
+    cmd_argv[5] = bu_vls_cstr(&start[X]);
+    cmd_argv[6] = bu_vls_cstr(&start[Y]);
+    cmd_argv[7] = bu_vls_cstr(&start[Z]);
 
     bu_vls_printf(&dir[X], "%f", model_dir[X]);
     bu_vls_printf(&dir[Y], "%f", model_dir[Y]);
     bu_vls_printf(&dir[Z], "%f", model_dir[Z]);
 
-    cmd_argv[8] = bu_vls_addr(&dir[X]);
-    cmd_argv[9] = bu_vls_addr(&dir[Y]);
-    cmd_argv[10] = bu_vls_addr(&dir[Z]);
+    cmd_argv[8] = bu_vls_cstr(&dir[X]);
+    cmd_argv[9] = bu_vls_cstr(&dir[Y]);
+    cmd_argv[10] = bu_vls_cstr(&dir[Z]);
 
     gedp->ged_gvp = gdvp;
     ret = ged_exec_joint2(gedp, cmd_argc, cmd_argv);
@@ -980,17 +1064,20 @@ to_mouse_joint_select(
     bu_vls_free(&dir[Z]);
 
     if (ret != BRLCAD_OK) {
+	bu_free((void *)joint_name, "joint_name");
 	return BRLCAD_ERROR;
     }
 
-    struct bu_vls *dname = dm_get_pathname((struct dm *)gdvp->dmp);
-    if (dname) {
-	bu_vls_printf(&bindings, "bind %s <Motion> {%s mouse_joint_selection_translate %s %s %%x %%y}",
-		      bu_vls_cstr(dname),
-		      bu_vls_cstr(&current_top->to_gedp->go_name),
-		      bu_vls_cstr(&gdvp->gv_name),
-		      joint_name);
-	Tcl_Eval(current_top->to_interp, bu_vls_cstr(&bindings));
+    if (gdvp->dmp && current_top && current_top->to_gedp && current_top->to_interp) {
+	struct bu_vls *dname = dm_get_pathname((struct dm *)gdvp->dmp);
+	if (dname && bu_vls_strlen(dname)) {
+	    bu_vls_printf(&bindings, "bind %s <Motion> {%s mouse_joint_selection_translate %s %s %%x %%y}",
+			  bu_vls_cstr(dname),
+			  bu_vls_cstr(&current_top->to_gedp->go_name),
+			  bu_vls_cstr(&gdvp->gv_name),
+			  joint_name);
+	    Tcl_Eval(current_top->to_interp, bu_vls_cstr(&bindings));
+	}
     }
     bu_vls_free(&bindings);
 
@@ -1017,8 +1104,15 @@ to_mouse_joint_selection_translate(
     vect_t model_delta;
     struct bu_vls delta[] = {BU_VLS_INIT_ZERO, BU_VLS_INIT_ZERO, BU_VLS_INIT_ZERO};
 
-    if (argc != maxargs) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    bu_vls_trunc(gedp->ged_result_str, 0);
+
+    const char *cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "mouse_joint_selection_translate";
+
+    if (argc != maxargs || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1028,31 +1122,31 @@ to_mouse_joint_selection_translate(
 	return BRLCAD_ERROR;
     }
 
-    joint_name = bu_path_basename(argv[2], NULL);
-
     screen_end[X] = strtol(argv[3], &end, 10);
     if (*end != '\0') {
 	bu_vls_printf(gedp->ged_result_str, "ERROR: bad x value %f\n", screen_end[X]);
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
     screen_end[Y] = strtol(argv[4], &end, 10);
     if (*end != '\0') {
 	bu_vls_printf(gedp->ged_result_str, "ERROR: bad y value: %f\n", screen_end[Y]);
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
+    joint_name = bu_path_basename(argv[2], NULL);
+
     /* convert screen-space delta to model-space delta */
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    if (gdvp->dmp) {
+	gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
+	gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    }
     bv_screen_to_view(gdvp, &view_start[X], &view_start[Y], gdvp->gv_prevMouseX, gdvp->gv_prevMouseY);
     view_start[Z] = 1;
     MAT4X3PNT(model_start, gdvp->gv_view2model, view_start);
 
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
     bv_screen_to_view(gdvp, &view_end[X], &view_end[Y], screen_end[X], screen_end[Y]);
     view_end[Z] = 1;
     MAT4X3PNT(model_end, gdvp->gv_view2model, view_end);
@@ -1064,10 +1158,11 @@ to_mouse_joint_selection_translate(
     bu_vls_printf(&delta[Z], "%f", model_delta[Z]);
 
     cmd_argv[1] = joint_name;
-    cmd_argv[5] = bu_vls_addr(&delta[X]);
-    cmd_argv[6] = bu_vls_addr(&delta[Y]);
-    cmd_argv[7] = bu_vls_addr(&delta[Z]);
+    cmd_argv[5] = bu_vls_cstr(&delta[X]);
+    cmd_argv[6] = bu_vls_cstr(&delta[Y]);
+    cmd_argv[7] = bu_vls_cstr(&delta[Z]);
 
+    gedp->ged_gvp = gdvp;
     ret = ged_exec_joint2(gedp, cmd_argc, cmd_argv);
 
     if (ret != BRLCAD_OK) {
@@ -1079,7 +1174,8 @@ to_mouse_joint_selection_translate(
     }
 
     /* need to tell front-end that we've modified the db */
-    Tcl_Eval(current_top->to_interp, "$::ArcherCore::application setSave");
+    if (current_top && current_top->to_interp)
+	Tcl_Eval(current_top->to_interp, "$::ArcherCore::application setSave");
 
     gdvp->gv_prevMouseX = screen_end[X];
     gdvp->gv_prevMouseY = screen_end[Y];
@@ -1129,7 +1225,8 @@ to_mouse_joint_selection_translate(
 	    cmd_argv[4] = NULL;
 	    ret = ged_exec_draw(gedp, cmd_argc, cmd_argv);
 
-	    to_refresh_all_views(current_top);
+	    if (current_top)
+		to_refresh_all_views(current_top);
 	}
 	bu_vls_free(&path_dmode);
 	bu_free(path_name, "path_name");
@@ -1165,17 +1262,22 @@ to_mouse_move_arb_edge(struct ged *gedp,
     /* must be double for scanf */
     double x, y;
 
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    const char *cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "move_arb_edge";
+
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 6) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 6 || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4] || !argv[5]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1187,7 +1289,7 @@ to_mouse_move_arb_edge(struct ged *gedp,
 
     if (bu_sscanf(argv[4], "%lf", &x) != 1 ||
 	bu_sscanf(argv[5], "%lf", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1207,11 +1309,14 @@ to_mouse_move_arb_edge(struct ged *gedp,
     else if (gdvp->gv_maxMouseDelta < dy)
 	dy = gdvp->gv_maxMouseDelta;
 
-    width = dm_get_width((struct dm *)gdvp->dmp);
+    width = gdvp->dmp ? dm_get_width((struct dm *)gdvp->dmp) : 0;
+    if (width <= 0)
+	width = 1;
     inv_width = 1.0 / (fastf_t)width;
     /* ged_move_arb_edge expects things to be in local units */
-    dx *= inv_width * gdvp->gv_size * gedp->dbip->dbi_base2local;
-    dy *= inv_width * gdvp->gv_size * gedp->dbip->dbi_base2local;
+    fastf_t conv = gedp->dbip ? gedp->dbip->dbi_base2local : 1.0;
+    dx *= inv_width * gdvp->gv_size * conv;
+    dy *= inv_width * gdvp->gv_size * conv;
     VSET(view, dx, dy, 0.0);
     bn_mat_inv(inv_rot, gdvp->gv_rotation);
     MAT4X3PNT(model, inv_rot, view);
@@ -1223,7 +1328,7 @@ to_mouse_move_arb_edge(struct ged *gedp,
     av[1] = "-r";
     av[2] = (char *)argv[2];
     av[3] = (char *)argv[3];
-    av[4] = bu_vls_addr(&pt_vls);
+    av[4] = bu_vls_cstr(&pt_vls);
     av[5] = (char *)0;
 
     ret = ged_exec_move_arb_edge(gedp, 5, (const char **)av);
@@ -1261,17 +1366,22 @@ to_mouse_move_arb_face(struct ged *gedp,
     /* must be double for scanf */
     double x, y;
 
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    const char *cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "move_arb_face";
+
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 6) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 6 || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4] || !argv[5]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1283,7 +1393,7 @@ to_mouse_move_arb_face(struct ged *gedp,
 
     if (bu_sscanf(argv[4], "%lf", &x) != 1 ||
 	bu_sscanf(argv[5], "%lf", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1303,11 +1413,14 @@ to_mouse_move_arb_face(struct ged *gedp,
     else if (gdvp->gv_maxMouseDelta < dy)
 	dy = gdvp->gv_maxMouseDelta;
 
-    width = dm_get_width((struct dm *)gdvp->dmp);
+    width = gdvp->dmp ? dm_get_width((struct dm *)gdvp->dmp) : 0;
+    if (width <= 0)
+	width = 1;
     inv_width = 1.0 / (fastf_t)width;
     /* ged_move_arb_face expects things to be in local units */
-    dx *= inv_width * gdvp->gv_size * gedp->dbip->dbi_base2local;
-    dy *= inv_width * gdvp->gv_size * gedp->dbip->dbi_base2local;
+    fastf_t conv = gedp->dbip ? gedp->dbip->dbi_base2local : 1.0;
+    dx *= inv_width * gdvp->gv_size * conv;
+    dy *= inv_width * gdvp->gv_size * conv;
     VSET(view, dx, dy, 0.0);
     bn_mat_inv(inv_rot, gdvp->gv_rotation);
     MAT4X3PNT(model, inv_rot, view);
@@ -1319,7 +1432,7 @@ to_mouse_move_arb_face(struct ged *gedp,
     av[1] = "-r";
     av[2] = (char *)argv[2];
     av[3] = (char *)argv[3];
-    av[4] = bu_vls_addr(&pt_vls);
+    av[4] = bu_vls_cstr(&pt_vls);
     av[5] = (char *)0;
 
     ret = ged_exec_move_arb_face(gedp, 5, (const char **)av);
@@ -1359,20 +1472,23 @@ to_mouse_move_bot_pnt(struct ged *gedp,
     /* must be double for scanf */
     double x, y;
 
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
-    cmd = argv[0];
+    cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "move_bot_pnt";
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return GED_HELP;
     }
 
     if (argc == 7) {
-	if (argv[1][0] != '-' || argv[1][1] != 'r' || argv[1][2] != '\0') {
-	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage);
+	if (!argv || !argv[1] || argv[1][0] != '-' || argv[1][1] != 'r' || argv[1][2] != '\0') {
+	    bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	    return BRLCAD_ERROR;
 	}
 
@@ -1382,8 +1498,8 @@ to_mouse_move_bot_pnt(struct ged *gedp,
     } else
 	rflag = 0;
 
-    if (argc != 6) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage);
+    if (argc != 6 || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4] || !argv[5]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1395,11 +1511,13 @@ to_mouse_move_bot_pnt(struct ged *gedp,
 
     if (bu_sscanf(argv[4], "%lf", &x) != 1 ||
 	bu_sscanf(argv[5], "%lf", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
-    width = dm_get_width((struct dm *)gdvp->dmp);
+    width = gdvp->dmp ? dm_get_width((struct dm *)gdvp->dmp) : 0;
+    if (width <= 0)
+	width = 1;
     inv_width = 1.0 / (fastf_t)width;
 
     if (rflag) {
@@ -1446,7 +1564,17 @@ to_mouse_move_bot_pnt(struct ged *gedp,
 	    return BRLCAD_ERROR;
 	}
 
+	if (!gedp->dbip) {
+	    bu_vls_printf(gedp->ged_result_str, "%s: database not available", cmd);
+	    return BRLCAD_ERROR;
+	}
+
 	struct rt_wdb *wdbp = wdb_dbopen(gedp->dbip, RT_WDB_TYPE_DB_DEFAULT);
+	if (!wdbp) {
+	    bu_vls_printf(gedp->ged_result_str, "%s: database writer not available", cmd);
+	    return BRLCAD_ERROR;
+	}
+
 	if (wdb_import_from_path2(gedp->ged_result_str, &intern, argv[2], wdbp, mat) & BRLCAD_ERROR) {
 	    bu_vls_printf(gedp->ged_result_str, "%s: failed to find %s", cmd, argv[2]);
 	    return BRLCAD_ERROR;
@@ -1471,8 +1599,10 @@ to_mouse_move_bot_pnt(struct ged *gedp,
 	MAT4X3PNT(view, gdvp->gv_model2view, &botip->vertices[vertex_i*3]);
 	MAT_COPY(v2m_mat, gdvp->gv_view2model);
 
-	gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-	gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+	if (gdvp->dmp) {
+	    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
+	    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+	}
 	bv_screen_to_view(gdvp, &dx, &dy, x, y);
 	dz = view[Z];
 
@@ -1483,7 +1613,8 @@ to_mouse_move_bot_pnt(struct ged *gedp,
     MAT4X3PNT(model, v2m_mat, view);
 
     /* ged_bot_move_pnt expects things to be in local units */
-    VSCALE(model, model, gedp->dbip->dbi_base2local);
+    fastf_t conv = gedp->dbip ? gedp->dbip->dbi_base2local : 1.0;
+    VSCALE(model, model, conv);
     bu_vls_printf(&pt_vls, "%lf %lf %lf", model[X], model[Y], model[Z]);
 
     gedp->ged_gvp = gdvp;
@@ -1493,14 +1624,14 @@ to_mouse_move_bot_pnt(struct ged *gedp,
 	av[1] = "-r";
 	av[2] = (char *)argv[2];
 	av[3] = (char *)argv[3];
-	av[4] = bu_vls_addr(&pt_vls);
+	av[4] = bu_vls_cstr(&pt_vls);
 	av[5] = (char *)0;
 
 	ret = ged_exec(gedp, 5, (const char **)av);
     } else {
 	av[1] = (char *)argv[2];
 	av[2] = (char *)argv[3];
-	av[3] = bu_vls_addr(&pt_vls);
+	av[3] = bu_vls_cstr(&pt_vls);
 	av[4] = (char *)0;
 
 	ret = ged_exec(gedp, 4, (const char **)av);
@@ -1539,19 +1670,22 @@ to_mouse_move_bot_pnts(struct ged *gedp,
     /* must be double for scanf */
     double x, y;
 
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
-    cmd = argv[0];
+    cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "move_bot_pnts";
 
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc < 6) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage);
+    if (argc < 6 || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1563,11 +1697,13 @@ to_mouse_move_bot_pnts(struct ged *gedp,
 
     if (bu_sscanf(argv[2], "%lf", &x) != 1 ||
 	bu_sscanf(argv[3], "%lf", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
-    width = dm_get_width((struct dm *)gdvp->dmp);
+    width = gdvp->dmp ? dm_get_width((struct dm *)gdvp->dmp) : 0;
+    if (width <= 0)
+	width = 1;
     inv_width = 1.0 / (fastf_t)width;
 
     dx = x - gdvp->gv_prevMouseX;
@@ -1596,7 +1732,8 @@ to_mouse_move_bot_pnts(struct ged *gedp,
     MAT4X3PNT(model, v2m_mat, view);
 
     /* ged_bot_move_pnts expects things to be in local units */
-    VSCALE(model, model, gedp->dbip->dbi_base2local);
+    fastf_t conv = gedp->dbip ? gedp->dbip->dbi_base2local : 1.0;
+    VSCALE(model, model, conv);
     bu_vls_printf(&pt_vls, "%lf %lf %lf", model[X], model[Y], model[Z]);
 
     gedp->ged_gvp = gdvp;
@@ -1604,25 +1741,26 @@ to_mouse_move_bot_pnts(struct ged *gedp,
     {
 	register int i, j;
 	int ac = argc - 2;
-	const char **av = (const char **)bu_calloc(ac, sizeof(char *), "to_mouse_move_bot_pnts: av[]");
+	const char **av = (const char **)bu_calloc(ac + 1, sizeof(char *), "to_mouse_move_bot_pnts: av[]");
 	av[0] = "bot_move_pnts";
 	// TODO - above is not a current GED command - broken
 
 	av[1] = (char *)argv[4];
-	av[2] = bu_vls_addr(&pt_vls);
-	av[ac-1] = (char *)0;
+	av[2] = bu_vls_cstr(&pt_vls);
 
-	for (i=3, j=5; i < ac; ++i, ++j)
-	    av[i] = (char *)argv[j];
+	for (i = 3, j = 5; i < ac; ++i, ++j)
+	    av[i] = (argv[j]) ? (char *)argv[j] : "";
+	av[ac] = (char *)0;
 
 	ret = ged_exec(gedp, ac, (const char **)av);
 	bu_vls_free(&pt_vls);
 
 	if (ret == BRLCAD_OK) {
-	    av[0] = "draw";
-	    av[1] = (char *)argv[4];
-	    av[2] = (char *)0;
-	    to_edit_redraw(gedp, 2, (const char **)av);
+	    const char *drav[3];
+	    drav[0] = "draw";
+	    drav[1] = (char *)argv[4];
+	    drav[2] = (char *)0;
+	    to_edit_redraw(gedp, 2, (const char **)drav);
 	}
 
 	bu_free((void *)av, "to_mouse_move_bot_pnts: av[]");
@@ -1652,17 +1790,22 @@ to_mouse_move_pnt_common(struct ged *gedp,
     /* must be double for scanf */
     double x, y;
 
+    if (!gedp || !gedp->ged_result_str || !func)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
+    const char *cmd = (argc > 0 && argv && argv[0]) ? argv[0] : "move_pnt";
+
     /* must be wanting help */
     if (argc == 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return GED_HELP;
     }
 
-    if (argc != 6) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+    if (argc != 6 || !argv || !argv[1] || !argv[2] || !argv[3] || !argv[4] || !argv[5]) {
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1674,7 +1817,7 @@ to_mouse_move_pnt_common(struct ged *gedp,
 
     if (bu_sscanf(argv[4], "%lf", &x) != 1 ||
 	bu_sscanf(argv[5], "%lf", &y) != 1) {
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
+	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", cmd, usage ? usage : "");
 	return BRLCAD_ERROR;
     }
 
@@ -1694,11 +1837,14 @@ to_mouse_move_pnt_common(struct ged *gedp,
     else if (gdvp->gv_maxMouseDelta < dy)
 	dy = gdvp->gv_maxMouseDelta;
 
-    width = dm_get_width((struct dm *)gdvp->dmp);
+    width = gdvp->dmp ? dm_get_width((struct dm *)gdvp->dmp) : 0;
+    if (width <= 0)
+	width = 1;
     inv_width = 1.0 / (fastf_t)width;
     /* ged_pipe_move_pnt expects things to be in local units */
-    dx *= inv_width * gdvp->gv_size * gedp->dbip->dbi_base2local;
-    dy *= inv_width * gdvp->gv_size * gedp->dbip->dbi_base2local;
+    fastf_t conv = gedp->dbip ? gedp->dbip->dbi_base2local : 1.0;
+    dx *= inv_width * gdvp->gv_size * conv;
+    dy *= inv_width * gdvp->gv_size * conv;
     VSET(view, dx, dy, 0.0);
     bn_mat_inv(inv_rot, gdvp->gv_rotation);
     MAT4X3PNT(model, inv_rot, view);
@@ -1706,11 +1852,11 @@ to_mouse_move_pnt_common(struct ged *gedp,
     bu_vls_printf(&pt_vls, "%lf %lf %lf", model[X], model[Y], model[Z]);
 
     gedp->ged_gvp = gdvp;
-    av[0] = (char *)argv[0];
+    av[0] = cmd;
     av[1] = "-r";
     av[2] = (char *)argv[2];
     av[3] = (char *)argv[3];
-    av[4] = bu_vls_addr(&pt_vls);
+    av[4] = bu_vls_cstr(&pt_vls);
     av[5] = (char *)0;
 
     ret = (*func)(gedp, 5, (const char **)av);
@@ -1745,6 +1891,12 @@ to_mouse_orotate(struct ged *gedp,
 
     /* must be double for scanf */
     double x, y;
+
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -1802,29 +1954,32 @@ to_mouse_orotate(struct ged *gedp,
     gedp->ged_gvp = gdvp;
 
     struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
-    if (0 < bu_vls_strlen(&tvd->gdv_edit_motion_delta_callback)) {
-	const char *command = bu_vls_addr(&tvd->gdv_edit_motion_delta_callback);
-	const char *args[4];
-	args[0] = "orotate";
-	args[1] = bu_vls_addr(&rot_x_vls);
-	args[2] = bu_vls_addr(&rot_y_vls);
-	args[3] = bu_vls_addr(&rot_z_vls);
-	tclcad_eval(current_top->to_interp, command, sizeof(args) / sizeof(args[0]), args);
+    if (tvd && 0 < bu_vls_strlen(&tvd->gdv_edit_motion_delta_callback)) {
+	if (current_top && current_top->to_interp) {
+	    const char *command = bu_vls_cstr(&tvd->gdv_edit_motion_delta_callback);
+	    const char *args[4];
+	    args[0] = "orotate";
+	    args[1] = bu_vls_cstr(&rot_x_vls);
+	    args[2] = bu_vls_cstr(&rot_y_vls);
+	    args[3] = bu_vls_cstr(&rot_z_vls);
+	    tclcad_eval(current_top->to_interp, command, sizeof(args) / sizeof(args[0]), args);
+	}
     } else {
 	const char *av[6];
 
 	av[0] = "orotate";
 	av[1] = (char *)argv[2];
-	av[2] = bu_vls_addr(&rot_x_vls);
-	av[3] = bu_vls_addr(&rot_y_vls);
-	av[4] = bu_vls_addr(&rot_z_vls);
+	av[2] = bu_vls_cstr(&rot_x_vls);
+	av[3] = bu_vls_cstr(&rot_y_vls);
+	av[4] = bu_vls_cstr(&rot_z_vls);
 	av[5] = (char *)0;
 
 	if (ged_exec_orotate(gedp, 5, (const char **)av) == BRLCAD_OK) {
-	    av[0] = "draw";
-	    av[1] = (char *)argv[2];
-	    av[2] = (char *)0;
-	    to_edit_redraw(gedp, 2, (const char **)av);
+	    const char *draw_av[3];
+	    draw_av[0] = "draw";
+	    draw_av[1] = (char *)argv[2];
+	    draw_av[2] = (char *)0;
+	    to_edit_redraw(gedp, 2, draw_av);
 	}
     }
 
@@ -1852,6 +2007,12 @@ to_mouse_oscale(struct ged *gedp,
 
     /* must be double for scanf */
     double x, y;
+
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -1895,7 +2056,9 @@ to_mouse_oscale(struct ged *gedp,
     else if (gdvp->gv_maxMouseDelta < dy)
 	dy = gdvp->gv_maxMouseDelta;
 
-    width = dm_get_width((struct dm *)gdvp->dmp);
+    width = gdvp->dmp ? dm_get_width((struct dm *)gdvp->dmp) : 0;
+    if (width <= 0)
+	width = 1;
     inv_width = 1.0 / (fastf_t)width;
     dx *= inv_width * gdvp->gv_sscale;
     dy *= inv_width * gdvp->gv_sscale;
@@ -1910,26 +2073,27 @@ to_mouse_oscale(struct ged *gedp,
     gedp->ged_gvp = gdvp;
 
     struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
-    if (0 < bu_vls_strlen(&tvd->gdv_edit_motion_delta_callback)) {
-	struct bu_vls tcl_cmd;
-
-	bu_vls_init(&tcl_cmd);
-	bu_vls_printf(&tcl_cmd, "%s oscale %s", bu_vls_addr(&tvd->gdv_edit_motion_delta_callback), bu_vls_addr(&sf_vls));
-	Tcl_Eval(current_top->to_interp, bu_vls_addr(&tcl_cmd));
-	bu_vls_free(&tcl_cmd);
+    if (tvd && 0 < bu_vls_strlen(&tvd->gdv_edit_motion_delta_callback)) {
+	if (current_top && current_top->to_interp) {
+	    struct bu_vls tcl_cmd = BU_VLS_INIT_ZERO;
+	    bu_vls_printf(&tcl_cmd, "%s oscale %s", bu_vls_cstr(&tvd->gdv_edit_motion_delta_callback), bu_vls_cstr(&sf_vls));
+	    Tcl_Eval(current_top->to_interp, bu_vls_cstr(&tcl_cmd));
+	    bu_vls_free(&tcl_cmd);
+	}
     } else {
-	const char *av[6];
+	const char *av[4];
 
 	av[0] = "oscale";
 	av[1] = (char *)argv[2];
-	av[2] = bu_vls_addr(&sf_vls);
+	av[2] = bu_vls_cstr(&sf_vls);
 	av[3] = (char *)0;
 
 	if (ged_exec_oscale(gedp, 3, (const char **)av) == BRLCAD_OK) {
-	    av[0] = "draw";
-	    av[1] = (char *)argv[2];
-	    av[2] = (char *)0;
-	    to_edit_redraw(gedp, 2, (const char **)av);
+	    const char *draw_av[3];
+	    draw_av[0] = "draw";
+	    draw_av[1] = (char *)argv[2];
+	    draw_av[2] = (char *)0;
+	    to_edit_redraw(gedp, 2, draw_av);
 	}
     }
 
@@ -1960,6 +2124,12 @@ to_mouse_otranslate(struct ged *gedp,
     /* must be double for scanf */
     double x, y;
 
+    if (!gedp || !gedp->ged_result_str || !gedp->dbip)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
@@ -2002,13 +2172,18 @@ to_mouse_otranslate(struct ged *gedp,
     else if (gdvp->gv_maxMouseDelta < dy)
 	dy = gdvp->gv_maxMouseDelta;
 
-    width = dm_get_width((struct dm *)gdvp->dmp);
+    width = gdvp->dmp ? dm_get_width((struct dm *)gdvp->dmp) : 0;
+    if (width <= 0)
+	width = 1;
     inv_width = 1.0 / (fastf_t)width;
     /* ged_otranslate expects things to be in local units */
     dx *= inv_width * gdvp->gv_size * gedp->dbip->dbi_base2local;
     dy *= inv_width * gdvp->gv_size * gedp->dbip->dbi_base2local;
 
     VSET(view, dx, dy, 0.0);
+    bn_mat_inv(inv_rot, gdvp->gv_rotation);
+    MAT4X3PNT(model, inv_rot, view);
+
     bu_vls_printf(&tran_x_vls, "%lf", model[X]);
     bu_vls_printf(&tran_y_vls, "%lf", model[Y]);
     bu_vls_printf(&tran_z_vls, "%lf", model[Z]);
@@ -2016,8 +2191,8 @@ to_mouse_otranslate(struct ged *gedp,
     gedp->ged_gvp = gdvp;
 
     struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
-    struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
-    if (0 < bu_vls_strlen(&tvd->gdv_edit_motion_delta_callback)) {
+    struct tclcad_ged_data *tgd = (current_top && current_top->to_gedp) ? (struct tclcad_ged_data *)current_top->to_gedp->u_data : NULL;
+    if (tvd && 0 < bu_vls_strlen(&tvd->gdv_edit_motion_delta_callback) && tgd && tgd->go_dmv.edited_paths) {
 	const char *path_string = argv[2];
 	vect_t dvec;
 	struct dm_path_edit_params *params = (struct dm_path_edit_params *)bu_hash_get(tgd->go_dmv.edited_paths,
@@ -2036,9 +2211,6 @@ to_mouse_otranslate(struct ged *gedp,
 	params->dx += dx;
 	params->dy += dy;
 	VSET(view, params->dx, params->dy, 0.0);
-	bn_mat_inv(inv_rot, gdvp->gv_rotation);
-	MAT4X3PNT(model, inv_rot, view);
-
 	MAT_IDN(params->edit_mat);
 	MAT4X3PNT(model, inv_rot, view);
 	VSCALE(dvec, model, gedp->dbip->dbi_local2base);
@@ -2050,16 +2222,17 @@ to_mouse_otranslate(struct ged *gedp,
 
 	av[0] = "otranslate";
 	av[1] = (char *)argv[2];
-	av[2] = bu_vls_addr(&tran_x_vls);
-	av[3] = bu_vls_addr(&tran_y_vls);
-	av[4] = bu_vls_addr(&tran_z_vls);
+	av[2] = bu_vls_cstr(&tran_x_vls);
+	av[3] = bu_vls_cstr(&tran_y_vls);
+	av[4] = bu_vls_cstr(&tran_z_vls);
 	av[5] = (char *)0;
 
 	if (ged_exec_otranslate(gedp, 5, (const char **)av) == BRLCAD_OK) {
-	    av[0] = "draw";
-	    av[1] = (char *)argv[2];
-	    av[2] = (char *)0;
-	    to_edit_redraw(gedp, 2, (const char **)av);
+	    const char *draw_av[3];
+	    draw_av[0] = "draw";
+	    draw_av[1] = (char *)argv[2];
+	    draw_av[2] = (char *)0;
+	    to_edit_redraw(gedp, 2, draw_av);
 	}
     }
 
@@ -2079,6 +2252,12 @@ go_mouse_poly_circ(Tcl_Interp *interp,
 		   const char *argv[],
 		   const char *usage)
 {
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
@@ -2094,7 +2273,7 @@ go_mouse_poly_circ(Tcl_Interp *interp,
     }
 
     /* Don't allow go_refresh() to be called */
-    if (current_top != NULL) {
+    if (current_top != NULL && current_top->to_gedp != NULL && current_top->to_gedp->u_data != NULL) {
 	struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
 	tgd->go_dmv.refresh_on = 0;
     }
@@ -2112,6 +2291,12 @@ to_mouse_poly_circ(struct ged *gedp,
 		   int UNUSED(maxargs))
 {
     int ret;
+
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -2133,13 +2318,11 @@ to_mouse_poly_circ(struct ged *gedp,
 	return BRLCAD_ERROR;
     }
 
+    Tcl_Interp *interp = (current_top) ? current_top->to_interp : NULL;
+
     /* shift the command name to argv[1] before calling to_mouse_poly_circ_func */
     argv[1] = argv[0];
-    ret = to_mouse_poly_circ_func(current_top->to_interp, gedp, gdvp, argc-1, argv+1, usage);
-#if 0
-    if (ret == BRLCAD_ERROR)
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
-#endif
+    ret = to_mouse_poly_circ_func(interp, gedp, gdvp, argc-1, argv+1, usage);
 
     to_refresh_view(gdvp);
 
@@ -2164,6 +2347,9 @@ to_mouse_poly_circ_func(Tcl_Interp *interp,
     struct bu_vls i_vls = BU_VLS_INIT_ZERO;
     bv_data_polygon_state *gdpsp;
 
+    if (!gedp || !gedp->ged_result_str || !gdvp || !argv || !argv[0] || !argv[1] || !argv[2])
+	return BRLCAD_ERROR;
+
     if (argv[0][0] == 's')
 	gdpsp = &gdvp->gv_tcl.gv_sdata_polygons;
     else
@@ -2178,17 +2364,19 @@ to_mouse_poly_circ_func(Tcl_Interp *interp,
     gdvp->gv_prevMouseX = x;
     gdvp->gv_prevMouseY = y;
 
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    gdvp->gv_width = gdvp->dmp ? dm_get_width((struct dm *)gdvp->dmp) : 0;
+    gdvp->gv_height = gdvp->dmp ? dm_get_height((struct dm *)gdvp->dmp) : 0;
     bv_screen_to_view(gdvp, &fx, &fy, x, y);
 
+    gedp->ged_gvp = gdvp;
+
     int snapped = 0;
-    if (gedp->ged_gvp->gv_s->gv_snap_lines) {
-	gedp->ged_gvp->gv_s->gv_snap_flags = BV_SNAP_TCL;
-	snapped = bv_snap_lines_2d(gedp->ged_gvp, &fx, &fy);
+    if (gdvp->gv_s && gdvp->gv_s->gv_snap_lines) {
+	gdvp->gv_s->gv_snap_flags = BV_SNAP_TCL;
+	snapped = bv_snap_lines_2d(gdvp, &fx, &fy);
     }
-    if (!snapped && gedp->ged_gvp->gv_s->gv_grid.snap) {
-	bv_snap_grid_2d(gedp->ged_gvp, &fx, &fy);
+    if (!snapped && gdvp->gv_s && gdvp->gv_s->gv_grid.snap) {
+	bv_snap_grid_2d(gdvp, &fx, &fy);
     }
 
     bu_vls_printf(&plist, "{0 ");
@@ -2231,12 +2419,11 @@ to_mouse_poly_circ_func(Tcl_Interp *interp,
     bu_vls_printf(&plist, " }");
     bu_vls_printf(&i_vls, "%zu", gdpsp->gdps_curr_polygon_i);
 
-    gedp->ged_gvp = gdvp;
     ac = 4;
     av[0] = "data_polygons";
     av[1] = "replace_poly";
-    av[2] = bu_vls_addr(&i_vls);
-    av[3] = bu_vls_addr(&plist);
+    av[2] = bu_vls_cstr(&i_vls);
+    av[3] = bu_vls_cstr(&plist);
     av[4] = (char *)0;
 
     (void)to_data_polygons_func(interp, gedp, gdvp, ac, (const char **)av);
@@ -2255,6 +2442,12 @@ go_mouse_poly_cont(Tcl_Interp *interp,
 		   const char *argv[],
 		   const char *usage)
 {
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
@@ -2270,7 +2463,7 @@ go_mouse_poly_cont(Tcl_Interp *interp,
     }
 
     /* Don't allow go_refresh() to be called */
-    if (current_top != NULL) {
+    if (current_top != NULL && current_top->to_gedp != NULL && current_top->to_gedp->u_data != NULL) {
 	struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
 	tgd->go_dmv.refresh_on = 0;
     }
@@ -2288,6 +2481,12 @@ to_mouse_poly_cont(struct ged *gedp,
 		   int UNUSED(maxargs))
 {
     int ret;
+
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -2309,13 +2508,11 @@ to_mouse_poly_cont(struct ged *gedp,
 	return BRLCAD_ERROR;
     }
 
+    Tcl_Interp *interp = (current_top) ? current_top->to_interp : NULL;
+
     /* shift the command name to argv[1] before calling to_mouse_poly_cont_func */
     argv[1] = argv[0];
-    ret = to_mouse_poly_cont_func(current_top->to_interp, gedp, gdvp, argc-1, argv+1, usage);
-#if 0
-    if (ret == BRLCAD_ERROR)
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
-#endif
+    ret = to_mouse_poly_cont_func(interp, gedp, gdvp, argc-1, argv+1, usage);
 
     to_refresh_view(gdvp);
 
@@ -2338,6 +2535,9 @@ to_mouse_poly_cont_func(Tcl_Interp *interp,
     point_t v_pt, m_pt;
     bv_data_polygon_state *gdpsp;
 
+    if (!gedp || !gedp->ged_result_str || !gdvp || !argv || !argv[0] || !argv[1] || !argv[2])
+	return BRLCAD_ERROR;
+
     if (argv[0][0] == 's')
 	gdpsp = &gdvp->gv_tcl.gv_sdata_polygons;
     else
@@ -2352,8 +2552,8 @@ to_mouse_poly_cont_func(Tcl_Interp *interp,
     gdvp->gv_prevMouseX = x;
     gdvp->gv_prevMouseY = y;
 
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    gdvp->gv_width = gdvp->dmp ? dm_get_width((struct dm *)gdvp->dmp) : 0;
+    gdvp->gv_height = gdvp->dmp ? dm_get_height((struct dm *)gdvp->dmp) : 0;
     bv_screen_to_view(gdvp, &fx, &fy, x, y);
     VSET(v_pt, fx, fy, gdvp->gv_tcl.gv_data_vZ);
 
@@ -2372,10 +2572,10 @@ to_mouse_poly_cont_func(Tcl_Interp *interp,
 	ac = 6;
 	av[0] = "data_polygons";
 	av[1] = "replace_point";
-	av[2] = bu_vls_addr(&i_vls);
+	av[2] = bu_vls_cstr(&i_vls);
 	av[3] = "0";
-	av[4] = bu_vls_addr(&k_vls);
-	av[5] = bu_vls_addr(&plist);
+	av[4] = bu_vls_cstr(&k_vls);
+	av[5] = bu_vls_cstr(&plist);
 	av[6] = (char *)0;
 
 	(void)to_data_polygons_func(interp, gedp, gdvp, ac, (const char **)av);
@@ -2396,6 +2596,12 @@ go_mouse_poly_ell(Tcl_Interp *interp,
 		  const char *argv[],
 		  const char *usage)
 {
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
@@ -2411,7 +2617,7 @@ go_mouse_poly_ell(Tcl_Interp *interp,
     }
 
     /* Don't allow go_refresh() to be called */
-    if (current_top != NULL) {
+    if (current_top != NULL && current_top->to_gedp != NULL && current_top->to_gedp->u_data != NULL) {
 	struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
 	tgd->go_dmv.refresh_on = 0;
     }
@@ -2429,6 +2635,12 @@ to_mouse_poly_ell(struct ged *gedp,
 		  int UNUSED(maxargs))
 {
     int ret;
+
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -2450,13 +2662,11 @@ to_mouse_poly_ell(struct ged *gedp,
 	return BRLCAD_ERROR;
     }
 
+    Tcl_Interp *interp = (current_top) ? current_top->to_interp : NULL;
+
     /* shift the command name to argv[1] before calling to_mouse_poly_ell_func */
     argv[1] = argv[0];
-    ret = to_mouse_poly_ell_func(current_top->to_interp, gedp, gdvp, argc-1, argv+1, usage);
-#if 0
-    if (ret == BRLCAD_ERROR)
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
-#endif
+    ret = to_mouse_poly_ell_func(interp, gedp, gdvp, argc-1, argv+1, usage);
 
     to_refresh_view(gdvp);
 
@@ -2481,6 +2691,9 @@ to_mouse_poly_ell_func(Tcl_Interp *interp,
     struct bu_vls i_vls = BU_VLS_INIT_ZERO;
     bv_data_polygon_state *gdpsp;
 
+    if (!gedp || !gedp->ged_result_str || !gdvp || !argv || !argv[0] || !argv[1] || !argv[2])
+	return BRLCAD_ERROR;
+
     if (argv[0][0] == 's')
 	gdpsp = &gdvp->gv_tcl.gv_sdata_polygons;
     else
@@ -2495,18 +2708,19 @@ to_mouse_poly_ell_func(Tcl_Interp *interp,
     gdvp->gv_prevMouseX = x;
     gdvp->gv_prevMouseY = y;
 
-
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    gdvp->gv_width = gdvp->dmp ? dm_get_width((struct dm *)gdvp->dmp) : 0;
+    gdvp->gv_height = gdvp->dmp ? dm_get_height((struct dm *)gdvp->dmp) : 0;
     bv_screen_to_view(gdvp, &fx, &fy, x, y);
 
+    gedp->ged_gvp = gdvp;
+
     int snapped = 0;
-    if (gedp->ged_gvp->gv_s->gv_snap_lines) {
-	gedp->ged_gvp->gv_s->gv_snap_flags = BV_SNAP_TCL;
-	snapped = bv_snap_lines_2d(gedp->ged_gvp, &fx, &fy);
+    if (gdvp->gv_s && gdvp->gv_s->gv_snap_lines) {
+	gdvp->gv_s->gv_snap_flags = BV_SNAP_TCL;
+	snapped = bv_snap_lines_2d(gdvp, &fx, &fy);
     }
-    if (!snapped && gedp->ged_gvp->gv_s->gv_grid.snap) {
-	bv_snap_grid_2d(gedp->ged_gvp, &fx, &fy);
+    if (!snapped && gdvp->gv_s && gdvp->gv_s->gv_grid.snap) {
+	bv_snap_grid_2d(gdvp, &fx, &fy);
     }
 
     bu_vls_printf(&plist, "{0 ");
@@ -2558,12 +2772,11 @@ to_mouse_poly_ell_func(Tcl_Interp *interp,
     bu_vls_printf(&plist, " }");
     bu_vls_printf(&i_vls, "%zu", gdpsp->gdps_curr_polygon_i);
 
-    gedp->ged_gvp = gdvp;
     ac = 4;
     av[0] = "data_polygons";
     av[1] = "replace_poly";
-    av[2] = bu_vls_addr(&i_vls);
-    av[3] = bu_vls_addr(&plist);
+    av[2] = bu_vls_cstr(&i_vls);
+    av[3] = bu_vls_cstr(&plist);
     av[4] = (char *)0;
 
     (void)to_data_polygons_func(interp, gedp, gdvp, ac, (const char **)av);
@@ -2582,6 +2795,12 @@ go_mouse_poly_rect(Tcl_Interp *interp,
 		   const char *argv[],
 		   const char *usage)
 {
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
@@ -2597,7 +2816,7 @@ go_mouse_poly_rect(Tcl_Interp *interp,
     }
 
     /* Don't allow go_refresh() to be called */
-    if (current_top != NULL) {
+    if (current_top != NULL && current_top->to_gedp != NULL && current_top->to_gedp->u_data != NULL) {
 	struct tclcad_ged_data *tgd = (struct tclcad_ged_data *)current_top->to_gedp->u_data;
 	tgd->go_dmv.refresh_on = 0;
     }
@@ -2615,6 +2834,12 @@ to_mouse_poly_rect(struct ged *gedp,
 		   int UNUSED(maxargs))
 {
     int ret;
+
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -2636,13 +2861,11 @@ to_mouse_poly_rect(struct ged *gedp,
 	return BRLCAD_ERROR;
     }
 
+    Tcl_Interp *interp = (current_top) ? current_top->to_interp : NULL;
+
     /* shift the command name to argv[1] before calling to_mouse_poly_rect_func */
     argv[1] = argv[0];
-    ret = to_mouse_poly_rect_func(current_top->to_interp, gedp, gdvp, argc-1, argv+1, usage);
-#if 0
-    if (ret == BRLCAD_ERROR)
-	bu_vls_printf(gedp->ged_result_str, "Usage: %s %s", argv[0], usage);
-#endif
+    ret = to_mouse_poly_rect_func(interp, gedp, gdvp, argc-1, argv+1, usage);
 
     to_refresh_view(gdvp);
 
@@ -2667,6 +2890,9 @@ to_mouse_poly_rect_func(Tcl_Interp *interp,
     struct bu_vls i_vls = BU_VLS_INIT_ZERO;
     bv_data_polygon_state *gdpsp;
 
+    if (!gedp || !gedp->ged_result_str || !gdvp || !argv || !argv[0] || !argv[1] || !argv[2])
+	return BRLCAD_ERROR;
+
     if (argv[0][0] == 's')
 	gdpsp = &gdvp->gv_tcl.gv_sdata_polygons;
     else
@@ -2681,19 +2907,20 @@ to_mouse_poly_rect_func(Tcl_Interp *interp,
     gdvp->gv_prevMouseX = x;
     gdvp->gv_prevMouseY = y;
 
-    gdvp->gv_width = dm_get_width((struct dm *)gdvp->dmp);
-    gdvp->gv_height = dm_get_height((struct dm *)gdvp->dmp);
+    gdvp->gv_width = gdvp->dmp ? dm_get_width((struct dm *)gdvp->dmp) : 0;
+    gdvp->gv_height = gdvp->dmp ? dm_get_height((struct dm *)gdvp->dmp) : 0;
     bv_screen_to_view(gdvp, &fx, &fy, x, y);
 
-    int snapped = 0;
-    if (gedp->ged_gvp->gv_s->gv_snap_lines) {
-	gedp->ged_gvp->gv_s->gv_snap_flags = BV_SNAP_TCL;
-	snapped = bv_snap_lines_2d(gedp->ged_gvp, &fx, &fy);
-    }
-    if (!snapped && gedp->ged_gvp->gv_s->gv_grid.snap) {
-	bv_snap_grid_2d(gedp->ged_gvp, &fx, &fy);
-    }
+    gedp->ged_gvp = gdvp;
 
+    int snapped = 0;
+    if (gdvp->gv_s && gdvp->gv_s->gv_snap_lines) {
+	gdvp->gv_s->gv_snap_flags = BV_SNAP_TCL;
+	snapped = bv_snap_lines_2d(gdvp, &fx, &fy);
+    }
+    if (!snapped && gdvp->gv_s && gdvp->gv_s->gv_grid.snap) {
+	bv_snap_grid_2d(gdvp, &fx, &fy);
+    }
 
     if (gdvp->gv_tcl.gv_polygon_mode == TCLCAD_POLY_SQUARE_MODE) {
 	fastf_t dx, dy;
@@ -2730,12 +2957,11 @@ to_mouse_poly_rect_func(Tcl_Interp *interp,
 
     bu_vls_printf(&i_vls, "%zu", gdpsp->gdps_curr_polygon_i);
 
-    gedp->ged_gvp = gdvp;
     ac = 4;
     av[0] = "data_polygons";
     av[1] = "replace_poly";
-    av[2] = bu_vls_addr(&i_vls);
-    av[3] = bu_vls_addr(&plist);
+    av[2] = bu_vls_cstr(&i_vls);
+    av[3] = bu_vls_cstr(&plist);
     av[4] = (char *)0;
 
     (void)to_data_polygons_func(interp, gedp, gdvp, ac, (const char **)av);
@@ -2771,8 +2997,15 @@ to_mouse_rect(struct ged *gedp,
     const char *av[5];
     int x, y;
     int dx, dy;
+    int height;
     struct bu_vls dx_vls = BU_VLS_INIT_ZERO;
     struct bu_vls dy_vls = BU_VLS_INIT_ZERO;
+
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -2800,8 +3033,9 @@ to_mouse_rect(struct ged *gedp,
 	return BRLCAD_ERROR;
     }
 
+    height = gdvp->dmp ? dm_get_height((struct dm *)gdvp->dmp) : 0;
     dx = x - gdvp->gv_prevMouseX;
-    dy = dm_get_height((struct dm *)gdvp->dmp) - y - gdvp->gv_prevMouseY;
+    dy = height - y - gdvp->gv_prevMouseY;
 
     bu_vls_printf(&dx_vls, "%d", dx);
     bu_vls_printf(&dy_vls, "%d", dy);
@@ -2809,8 +3043,8 @@ to_mouse_rect(struct ged *gedp,
     ac = 4;
     av[0] = "rect";
     av[1] = "dim";
-    av[2] = bu_vls_addr(&dx_vls);
-    av[3] = bu_vls_addr(&dy_vls);
+    av[2] = bu_vls_cstr(&dx_vls);
+    av[3] = bu_vls_cstr(&dy_vls);
     av[4] = (char *)0;
 
     ret = ged_exec_rect(gedp, ac, (const char **)av);
@@ -2840,6 +3074,12 @@ to_mouse_rot(struct ged *gedp,
 
     /* must be double for scanf */
     double x, y;
+
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -2892,7 +3132,7 @@ to_mouse_rot(struct ged *gedp,
     ac = 3;
     av[0] = "rot";
     av[1] = "-v";
-    av[2] = bu_vls_addr(&rot_vls);
+    av[2] = bu_vls_cstr(&rot_vls);
     av[3] = (char *)0;
 
     ret = ged_exec_rot(gedp, ac, (const char **)av);
@@ -2900,8 +3140,10 @@ to_mouse_rot(struct ged *gedp,
 
     if (ret == BRLCAD_OK) {
 	struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
-	if (0 < bu_vls_strlen(&tvd->gdv_callback)) {
-	    Tcl_Eval(current_top->to_interp, bu_vls_addr(&tvd->gdv_callback));
+	if (tvd && 0 < bu_vls_strlen(&tvd->gdv_callback)) {
+	    if (current_top && current_top->to_interp) {
+		Tcl_Eval(current_top->to_interp, bu_vls_cstr(&tvd->gdv_callback));
+	    }
 	}
 
 	to_refresh_view(gdvp);
@@ -2929,6 +3171,12 @@ to_mouse_rotate_arb_face(struct ged *gedp,
 
     /* must be double for scanf */
     double x, y;
+
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -2986,17 +3234,18 @@ to_mouse_rotate_arb_face(struct ged *gedp,
     av[1] = (char *)argv[2];
     av[2] = (char *)argv[3];
     av[3] = (char *)argv[4];
-    av[4] = bu_vls_addr(&pt_vls);
+    av[4] = bu_vls_cstr(&pt_vls);
     av[5] = (char *)0;
 
     ret = ged_exec_rotate_arb_face(gedp, 5, (const char **)av);
     bu_vls_free(&pt_vls);
 
     if (ret == BRLCAD_OK) {
-	av[0] = "draw";
-	av[1] = (char *)argv[2];
-	av[2] = (char *)0;
-	to_edit_redraw(gedp, 2, (const char **)av);
+	const char *draw_av[3];
+	draw_av[0] = "draw";
+	draw_av[1] = (char *)argv[2];
+	draw_av[2] = (char *)0;
+	to_edit_redraw(gedp, 2, draw_av);
     }
 
     return BRLCAD_OK;
@@ -3012,6 +3261,12 @@ to_mouse_rotate_arb_face(struct ged *gedp,
 	/* must be double for scanf */ \
 	double _x, _y; \
  \
+	if (!gedp || !gedp->ged_result_str) \
+	    return BRLCAD_ERROR; \
+ \
+	if (!(_argv) || (_argc) < 1) \
+	    return BRLCAD_ERROR; \
+ \
 	/* initialize result */ \
 	bu_vls_trunc(gedp->ged_result_str, 0); \
  \
@@ -3026,8 +3281,8 @@ to_mouse_rotate_arb_face(struct ged *gedp,
 	    return BRLCAD_ERROR; \
 	} \
  \
-        gdvp = bv_set_find_view(&gedp->ged_views, argv[1]); \
-        if (!gdvp) { \
+        (_gdvp) = bv_set_find_view(&gedp->ged_views, (_argv)[1]); \
+        if (!(_gdvp)) { \
 	    bu_vls_printf(gedp->ged_result_str, "View not found - %s", (_argv)[1]); \
 	    return BRLCAD_ERROR; \
 	} \
@@ -3054,7 +3309,9 @@ to_mouse_rotate_arb_face(struct ged *gedp,
 	else if ((_gdvp)->gv_maxMouseDelta < _dy) \
 	    _dy = (_gdvp)->gv_maxMouseDelta; \
  \
-	_width = dm_get_width((struct dm *)(_gdvp)->dmp); \
+	_width = (_gdvp)->dmp ? dm_get_width((struct dm *)(_gdvp)->dmp) : 0; \
+	if (_width <= 0) \
+	    _width = 1; \
 	_inv_width = 1.0 / (fastf_t)_width; \
 	_dx *= _inv_width * (_gdvp)->gv_sscale; \
 	_dy *= _inv_width * (_gdvp)->gv_sscale; \
@@ -3064,7 +3321,7 @@ to_mouse_rotate_arb_face(struct ged *gedp,
 	else \
 	    _sf = 1.0 + _dy; \
  \
-	bu_vls_printf(&(_zoom_vls), "%lf", _sf);	\
+	bu_vls_printf(&(_zoom_vls), "%lf", _sf); \
     }
 
 /*
@@ -3080,6 +3337,12 @@ to_data_scale(struct ged *gedp,
 {
     register int i;
     fastf_t sf;
+
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -3102,10 +3365,12 @@ to_data_scale(struct ged *gedp,
 	return BRLCAD_ERROR;
     }
 
-    if (bu_sscanf(argv[2], "%lf", &sf) != 1 || sf < 0) {
+    if (bu_sscanf(argv[2], "%lf", &sf) != 1 || sf < 0.0) {
 	bu_vls_printf(gedp->ged_result_str, "Invalid scale factor - %s", argv[2]);
 	return BRLCAD_ERROR;
     }
+
+    gedp->ged_gvp = gdvp;
 
     /* scale data arrows */
     {
@@ -3145,7 +3410,6 @@ to_data_scale(struct ged *gedp,
 	}
     }
 
-
     to_refresh_view(gdvp);
     return BRLCAD_OK;
 }
@@ -3168,7 +3432,7 @@ to_mouse_data_scale(struct ged *gedp,
 
     av[0] = "to_data_scale";
     av[1] = (char *)argv[1];
-    av[2] = bu_vls_addr(&scale_vls);
+    av[2] = bu_vls_cstr(&scale_vls);
     av[3] = (char *)0;
 
     ret = to_data_scale(gedp, 3, (const char **)av, (ged_func_ptr)NULL, NULL, 4);
@@ -3196,15 +3460,17 @@ to_mouse_scale(struct ged *gedp,
     gedp->ged_gvp = gdvp;
 
     av[0] = "zoom";
-    av[1] = bu_vls_addr(&zoom_vls);
+    av[1] = bu_vls_cstr(&zoom_vls);
     av[2] = (char *)0;
     ret = ged_exec_zoom(gedp, 2, (const char **)av);
     bu_vls_free(&zoom_vls);
 
     if (ret == BRLCAD_OK) {
 	struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
-	if (0 < bu_vls_strlen(&tvd->gdv_callback)) {
-	    Tcl_Eval(current_top->to_interp, bu_vls_addr(&tvd->gdv_callback));
+	if (tvd && 0 < bu_vls_strlen(&tvd->gdv_callback)) {
+	    if (current_top && current_top->to_interp) {
+		Tcl_Eval(current_top->to_interp, bu_vls_cstr(&tvd->gdv_callback));
+	    }
 	}
 
 	to_refresh_view(gdvp);
@@ -3232,6 +3498,12 @@ to_mouse_protate(struct ged *gedp,
 
     /* must be double for scanf */
     double x, y;
+
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -3288,17 +3560,18 @@ to_mouse_protate(struct ged *gedp,
     av[0] = "protate";
     av[1] = (char *)argv[2];
     av[2] = (char *)argv[3];
-    av[3] = bu_vls_addr(&mrot_vls);
+    av[3] = bu_vls_cstr(&mrot_vls);
     av[4] = (char *)0;
 
     ret = ged_exec_protate(gedp, 4, (const char **)av);
     bu_vls_free(&mrot_vls);
 
     if (ret == BRLCAD_OK) {
-	av[0] = "draw";
-	av[1] = (char *)argv[2];
-	av[2] = (char *)0;
-	to_edit_redraw(gedp, 2, (const char **)av);
+	const char *draw_av[3];
+	draw_av[0] = "draw";
+	draw_av[1] = (char *)argv[2];
+	draw_av[2] = (char *)0;
+	to_edit_redraw(gedp, 2, draw_av);
     }
 
     return BRLCAD_OK;
@@ -3322,6 +3595,12 @@ to_mouse_pscale(struct ged *gedp,
 
     /* must be double for scanf */
     double x, y;
+
+    if (!gedp || !gedp->ged_result_str)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -3365,7 +3644,9 @@ to_mouse_pscale(struct ged *gedp,
     else if (gdvp->gv_maxMouseDelta < dy)
 	dy = gdvp->gv_maxMouseDelta;
 
-    width = dm_get_width((struct dm *)gdvp->dmp);
+    width = gdvp->dmp ? dm_get_width((struct dm *)gdvp->dmp) : 0;
+    if (width <= 0)
+	width = 1;
     inv_width = 1.0 / (fastf_t)width;
     dx *= inv_width * gdvp->gv_sscale;
     dy *= inv_width * gdvp->gv_sscale;
@@ -3382,17 +3663,18 @@ to_mouse_pscale(struct ged *gedp,
     av[1] = "-r";
     av[2] = (char *)argv[2];
     av[3] = (char *)argv[3];
-    av[4] = bu_vls_addr(&sf_vls);
+    av[4] = bu_vls_cstr(&sf_vls);
     av[5] = (char *)0;
 
     ret = ged_exec_pscale(gedp, 5, (const char **)av);
     bu_vls_free(&sf_vls);
 
     if (ret == BRLCAD_OK) {
-	av[0] = "draw";
-	av[1] = (char *)argv[2];
-	av[2] = (char *)0;
-	to_edit_redraw(gedp, 2, (const char **)av);
+	const char *draw_av[3];
+	draw_av[0] = "draw";
+	draw_av[1] = (char *)argv[2];
+	draw_av[2] = (char *)0;
+	to_edit_redraw(gedp, 2, draw_av);
     }
 
     return BRLCAD_OK;
@@ -3419,6 +3701,12 @@ to_mouse_ptranslate(struct ged *gedp,
     /* must be double for scanf */
     double x, y;
 
+    if (!gedp || !gedp->ged_result_str || !gedp->dbip)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
+
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
 
@@ -3461,7 +3749,9 @@ to_mouse_ptranslate(struct ged *gedp,
     else if (gdvp->gv_maxMouseDelta < dy)
 	dy = gdvp->gv_maxMouseDelta;
 
-    width = dm_get_width((struct dm *)gdvp->dmp);
+    width = gdvp->dmp ? dm_get_width((struct dm *)gdvp->dmp) : 0;
+    if (width <= 0)
+	width = 1;
     inv_width = 1.0 / (fastf_t)width;
     /* ged_ptranslate expects things to be in local units */
     dx *= inv_width * gdvp->gv_size * gedp->dbip->dbi_base2local;
@@ -3477,17 +3767,18 @@ to_mouse_ptranslate(struct ged *gedp,
     av[1] = "-r";
     av[2] = (char *)argv[2];
     av[3] = (char *)argv[3];
-    av[4] = bu_vls_addr(&tvec_vls);
+    av[4] = bu_vls_cstr(&tvec_vls);
     av[5] = (char *)0;
 
     ret = ged_exec_ptranslate(gedp, 5, (const char **)av);
     bu_vls_free(&tvec_vls);
 
     if (ret == BRLCAD_OK) {
-	av[0] = "draw";
-	av[1] = (char *)argv[2];
-	av[2] = (char *)0;
-	to_edit_redraw(gedp, 2, (const char **)av);
+	const char *draw_av[3];
+	draw_av[0] = "draw";
+	draw_av[1] = (char *)argv[2];
+	draw_av[2] = (char *)0;
+	to_edit_redraw(gedp, 2, draw_av);
     }
 
     return BRLCAD_OK;
@@ -3511,6 +3802,12 @@ to_mouse_trans(struct ged *gedp,
 
     /* must be double for scanf */
     double x, y;
+
+    if (!gedp || !gedp->ged_result_str || !gedp->dbip)
+	return BRLCAD_ERROR;
+
+    if (!argv || argc < 1)
+	return BRLCAD_ERROR;
 
     /* initialize result */
     bu_vls_trunc(gedp->ged_result_str, 0);
@@ -3554,7 +3851,9 @@ to_mouse_trans(struct ged *gedp,
     else if (gdvp->gv_maxMouseDelta < dy)
 	dy = gdvp->gv_maxMouseDelta;
 
-    width = dm_get_width((struct dm *)gdvp->dmp);
+    width = gdvp->dmp ? dm_get_width((struct dm *)gdvp->dmp) : 0;
+    if (width <= 0)
+	width = 1;
     inv_width = 1.0 / (fastf_t)width;
     dx *= inv_width * gdvp->gv_size * gedp->dbip->dbi_local2base;
     dy *= inv_width * gdvp->gv_size * gedp->dbip->dbi_local2base;
@@ -3565,7 +3864,7 @@ to_mouse_trans(struct ged *gedp,
     ac = 3;
     av[0] = "tra";
     av[1] = "-v";
-    av[2] = bu_vls_addr(&trans_vls);
+    av[2] = bu_vls_cstr(&trans_vls);
     av[3] = (char *)0;
 
     ret = ged_exec_tra(gedp, ac, (const char **)av);
@@ -3573,8 +3872,10 @@ to_mouse_trans(struct ged *gedp,
 
     if (ret == BRLCAD_OK) {
 	struct tclcad_view_data *tvd = (struct tclcad_view_data *)gdvp->u_data;
-	if (0 < bu_vls_strlen(&tvd->gdv_callback)) {
-	    Tcl_Eval(current_top->to_interp, bu_vls_addr(&tvd->gdv_callback));
+	if (tvd && 0 < bu_vls_strlen(&tvd->gdv_callback)) {
+	    if (current_top && current_top->to_interp) {
+		Tcl_Eval(current_top->to_interp, bu_vls_cstr(&tvd->gdv_callback));
+	    }
 	}
 
 	to_refresh_view(gdvp);
