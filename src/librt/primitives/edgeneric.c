@@ -25,15 +25,163 @@
 #include "common.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "vmath.h"
+#include "bu/opt.h"
+#include "bu/str.h"
 #include "nmg.h"
 #include "raytrace.h"
 #include "rt/geom.h"
 #include "wdb.h"
 
 #include "./edit_private.h"
+
+char *
+edit_param_next_line(char **cursor)
+{
+    if (!cursor || !*cursor || !**cursor)
+	return NULL;
+
+    char *line = *cursor;
+    char *end = strchr(line, '\n');
+    if (end) {
+	*end = '\0';
+	*cursor = end + 1;
+    } else {
+	*cursor = NULL;
+    }
+    size_t length = strlen(line);
+    if (length && line[length - 1] == '\r')
+	line[length - 1] = '\0';
+    return line;
+}
+
+static const char *
+edit_param_values(const char *line, const char *label)
+{
+    size_t label_length = strlen(label);
+    if (!bu_strncmp(line, label, label_length) && line[label_length] == ':')
+	return line + label_length + 1;
+    return line;
+}
+
+int
+edit_param_read_vector(point_t out, char **cursor, const char *label,
+		       fastf_t local2base)
+{
+    if (!out || !cursor || !label || !isfinite(local2base) ||
+	local2base <= 0.0)
+	return BRLCAD_ERROR;
+
+    char *line = edit_param_next_line(cursor);
+    if (!line)
+	return BRLCAD_ERROR;
+    const char *coords = edit_param_values(line, label);
+
+    double x, y, z;
+    int end = 0;
+    if (sscanf(coords, " %lf %lf %lf %n", &x, &y, &z, &end) != 3 ||
+	!end || coords[end] || !isfinite(x) || !isfinite(y) ||
+	!isfinite(z))
+	return BRLCAD_ERROR;
+
+    VSET(out, x * local2base, y * local2base, z * local2base);
+    return isfinite(out[X]) && isfinite(out[Y]) && isfinite(out[Z]) ?
+	BRLCAD_OK : BRLCAD_ERROR;
+}
+
+int
+edit_param_read_scalar(fastf_t *out, char **cursor, const char *label,
+		       fastf_t local2base)
+{
+    if (!out || !cursor || !label || !isfinite(local2base) ||
+	local2base <= 0.0)
+	return BRLCAD_ERROR;
+
+    char *line = edit_param_next_line(cursor);
+    if (!line)
+	return BRLCAD_ERROR;
+    const char *value = edit_param_values(line, label);
+    double parsed;
+    int end = 0;
+    if (sscanf(value, " %lf %n", &parsed, &end) != 1 || !end ||
+	value[end] || !isfinite(parsed))
+	return BRLCAD_ERROR;
+
+    *out = parsed * local2base;
+    return isfinite(*out) ? BRLCAD_OK : BRLCAD_ERROR;
+}
+
+int
+edit_param_read_fields(const char *input, const struct edit_param_field *fields,
+		size_t field_count)
+{
+    if (!input || !fields || !field_count)
+	return BRLCAD_ERROR;
+
+    char *buffer = bu_strdup(input);
+    char *cursor = buffer;
+    int result = BRLCAD_OK;
+    for (size_t i = 0; i < field_count; i++) {
+	const struct edit_param_field *field = &fields[i];
+	if (field->count == ELEMENTS_PER_VECT)
+	    result = edit_param_read_vector(field->value, &cursor,
+		    field->label, field->conversion);
+	else if (field->count == 1)
+	    result = edit_param_read_scalar(field->value, &cursor,
+		    field->label, field->conversion);
+	else
+	    result = BRLCAD_ERROR;
+	if (result != BRLCAD_OK)
+	    break;
+    }
+    if (result == BRLCAD_OK && edit_param_next_line(&cursor))
+	result = BRLCAD_ERROR;
+    bu_free(buffer, "primitive parameter text");
+    return result;
+}
+
+int
+edit_repair_parse_options(struct bu_vls *log_str, int argc,
+			  const char **argv, const struct bu_opt_desc *options)
+{
+    if (argc < 0 || (argc > 0 &&
+	(!argv || bu_opt_parse(NULL, argc, argv, options) != 0))) {
+	if (log_str)
+	    bu_vls_printf(log_str,
+		"{\"status\":\"error\",\"message\":\"Invalid repair options\"}");
+	return BRLCAD_ERROR;
+    }
+    return BRLCAD_OK;
+}
+
+int
+edit_parse_sample_count(uint32_t *count, fastf_t value)
+{
+    if (!count || !isfinite(value) || value < 1.0 ||
+	value > UINT32_MAX || value > floor(value))
+	return BRLCAD_ERROR;
+    *count = (uint32_t)value;
+    return BRLCAD_OK;
+}
+
+int
+edit_file_has_samples(intmax_t file_size, const uint32_t *dims,
+		size_t count, size_t bytes_per_sample)
+{
+    if (file_size < 0 || !dims || !bytes_per_sample)
+	return 0;
+
+    uintmax_t available = (uintmax_t)file_size / bytes_per_sample;
+    for (size_t i = 0; i < count; i++) {
+	if (!dims[i] || dims[i] > available)
+	    return 0;
+	available /= dims[i];
+    }
+    return 1;
+}
 
 void
 edit_abs_tra(struct rt_edit *s, vect_t view_pos)
@@ -75,6 +223,7 @@ edit_sscale(struct rt_edit *s)
 {
     mat_t mat, mat1, scalemat;
     struct rt_db_internal *ip = &s->es_int;
+    fastf_t scale = s->es_scale;
 
     if (s->e_inpara > 1) {
 	bu_vls_printf(s->log_str, "ERROR: only one argument needed\n");
@@ -83,50 +232,161 @@ edit_sscale(struct rt_edit *s)
     }
 
     if (s->e_inpara) {
-	/* accumulate the scale factor */
-	s->es_scale = s->e_para[0] / s->acc_sc_sol;
-	s->acc_sc_sol = s->e_para[0];
+	if (!isfinite(s->e_para[0]) || s->e_para[0] <= 0.0 ||
+	    !isfinite(s->acc_sc_sol) || s->acc_sc_sol <= 0.0) {
+	    bu_vls_printf(s->log_str, "ERROR: scale must be finite and positive\n");
+	    return BRLCAD_ERROR;
+	}
+	scale = s->e_para[0] / s->acc_sc_sol;
     }
 
     /* No pending scale operation — nothing to apply. */
-    if (!s->e_inpara && s->es_scale < SMALL_FASTF)
+
+    if (!s->e_inpara && ZERO(scale))
 	return 0;
 
-    bn_mat_scale_about_pnt(scalemat, s->e_keypoint, s->es_scale);
+    if (!isfinite(scale) || scale <= 0.0 ||
+	!OBJ[ip->idb_type].ft_mat ||
+	bn_mat_scale_about_pnt(scalemat, s->e_keypoint, scale)) {
+	bu_vls_printf(s->log_str, "ERROR: cannot apply solid scale\n");
+	return BRLCAD_ERROR;
+    }
+
     bn_mat_mul(mat1, scalemat, s->e_mat);
     bn_mat_mul(mat, s->e_invmat, mat1);
-    if (OBJ[ip->idb_type].ft_mat)
-	(*OBJ[ip->idb_type].ft_mat)(ip, mat, ip);
+    if ((*OBJ[ip->idb_type].ft_mat)(ip, mat, ip)) {
+	bu_vls_printf(s->log_str, "ERROR: solid scale failed\n");
+	return BRLCAD_ERROR;
+    }
 
     /* reset solid scale factor */
     s->es_scale = 1.0;
+    if (s->e_inpara)
+	s->acc_sc_sol = s->e_para[0];
 
     return 0;
+}
+
+int
+edit_prepare_length_scale(struct rt_edit *s, fastf_t current)
+{
+    if (s->e_inpara != 0 && s->e_inpara != 1) {
+	bu_vls_printf(s->log_str, "Exactly one length value is required\n");
+	return BRLCAD_ERROR;
+    }
+    if (!isfinite(current) || current <= 0.0) {
+	bu_vls_printf(s->log_str, "Cannot scale an invalid length\n");
+	return BRLCAD_ERROR;
+    }
+    fastf_t scale = s->es_scale;
+
+    if (s->e_inpara) {
+	/* Numeric lengths are local; e_mat[15] accounts for path scaling. */
+	fastf_t requested = s->e_para[0] * s->local2base * s->e_mat[15];
+	if (!isfinite(s->e_para[0]) || s->e_para[0] <= 0.0 ||
+	    !isfinite(requested) || requested <= 0.0) {
+	    bu_vls_printf(s->log_str, "Length must be finite and positive\n");
+	    return BRLCAD_ERROR;
+	}
+	scale = requested / current;
+    }
+
+    if (!isfinite(scale) || scale <= 0.0) {
+	bu_vls_printf(s->log_str, "Scale must be finite and positive\n");
+	return BRLCAD_ERROR;
+    }
+    s->es_scale = scale;
+    return BRLCAD_OK;
+}
+
+int
+edit_scale_length(struct rt_edit *s, vect_t *axis, fastf_t *scalar)
+{
+    if ((axis && scalar) || (!axis && !scalar)) {
+	bu_vls_printf(s->log_str, "Exactly one length target is required\n");
+	return BRLCAD_ERROR;
+    }
+    if (!s->e_inpara && ZERO(s->es_scale))
+	return BRLCAD_OK;
+
+    fastf_t current = axis ? MAGNITUDE(*axis) : *scalar;
+    if (edit_prepare_length_scale(s, current) != BRLCAD_OK)
+	return BRLCAD_ERROR;
+    fastf_t target = current * s->es_scale;
+    if (!isfinite(target) || target <= 0.0) {
+	bu_vls_printf(s->log_str, "Length must be finite and positive\n");
+	return BRLCAD_ERROR;
+    }
+    if (axis)
+	VSCALE(*axis, *axis, s->es_scale);
+    else
+	*scalar = target;
+    return BRLCAD_OK;
+}
+
+int
+edit_scale_equal_axes(struct rt_edit *s, vect_t a, vect_t b, vect_t c)
+{
+    if (!s->e_inpara && ZERO(s->es_scale))
+	return BRLCAD_OK;
+
+    fastf_t a_length = MAGNITUDE(a);
+    if (edit_prepare_length_scale(s, a_length) != BRLCAD_OK)
+	return BRLCAD_ERROR;
+    fastf_t b_length = MAGNITUDE(b);
+    fastf_t c_length = MAGNITUDE(c);
+    fastf_t target = a_length * s->es_scale;
+    if (!isfinite(b_length) || b_length <= 0.0 ||
+	!isfinite(c_length) || c_length <= 0.0 ||
+	!isfinite(target) || target <= 0.0) {
+	bu_vls_printf(s->log_str, "Cannot scale invalid axes\n");
+	return BRLCAD_ERROR;
+    }
+
+    fastf_t b_scale = target / b_length;
+    fastf_t c_scale = target / c_length;
+    if (!isfinite(b_scale) || !isfinite(c_scale)) {
+	bu_vls_printf(s->log_str, "Cannot scale invalid axes\n");
+	return BRLCAD_ERROR;
+    }
+
+    VSCALE(a, a, s->es_scale);
+    VSCALE(b, b, b_scale);
+    VSCALE(c, c, c_scale);
+    return BRLCAD_OK;
+}
+
+int
+edit_validate_height(struct rt_edit *s, const vect_t height)
+{
+    fastf_t length = MAGNITUDE(height);
+    fastf_t min_length = s->tol ? fmax(s->tol->dist, SQRT_SMALL_FASTF) :
+	SQRT_SMALL_FASTF;
+    if (!isfinite(length) || length <= min_length) {
+	bu_vls_printf(s->log_str, "Zero or invalid H vector not allowed\n");
+	return BRLCAD_ERROR;
+    }
+    return BRLCAD_OK;
 }
 
 void
 edit_stra(struct rt_edit *s)
 {
     mat_t mat;
-    static vect_t work;
+    vect_t work;
+    point_t model_point;
     vect_t delta;
     struct rt_db_internal *ip = &s->es_int;
 
     if (s->e_inpara) {
-	/* Need vector from current vertex/keypoint
-	 * to desired new location.
-	 */
-
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
+	/* Numeric coordinates are local; keypoint and matrices are base. */
+	VSCALE(model_point, s->e_para, s->local2base);
 
 	if (s->mv_context) {
 	    /* move solid so that s->e_keypoint is at position s->e_para */
 	    vect_t raw_para;
 
-	    MAT4X3PNT(raw_para, s->e_invmat, s->e_para);
+	    MAT4X3PNT(raw_para, s->e_invmat, model_point);
 	    MAT4X3PNT(work, s->e_invmat, s->e_keypoint);
 	    VSUB2(delta, work, raw_para);
 	    MAT_IDN(mat);
@@ -134,7 +394,7 @@ edit_stra(struct rt_edit *s)
 	} else {
 	    /* move solid to position s->e_para */
 	    MAT4X3PNT(work, s->e_invmat, s->e_keypoint);
-	    VSUB2(delta, work, s->e_para);
+	    VSUB2(delta, work, model_point);
 	    MAT_IDN(mat);
 	    MAT_DELTAS_VEC_NEG(mat, delta);
 	}
@@ -264,8 +524,7 @@ edit_generic(
     switch (s->edit_flag) {
 	case RT_PARAMS_EDIT_SCALE:
 	    /* scale the solid uniformly about its vertex point */
-	    edit_sscale(s);
-	    return BRLCAD_OK;
+	    return edit_sscale(s);
 	case RT_PARAMS_EDIT_TRANS:
 	    /* translate solid */
 	    edit_stra(s);

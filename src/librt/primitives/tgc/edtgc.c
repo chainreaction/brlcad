@@ -39,8 +39,6 @@
 
 #define ECMD_TGC_MV_H		2005
 #define ECMD_TGC_MV_HH		2006
-#define ECMD_TGC_MV_H_CD	2081 /* move end of tgc, while scaling CD */
-#define ECMD_TGC_MV_H_V_AB	2082 /* move vertex end of tgc, while scaling AB */
 #define ECMD_TGC_ROT_AB		2008
 #define ECMD_TGC_ROT_H		2007
 #define ECMD_TGC_SCALE_A	2029
@@ -68,8 +66,6 @@ rt_edit_tgc_set_edit_mode(struct rt_edit *s, int mode)
     switch(mode) {
 	case ECMD_TGC_MV_H:
 	case ECMD_TGC_MV_HH:
-	case ECMD_TGC_MV_H_CD:
-	case ECMD_TGC_MV_H_V_AB:
 	    s->edit_mode = RT_PARAMS_EDIT_TRANS;
 	    break;
 	case ECMD_TGC_ROT_AB:
@@ -386,24 +382,6 @@ static const struct rt_edit_cmd_desc tgc_cmds[] = {
 	130 /* display_order */, "tgc,trc,tec,rec,rcc" /* req_types */
     },
     {
-	ECMD_TGC_MV_H_CD,     /* cmd_id       */
-	"Move End H (adj C,D)", /* label      */
-	"move",               /* category     */
-	1,                    /* nparam       */
-	tgc_endpoint_params,  /* params       */
-	1,                    /* interactive  */
-	140 /* display_order */, "tgc,trc,tec,rec,rcc" /* req_types */
-    },
-    {
-	ECMD_TGC_MV_H_V_AB,   /* cmd_id       */
-	"Move End H (move V, adj A,B)", /* label */
-	"move",               /* category     */
-	1,                    /* nparam       */
-	tgc_endpoint_params,  /* params       */
-	1,                    /* interactive  */
-	150 /* display_order */, "tgc,trc,tec,rec,rcc" /* req_types */
-    },
-    {
 	ECMD_TGC_ROT_H,       /* cmd_id       */
 	"Rotate H",           /* label        */
 	"rotation",           /* category     */
@@ -430,7 +408,7 @@ static const struct rt_edit_opt_desc tgc_opts[] = {
 static const struct rt_edit_prim_desc tgc_prim_desc = {
     "tgc",                /* prim_type    */
     "Truncated General Cone", /* prim_label */
-    17,                   /* ncmd         */
+    15,                   /* ncmd         */
     tgc_cmds,             /* cmds         */
     1,                    /* nopt         */
     tgc_opts              /* opts         */
@@ -482,16 +460,6 @@ rt_edit_tgc_write_params(
     bu_vls_printf(p, "D: %.9f %.9f %.9f\n", V3BASE2LOCAL(tgc->d));
 }
 
-#define read_params_line_incr \
-    lc = (ln) ? (ln + lcj) : NULL; \
-    if (!lc) { \
-	bu_free(wc, "wc"); \
-	return BRLCAD_ERROR; \
-    } \
-    ln = strchr(lc, tc); \
-    if (ln) *ln = '\0'; \
-    while (lc && strchr(lc, ':')) lc++
-
 C_DECL int
 rt_edit_tgc_read_params(
 	struct rt_db_internal *ip,
@@ -500,77 +468,20 @@ rt_edit_tgc_read_params(
 	fastf_t local2base
 	)
 {
-    double a = 0.0;
-    double b = 0.0;
-    double c = 0.0;
     struct rt_tgc_internal *tgc = (struct rt_tgc_internal *)ip->idb_ptr;
     RT_TGC_CK_MAGIC(tgc);
-
-    if (!fc)
+    struct rt_tgc_internal candidate = *tgc;
+    const struct edit_param_field fields[] = {
+	{"Vertex", candidate.v, ELEMENTS_PER_VECT, local2base},
+	{"Height", candidate.h, ELEMENTS_PER_VECT, local2base},
+	{"A", candidate.a, ELEMENTS_PER_VECT, local2base},
+	{"B", candidate.b, ELEMENTS_PER_VECT, local2base},
+	{"C", candidate.c, ELEMENTS_PER_VECT, local2base},
+	{"D", candidate.d, ELEMENTS_PER_VECT, local2base}
+    };
+    if (edit_param_read_fields(fc, fields, sizeof(fields) / sizeof(fields[0])) != BRLCAD_OK)
 	return BRLCAD_ERROR;
-
-    // We're getting the file contents as a string, so we need to split it up
-    // to process lines. See https://stackoverflow.com/a/17983619
-
-    // Figure out if we need to deal with Windows line endings
-    const char *crpos = strchr(fc, '\r');
-    int crlf = (crpos && crpos[1] == '\n') ? 1 : 0;
-    char tc = (crlf) ? '\r' : '\n';
-    // If we're CRLF jump ahead another character.
-    int lcj = (crlf) ? 2 : 1;
-
-    char *ln = NULL;
-    char *wc = bu_strdup(fc);
-    char *lc = wc;
-
-    // Set up initial line (Vertex)
-    ln = strchr(lc, tc);
-    if (ln) *ln = '\0';
-
-    // Trim off prefixes, if user left them in
-    while (lc && strchr(lc, ':')) lc++;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(tgc->v, a, b, c);
-    VSCALE(tgc->v, tgc->v, local2base);
-
-    // Set up Height line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(tgc->h, a, b, c);
-    VSCALE(tgc->h, tgc->h, local2base);
-
-    // Set up A line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(tgc->a, a, b, c);
-    VSCALE(tgc->a, tgc->a, local2base);
-
-    // Set up B line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(tgc->b, a, b, c);
-    VSCALE(tgc->b, tgc->b, local2base);
-
-    // Set up C line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(tgc->c, a, b, c);
-    VSCALE(tgc->c, tgc->c, local2base);
-
-    // Set up D line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(tgc->d, a, b, c);
-    VSCALE(tgc->d, tgc->d, local2base);
-
-    // Cleanup
-    bu_free(wc, "wc");
+    *tgc = candidate;
     return BRLCAD_OK;
 }
 
@@ -581,11 +492,6 @@ ecmd_tgc_scale_h(struct rt_edit *s)
     struct rt_tgc_internal *tgc =
 	(struct rt_tgc_internal *)s->es_int.idb_ptr;
     RT_TGC_CK_MAGIC(tgc);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(tgc->h);
-    }
     VSCALE(tgc->h, tgc->h, s->es_scale);
 }
 
@@ -598,17 +504,12 @@ ecmd_tgc_scale_h_v(struct rt_edit *s)
     struct rt_tgc_internal *tgc =
 	(struct rt_tgc_internal *)s->es_int.idb_ptr;
     RT_TGC_CK_MAGIC(tgc);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(tgc->h);
-    }
     VADD2(old_top, tgc->v, tgc->h);
     VSCALE(tgc->h, tgc->h, s->es_scale);
     VSUB2(tgc->v, old_top, tgc->h);
 }
 
-void
+static int
 ecmd_tgc_scale_h_cd(struct rt_edit *s)
 {
     vect_t vec1, vec2;
@@ -617,12 +518,6 @@ ecmd_tgc_scale_h_cd(struct rt_edit *s)
 	(struct rt_tgc_internal *)s->es_int.idb_ptr;
 
     RT_TGC_CK_MAGIC(tgc);
-
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(tgc->h);
-    }
 
     /* calculate new c */
     VSUB2(vec1, tgc->a, tgc->c);
@@ -636,16 +531,21 @@ ecmd_tgc_scale_h_cd(struct rt_edit *s)
 
     if (0 <= VDOT(tgc->c, c) &&
 	    0 <= VDOT(tgc->d, d) &&
+	    isfinite(MAGNITUDE(c)) &&
+	    isfinite(MAGNITUDE(d)) &&
 	    !ZERO(MAGNITUDE(c)) &&
 	    !ZERO(MAGNITUDE(d))) {
 	/* adjust c, d and h */
 	VMOVE(tgc->c, c);
 	VMOVE(tgc->d, d);
 	VSCALE(tgc->h, tgc->h, s->es_scale);
+	return BRLCAD_OK;
     }
+    bu_vls_printf(s->log_str, "TGC height scale would invalidate C or D\n");
+    return BRLCAD_ERROR;
 }
 
-void
+static int
 ecmd_tgc_scale_h_v_ab(struct rt_edit *s)
 {
     vect_t vec1, vec2;
@@ -655,12 +555,6 @@ ecmd_tgc_scale_h_v_ab(struct rt_edit *s)
 	(struct rt_tgc_internal *)s->es_int.idb_ptr;
 
     RT_TGC_CK_MAGIC(tgc);
-
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(tgc->h);
-    }
 
     /* calculate new a */
     VSUB2(vec1, tgc->c, tgc->a);
@@ -674,6 +568,8 @@ ecmd_tgc_scale_h_v_ab(struct rt_edit *s)
 
     if (0 <= VDOT(tgc->a, a) &&
 	    0 <= VDOT(tgc->b, b) &&
+	    isfinite(MAGNITUDE(a)) &&
+	    isfinite(MAGNITUDE(b)) &&
 	    !ZERO(MAGNITUDE(a)) &&
 	    !ZERO(MAGNITUDE(b))) {
 	/* adjust a, b, v and h */
@@ -682,7 +578,10 @@ ecmd_tgc_scale_h_v_ab(struct rt_edit *s)
 	VADD2(old_top, tgc->v, tgc->h);
 	VSCALE(tgc->h, tgc->h, s->es_scale);
 	VSUB2(tgc->v, old_top, tgc->h);
+	return BRLCAD_OK;
     }
+    bu_vls_printf(s->log_str, "TGC height scale would invalidate A or B\n");
+    return BRLCAD_ERROR;
 }
 
 /* scale vector A */
@@ -693,11 +592,6 @@ ecmd_tgc_scale_a(struct rt_edit *s)
 	(struct rt_tgc_internal *)s->es_int.idb_ptr;
     RT_TGC_CK_MAGIC(tgc);
 
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(tgc->a);
-    }
     VSCALE(tgc->a, tgc->a, s->es_scale);
 }
 
@@ -709,11 +603,6 @@ ecmd_tgc_scale_b(struct rt_edit *s)
 	(struct rt_tgc_internal *)s->es_int.idb_ptr;
     RT_TGC_CK_MAGIC(tgc);
 
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(tgc->b);
-    }
     VSCALE(tgc->b, tgc->b, s->es_scale);
 }
 
@@ -725,11 +614,6 @@ ecmd_tgc_scale_c(struct rt_edit *s)
 	(struct rt_tgc_internal *)s->es_int.idb_ptr;
     RT_TGC_CK_MAGIC(tgc);
 
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(tgc->c);
-    }
     VSCALE(tgc->c, tgc->c, s->es_scale);
 }
 
@@ -741,11 +625,6 @@ ecmd_tgc_scale_d(struct rt_edit *s)
 	(struct rt_tgc_internal *)s->es_int.idb_ptr;
     RT_TGC_CK_MAGIC(tgc);
 
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(tgc->d);
-    }
     VSCALE(tgc->d, tgc->d, s->es_scale);
 }
 
@@ -757,11 +636,6 @@ ecmd_tgc_scale_ab(struct rt_edit *s)
 	(struct rt_tgc_internal *)s->es_int.idb_ptr;
     RT_TGC_CK_MAGIC(tgc);
 
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(tgc->a);
-    }
     VSCALE(tgc->a, tgc->a, s->es_scale);
     ma = MAGNITUDE(tgc->a);
     mb = MAGNITUDE(tgc->b);
@@ -777,11 +651,6 @@ ecmd_tgc_scale_cd(struct rt_edit *s)
 	(struct rt_tgc_internal *)s->es_int.idb_ptr;
     RT_TGC_CK_MAGIC(tgc);
 
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(tgc->c);
-    }
     VSCALE(tgc->c, tgc->c, s->es_scale);
     ma = MAGNITUDE(tgc->c);
     mb = MAGNITUDE(tgc->d);
@@ -797,11 +666,6 @@ ecmd_tgc_scale_abcd(struct rt_edit *s)
 	(struct rt_tgc_internal *)s->es_int.idb_ptr;
     RT_TGC_CK_MAGIC(tgc);
 
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(tgc->a);
-    }
     VSCALE(tgc->a, tgc->a, s->es_scale);
     ma = MAGNITUDE(tgc->a);
     mb = MAGNITUDE(tgc->b);
@@ -820,13 +684,15 @@ int
 ecmd_tgc_mv_h(struct rt_edit *s)
 {
     float la, lb, lc, ld;	/* TGC: length of vectors */
-    vect_t work;
+    vect_t work, height;
+    point_t model_point;
     struct rt_tgc_internal *tgc =
 	(struct rt_tgc_internal *)s->es_int.idb_ptr;
     bu_clbk_t f = NULL;
     void *d = NULL;
 
     RT_TGC_CK_MAGIC(tgc);
+    VMOVE(height, tgc->h);
     if (s->e_inpara) {
 	if (s->e_inpara != 3) {
 	    bu_vls_printf(s->log_str, "ERROR: three arguments needed\n");
@@ -834,29 +700,25 @@ ecmd_tgc_mv_h(struct rt_edit *s)
 	    return BRLCAD_ERROR;
 	}
 
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
+	VSCALE(model_point, s->e_para, s->local2base);
 
 	if (s->mv_context) {
 	    /* apply s->e_invmat to convert to real model coordinates */
-	    MAT4X3PNT(work, s->e_invmat, s->e_para);
-	    VSUB2(tgc->h, work, tgc->v);
+	    MAT4X3PNT(work, s->e_invmat, model_point);
+	    VSUB2(height, work, tgc->v);
 	} else {
-	    VSUB2(tgc->h, s->e_para, tgc->v);
+	    VSUB2(height, model_point, tgc->v);
 	}
     }
 
-    /* check for zero H vector */
-    if (MAGNITUDE(tgc->h) <= SQRT_SMALL_FASTF) {
-	bu_vls_printf(s->log_str, "Zero H vector not allowed, resetting to +Z\n");
+    if (edit_validate_height(s, height) != BRLCAD_OK) {
 	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
 	if (f)
 	    (*f)(0, NULL, d, NULL);
-	VSET(tgc->h, 0.0, 0.0, 1.0);
 	return BRLCAD_ERROR;
     }
+
+    VMOVE(tgc->h, height);
 
     /* have new height vector -- redefine rest of tgc */
     la = MAGNITUDE(tgc->a);
@@ -885,13 +747,15 @@ ecmd_tgc_mv_h(struct rt_edit *s)
 int
 ecmd_tgc_mv_hh(struct rt_edit *s)
 {
-    vect_t work;
+    vect_t work, height;
+    point_t model_point;
     struct rt_tgc_internal *tgc =
 	(struct rt_tgc_internal *)s->es_int.idb_ptr;
     bu_clbk_t f = NULL;
     void *d = NULL;
 
     RT_TGC_CK_MAGIC(tgc);
+    VMOVE(height, tgc->h);
     if (s->e_inpara) {
 	if (s->e_inpara != 3) {
 	    bu_vls_printf(s->log_str, "ERROR: three arguments needed\n");
@@ -899,30 +763,25 @@ ecmd_tgc_mv_hh(struct rt_edit *s)
 	    return BRLCAD_ERROR;
 	}
 
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
+	VSCALE(model_point, s->e_para, s->local2base);
 
 	if (s->mv_context) {
 	    /* apply s->e_invmat to convert to real model coordinates */
-	    MAT4X3PNT(work, s->e_invmat, s->e_para);
-	    VSUB2(tgc->h, work, tgc->v);
+	    MAT4X3PNT(work, s->e_invmat, model_point);
+	    VSUB2(height, work, tgc->v);
 	} else {
-	    VSUB2(tgc->h, s->e_para, tgc->v);
+	    VSUB2(height, model_point, tgc->v);
 	}
     }
 
-    /* check for zero H vector */
-    if (MAGNITUDE(tgc->h) <= SQRT_SMALL_FASTF) {
-	bu_vls_printf(s->log_str, "Zero H vector not allowed, resetting to +Z\n");
+    if (edit_validate_height(s, height) != BRLCAD_OK) {
 	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
 	if (f)
 	    (*f)(0, NULL, d, NULL);
-	VSET(tgc->h, 0.0, 0.0, 1.0);
 	return BRLCAD_ERROR;
     }
 
+    VMOVE(tgc->h, height);
     return 0;
 }
 
@@ -1078,7 +937,7 @@ ecmd_tgc_rot_ab(struct rt_edit *s)
 }
 
 /* Use mouse to change location of point V+H */
-void
+static int
 ecmd_tgc_mv_h_mousevec(struct rt_edit *s, const vect_t mousevec)
 {
     struct rt_tgc_internal *tgc =
@@ -1094,29 +953,63 @@ ecmd_tgc_mv_h_mousevec(struct rt_edit *s, const vect_t mousevec)
     /* Do NOT change pos_view[Z] ! */
     MAT4X3PNT(temp, s->vp->gv_view2model, pos_view);
     MAT4X3PNT(tr_temp, s->e_invmat, temp);
-    VSUB2(tgc->h, tr_temp, tgc->v);
+    vect_t height;
+    VSUB2(height, tr_temp, tgc->v);
+    if (edit_validate_height(s, height) != BRLCAD_OK)
+	return BRLCAD_ERROR;
+    VMOVE(tgc->h, height);
+    edit_abs_tra(s, pos_view);
+    return BRLCAD_OK;
 }
 
 static int
 rt_edit_tgc_pscale(struct rt_edit *s)
 {
-    if (s->e_inpara) {
-	if (s->e_inpara > 1) {
-	    bu_vls_printf(s->log_str, "ERROR: only one argument needed\n");
-	    s->e_inpara = 0;
+    struct rt_tgc_internal *tgc = (struct rt_tgc_internal *)s->es_int.idb_ptr;
+    vect_t *axis = NULL;
+    fastf_t other_lengths[3];
+    size_t other_count = 0;
+
+    RT_TGC_CK_MAGIC(tgc);
+    if (!s->e_inpara && ZERO(s->es_scale))
+	return BRLCAD_OK;
+
+    switch (s->edit_flag) {
+	case ECMD_TGC_SCALE_H:
+	case ECMD_TGC_SCALE_H_V:
+	case ECMD_TGC_SCALE_H_CD:
+	case ECMD_TGC_SCALE_H_V_AB: axis = &tgc->h; break;
+	case ECMD_TGC_SCALE_A:
+	case ECMD_TGC_SCALE_AB:
+	case ECMD_TGC_SCALE_ABCD: axis = &tgc->a; break;
+	case ECMD_TGC_SCALE_B: axis = &tgc->b; break;
+	case ECMD_TGC_SCALE_C:
+	case ECMD_TGC_SCALE_CD: axis = &tgc->c; break;
+	case ECMD_TGC_SCALE_D: axis = &tgc->d; break;
+	default: return BRLCAD_ERROR;
+    }
+    fastf_t current = MAGNITUDE(*axis);
+    if (edit_prepare_length_scale(s, current) != BRLCAD_OK)
+	return BRLCAD_ERROR;
+    fastf_t target = current * s->es_scale;
+    if (!isfinite(target) || target <= 0.0) {
+	bu_vls_printf(s->log_str, "TGC scale produced an invalid length\n");
+	return BRLCAD_ERROR;
+    }
+    if (s->edit_flag == ECMD_TGC_SCALE_AB ||
+	s->edit_flag == ECMD_TGC_SCALE_ABCD)
+	other_lengths[other_count++] = MAGNITUDE(tgc->b);
+    if (s->edit_flag == ECMD_TGC_SCALE_CD ||
+	s->edit_flag == ECMD_TGC_SCALE_ABCD)
+	other_lengths[other_count++] = MAGNITUDE(tgc->d);
+    if (s->edit_flag == ECMD_TGC_SCALE_ABCD)
+	other_lengths[other_count++] = MAGNITUDE(tgc->c);
+    for (size_t i = 0; i < other_count; i++) {
+	if (!isfinite(other_lengths[i]) || other_lengths[i] <= 0.0 ||
+	    !isfinite(target / other_lengths[i])) {
+	    bu_vls_printf(s->log_str, "TGC scale requires valid axes\n");
 	    return BRLCAD_ERROR;
 	}
-
-	if (s->e_para[0] <= 0.0) {
-	    bu_vls_printf(s->log_str, "ERROR: SCALE FACTOR <= 0\n");
-	    s->e_inpara = 0;
-	    return BRLCAD_ERROR;
-	}
-
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
     }
 
     switch (s->edit_flag) {
@@ -1127,11 +1020,9 @@ rt_edit_tgc_pscale(struct rt_edit *s)
 	    ecmd_tgc_scale_h_v(s);
 	    break;
 	case ECMD_TGC_SCALE_H_CD:
-	    ecmd_tgc_scale_h_cd(s);
-	    break;
+	    return ecmd_tgc_scale_h_cd(s);
 	case ECMD_TGC_SCALE_H_V_AB:
-	    ecmd_tgc_scale_h_v_ab(s);
-	    break;
+	    return ecmd_tgc_scale_h_v_ab(s);
 	case ECMD_TGC_SCALE_A:
 	    ecmd_tgc_scale_a(s);
 	    break;
@@ -1234,10 +1125,7 @@ rt_edit_tgc_edit_xy(
 	    break;
 	case ECMD_TGC_MV_H:
 	case ECMD_TGC_MV_HH:
-	case ECMD_TGC_MV_H_CD:
-	case ECMD_TGC_MV_H_V_AB:
-	    ecmd_tgc_mv_h_mousevec(s, mousevec);
-	    break;
+	    return ecmd_tgc_mv_h_mousevec(s, mousevec);
 	case ECMD_TGC_ROT_H:
 	case ECMD_TGC_ROT_AB:
 	    bu_vls_printf(s->log_str, "%s: XY edit undefined in solid edit mode %d\n", EDOBJ[ip->idb_type].ft_label, s->edit_flag);
@@ -1270,9 +1158,8 @@ rt_edit_tgc_repair(struct bu_vls *log_str, struct rt_db_internal *ip, const stru
     BU_OPT(d[1], "", "options-json", "", NULL, &options_json, "Return JSON of supported options");
     BU_OPT_NULL(d[2]);
 
-    if (argc > 0 && argv) {
-        bu_opt_parse(NULL, argc, argv, d);
-    }
+    if (edit_repair_parse_options(log_str, argc, argv, d) != BRLCAD_OK)
+        return -1;
 
     if (options_json) {
         if (log_str) {

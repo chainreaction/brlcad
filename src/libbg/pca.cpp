@@ -22,7 +22,7 @@
 /** @file libbg/pca.cpp
  *
  * @brief
- * Principle Component Analysis.
+ * Principal Component Analysis.
  *
  */
 

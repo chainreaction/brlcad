@@ -22,8 +22,8 @@
  * Test editing of PIPE primitive parameters.
  *
  * Reference PIPE: 2 segments
- *   pt1: coord=(0,0,0),  od=2.0, id=1.0, bendradius=1.0
- *   pt2: coord=(0,0,10), od=2.0, id=1.0, bendradius=1.0
+ *   pt1: coord=(0,0,0),  od=2.0, id=1.0, bendradius=10.0
+ *   pt2: coord=(0,0,10), od=2.0, id=1.0, bendradius=10.0
  *
  * Keypoint = first segment coord = (0,0,0) when nothing selected.
  *
@@ -42,7 +42,6 @@
 #include <string.h>
 
 #include "vmath.h"
-#include "bu/app.h"
 #include "bu/log.h"
 #include "bu/malloc.h"
 #include "bu/str.h"
@@ -57,6 +56,9 @@ struct rt_pipe_edit_local {
 };
 
 /* ECMD constants from edpipe.c */
+#define ECMD_PIPE_SELECT	15028
+#define ECMD_PIPE_NEXT_PT	15062
+#define ECMD_PIPE_PREV_PT	15063
 #define ECMD_PIPE_SPLIT		15029	/* Split a pipe segment into two */
 #define ECMD_PIPE_PT_ADD	15030
 #define ECMD_PIPE_PT_INS	15031	/* Prepend a pipe point at start */
@@ -152,6 +154,7 @@ pipe_reset(struct rt_edit *s, struct rt_pipe_edit_local *pe)
     VSETALL(s->e_keypoint, 0.0);
     MAT_IDN(s->acc_rot_sol);
     MAT_IDN(s->incr_change);
+    s->e_mvalid = 0;
     s->acc_sc_sol = 1.0;
     s->e_inpara   = 0;
     s->es_scale   = 0.0;
@@ -177,18 +180,324 @@ pipe_full_reset(struct rt_edit *s, struct rt_pipe_edit_local *pe)
 	bu_free(extra, "pipe_full_reset extra");
 	extra = next;
     }
+    pip->pipe_count = 2;
 
     pipe_reset(s, pe);
 }
 
+struct pipe_point_expected {
+    point_t coord;
+    fastf_t od;
+    fastf_t id;
+    fastf_t bend;
+};
+
+static bool
+pipe_matches(struct rt_edit *edit, const struct pipe_point_expected *expected,
+	     size_t expected_count)
+{
+    struct rt_pipe_internal *pipe =
+	(struct rt_pipe_internal *)edit->es_int.idb_ptr;
+    if ((size_t)pipe_npts(edit) != expected_count) {
+	bu_log("pipe point count: expected %zu, got %d\n",
+	       expected_count, pipe_npts(edit));
+	return false;
+    }
+    if ((size_t)pipe->pipe_count != expected_count) {
+	bu_log("pipe stored count: expected %zu, got %d\n",
+	       expected_count, pipe->pipe_count);
+	return false;
+    }
+
+    struct wdb_pipe_pnt *point =
+	BU_LIST_FIRST(wdb_pipe_pnt, &pipe->pipe_segs_head);
+    for (size_t i = 0; i < expected_count; ++i) {
+	if (!VNEAR_EQUAL(point->pp_coord, expected[i].coord, VUNITIZE_TOL) ||
+	    !NEAR_EQUAL(point->pp_od, expected[i].od, VUNITIZE_TOL) ||
+	    !NEAR_EQUAL(point->pp_id, expected[i].id, VUNITIZE_TOL) ||
+	    !NEAR_EQUAL(point->pp_bendradius, expected[i].bend, VUNITIZE_TOL)) {
+	    bu_log("pipe point %zu: expected (%g %g %g; %g %g %g), "
+		   "got (%g %g %g; %g %g %g)\n",
+		   i, V3ARGS(expected[i].coord), expected[i].od,
+		   expected[i].id, expected[i].bend,
+		   V3ARGS(point->pp_coord), point->pp_od,
+		   point->pp_id, point->pp_bendradius);
+	    return false;
+	}
+	point = BU_LIST_NEXT(wdb_pipe_pnt, &point->l);
+    }
+    return true;
+}
+
+static int
+pipe_transform_matrix(struct db_i *dbip, struct db_full_path *path,
+		      struct bn_tol *tol, struct bview *view)
+{
+    const fastf_t inch_to_mm = 25.4;
+    const fastf_t scales[] = {1.0, inch_to_mm};
+    const struct {
+	int command;
+	const char *name;
+    } cases[] = {
+	{RT_PARAMS_EDIT_TRANS, "translate"},
+	{RT_PARAMS_EDIT_SCALE, "scale"},
+	{RT_PARAMS_EDIT_ROT, "rotate"}
+    };
+    int failures = 0;
+
+    view->gv_rotate_about = 'k';
+    for (fastf_t scale : scales) {
+	dbip->dbi_local2base = scale;
+	dbip->dbi_base2local = 1.0 / scale;
+	const char *unit = EQUAL(scale, 1.0) ? "mm" : "in";
+	for (const auto &test : cases) {
+	    struct rt_edit *edit = rt_edit_create(path, dbip, tol, view);
+	    if (!edit) {
+		bu_log("pipe\t%s\t%s\tfail: edit creation\n",
+		    test.name, unit);
+		++failures;
+		continue;
+	    }
+	    struct pipe_point_expected expected[2] = {
+		{{0, 0, 0}, 2.0, 1.0, 10.0},
+		{{0, 0, 10}, 2.0, 1.0, 10.0}
+	    };
+	    point_t numeric_input = VINIT_ZERO;
+	    edit->mv_context = 1;
+	    VSETALL(edit->e_keypoint, 0);
+	    EDOBJ[ID_PIPE].ft_set_edit_mode(edit, test.command);
+	    switch (test.command) {
+		case RT_PARAMS_EDIT_TRANS:
+		    VSET(numeric_input, inch_to_mm / scale,
+			inch_to_mm / (2 * scale), -inch_to_mm / (4 * scale));
+		    edit->e_inpara = 3;
+		    VMOVE(edit->e_para, numeric_input);
+		    VSET(expected[0].coord, inch_to_mm,
+			inch_to_mm / 2, -inch_to_mm / 4);
+		    VMOVE(expected[1].coord, expected[0].coord);
+		    expected[1].coord[Z] += 10;
+		    break;
+		case RT_PARAMS_EDIT_SCALE:
+		    edit->e_inpara = 1;
+		    edit->e_para[0] = 2.5;
+		    numeric_input[0] = 2.5;
+		    expected[1].coord[Z] = 25;
+		    for (auto &point : expected) {
+			point.od = 5;
+			point.id = 2.5;
+			point.bend = 25;
+		    }
+		    break;
+		case RT_PARAMS_EDIT_ROT:
+		    edit->e_inpara = 3;
+		    VSET(numeric_input, 90, 0, 0);
+		    VMOVE(edit->e_para, numeric_input);
+		    VSET(expected[1].coord, 0, -10, 0);
+		    break;
+	    }
+	    bool passed = rt_edit_process(edit) == BRLCAD_OK &&
+		pipe_matches(edit, expected, 2) &&
+		VNEAR_EQUAL(edit->e_para, numeric_input, VUNITIZE_TOL);
+	    bu_log("pipe\t%s\t%s\t%s\n", test.name, unit,
+		passed ? "pass" : "fail");
+	    if (!passed) {
+		bu_log("pipe transform result: %s\n",
+		    bu_vls_cstr(edit->log_str));
+		++failures;
+	    }
+	    rt_edit_destroy(edit);
+	}
+    }
+    return failures;
+}
+
+static int
+pipe_dimension_matrix(struct db_i *dbip, struct db_full_path *path,
+		      struct bn_tol *tol)
+{
+    const fastf_t INCH_TO_MM = 25.4;
+    const fastf_t scales[] = {1.0, INCH_TO_MM};
+    const struct {
+	int command;
+	fastf_t target_base;
+	bool all_points;
+    } cases[] = {
+	{ECMD_PIPE_PT_OD, 0.1 * INCH_TO_MM, false},
+	{ECMD_PIPE_PT_ID, 0.02 * INCH_TO_MM, false},
+	{ECMD_PIPE_PT_RADIUS, 0.5 * INCH_TO_MM, false},
+	{ECMD_PIPE_SCALE_OD, 0.1 * INCH_TO_MM, true},
+	{ECMD_PIPE_SCALE_ID, 0.02 * INCH_TO_MM, true},
+	{ECMD_PIPE_SCALE_RADIUS, 0.5 * INCH_TO_MM, true}
+    };
+    int failures = 0;
+
+    for (fastf_t scale : scales) {
+	dbip->dbi_local2base = scale;
+	dbip->dbi_base2local = 1.0 / scale;
+	const char *unit = EQUAL(scale, 1.0) ? "mm" : "in";
+	for (const auto &test : cases) {
+	    struct rt_edit *edit = rt_edit_create(path, dbip, tol, NULL);
+	    if (!edit) {
+		bu_log("pipe\t%d\t%s\tfail: edit creation\n", test.command, unit);
+		++failures;
+		continue;
+	    }
+	    struct pipe_point_expected expected[2] = {
+		{{0, 0, 0}, 2.0, 1.0, 10.0},
+		{{0, 0, 10}, 2.0, 1.0, 10.0}
+	    };
+	    if (!test.all_points) {
+		struct rt_pipe_edit_local *state =
+		    (struct rt_pipe_edit_local *)edit->ipe_ptr;
+		state->es_pipe_pnt = pipe_first(edit);
+	    }
+	    for (int i = 0; i < (test.all_points ? 2 : 1); ++i) {
+		switch (test.command) {
+		    case ECMD_PIPE_PT_OD:
+		    case ECMD_PIPE_SCALE_OD:
+			expected[i].od = test.target_base;
+			break;
+		    case ECMD_PIPE_PT_ID:
+		    case ECMD_PIPE_SCALE_ID:
+			expected[i].id = test.target_base;
+			break;
+		    default:
+			expected[i].bend = test.target_base;
+			break;
+		}
+	    }
+	    rt_edit_set_edflag(edit, test.command);
+	    edit->e_inpara = 1;
+	    edit->e_para[0] = test.target_base / scale;
+	    bool passed = rt_edit_process(edit) == BRLCAD_OK &&
+		pipe_matches(edit, expected, 2) &&
+		NEAR_EQUAL(edit->e_para[0], test.target_base / scale,
+			   VUNITIZE_TOL);
+	    bu_log("pipe\t%d\t%s\t%s\n", test.command, unit,
+		   passed ? "pass" : "fail");
+	    if (!passed) {
+		bu_log("pipe edit result: %s\n", bu_vls_cstr(edit->log_str));
+		++failures;
+	    }
+	    rt_edit_destroy(edit);
+	}
+    }
+    return failures;
+}
+
+static int
+pipe_point_matrix(struct db_i *dbip, struct db_full_path *path,
+		  struct bn_tol *tol)
+{
+    const fastf_t INCH_TO_MM = 25.4;
+    const fastf_t scales[] = {1.0, INCH_TO_MM};
+    const struct {
+	int command;
+	fastf_t target_z;
+    } cases[] = {
+	{ECMD_PIPE_PT_MOVE, 20.0},
+	{ECMD_PIPE_PT_ADD, 20.0},
+	{ECMD_PIPE_PT_INS, -10.0},
+	{ECMD_PIPE_SPLIT, 5.0}
+    };
+    int failures = 0;
+
+    for (fastf_t scale : scales) {
+	dbip->dbi_local2base = scale;
+	dbip->dbi_base2local = 1.0 / scale;
+	const char *unit = EQUAL(scale, 1.0) ? "mm" : "in";
+	for (const auto &test : cases) {
+	    struct rt_edit *edit = rt_edit_create(path, dbip, tol, NULL);
+	    if (!edit) {
+		bu_log("pipe\t%d\t%s\tfail: edit creation\n", test.command, unit);
+		++failures;
+		continue;
+	    }
+	    struct rt_pipe_edit_local *state =
+		(struct rt_pipe_edit_local *)edit->ipe_ptr;
+	    struct pipe_point_expected expected[3] = {
+		{{0, 0, 0}, 2.0, 1.0, 10.0},
+		{{0, 0, 10}, 2.0, 1.0, 10.0},
+		{{0, 0, 20}, 2.0, 1.0, 10.0}
+	    };
+	    size_t expected_count = 2;
+	    switch (test.command) {
+		case ECMD_PIPE_PT_MOVE:
+		    state->es_pipe_pnt = pipe_second(edit);
+		    expected[1].coord[Z] = test.target_z;
+		    break;
+		case ECMD_PIPE_PT_ADD:
+		    expected_count = 3;
+		    break;
+		case ECMD_PIPE_PT_INS:
+		    state->es_pipe_pnt = pipe_first(edit);
+		    expected[2] = expected[1];
+		    expected[1] = expected[0];
+		    expected[0].coord[Z] = test.target_z;
+		    expected_count = 3;
+		    break;
+		case ECMD_PIPE_SPLIT:
+		    state->es_pipe_pnt = pipe_first(edit);
+		    expected[2] = expected[1];
+		    expected[1].coord[Z] = test.target_z;
+		    expected_count = 3;
+		    break;
+		default:
+		    break;
+	    }
+	    edit->mv_context = 0;
+	    rt_edit_set_edflag(edit, test.command);
+	    edit->e_inpara = 3;
+	    VSET(edit->e_para, 0.0, 0.0, test.target_z / scale);
+	    bool passed = rt_edit_process(edit) == BRLCAD_OK &&
+		pipe_matches(edit, expected, expected_count) &&
+		NEAR_EQUAL(edit->e_para[Z], test.target_z / scale,
+			   VUNITIZE_TOL);
+	    bu_log("pipe\t%d\t%s\t%s\n", test.command, unit,
+		   passed ? "pass" : "fail");
+	    if (!passed) {
+		bu_log("pipe edit result: %s\n", bu_vls_cstr(edit->log_str));
+		++failures;
+	    }
+
+	    if (test.command == ECMD_PIPE_PT_ADD && passed) {
+		state->es_pipe_pnt = pipe_second(edit);
+		rt_edit_set_edflag(edit, ECMD_PIPE_PT_DEL);
+		edit->e_inpara = 0;
+		expected[1] = expected[2];
+		passed = rt_edit_process(edit) == BRLCAD_OK &&
+		    pipe_matches(edit, expected, 2);
+		bu_log("pipe\t%d\t%s\t%s\n", ECMD_PIPE_PT_DEL, unit,
+		       passed ? "pass" : "fail");
+		if (!passed) {
+		    bu_log("pipe edit result: %s\n", bu_vls_cstr(edit->log_str));
+		    ++failures;
+		}
+	    }
+	    if (test.command == ECMD_PIPE_SPLIT && passed) {
+		state->es_pipe_pnt =
+		    BU_LIST_NEXT(wdb_pipe_pnt, &pipe_second(edit)->l);
+		rt_edit_set_edflag(edit, ECMD_PIPE_SPLIT);
+		edit->e_inpara = 3;
+		passed = rt_edit_process(edit) == BRLCAD_ERROR &&
+		    pipe_matches(edit, expected, 3);
+		bu_log("pipe\t%d\t%s\t%s\tlast point rejected\n",
+		       ECMD_PIPE_SPLIT, unit, passed ? "pass" : "fail");
+		if (!passed) {
+		    bu_log("pipe edit result: %s\n", bu_vls_cstr(edit->log_str));
+		    ++failures;
+		}
+	    }
+	    rt_edit_destroy(edit);
+	}
+    }
+    return failures;
+}
+
 
 int
-main(int argc, char *argv[])
+rt_edit_test_pipe(void)
 {
-    bu_setprogname(argv[0]);
-    if (argc != 1)
-	return BRLCAD_ERROR;
-
     struct db_i *dbip = db_open_inmem();
     if (dbip == DBI_NULL)
 	bu_exit(1, "ERROR: Unable to create database instance\n");
@@ -822,9 +1131,197 @@ bu_log("RT_MATRIX_EDIT_TRANS_MODEL_XYZ SUCCESS: "
 	rt_constraint_edit_result_free(&res);
     }
 
+
+    const fastf_t inch = 25.4;
+    pipe_full_reset(s, pe);
+    s->local2base = inch;
+    s->base2local = 1.0 / inch;
+    rt_edit_set_edflag(s, ECMD_PIPE_SELECT);
+    s->e_inpara = 3;
+    VSET(s->e_para, 0.0, 0.0, 10.0 / inch);
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	pe->es_pipe_pnt != pipe_second(s) ||
+	!NEAR_EQUAL(s->e_para[Z], 10.0 / inch, SMALL_FASTF))
+	bu_exit(1, "ERROR: inch pipe point selection converted its input in place\n");
+
+    rt_edit_set_edflag(s, ECMD_PIPE_NEXT_PT);
+    s->e_inpara = 0;
+    if (rt_edit_process(s) != BRLCAD_ERROR ||
+	pe->es_pipe_pnt != pipe_second(s))
+	bu_exit(1, "ERROR: pipe next_point accepted the last point\n");
+    rt_edit_set_edflag(s, ECMD_PIPE_PREV_PT);
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	pe->es_pipe_pnt != pipe_first(s))
+	bu_exit(1, "ERROR: pipe previous_point did not select the first point\n");
+
+    pipe_full_reset(s, pe);
+    pe->es_pipe_pnt = pipe_second(s);
+    rt_edit_set_edflag(s, ECMD_PIPE_PT_MOVE);
+    s->e_inpara = 3;
+    VSET(s->e_para, 0.0, 0.0, 1.0);
+    for (int repeat = 0; repeat < 2; repeat++) {
+	s->e_inpara = 3;
+	if (rt_edit_process(s) != BRLCAD_OK ||
+	    !NEAR_EQUAL(pipe_second(s)->pp_coord[Z], inch, SMALL_FASTF) ||
+	    !NEAR_EQUAL(s->e_para[Z], 1.0, SMALL_FASTF))
+	    bu_exit(1, "ERROR: repeated inch pipe move reconverted its input\n");
+    }
+    s->e_mvalid = 1;
+    VSET(s->e_mparam, 0.0, 0.0, 20.0);
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	!NEAR_EQUAL(pipe_second(s)->pp_coord[Z], 20.0, SMALL_FASTF) ||
+	!NEAR_EQUAL(s->e_para[Z], 1.0, SMALL_FASTF))
+	bu_exit(1, "ERROR: mouse pipe move converted numeric input\n");
+    s->e_mvalid = 0;
+    s->e_inpara = 2;
+    if (rt_edit_process(s) != BRLCAD_ERROR ||
+	!NEAR_EQUAL(pipe_second(s)->pp_coord[Z], 20.0, SMALL_FASTF))
+	bu_exit(1, "ERROR: malformed pipe move did not fail without mutation\n");
+
+    pipe_full_reset(s, pe);
+    rt_edit_set_edflag(s, ECMD_PIPE_PT_ADD);
+    s->e_inpara = 3;
+    VSET(s->e_para, 0.0, 0.0, 2.0);
+    if (rt_edit_process(s) != BRLCAD_OK || pipe_npts(s) != 3 ||
+	!NEAR_EQUAL(pe->es_pipe_pnt->pp_coord[Z], 2.0 * inch, SMALL_FASTF) ||
+	!NEAR_EQUAL(s->e_para[Z], 2.0, SMALL_FASTF))
+	bu_exit(1, "ERROR: inch pipe append did not add a base-unit point\n");
+
+    pipe_full_reset(s, pe);
+    rt_edit_set_edflag(s, ECMD_PIPE_PT_INS);
+    s->e_inpara = 3;
+    VSET(s->e_para, 0.0, 0.0, -1.0);
+    if (rt_edit_process(s) != BRLCAD_OK || pipe_npts(s) != 3 ||
+	!NEAR_EQUAL(pipe_first(s)->pp_coord[Z], -inch, SMALL_FASTF) ||
+	!NEAR_EQUAL(s->e_para[Z], -1.0, SMALL_FASTF))
+	bu_exit(1, "ERROR: inch pipe prepend did not add a base-unit point\n");
+
+    pipe_full_reset(s, pe);
+    pe->es_pipe_pnt = pipe_first(s);
+    rt_edit_set_edflag(s, ECMD_PIPE_SPLIT);
+    s->e_inpara = 3;
+    VSET(s->e_para, 0.0, 0.0, 5.0 / inch);
+    if (rt_edit_process(s) != BRLCAD_OK || pipe_npts(s) != 3 ||
+	!NEAR_EQUAL(pipe_second(s)->pp_coord[Z], 5.0, SMALL_FASTF) ||
+	!NEAR_EQUAL(s->e_para[Z], 5.0 / inch, SMALL_FASTF))
+	bu_exit(1, "ERROR: inch pipe split did not preserve local input\n");
+    pe->es_pipe_pnt = BU_LIST_NEXT(wdb_pipe_pnt, &pipe_second(s)->l);
+    s->e_inpara = 3;
+    int split_last_ret = rt_edit_process(s);
+    if (split_last_ret != BRLCAD_ERROR || pipe_npts(s) != 3)
+	bu_exit(1, "ERROR: pipe split last point returned %d with %d points: %s\n",
+	    split_last_ret, pipe_npts(s), bu_vls_cstr(s->log_str));
+
+    struct pipe_length_case {
+	int command;
+	fastf_t local_input;
+	fastf_t expected_base;
+	bool all_points;
+    };
+    const struct pipe_length_case length_cases[] = {
+	{ECMD_PIPE_PT_OD, 0.1, 0.1 * inch, false},
+	{ECMD_PIPE_PT_ID, 0.02, 0.02 * inch, false},
+	{ECMD_PIPE_PT_RADIUS, 0.5, 0.5 * inch, false},
+	{ECMD_PIPE_SCALE_OD, 0.1, 0.1 * inch, true},
+	{ECMD_PIPE_SCALE_ID, 0.02, 0.02 * inch, true},
+	{ECMD_PIPE_SCALE_RADIUS, 0.5, 0.5 * inch, true}
+    };
+    auto dimension = [](const struct wdb_pipe_pnt *pt, int command) {
+	switch (command) {
+	    case ECMD_PIPE_PT_OD:
+	    case ECMD_PIPE_SCALE_OD:
+		return pt->pp_od;
+	    case ECMD_PIPE_PT_ID:
+	    case ECMD_PIPE_SCALE_ID:
+		return pt->pp_id;
+	    default:
+		return pt->pp_bendradius;
+	}
+    };
+    for (const auto &test : length_cases) {
+	pipe_full_reset(s, pe);
+	if (!test.all_points)
+	    pe->es_pipe_pnt = pipe_first(s);
+	rt_edit_set_edflag(s, test.command);
+	s->e_inpara = 1;
+	s->e_para[0] = test.local_input;
+	fastf_t other_before = dimension(pipe_second(s), test.command);
+	for (int repeat = 0; repeat < 2; repeat++) {
+	    s->e_inpara = 1;
+	    if (rt_edit_process(s) != BRLCAD_OK ||
+		!NEAR_EQUAL(dimension(pipe_first(s), test.command),
+		    test.expected_base, SMALL_FASTF) ||
+		!NEAR_EQUAL(dimension(pipe_second(s), test.command),
+		    test.all_points ? test.expected_base : other_before,
+		    SMALL_FASTF) ||
+		!NEAR_EQUAL(s->e_para[0], test.local_input, SMALL_FASTF))
+		bu_exit(1, "ERROR: inch pipe dimension command %d reconverted input\n",
+		    test.command);
+	}
+    }
+
+    pipe_full_reset(s, pe);
+    pipe_first(s)->pp_id = 0.0;
+    pe->es_pipe_pnt = pipe_first(s);
+    rt_edit_set_edflag(s, ECMD_PIPE_PT_ID);
+    s->e_inpara = 1;
+    s->e_para[0] = 0.02;
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	!NEAR_EQUAL(pipe_first(s)->pp_id, 0.02 * inch, SMALL_FASTF))
+	bu_exit(1, "ERROR: inch pipe ID could not be set from zero\n");
+
+    pipe_full_reset(s, pe);
+    pipe_first(s)->pp_id = 0.0;
+    pipe_second(s)->pp_id = 0.0;
+    rt_edit_set_edflag(s, ECMD_PIPE_SCALE_ID);
+    s->e_inpara = 1;
+    s->e_para[0] = 0.02;
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	!NEAR_EQUAL(pipe_first(s)->pp_id, 0.02 * inch, SMALL_FASTF) ||
+	!NEAR_EQUAL(pipe_second(s)->pp_id, 0.02 * inch, SMALL_FASTF))
+	bu_exit(1, "ERROR: inch whole-pipe ID could not be set from zero\n");
+
+    pipe_full_reset(s, pe);
+    pipe_first(s)->pp_od = 0.0;
+    pipe_second(s)->pp_od = 0.0;
+    pipe_first(s)->pp_id = 0.0;
+    pipe_second(s)->pp_id = 0.0;
+    rt_edit_set_edflag(s, ECMD_PIPE_SCALE_OD);
+    s->e_inpara = 1;
+    s->e_para[0] = 0.1;
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	!NEAR_EQUAL(pipe_first(s)->pp_od, 0.1 * inch, SMALL_FASTF) ||
+	!NEAR_EQUAL(pipe_second(s)->pp_od, 0.1 * inch, SMALL_FASTF))
+	bu_exit(1, "ERROR: inch whole-pipe OD could not be set from zero\n");
+
+    pipe_full_reset(s, pe);
+    pipe_first(s)->pp_bendradius = 0.0;
+    pipe_second(s)->pp_bendradius = 0.0;
+    rt_edit_set_edflag(s, ECMD_PIPE_SCALE_RADIUS);
+    s->e_inpara = 1;
+    s->e_para[0] = 0.5;
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	!NEAR_EQUAL(pipe_first(s)->pp_bendradius, 0.5 * inch, SMALL_FASTF) ||
+	!NEAR_EQUAL(pipe_second(s)->pp_bendradius, 0.5 * inch, SMALL_FASTF))
+	bu_exit(1, "ERROR: inch whole-pipe bend could not be set from zero\n");
+
+    pipe_full_reset(s, pe);
+    if (rt_edit_checkpoint(s) != BRLCAD_OK)
+	bu_exit(1, "ERROR: pipe checkpoint failed\n");
+    pe->es_pipe_pnt = pipe_second(s);
+    pipe_first(s)->pp_coord[X] = inch;
+    VSET(s->e_keypoint, -1, -1, -1);
+    if (rt_edit_revert(s) != BRLCAD_OK || pe->es_pipe_pnt ||
+	!ZERO(pipe_first(s)->pp_coord[X]) ||
+	!VNEAR_ZERO(s->e_keypoint, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: pipe revert retained stale geometry or selection\n");
+
+    int matrix_failures = pipe_transform_matrix(dbip, &fp, &tol, v);
+    matrix_failures += pipe_dimension_matrix(dbip, &fp, &tol);
+    matrix_failures += pipe_point_matrix(dbip, &fp, &tol);
     rt_edit_destroy(s);
     db_close(dbip);
-    return 0;
+    return matrix_failures;
 }
 
 // Local Variables:

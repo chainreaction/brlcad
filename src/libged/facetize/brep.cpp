@@ -35,26 +35,27 @@
 #include "./ged_facetize.h"
 
 int
-_nonovlp_brep_facetize(struct _ged_facetize_state *s, int argc, const char **argv)
+_nonovlp_brep_facetize(struct _ged_facetize_state *s, const FacetizePlan &plan)
 {
-    int newobj_cnt;
-    struct directory **dpa = NULL;
-
     RT_CHECK_DBI(s->dbip);
 
-    if (argc <= 0) return BRLCAD_ERROR;
-
-    dpa = (struct directory **)bu_calloc(argc, sizeof(struct directory *), "dp array");
-    newobj_cnt = _ged_sort_existing_objs(s->dbip, argc, argv, dpa);
-    if (_ged_validate_objs_list(s, argc, argv, newobj_cnt) == BRLCAD_ERROR) {
-	bu_free(dpa, "dp array");
-	return BRLCAD_ERROR;
+    int argc = (int)plan.inputs.size();
+    std::vector<const char *> argv = plan.input_argv();
+    struct directory **dpa = (struct directory **)bu_calloc(argc,
+	    sizeof(struct directory *), "BRep input directory array");
+    for (int i = 0; i < argc; i++) {
+	dpa[i] = db_lookup(s->dbip, argv[i], LOOKUP_QUIET);
+	if (!dpa[i]) {
+	    facetize_failure(s, "BRep input object '%s' disappeared before processing", argv[i]);
+	    bu_free(dpa, "BRep input directory array");
+	    return BRLCAD_ERROR;
+	}
     }
 
     /* If anything specified has subtractions or intersections, we can't facetize it with
      * this logic - that would require all-up Boolean evaluation processing. */
     const char *non_union = "-bool + -or -bool -";
-    if (db_search(NULL, DB_SEARCH_QUIET, non_union, newobj_cnt, dpa, s->dbip, NULL, NULL, NULL) > 0) {
+    if (db_search(NULL, DB_SEARCH_QUIET, non_union, argc, dpa, s->dbip, NULL, NULL, NULL) > 0) {
 	bu_free(dpa, "dp array");
 	bu_vls_printf(s->gedp->ged_result_str, "Found intersection or subtraction objects in specified inputs - currently unsupported. Aborting.\n");
 	return BRLCAD_ERROR;
@@ -63,7 +64,7 @@ _nonovlp_brep_facetize(struct _ged_facetize_state *s, int argc, const char **arg
     /* If anything other than combs or breps exists in the specified inputs, we can't
      * process with this logic - requires a preliminary brep conversion. */
     const char *obj_types = "! -type c -and ! -type brep";
-    if (db_search(NULL, DB_SEARCH_QUIET, obj_types, newobj_cnt, dpa, s->dbip, NULL, NULL, NULL) > 0) {
+    if (db_search(NULL, DB_SEARCH_QUIET, obj_types, argc, dpa, s->dbip, NULL, NULL, NULL) > 0) {
 	bu_free(dpa, "dp array");
 	bu_vls_printf(s->gedp->ged_result_str, "Found objects in specified inputs which are not of type comb or brep- currently unsupported. Aborting.\n");
 	return BRLCAD_ERROR;
@@ -83,12 +84,17 @@ _nonovlp_brep_facetize(struct _ged_facetize_state *s, int argc, const char **arg
 	bu_free(dpa, "dp array");
 	return BRLCAD_ERROR;
     }
-    for (int i = 0; i < newobj_cnt;  i++) {
-	int xac = 3;
+    for (int i = 0; i < argc; i++) {
+	int xac = 2;
 	const char *xav[3] = {NULL};
 	xav[0] = "xpush";
 	xav[1] = dpa[i]->d_namep;
-	ged_exec_xpush(wgedp, xac, (const char **)xav);
+	if (ged_exec_xpush(wgedp, xac, (const char **)xav) != BRLCAD_OK) {
+	    facetize_failure(s, "xpush failed for BRep input '%s'", dpa[i]->d_namep);
+	    ged_close(wgedp);
+	    bu_free(dpa, "BRep input directory array");
+	    return BRLCAD_ERROR;
+	}
     }
 
     /* Used the libged tolerances */
@@ -103,9 +109,10 @@ _nonovlp_brep_facetize(struct _ged_facetize_state *s, int argc, const char **arg
     const char *active_breps = "-type brep";
     struct bu_ptbl *br;
     BU_ALLOC(br, struct bu_ptbl);
-    if (db_search(br, DB_SEARCH_RETURN_UNIQ_DP, active_breps, newobj_cnt, dpa, wgedp->dbip, NULL, NULL, NULL) < 0) {
+    if (db_search(br, DB_SEARCH_RETURN_UNIQ_DP, active_breps, argc, dpa, wgedp->dbip, NULL, NULL, NULL) < 0) {
 	bu_free(dpa, "dp array");
 	bu_free(br, "brep results");
+	ged_close(wgedp);
 	return BRLCAD_ERROR;
     }
     if (!BU_PTBL_LEN(br)) {
@@ -113,6 +120,7 @@ _nonovlp_brep_facetize(struct _ged_facetize_state *s, int argc, const char **arg
 	bu_vls_printf(s->gedp->ged_result_str, "No brep objects present in specified inputs - nothing to convert.\n");
 	bu_free(dpa, "dp array");
 	bu_free(br, "brep results");
+	ged_close(wgedp);
 	return BRLCAD_OK;
     }
 
@@ -129,27 +137,37 @@ _nonovlp_brep_facetize(struct _ged_facetize_state *s, int argc, const char **arg
     /* Now, actually trigger the facetize logic. */
     std::vector<ON_Brep_CDT_State *> ss_cdt;
     std::vector<struct rt_db_internal *> intern_ptrs;
+    auto cleanup = [&ss_cdt, &intern_ptrs, wgedp]() {
+	/* CDT states borrow the imported BReps and database object names. */
+	for (size_t i = 0; i < ss_cdt.size(); i++) {
+	    ON_Brep_CDT_Destroy(ss_cdt[i]);
+	}
+	for (size_t i = 0; i < intern_ptrs.size(); i++) {
+	    rt_db_free_internal(intern_ptrs[i]);
+	    BU_PUT(intern_ptrs[i], struct rt_db_internal);
+	}
+	ged_close(wgedp);
+    };
     std::set<struct directory *>::iterator d_it;
     for (d_it = brep_objs.begin(); d_it != brep_objs.end(); ++d_it) {
 	struct rt_db_internal *intern;
 	BU_GET(intern, struct rt_db_internal);
 	RT_DB_INTERNAL_INIT(intern);
 	struct rt_brep_internal* bi;
-	GED_DB_GET_INTERN(wgedp, intern, *d_it, bn_mat_identity, BRLCAD_ERROR);
+	if (rt_db_get_internal(intern, *d_it, wgedp->dbip, bn_mat_identity) < 0) {
+	    bu_vls_printf(s->gedp->ged_result_str, "Database read failure.");
+	    rt_db_free_internal(intern);
+	    BU_PUT(intern, struct rt_db_internal);
+	    cleanup();
+	    return BRLCAD_ERROR;
+	}
 	RT_CK_DB_INTERNAL(intern);
 	bi = (struct rt_brep_internal*)intern->idb_ptr;
 	if (!RT_BREP_TEST_MAGIC(bi)) {
 	    bu_vls_printf(s->gedp->ged_result_str, "Error: %s is not a brep solid", (*d_it)->d_namep);
 	    rt_db_free_internal(intern);
 	    BU_PUT(intern, struct rt_db_internal);
-	    for (size_t i = 0; i < ss_cdt.size(); i++) {
-		ON_Brep_CDT_Destroy(ss_cdt[i]);
-	    }
-	    for (size_t i = 0; i < intern_ptrs.size(); i++) {
-		rt_db_free_internal(intern_ptrs[i]);
-		BU_PUT(intern_ptrs[i], struct rt_db_internal);
-	    }
-	    ged_close(wgedp);
+	    cleanup();
 	    return BRLCAD_ERROR;
 	}
 	ON_Brep_CDT_State *s_cdt = ON_Brep_CDT_Create((void *)bi->brep, (*d_it)->d_namep);
@@ -159,32 +177,25 @@ _nonovlp_brep_facetize(struct _ged_facetize_state *s, int argc, const char **arg
     }
 
     for (size_t i = 0; i < ss_cdt.size(); i++) {
-	ON_Brep_CDT_Tessellate(ss_cdt[i], 0, NULL);
+	/* This path exports solid BoTs, so incomplete meshes cannot be used. */
+	if (ON_Brep_CDT_Tessellate(ss_cdt[i], 0, NULL) != 0) {
+	    bu_vls_printf(s->gedp->ged_result_str, "Error tessellating object %s into a solid mesh.\n", ON_Brep_CDT_ObjName(ss_cdt[i]));
+	    cleanup();
+	    return BRLCAD_ERROR;
+	}
     }
 
     // Do comparison/resolution
-    struct ON_Brep_CDT_State **s_a = (struct ON_Brep_CDT_State **)bu_calloc(ss_cdt.size(), sizeof(struct ON_Brep_CDT_State *), "state array");
-    for (size_t i = 0; i < ss_cdt.size(); i++) {
-	s_a[i] = ss_cdt[i];
-    }
-
-    int resolve_result = ON_Brep_CDT_Ovlp_Resolve(s_a, ss_cdt.size(), s->nonovlp_threshold, s->max_time);
+    int resolve_result = ON_Brep_CDT_Ovlp_Resolve(ss_cdt.data(), ss_cdt.size(), s->nonovlp_threshold, s->max_time);
     if (resolve_result < 0) {
-	bu_vls_printf(s->gedp->ged_result_str, "Error: RESOLVE fail.\n");
-#if 0
-	for (size_t i = 0; i < ss_cdt.size(); i++) {
-	    ON_Brep_CDT_Destroy(ss_cdt[i]);
-	}
-	bu_free(s_a, "array of states");
+	bu_vls_printf(s->gedp->ged_result_str, "Error resolving BRep overlaps.\n");
+	cleanup();
 	return BRLCAD_ERROR;
-#endif
     }
 
     if (resolve_result > 0) {
 	bu_vls_printf(s->gedp->ged_result_str, "WARNING: Timeout of %d seconds overlap processing reached, but triangles not fully refined to specified threshold.\nGenerating meshes, but larger overlaps will be present.\n", s->max_time);
     }
-
-    bu_free(s_a, "array of states");
 
     // Make final meshes
     for (size_t i = 0; i < ss_cdt.size(); i++) {
@@ -194,7 +205,15 @@ _nonovlp_brep_facetize(struct _ged_facetize_state *s, int argc, const char **arg
 	int *face_normals = NULL;
 	fastf_t *normals = NULL;
 
-	ON_Brep_CDT_Mesh(&faces, &fcnt, &vertices, &vcnt, &face_normals, &fncnt, &normals, &ncnt, ss_cdt[i], 0, NULL);
+	if (ON_Brep_CDT_Mesh(&faces, &fcnt, &vertices, &vcnt, &face_normals, &fncnt, &normals, &ncnt, ss_cdt[i], 0, NULL) < 0) {
+	    bu_vls_printf(s->gedp->ged_result_str, "Error generating mesh for object %s.\n", ON_Brep_CDT_ObjName(ss_cdt[i]));
+	    bu_free(faces, "faces");
+	    bu_free(vertices, "vertices");
+	    bu_free(face_normals, "face normals");
+	    bu_free(normals, "normals");
+	    cleanup();
+	    return BRLCAD_ERROR;
+	}
 
 	struct rt_bot_internal *bot;
 	BU_GET(bot, struct rt_bot_internal);
@@ -215,26 +234,9 @@ _nonovlp_brep_facetize(struct _ged_facetize_state *s, int argc, const char **arg
 
 	if (wdb_export(wdbp, ON_Brep_CDT_ObjName(ss_cdt[i]), (void *)bot, ID_BOT, 1.0)) {
 	    bu_vls_printf(s->gedp->ged_result_str, "Error exporting object %s.", ON_Brep_CDT_ObjName(ss_cdt[i]));
-	    for (size_t j = 0; j < ss_cdt.size(); j++) {
-		ON_Brep_CDT_Destroy(ss_cdt[j]);
-	    }
-	    for (size_t j = 0; j < intern_ptrs.size(); j++) {
-		rt_db_free_internal(intern_ptrs[j]);
-		BU_PUT(intern_ptrs[j], struct rt_db_internal);
-	    }
-	    rt_bot_internal_free(bot);
-	    BU_PUT(bot, struct rt_bot_internal);
-	    ged_close(wgedp);
+	    cleanup();
 	    return BRLCAD_ERROR;
 	}
-    }
-
-    for (size_t i = 0; i < ss_cdt.size(); i++) {
-	ON_Brep_CDT_Destroy(ss_cdt[i]);
-    }
-    for (size_t i = 0; i < intern_ptrs.size(); i++) {
-	rt_db_free_internal(intern_ptrs[i]);
-	BU_PUT(intern_ptrs[i], struct rt_db_internal);
     }
 
     /* Keep out just what we asked for into a .g file */
@@ -247,10 +249,16 @@ _nonovlp_brep_facetize(struct _ged_facetize_state *s, int argc, const char **arg
 	av[i+2] = argv[i];
     }
     av[argc+2] = NULL;
-    ged_exec_keep(wgedp, argc+2, av);
+    if (ged_exec_keep(wgedp, argc+2, av) != BRLCAD_OK) {
+	facetize_failure(s, "unable to stage processed BRep hierarchy");
+	bu_free(av, "av");
+	bu_vls_free(&kwfile);
+	cleanup();
+	return BRLCAD_ERROR;
+    }
 
     /* Done changing stuff in working database. */
-    ged_close(wgedp);
+    cleanup();
 
     /* Merge working geometry into original file */
     av[0] = "dbconcat";
@@ -258,14 +266,13 @@ _nonovlp_brep_facetize(struct _ged_facetize_state *s, int argc, const char **arg
     av[2] = bu_vls_cstr(&kwfile);
     av[3] = "brep_facetize_"; // TODO - customize
     av[4] = NULL;
-    ged_exec_dbconcat(s->gedp, 4, av);
+    int concat_ret = ged_exec_dbconcat(s->gedp, 4, av);
     bu_free(av, "av");
     bu_vls_free(&kwfile);
 
-    /* Clean up */
-    bu_dirclear(s->wdir);
+    s->cleanup_workspace = true;
 
-    return BRLCAD_OK;
+    return (concat_ret == BRLCAD_OK) ? BRLCAD_OK : BRLCAD_ERROR;
 }
 
 // Local Variables:
@@ -276,4 +283,3 @@ _nonovlp_brep_facetize(struct _ged_facetize_state *s, int argc, const char **arg
 // c-file-style: "stroustrup"
 // End:
 // ex: shiftwidth=4 tabstop=8
-

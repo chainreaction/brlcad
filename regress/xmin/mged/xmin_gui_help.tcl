@@ -20,7 +20,7 @@
 ###
 # Exercise MGED command manuals, searches, and help dialogs.
 
-source $::env(MGED_XMIN_GUI_LIBRARY)
+source $::env(MGED_GUI_TEST_LIBRARY)
 
 namespace eval ::mged::xmin::help {
     variable exec_arguments {}
@@ -32,94 +32,106 @@ proc ::mged::xmin::help::record_exec {args} {
 }
 
 proc ::mged::xmin::help::exercise_command_manual {top} {
-    ::mged::xmin::test::invoke $top {Help {Command Manual Pages}}
+    ::mged::gui::test::invoke $top {Help {Command Manual Pages}}
     set browser .mgedMan
-    ::xmin::test::require {
+    ::gui::test::require {
 	[llength [info commands $browser]] == 1 &&
 	[winfo exists $browser] && [winfo ismapped $browser]
     } "Command Manual Pages did not open the internal browser"
 
     set toc [$browser component manpagelistbox]
-    ::xmin::test::require {
+    ::gui::test::require {
 	[winfo exists $toc] && [$toc size] > 100 &&
 	[lsearch -exact [$toc get 0 end] rt] >= 0
     } "manual browser did not populate the program-page table of contents"
 
     man rt
     set selection [$toc curselection]
-    ::xmin::test::require {
+    ::gui::test::require {
 	[llength $selection] == 1 && [$toc get $selection] eq "rt"
     } "man rt did not select and load the rt manual page"
-    ::xmin::test::require {
+
+    event generate $toc <<ListboxSelect>>
+    ::mged::gui::test::settle
+
+    man search
+    set html_view [$browser component browser].htmlview
+    set html_widget [$html_view html]
+    $html_view goto {#hierarchy_performance}
+    ::mged::gui::test::settle
+    ::gui::test::require {[lindex [$html_widget yview] 0] > 0.0} \
+	"manual browser did not follow an in-page hyperlink"
+
+    ::gui::test::require {
 	[catch {man xmin_page_that_does_not_exist} message] &&
 	[string first "couldn't find manual page" $message] >= 0
     } "missing manual page lookup did not report a useful error"
 
     man -k ray
-    ::xmin::test::require {[$toc size] > 0} \
+    ::gui::test::require {[$toc size] > 0} \
 	"short manual search returned no results"
     $browser search "ray tracing" full
-    ::xmin::test::require {[$toc size] > 0} \
+    ::gui::test::require {[$toc size] > 0} \
 	"full-text manual search returned no results"
     set search_entry [$browser component search_frame].entry
     $search_entry delete 0 end
     $search_entry insert 0 geometry
     event generate $search_entry <KeyRelease>
-    ::mged::xmin::test::settle
-    ::xmin::test::require {[$toc size] > 0} \
+    ::mged::gui::test::settle
+    ::gui::test::require {[$toc size] > 0} \
 	"manual browser search widget did not refresh results"
     [$browser component search_frame].clear invoke
-    ::xmin::test::require {
+    ::gui::test::require {
 	[$toc size] > 100 && [lsearch -exact [$toc get 0 end] rt] >= 0
     } "manual browser Clear did not restore the table of contents"
     $browser deactivate
 }
 
 proc ::mged::xmin::help::exercise_manual_search {top} {
-    ::mged::xmin::test::with_dialog_answer $top.mansearch {Manual Search} \
+    ::mged::gui::test::with_dialog_answer $top.mansearch {Manual Search} \
 	$top.mansearch.mid.ent {ray tracing} $top.mansearch.bot.button0 \
-	[list ::mged::xmin::test::invoke $top {Help {Manual Search}}]
+	[list ::mged::gui::test::invoke $top {Help {Manual Search}}]
     set browser .mgedMan
     set toc [$browser component manpagelistbox]
-    ::xmin::test::require {
+    ::gui::test::require {
 	[winfo ismapped $browser] && [$toc size] > 0
     } "Manual Search did not display ranked internal-browser results"
     $browser deactivate
 }
 
 proc ::mged::xmin::help::exercise_apropos {top} {
-    ::mged::xmin::test::with_dialog_answer $top.apropos Apropos \
+    ::mged::gui::test::with_dialog_answer $top.apropos Apropos \
 	$top.apropos.mid.ent view $top.apropos.bot.button0 \
-	[list ::mged::xmin::test::invoke $top {Help Apropos}]
+	[list ::mged::gui::test::invoke $top {Help Apropos}]
     set help_window $top.help
-    ::xmin::test::require {
+    ::gui::test::require {
 	[winfo exists $help_window] && [winfo ismapped $help_window] &&
 	[$help_window.l size] > 0
     } "Apropos did not display matching MGED commands"
     $help_window.l selection set 0
     focus $help_window.l
-    ::mged::xmin::test::with_dialog_answer .mged_dialog Usage "" "" \
+    ::mged::gui::test::with_dialog_answer .mged_dialog Usage "" "" \
 	.mged_dialog.bot.button0 \
 	[list event generate $help_window.l <KeyPress> -keysym Return]
     $help_window.cancel invoke
-    ::xmin::test::require {![winfo exists $help_window]} \
+    ::gui::test::require {![winfo exists $help_window]} \
 	"Apropos results did not dismiss"
 }
 
 proc ::mged::xmin::help::exercise_static_help {id top} {
-    ::mged::xmin::test::with_dialog_answer .mged_dialog {Shift Grips} \
+    ::mged::gui::test::with_dialog_answer .mged_dialog {Shift Grips} \
 	"" "" .mged_dialog.bot.button0 \
-	[list ::mged::xmin::test::invoke $top {Help {Shift Grips}}]
+	[list ::mged::gui::test::invoke $top {Help {Shift Grips}}]
 
-    ::mged::xmin::test::invoke $top {Help Dedication}
+    ::mged::gui::test::invoke $top {Help Dedication}
     set dedication .$id\_mike
-    ::xmin::test::require {
+    ::gui::test::require {
 	[winfo exists $dedication] && [winfo ismapped $dedication] &&
 	[wm title $dedication] eq "Dedication" &&
 	[string first "Michael John Muuss" [$dedication.dates cget -text]] >= 0
     } "Dedication did not display its expected content"
     $dedication.dismiss invoke
-    ::xmin::test::require {![winfo exists $dedication]} \
+    ::gui::test::require {![winfo exists $dedication]} \
 	"Dedication did not dismiss"
 }
 
@@ -128,7 +140,7 @@ proc ::mged::xmin::help::exercise_html_manual {top} {
     variable exec_arguments
 
     set manual_path [file normalize [file join $mged_html_dir index.html]]
-    ::xmin::test::require {[file readable $manual_path]} \
+    ::gui::test::require {[file readable $manual_path]} \
 	"built MGED HTML manual is unavailable"
 
     set browser [auto_execok true]
@@ -137,24 +149,52 @@ proc ::mged::xmin::help::exercise_html_manual {top} {
     rename ::exec ::mged::xmin::help::saved_exec
     rename ::mged::xmin::help::record_exec ::exec
     set status [catch {
-	::mged::xmin::test::invoke $top {Help Manual}
+	::mged::gui::test::invoke $top {Help Manual}
     } message options]
     rename ::exec ::mged::xmin::help::record_exec
     rename ::mged::xmin::help::saved_exec ::exec
     if {$status} {
 	return -options $options $message
     }
-    ::xmin::test::require {
+    ::gui::test::require {
 	$exec_arguments eq [list -- {*}$browser $manual_path &]
     } "Manual did not dispatch the configured browser with its index page"
 
-    set mged_browser [file join $::env(XMIN_TEST_DIR) missing-browser]
-    ::mged::xmin::test::invoke $top {Help Manual}
+    set mged_browser [file join $::env(GUI_TEST_DIR) missing-browser]
+    ::mged::gui::test::invoke $top {Help Manual}
     set fallback $top.man
-    ::xmin::test::require {
+    set viewer $fallback.html
+    ::gui::test::require {
 	[winfo exists $fallback] && [winfo ismapped $fallback] &&
-	[string length [string trim [$fallback.text get 1.0 end]]] > 100
+	[winfo exists $viewer] && [$viewer title] eq "Table of Contents"
     } "Manual did not load MGED's internal HTML viewer"
+
+    set special_path [file join [pwd] {manual path} {contents#1.html}]
+    ::gui::test::require {
+	[::mged::manual::local_path \
+	    [::mged::manual::file_uri $special_path]] eq \
+	[file normalize $special_path]
+    } "internal Manual viewer did not preserve special path characters"
+
+    set html [$viewer html]
+    set contents [$html text text]
+    ::gui::test::require {
+	[string first "Preface" $contents] >= 0 &&
+	[string first "background-color" $contents] < 0
+    } "internal Manual viewer did not render its table of contents"
+
+    $viewer goto mged.html#csg
+    ::mged::gui::test::settle
+    set contents [$html text text]
+    ::gui::test::require {
+	[$viewer title] eq "Mged User's Manual" &&
+	[string first "Modeling With CSG" $contents] >= 0
+    } "internal Manual viewer did not follow its document links"
+
+    $fallback.f.back invoke
+    ::mged::gui::test::settle
+    ::gui::test::require {[$viewer title] eq "Table of Contents"} \
+	"internal Manual viewer Back button did not restore the prior page"
     destroy $fallback
 }
 
@@ -166,7 +206,7 @@ proc ::mged::xmin::help::run {id top} {
     exercise_html_manual $top
 }
 
-::mged::xmin::test::start ::mged::xmin::help::run \
+::mged::gui::test::start ::mged::xmin::help::run \
     {MGED manual and help lookup} {MGED help regression}
 
 # Local Variables:

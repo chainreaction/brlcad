@@ -192,41 +192,71 @@ rt_edit_extrude_e_axes_pos(
     }
 }
 
-void
+static int
 ecmd_extr_skt_name(struct rt_edit *s)
 {
     struct rt_extrude_internal *extr = (struct rt_extrude_internal *)s->es_int.idb_ptr;
-    struct rt_db_internal tmp_ip;
-
     RT_EXTRUDE_CK_MAGIC(extr);
 
-    if (extr->skt) {
-	/* free the old sketch */
-	RT_DB_INTERNAL_INIT(&tmp_ip);
-	tmp_ip.idb_major_type = DB5_MAJORTYPE_BRLCAD;
-	tmp_ip.idb_type = ID_SKETCH;
-	tmp_ip.idb_ptr = (void *)extr->skt;
-	tmp_ip.idb_meth = &OBJ[ID_SKETCH];
-	rt_db_free_internal(&tmp_ip);
+    if (!s->e_nstr) {
+	bu_clbk_t f = NULL;
+	void *d = NULL;
+	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_EXTR_SKT_NAME, BU_CLBK_DURING);
+	if (f)
+	    (*f)(0, NULL, d, s);
     }
 
-    bu_clbk_t f = NULL;
-    void *d = NULL;
-    rt_edit_map_clbk_get(&f, &d, s->m, ECMD_EXTR_SKT_NAME, BU_CLBK_DURING);
-    if (f)
-	(*f)(0, NULL, d, s);
+    if (!s->e_nstr || !s->e_str[0][0] || !s->dbip) {
+	s->e_nstr = 0;
+	bu_vls_printf(s->log_str, "ERROR: a sketch name and database are required\n");
+	return BRLCAD_ERROR;
+    }
+
+    const char *name = s->e_str[0];
+    s->e_nstr = 0;
+    struct directory *dp = db_lookup(s->dbip, name, LOOKUP_QUIET);
+    if (dp == RT_DIR_NULL) {
+	bu_vls_printf(s->log_str, "ERROR: sketch %s does not exist\n", name);
+	return BRLCAD_ERROR;
+    }
+
+    struct rt_db_internal new_ip;
+    RT_DB_INTERNAL_INIT(&new_ip);
+    int id = rt_db_get_internal(&new_ip, dp, s->dbip, bn_mat_identity);
+    if (id != ID_SKETCH) {
+	if (id > 0)
+	    rt_db_free_internal(&new_ip);
+	bu_vls_printf(s->log_str, "ERROR: %s is not a sketch\n", name);
+	return BRLCAD_ERROR;
+    }
+
+    struct rt_db_internal old_ip;
+    RT_DB_INTERNAL_INIT(&old_ip);
+    old_ip.idb_major_type = DB5_MAJORTYPE_BRLCAD;
+    old_ip.idb_type = ID_SKETCH;
+    old_ip.idb_ptr = (void *)extr->skt;
+    old_ip.idb_meth = &OBJ[ID_SKETCH];
+    if (extr->skt)
+	rt_db_free_internal(&old_ip);
+
+    bu_free(extr->sketch_name, "extr->sketch_name");
+    extr->sketch_name = bu_strdup(name);
+    extr->skt = (struct rt_sketch_internal *)new_ip.idb_ptr;
+    return BRLCAD_OK;
 }
 
 int
 ecmd_extr_mov_h(struct rt_edit *s)
 {
-    vect_t work;
+    vect_t work, height;
+    point_t model_point;
     struct rt_extrude_internal *extr =
 	(struct rt_extrude_internal *)s->es_int.idb_ptr;
     bu_clbk_t f = NULL;
     void *d = NULL;
 
     RT_EXTRUDE_CK_MAGIC(extr);
+    VMOVE(height, extr->h);
     if (s->e_inpara) {
 	if (s->e_inpara != 3) {
 	    bu_vls_printf(s->log_str, "ERROR: three arguments needed\n");
@@ -234,72 +264,50 @@ ecmd_extr_mov_h(struct rt_edit *s)
 	    return BRLCAD_ERROR;
 	}
 
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
+	VSCALE(model_point, s->e_para, s->local2base);
 
 	if (s->mv_context) {
 	    /* apply s->e_invmat to convert to real model coordinates */
-	    MAT4X3PNT(work, s->e_invmat, s->e_para);
-	    VSUB2(extr->h, work, extr->V);
+	    MAT4X3PNT(work, s->e_invmat, model_point);
+	    VSUB2(height, work, extr->V);
 	} else {
-	    VSUB2(extr->h, s->e_para, extr->V);
+	    VSUB2(height, model_point, extr->V);
 	}
     }
 
-    /* check for zero H vector */
-    if (MAGNITUDE(extr->h) <= SQRT_SMALL_FASTF) {
-	bu_vls_printf(s->log_str, "Zero H vector not allowed, resetting to +Z\n");
+    if (edit_validate_height(s, height) != BRLCAD_OK) {
 	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
 	if (f)
 	    (*f)(0, NULL, d, NULL);
-	VSET(extr->h, 0.0, 0.0, 1.0);
 	return BRLCAD_ERROR;
     }
 
+    VMOVE(extr->h, height);
     return 0;
 }
 
-int
-ecmd_extr_scale_h(struct rt_edit *s)
+static int
+extr_scale(struct rt_edit *s)
 {
-    if (!s->e_inpara && s->es_scale <= 0.0) {
-	bu_vls_printf(s->log_str, "ERROR: one argument needed\n");
-	s->e_inpara = 0;
-	return BRLCAD_ERROR;
-    }
-    if (s->e_inpara > 1) {
-	bu_vls_printf(s->log_str, "ERROR: only one argument needed\n");
-	s->e_inpara = 0;
-	return BRLCAD_ERROR;
-    }
-
     struct rt_extrude_internal *extr =
 	(struct rt_extrude_internal *)s->es_int.idb_ptr;
+    vect_t *axis = NULL;
 
     RT_EXTRUDE_CK_MAGIC(extr);
-
-    if (s->e_inpara) {
-	if (s->e_para[0] <= 0.0) {
-	    bu_vls_printf(s->log_str, "ERROR: SCALE FACTOR <= 0\n");
-	    s->e_inpara = 0;
-	    return BRLCAD_ERROR;
-	}
-
-	/* convert e_para[0] to base units */
-	s->e_para[0] *= s->local2base;
-
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(extr->h);
-	VSCALE(extr->h, extr->h, s->es_scale);
-    } else if (s->es_scale > 0.0) {
-	VSCALE(extr->h, extr->h, s->es_scale);
-	s->es_scale = 0.0;
+    switch (s->edit_flag) {
+	case ECMD_EXTR_SCALE_H: axis = &extr->h; break;
+	case ECMD_EXTR_SCALE_A: axis = &extr->u_vec; break;
+	case ECMD_EXTR_SCALE_B: axis = &extr->v_vec; break;
+	default: return BRLCAD_ERROR;
     }
-
-    return 0;
+    if (!s->e_inpara && s->es_scale <= 0.0) {
+	bu_vls_printf(s->log_str, "ERROR: one argument needed\n");
+	return BRLCAD_ERROR;
+    }
+    int ret = edit_scale_length(s, axis, NULL);
+    if (ret == BRLCAD_OK && !s->e_inpara)
+	s->es_scale = 0.0;
+    return ret;
 }
 
 /* rotate height vector */
@@ -371,7 +379,7 @@ ecmd_extr_rot_h(struct rt_edit *s)
 }
 
 /* Use mouse to change location of point V+H */
-void
+static int
 ecmd_extr_mov_h_mousevec(struct rt_edit *s, const vect_t mousevec)
 {
     vect_t pos_view = VINIT_ZERO;	/* Unrotated view space pos */
@@ -387,86 +395,15 @@ ecmd_extr_mov_h_mousevec(struct rt_edit *s, const vect_t mousevec)
     /* Do NOT change pos_view[Z] ! */
     MAT4X3PNT(temp, s->vp->gv_view2model, pos_view);
     MAT4X3PNT(tr_temp, s->e_invmat, temp);
-    VSUB2(extr->h, tr_temp, extr->V);
+    vect_t height;
+    VSUB2(height, tr_temp, extr->V);
+    if (edit_validate_height(s, height) != BRLCAD_OK)
+	return BRLCAD_ERROR;
+    VMOVE(extr->h, height);
+    edit_abs_tra(s, pos_view);
+    return BRLCAD_OK;
 }
 
-/* scale the A (u_vec) reference vector */
-int
-ecmd_extr_scale_a(struct rt_edit *s)
-{
-    if (!s->e_inpara && s->es_scale <= 0.0) {
-	bu_vls_printf(s->log_str, "ERROR: one argument needed\n");
-	s->e_inpara = 0;
-	return BRLCAD_ERROR;
-    }
-    if (s->e_inpara > 1) {
-	bu_vls_printf(s->log_str, "ERROR: only one argument needed\n");
-	s->e_inpara = 0;
-	return BRLCAD_ERROR;
-    }
-
-    struct rt_extrude_internal *extr =
-	(struct rt_extrude_internal *)s->es_int.idb_ptr;
-
-    RT_EXTRUDE_CK_MAGIC(extr);
-
-    if (s->e_inpara) {
-	if (s->e_para[0] <= 0.0) {
-	    bu_vls_printf(s->log_str, "ERROR: SCALE FACTOR <= 0\n");
-	    s->e_inpara = 0;
-	    return BRLCAD_ERROR;
-	}
-
-	s->e_para[0] *= s->local2base;
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(extr->u_vec);
-	VSCALE(extr->u_vec, extr->u_vec, s->es_scale);
-    } else if (s->es_scale > 0.0) {
-	VSCALE(extr->u_vec, extr->u_vec, s->es_scale);
-	s->es_scale = 0.0;
-    }
-
-    return 0;
-}
-
-/* scale the B (v_vec) reference vector */
-int
-ecmd_extr_scale_b(struct rt_edit *s)
-{
-    if (!s->e_inpara && s->es_scale <= 0.0) {
-	bu_vls_printf(s->log_str, "ERROR: one argument needed\n");
-	s->e_inpara = 0;
-	return BRLCAD_ERROR;
-    }
-    if (s->e_inpara > 1) {
-	bu_vls_printf(s->log_str, "ERROR: only one argument needed\n");
-	s->e_inpara = 0;
-	return BRLCAD_ERROR;
-    }
-
-    struct rt_extrude_internal *extr =
-	(struct rt_extrude_internal *)s->es_int.idb_ptr;
-
-    RT_EXTRUDE_CK_MAGIC(extr);
-
-    if (s->e_inpara) {
-	if (s->e_para[0] <= 0.0) {
-	    bu_vls_printf(s->log_str, "ERROR: SCALE FACTOR <= 0\n");
-	    s->e_inpara = 0;
-	    return BRLCAD_ERROR;
-	}
-
-	s->e_para[0] *= s->local2base;
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(extr->v_vec);
-	VSCALE(extr->v_vec, extr->v_vec, s->es_scale);
-    } else if (s->es_scale > 0.0) {
-	VSCALE(extr->v_vec, extr->v_vec, s->es_scale);
-	s->es_scale = 0.0;
-    }
-
-    return 0;
-}
 
 /* rotate the A (u_vec) reference vector */
 int
@@ -582,18 +519,15 @@ rt_edit_extrude_edit(struct rt_edit *s)
 	    edit_srot(s);
 	    break;
 	case ECMD_EXTR_SKT_NAME:
-	    ecmd_extr_skt_name(s);
-	    break;
+	    return ecmd_extr_skt_name(s);
 	case ECMD_EXTR_MOV_H:
 	    return ecmd_extr_mov_h(s);
 	case ECMD_EXTR_SCALE_H:
-	    return ecmd_extr_scale_h(s);
+	case ECMD_EXTR_SCALE_A:
+	case ECMD_EXTR_SCALE_B:
+	    return extr_scale(s);
 	case ECMD_EXTR_ROT_H:
 	    return ecmd_extr_rot_h(s);
-	case ECMD_EXTR_SCALE_A:
-	    return ecmd_extr_scale_a(s);
-	case ECMD_EXTR_SCALE_B:
-	    return ecmd_extr_scale_b(s);
 	case ECMD_EXTR_ROT_A:
 	    return ecmd_extr_rot_a(s);
 	case ECMD_EXTR_ROT_B:
@@ -628,8 +562,7 @@ rt_edit_extrude_edit_xy(
 	    edit_stra_xy(&pos_view, s, mousevec);
 	    break;
 	case ECMD_EXTR_MOV_H:
-	    ecmd_extr_mov_h_mousevec(s, mousevec);
-	    break;
+	    return ecmd_extr_mov_h_mousevec(s, mousevec);
 	default:
 	    return edit_generic_xy(s, mousevec);
     }

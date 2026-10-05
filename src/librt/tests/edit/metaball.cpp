@@ -46,7 +46,6 @@
 #include <string.h>
 
 #include "vmath.h"
-#include "bu/app.h"
 #include "bu/log.h"
 #include "bu/malloc.h"
 #include "bu/str.h"
@@ -180,12 +179,8 @@ mb_reset(struct rt_edit *s, struct rt_metaball_internal *edit_mb)
 }
 
 int
-main(int argc, char *argv[])
+rt_edit_test_metaball(void)
 {
-    bu_setprogname(argv[0]);
-    if (argc != 1)
-	return BRLCAD_ERROR;
-
     struct db_i *dbip = db_open_inmem();
     if (dbip == DBI_NULL)
 	bu_exit(1, "ERROR: Unable to create database instance\n");
@@ -572,6 +567,119 @@ bu_log("RT_MATRIX_EDIT_TRANS_MODEL_XYZ SUCCESS: "
 	bu_exit(1, "ERROR: ECMD_METABALL_PT_SET_BLOBBINESS with no point: expected error in log from set_edit_mode\n");
     bu_log("ECMD_METABALL_PT_SET_BLOBBINESS no-point correctly refused\n");
 
+    /* Threshold, method, blobbiness and scale factors are dimensionless. */
+    {
+	const fastf_t local2base = 25.4;
+	mb_reset(s, edit_mb);
+	s->local2base = local2base;
+	s->base2local = 1.0 / local2base;
+	m->es_metaball_pnt = mb_first_pt(s);
+
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_METABALL_SET_THRESHOLD);
+	s->e_inpara = 1;
+	s->e_para[0] = 0.7;
+	rt_edit_process(s);
+	if (!NEAR_EQUAL(edit_mb->threshold, 0.7, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: non-mm metaball threshold changed units\n");
+
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_METABALL_SET_METHOD);
+	s->e_inpara = 1;
+	s->e_para[0] = 1.0;
+	rt_edit_process(s);
+	if (edit_mb->method != 1)
+	    bu_exit(1, "ERROR: non-mm metaball method changed units\n");
+
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_METABALL_PT_SET_BLOBBINESS);
+	s->e_inpara = 1;
+	s->e_para[0] = 0.5;
+	rt_edit_process(s);
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_METABALL_PT_SCALE_BLOBBINESS);
+	s->e_inpara = 1;
+	s->e_para[0] = 2.0;
+	rt_edit_process(s);
+	if (!NEAR_EQUAL(m->es_metaball_pnt->blobbiness, 1.0, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: non-mm metaball blobbiness changed units\n");
+
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_METABALL_PT_FLDSTR);
+	s->e_inpara = 1;
+	s->e_para[0] = 2.0;
+	rt_edit_process(s);
+	if (!NEAR_EQUAL(m->es_metaball_pnt->field_strength, 2.0, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: non-mm metaball strength factor changed units\n");
+	bu_log("Metaball non-mm dimensionless edits SUCCESS\n");
+    }
+
+    /* Pick and navigate control points using local coordinates. */
+    {
+        const fastf_t inch = 25.4;
+        mb_reset(s, edit_mb);
+        s->local2base = inch;
+        s->base2local = 1.0 / inch;
+        struct wdb_metaball_pnt *first = mb_first_pt(s);
+        struct wdb_metaball_pnt *second = mb_second_pt(s);
+        VSET(first->coord, inch, 0.0, 0.0);
+        VSET(second->coord, -inch, 0.0, 0.0);
+
+        EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_METABALL_PT_PICK);
+        s->e_inpara = 3;
+        VSET(s->e_para, 1.0, 0.0, 0.0);
+        if (rt_edit_process(s) != BRLCAD_OK ||
+            m->es_metaball_pnt != first ||
+            !NEAR_EQUAL(s->e_para[X], 1.0, VUNITIZE_TOL))
+            bu_exit(1, "ERROR: Metaball point pick did not use local units\n");
+        s->e_inpara = 3;
+        if (rt_edit_process(s) != BRLCAD_OK || m->es_metaball_pnt != first)
+            bu_exit(1, "ERROR: repeated Metaball point pick changed selection\n");
+
+        EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_METABALL_PT_NEXT);
+        if (m->es_metaball_pnt != second)
+            bu_exit(1, "ERROR: Metaball next did not select the second point\n");
+        EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_METABALL_PT_NEXT);
+        if (m->es_metaball_pnt != second)
+            bu_exit(1, "ERROR: Metaball next passed the final point\n");
+
+        EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_METABALL_PT_PREV);
+        if (m->es_metaball_pnt != first)
+            bu_exit(1, "ERROR: Metaball previous did not select the first point\n");
+        EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_METABALL_PT_PREV);
+        if (m->es_metaball_pnt != first)
+            bu_exit(1, "ERROR: Metaball previous passed the first point\n");
+    }
+
+    {
+        const fastf_t inch_to_mm = 25.4;
+        mb_reset(s, edit_mb);
+        s->local2base = inch_to_mm;
+        s->base2local = 1.0 / inch_to_mm;
+        m->es_metaball_pnt = mb_first_pt(s);
+        EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_METABALL_PT_MOV);
+        s->e_inpara = 3;
+        VSET(s->e_para, 1.0, 0.0, 0.0);
+        if (rt_edit_process(s) != BRLCAD_OK ||
+            !NEAR_EQUAL(m->es_metaball_pnt->coord[X], 1.0 + inch_to_mm, VUNITIZE_TOL) ||
+            !NEAR_EQUAL(s->e_para[X], 1.0, VUNITIZE_TOL))
+            bu_exit(1, "ERROR: Metaball inch point delta converted incorrectly\n");
+        s->e_inpara = 3;
+        if (rt_edit_process(s) != BRLCAD_OK ||
+            !NEAR_EQUAL(m->es_metaball_pnt->coord[X], 1.0 + 2.0 * inch_to_mm, VUNITIZE_TOL))
+            bu_exit(1, "ERROR: repeated Metaball inch delta compounded units\n");
+
+        mb_reset(s, edit_mb);
+        EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_METABALL_PT_ADD);
+        s->e_inpara = 3;
+        VSET(s->e_para, 2.0, 0.0, 0.0);
+        if (rt_edit_process(s) != BRLCAD_OK ||
+            mb_count(s) != 3 ||
+            !NEAR_EQUAL(m->es_metaball_pnt->coord[X], 2.0 * inch_to_mm, VUNITIZE_TOL) ||
+            !NEAR_EQUAL(s->e_para[X], 2.0, VUNITIZE_TOL))
+            bu_exit(1, "ERROR: Metaball inch point add converted incorrectly\n");
+        s->e_inpara = 3;
+        if (rt_edit_process(s) != BRLCAD_OK ||
+            mb_count(s) != 4 ||
+            !NEAR_EQUAL(m->es_metaball_pnt->coord[X], 2.0 * inch_to_mm, VUNITIZE_TOL))
+            bu_exit(1, "ERROR: repeated Metaball point add compounded units\n");
+    }
+
     /* ================================================================
      * write_params / read_params round-trip
      *
@@ -580,11 +688,26 @@ bu_log("RT_MATRIX_EDIT_TRANS_MODEL_XYZ SUCCESS: "
      * that threshold, method, and both control points survive.
      * ================================================================*/
     mb_reset(s, edit_mb);
+    const fastf_t inch = 25.4;
+    s->local2base = inch;
+    s->base2local = 1.0 / inch;
+    m->es_metaball_pnt = mb_first_pt(s);
+    VSET(m->es_metaball_pnt->coord, inch, 0.0, 0.0);
+    m->es_metaball_pnt->field_strength = 2.0 * inch;
+    fastf_t point_values[3] = {0.0, 0.0, 0.0};
+    if (EDOBJ[dp->d_minor_type].ft_edit_get_params(s, ECMD_METABALL_PT_MOV, point_values) != 3 ||
+	!NEAR_EQUAL(point_values[X], 1.0, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: metaball point getter did not return local units\n");
+    if (EDOBJ[dp->d_minor_type].ft_edit_get_params(s, ECMD_METABALL_PT_FLDSTR, point_values) != 1 ||
+	!NEAR_EQUAL(point_values[0], 2.0, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: metaball strength getter did not return local units\n");
 
     struct bu_vls param_str = BU_VLS_INIT_ZERO;
     EDOBJ[dp->d_minor_type].ft_write_params(&param_str, &s->es_int, NULL, s->base2local);
     if (bu_vls_strlen(&param_str) == 0)
 	bu_exit(1, "ERROR: write_params returned empty string\n");
+    if (!strstr(bu_vls_cstr(&param_str), "field_strength=2.000000000"))
+	bu_exit(1, "ERROR: metaball parameters did not display local strength\n");
     bu_log("write_params output:\n%s", bu_vls_cstr(&param_str));
 
     /* Build a fresh rt_db_internal with a blank metaball, then read params into it. */
@@ -619,6 +742,11 @@ bu_log("RT_MATRIX_EDIT_TRANS_MODEL_XYZ SUCCESS: "
 	npts++;
     if (npts != 2)
 	bu_exit(1, "ERROR: read_params point count mismatch: %d (expected 2)\n", npts);
+    struct wdb_metaball_pnt *first_read =
+	BU_LIST_FIRST(wdb_metaball_pnt, &fresh_mb->metaball_ctrl_head);
+    if (!NEAR_EQUAL(first_read->coord[X], inch, VUNITIZE_TOL) ||
+	!NEAR_EQUAL(first_read->field_strength, 2.0 * inch, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: metaball parameter round-trip changed base-unit values\n");
 
     bu_log("write_params/read_params round-trip SUCCESS: threshold=%g method=%d npts=%d\n",
 	   fresh_mb->threshold, fresh_mb->method, npts);

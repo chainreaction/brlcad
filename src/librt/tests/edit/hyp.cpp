@@ -47,7 +47,6 @@
 #include <string.h>
 
 #include "vmath.h"
-#include "bu/app.h"
 #include "bu/log.h"
 #include "bu/malloc.h"
 #include "bu/str.h"
@@ -136,12 +135,8 @@ hyp_reset(struct rt_edit *s, struct rt_hyp_internal *edit_hyp,
 }
 
 int
-main(int argc, char *argv[])
+rt_edit_test_hyp(void)
 {
-    bu_setprogname(argv[0]);
-    if (argc != 1)
-	return BRLCAD_ERROR;
-
     struct db_i *dbip = db_open_inmem();
     if (dbip == DBI_NULL)
 	bu_exit(1, "ERROR: Unable to create database instance\n");
@@ -182,6 +177,20 @@ main(int argc, char *argv[])
     struct rt_hyp_internal *edit_hyp = (struct rt_hyp_internal *)s->es_int.idb_ptr;
 
     vect_t mousevec;
+
+    {
+	struct rt_point_labels labels[5] = {RT_POINT_LABELS_INIT};
+	mat_t identity;
+	MAT_IDN(identity);
+	int label_count = OBJ[ID_HYP].ft_labels(labels, 5, identity,
+		&s->es_int, &tol);
+	point_t expected_c = {2.0, 0.0, 5.0};
+	if (label_count != 5 || !BU_STR_EQUAL(labels[4].str, "c") ||
+	    !VNEAR_EQUAL(labels[4].pt, expected_c, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: HYP neck ratio label is missing or misplaced\n");
+	bu_log("HYP neck ratio label SUCCESS: c=%g,%g,%g\n",
+	       V3ARGS(labels[4].pt));
+    }
 
     /* ================================================================
      * ECMD_HYP_H  (scale Hi; note: e_para[0] is es_scale, not |Hi|)
@@ -277,6 +286,39 @@ main(int argc, char *argv[])
     if (hyp_diff("ECMD_HYP_C restore", cmp_hyp, edit_hyp))
 	bu_exit(1, "ERROR: ECMD_HYP_C restore failed\n");
     bu_log("ECMD_HYP_C SUCCESS: bnr restored to %g\n", edit_hyp->hyp_bnr);
+
+    /* Scale factors must be independent of database and path scale. */
+    const fastf_t local2base = 25.4;
+    const int scale_cmds[] = {
+	ECMD_HYP_H, ECMD_HYP_SCALE_A, ECMD_HYP_SCALE_B, ECMD_HYP_C
+    };
+    for (size_t i = 0; i < sizeof(scale_cmds) / sizeof(scale_cmds[0]); i++) {
+	hyp_reset(s, edit_hyp, orig_hyp, cmp_hyp);
+	s->local2base = local2base;
+	s->base2local = 1.0 / local2base;
+	MAT_IDN(s->e_mat);
+	MAT_IDN(s->e_invmat);
+	s->e_mat[15] = 0.5;
+	s->e_invmat[15] = 2.0;
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, scale_cmds[i]);
+	s->e_inpara = 1;
+	s->e_para[0] = 1.5;
+	switch (scale_cmds[i]) {
+	    case ECMD_HYP_H: VSCALE(cmp_hyp->hyp_Hi, cmp_hyp->hyp_Hi, 1.5); break;
+	    case ECMD_HYP_SCALE_A: VSCALE(cmp_hyp->hyp_A, cmp_hyp->hyp_A, 1.5); break;
+	    case ECMD_HYP_SCALE_B: cmp_hyp->hyp_b *= 1.5; break;
+	    case ECMD_HYP_C: cmp_hyp->hyp_bnr *= 1.5; break;
+	}
+	rt_edit_process(s);
+	if (hyp_diff("non-mm scale factor", cmp_hyp, edit_hyp))
+	    bu_exit(1, "ERROR: HYP scale command %d changed with units or path\n",
+		    scale_cmds[i]);
+    }
+    MAT_IDN(s->e_mat);
+    MAT_IDN(s->e_invmat);
+    s->local2base = 1.0;
+    s->base2local = 1.0;
+    bu_log("HYP non-mm/path scale factors SUCCESS\n");
 
     /* ================================================================
      * ECMD_HYP_ROT_H  (rotate Hi vector; MAT4X3VEC aliasing bug fixed)

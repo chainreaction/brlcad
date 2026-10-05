@@ -37,6 +37,9 @@
 #define ECMD_TOR_R1		1021
 #define ECMD_TOR_R2		1022
 
+/* Keep edited radii safely above the geometric zero tolerance. */
+#define TOR_RADIUS_FLOOR (4.0 * SQRT_SMALL_FASTF)
+
 C_DECL void
 rt_edit_tor_set_edit_mode(struct rt_edit *s, int mode)
 {
@@ -187,20 +190,10 @@ rt_edit_tor_write_params(
     RT_TOR_CK_MAGIC(tor);
 
     bu_vls_printf(p, "Vertex: %.9f %.9f %.9f\n", V3BASE2LOCAL(tor->v));
-    bu_vls_printf(p, "Normal: %.9f %.9f %.9f\n", V3BASE2LOCAL(tor->h));
+    bu_vls_printf(p, "Normal: %.9f %.9f %.9f\n", V3ARGS(tor->h));
     bu_vls_printf(p, "radius_1: %.9f\n", tor->r_a*base2local);
     bu_vls_printf(p, "radius_2: %.9f\n", tor->r_h*base2local);
 }
-
-#define read_params_line_incr \
-    lc = (ln) ? (ln + lcj) : NULL; \
-    if (!lc) { \
-	bu_free(wc, "wc"); \
-	return BRLCAD_ERROR; \
-    } \
-    ln = strchr(lc, tc); \
-    if (ln) *ln = '\0'; \
-    while (lc && strchr(lc, ':')) lc++
 
 C_DECL int
 rt_edit_tor_read_params(
@@ -210,140 +203,74 @@ rt_edit_tor_read_params(
 	fastf_t local2base
 	)
 {
-    double a = 0.0;
-    double b = 0.0;
-    double c = 0.0;
     struct rt_tor_internal *tor = (struct rt_tor_internal *)ip->idb_ptr;
     RT_TOR_CK_MAGIC(tor);
 
     if (!fc)
 	return BRLCAD_ERROR;
 
-    // We're getting the file contents as a string, so we need to split it up
-    // to process lines. See https://stackoverflow.com/a/17983619
+    struct rt_tor_internal staged = *tor;
+    char *buffer = bu_strdup(fc);
+    char *cursor = buffer;
+    int result = BRLCAD_ERROR;
+    fastf_t normal_length;
+    if (edit_param_read_vector(staged.v, &cursor, "Vertex", local2base) != BRLCAD_OK ||
+	edit_param_read_vector(staged.h, &cursor, "Normal", 1.0) != BRLCAD_OK ||
+	edit_param_read_scalar(&staged.r_a, &cursor, "radius_1", local2base) != BRLCAD_OK ||
+	edit_param_read_scalar(&staged.r_h, &cursor, "radius_2", local2base) != BRLCAD_OK ||
+	edit_param_next_line(&cursor))
+	goto cleanup;
 
-    // Figure out if we need to deal with Windows line endings
-    const char *crpos = strchr(fc, '\r');
-    int crlf = (crpos && crpos[1] == '\n') ? 1 : 0;
-    char tc = (crlf) ? '\r' : '\n';
-    // If we're CRLF jump ahead another character.
-    int lcj = (crlf) ? 2 : 1;
+    normal_length = MAGNITUDE(staged.h);
+    if (!isfinite(normal_length) || normal_length <= SMALL_FASTF ||
+	staged.r_a <= 0.0 || staged.r_h <= 0.0)
+	goto cleanup;
+    VUNITIZE(staged.h);
+    *tor = staged;
+    result = BRLCAD_OK;
 
-    char *ln = NULL;
-    char *wc = bu_strdup(fc);
-    char *lc = wc;
-
-    // Set up initial line (Vertex)
-    ln = strchr(lc, tc);
-    if (ln) *ln = '\0';
-
-    // Trim off prefixes, if user left them in
-    while (lc && strchr(lc, ':')) lc++;
-
-    // Read the numbers
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(tor->v, a, b, c);
-    VSCALE(tor->v, tor->v, local2base);
-
-    // Set up Normal line
-    read_params_line_incr;
-
-    // Read the numbers
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(tor->h, a, b, c);
-    VUNITIZE(tor->h);
-
-    // Set up radius_1 line
-    read_params_line_incr;
-
-    // Read the numbers
-    sscanf(lc, "%lf", &a);
-    tor->r_a = a * local2base;
-
-    // Set up radius_2 line
-    read_params_line_incr;
-
-    // Read the numbers
-    sscanf(lc, "%lf", &a);
-    tor->r_h = a * local2base;
-
-    // Cleanup
-    bu_free(wc, "wc");
-    return BRLCAD_OK;
-}
-
-/* scale radius 1 of TOR */
-void
-ecmd_tor_r1(struct rt_edit *s)
-{
-    struct rt_tor_internal *tor =
-	(struct rt_tor_internal *)s->es_int.idb_ptr;
-    fastf_t newrad;
-    RT_TOR_CK_MAGIC(tor);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	newrad = s->e_para[0];
-    } else {
-	newrad = tor->r_a * s->es_scale;
-    }
-    if (newrad < SQRT_SMALL_FASTF) newrad = 4*SQRT_SMALL_FASTF;
-    if (tor->r_h <= newrad)
-	tor->r_a = newrad;
-}
-
-/* scale radius 2 of TOR */
-void
-ecmd_tor_r2(struct rt_edit *s)
-{
-    struct rt_tor_internal *tor =
-	(struct rt_tor_internal *)s->es_int.idb_ptr;
-    fastf_t newrad;
-    RT_TOR_CK_MAGIC(tor);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	newrad = s->e_para[0];
-    } else {
-	newrad = tor->r_h * s->es_scale;
-    }
-    if (newrad < SQRT_SMALL_FASTF) newrad = 4*SQRT_SMALL_FASTF;
-    if (newrad <= tor->r_a)
-	tor->r_h = newrad;
+cleanup:
+    bu_free(buffer, "TOR parameter text");
+    return result;
 }
 
 static int
 rt_edit_tor_pscale(struct rt_edit *s)
 {
-    if (s->e_inpara > 1) {
-	bu_vls_printf(s->log_str, "ERROR: only one argument needed\n");
-	s->e_inpara = 0;
-	return BRLCAD_ERROR;
-    }
+    struct rt_tor_internal *tor = (struct rt_tor_internal *)s->es_int.idb_ptr;
+    RT_TOR_CK_MAGIC(tor);
 
-    if (s->e_inpara) {
-	if (s->e_para[0] <= 0.0) {
-	    bu_vls_printf(s->log_str, "ERROR: SCALE FACTOR <= 0\n");
-	    s->e_inpara = 0;
-	    return BRLCAD_ERROR;
-	}
+    if (!s->e_inpara && ZERO(s->es_scale))
+	return BRLCAD_OK;
 
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
-    }
-
+    fastf_t *radius;
     switch (s->edit_flag) {
 	case ECMD_TOR_R1:
-	    ecmd_tor_r1(s);
+	    radius = &tor->r_a;
 	    break;
 	case ECMD_TOR_R2:
-	    ecmd_tor_r2(s);
+	    radius = &tor->r_h;
 	    break;
-    };
+	default:
+	    return BRLCAD_ERROR;
+    }
+    if (edit_prepare_length_scale(s, *radius) != BRLCAD_OK)
+	return BRLCAD_ERROR;
 
-    return 0;
+    fastf_t newrad = *radius * s->es_scale;
+    if (!isfinite(newrad)) {
+	bu_vls_printf(s->log_str, "Torus radius must be finite\n");
+	return BRLCAD_ERROR;
+    }
+    if (newrad < SQRT_SMALL_FASTF)
+	newrad = TOR_RADIUS_FLOOR;
+    if ((s->edit_flag == ECMD_TOR_R1 && newrad < tor->r_h) ||
+	(s->edit_flag == ECMD_TOR_R2 && newrad > tor->r_a)) {
+	bu_vls_printf(s->log_str, "Torus minor radius cannot exceed major radius\n");
+	return BRLCAD_ERROR;
+    }
+    *radius = newrad;
+    return BRLCAD_OK;
 }
 
 C_DECL int

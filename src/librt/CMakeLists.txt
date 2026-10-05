@@ -300,6 +300,7 @@ set(
   regionfix.c
   roots.c
   rt_init.cpp
+  rtcmp_capture.cpp
   search.cpp
   search_old.cpp
   shoot.c
@@ -342,6 +343,7 @@ set(
   primitives/edit_private.h
   primitives/fixpt.h
   primitives/metaball/metaball.h
+  primitives/part/part_private.h
   primitives/revolve/revolve.h
   primitives/rt_ecmd_scanner.cpp
   primitives/sph/benchmark.sh
@@ -427,6 +429,7 @@ endif(BRLCAD_ENABLE_SPR)
 set(LIBRT_PUBLIC_LIBS ${librt_deps} OPENNURBS::OPENNURBS)
 set(
   LIBRT_PRIVATE_LIBS
+  Threads::Threads
   ${OPENCL_LIBS}
   mmesh::mmesh
   REGEX::REGEX

@@ -22,7 +22,7 @@
  * Test editing of DSP (displaced surface) primitive parameters.
  *
  * Reference DSP: dsp_stom = IDN, dsp_mtos = IDN, dsp_xcnt=8, dsp_ycnt=8.
- * No data file; dsp_buf=NULL (matrix edit operations don't need data).
+ * A platform temporary file supplies the displacement samples.
  *
  * ECMD_DSP_SCALE_X (e_inpara=1, e_para[0]=2):
  *   dsp_scale sets m=IDN, m[MSX=0]=2, then applies xform about keypoint.
@@ -52,11 +52,13 @@
 #include "bnetwork.h"
 #include "vmath.h"
 #include "bu/app.h"
+#include "bu/file.h"
 #include "bu/log.h"
 #include "bu/malloc.h"
 #include "bu/str.h"
 #include "bu/vls.h"
 #include "raytrace.h"
+#include "test_utils.h"
 #include "rt/rt_ecmds.h"
 
 
@@ -70,14 +72,13 @@
 #define ECMD_DSP_SET_DATASRC    25062
 
 
-static const char *DSP_DATA_FILE = "/tmp/rt_edit_test_dsp.data";
-
 static void
-create_dsp_data_file(unsigned int xcnt, unsigned int ycnt)
+create_dsp_data_file(char *path, size_t path_len,
+		     unsigned int xcnt, unsigned int ycnt)
 {
-    FILE *f = fopen(DSP_DATA_FILE, "wb");
+    FILE *f = bu_temp_file(path, path_len);
     if (!f)
-	bu_exit(1, "ERROR: Cannot create DSP data file %s\n", DSP_DATA_FILE);
+	bu_exit(1, "ERROR: Cannot create DSP data file\n");
     size_t n = xcnt * ycnt;
     uint16_t *buf = (uint16_t *)bu_calloc(n, sizeof(uint16_t), "dsp tmp");
     for (size_t i = 0; i < n; i++)
@@ -85,28 +86,23 @@ create_dsp_data_file(unsigned int xcnt, unsigned int ycnt)
     if (fwrite(buf, sizeof(uint16_t), n, f) != n) {
 	bu_free(buf, "dsp tmp");
 	fclose(f);
-	bu_exit(1, "ERROR: Cannot write DSP data file %s\n", DSP_DATA_FILE);
+	bu_exit(1, "ERROR: Cannot write DSP data file\n");
     }
     bu_free(buf, "dsp tmp");
     if (fclose(f) != 0)
-	bu_exit(1, "ERROR: Cannot close DSP data file %s\n", DSP_DATA_FILE);
+	bu_exit(1, "ERROR: Cannot close DSP data file\n");
 }
 
 
 struct directory *
-make_dsp(struct rt_wdb *wdbp)
+make_dsp(struct rt_wdb *wdbp, const char *data_path,
+	 unsigned int xcnt, unsigned int ycnt)
 {
     const char *objname = "dsp";
-    unsigned int xcnt = 8, ycnt = 8;
 
-    create_dsp_data_file(xcnt, ycnt);
-
-    /* Set dbi_filepath so DSP can find the temp file in /tmp */
-    /* Matches format expected by db_close: bu_argv_free(2, ...) */
-    char **filepath = (char **)bu_malloc(3 * sizeof(char *), "dbi_filepath[3]");
+    /* DSP import requires a search path even for a rooted filename. */
+    char **filepath = (char **)bu_calloc(2, sizeof(char *), "dbi_filepath");
     filepath[0] = bu_strdup(".");
-    filepath[1] = bu_strdup("/tmp");
-    filepath[2] = NULL;
     wdbp->dbip->dbi_filepath = filepath;
 
     struct rt_dsp_internal *dsp;
@@ -123,8 +119,7 @@ make_dsp(struct rt_wdb *wdbp)
     MAT_IDN(dsp->dsp_stom);
     MAT_IDN(dsp->dsp_mtos);
     BU_VLS_INIT(&dsp->dsp_name);
-    /* Use just the filename (not the /tmp/ path) so bu_open_mapped_file_with_path can find it */
-    bu_vls_strcpy(&dsp->dsp_name, "rt_edit_test_dsp.data");
+    bu_vls_strcpy(&dsp->dsp_name, data_path);
 
     wdb_export(wdbp, objname, (void *)dsp, ID_DSP, 1.0);
 
@@ -152,19 +147,18 @@ dsp_reset(struct rt_edit *s, struct rt_dsp_internal *edit_dsp)
 
 
 int
-main(int argc, char *argv[])
+rt_edit_test_dsp(void)
 {
-    bu_setprogname(argv[0]);
-    if (argc != 1)
-	return BRLCAD_ERROR;
-
     struct db_i *dbip = db_open_inmem();
     if (dbip == DBI_NULL)
 	bu_exit(1, "ERROR: Unable to create database instance\n");
 
     struct rt_wdb *wdbp = wdb_dbopen(dbip, RT_WDB_TYPE_DB_INMEM);
 
-    struct directory *dp = make_dsp(wdbp);
+    const unsigned int xcnt = 8, ycnt = 8;
+    char data_path[MAXPATHLEN] = {0};
+    create_dsp_data_file(data_path, sizeof(data_path), xcnt, ycnt);
+    struct directory *dp = make_dsp(wdbp, data_path, xcnt, ycnt);
 
     struct bn_tol tol = BN_TOL_INIT_TOL;
     struct db_full_path fp;
@@ -269,6 +263,60 @@ main(int argc, char *argv[])
 		edit_dsp->dsp_stom[MSX]);
     bu_log("ECMD_DSP_SCALE_X(es_scale) SUCCESS: dsp_stom[0]=%g\n",
 	   edit_dsp->dsp_stom[MSX]);
+
+    /* Typed cell sizes are absolute local-unit lengths, unlike mouse factors. */
+    {
+	const fastf_t local2base = 25.4;
+	point_t solid_keypoint, model_keypoint, moved_keypoint;
+	mat_t product;
+	dsp_reset(s, edit_dsp);
+	s->local2base = local2base;
+	s->base2local = 1.0 / local2base;
+	edit_dsp->dsp_stom[MSX] = 2.0;
+	edit_dsp->dsp_stom[MSY] = 3.0;
+	edit_dsp->dsp_stom[MSZ] = 4.0;
+	bn_mat_inv(edit_dsp->dsp_mtos, edit_dsp->dsp_stom);
+	VSET(solid_keypoint, 5.0, 0.0, 0.0);
+	MAT4X3PNT(model_keypoint, edit_dsp->dsp_stom, solid_keypoint);
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_DSP_SCALE_X);
+	VMOVE(s->e_keypoint, model_keypoint);
+	s->e_inpara = 1;
+	s->e_para[0] = 1.0;
+	rt_edit_process(s);
+	if (!NEAR_EQUAL(edit_dsp->dsp_stom[MSX], local2base, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: DSP X cell size did not use local units\n");
+	MAT4X3PNT(moved_keypoint, edit_dsp->dsp_stom, solid_keypoint);
+	if (!VNEAR_EQUAL(model_keypoint, moved_keypoint, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: DSP cell scale moved model keypoint\n");
+
+	s->e_inpara = 1;
+	s->e_para[0] = 2.0;
+	rt_edit_process(s);
+	if (!NEAR_EQUAL(edit_dsp->dsp_stom[MSX], 2.0 * local2base, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: DSP X cell size compounded an absolute value\n");
+
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_DSP_SCALE_Y);
+	s->e_inpara = 1;
+	s->e_para[0] = 3.0;
+	rt_edit_process(s);
+	if (!NEAR_EQUAL(edit_dsp->dsp_stom[MSY], 3.0 * local2base, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: DSP Y cell size did not use local units\n");
+
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_DSP_SCALE_ALT);
+	s->e_inpara = 1;
+	s->e_para[0] = 4.0;
+	rt_edit_process(s);
+	if (!NEAR_EQUAL(edit_dsp->dsp_stom[MSZ], 4.0 * local2base, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: DSP altitude size did not use local units\n");
+
+	bn_mat_mul(product, edit_dsp->dsp_stom, edit_dsp->dsp_mtos);
+	for (int i = 0; i < 16; ++i) {
+	    const fastf_t expected = (i == MSX || i == MSY || i == MSZ || i == 15) ? 1.0 : 0.0;
+	    if (!NEAR_EQUAL(product[i], expected, VUNITIZE_TOL))
+		bu_exit(1, "ERROR: DSP model/solid matrices are not inverses\n");
+	}
+	bu_log("DSP absolute local-unit cell sizes and inverse matrices PASS\n");
+    }
 
     /* ================================================================
      * RT_PARAMS_EDIT_SCALE (uniform scale=2 about (0,0,0))
@@ -428,6 +476,44 @@ bu_log("RT_MATRIX_EDIT_TRANS_MODEL_XYZ SUCCESS: "
 		    dsp2->dsp_smooth);
 	bu_log("ECMD_DSP_SET_SMOOTH set=0 SUCCESS\n");
     }
+    /* Filename and sample counts must not be scaled as lengths. */
+    {
+	struct rt_dsp_internal *dsp = (struct rt_dsp_internal *)s->es_int.idb_ptr;
+	const fastf_t local2base = 25.4;
+	s->local2base = local2base;
+	s->base2local = 1.0 / local2base;
+
+	if (rt_edit_map_clbk_set(s->m, ECMD_GET_FILENAME, BU_CLBK_DURING,
+				 edit_test_filename_callback, data_path) != BRLCAD_OK)
+	    bu_exit(1, "ERROR: Unable to register DSP filename callback\n");
+	bu_vls_strcpy(&dsp->dsp_name, "unselected");
+	s->e_inpara = 0;
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_DSP_FNAME);
+	if (!BU_STR_EQUAL(bu_vls_cstr(&dsp->dsp_name), data_path))
+	    bu_exit(1, "ERROR: DSP filename command did not select the file\n");
+
+	s->e_inpara = 2;
+	s->e_para[0] = 4.0;
+	s->e_para[1] = 16.0;
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_DSP_FSIZE);
+	if (dsp->dsp_xcnt != 4 || dsp->dsp_ycnt != 16)
+	    bu_exit(1, "ERROR: DSP sample counts were converted as lengths\n");
+
+	s->e_inpara = 2;
+	s->e_para[0] = 0.0;
+	s->e_para[1] = 16.0;
+	if (EDOBJ[dp->d_minor_type].ft_edit(s) == BRLCAD_OK ||
+		dsp->dsp_xcnt != 4 || dsp->dsp_ycnt != 16)
+	    bu_exit(1, "ERROR: DSP accepted a zero sample count\n");
+
+	s->e_inpara = 2;
+	s->e_para[0] = 8.0;
+	s->e_para[1] = 8.0;
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_DSP_FSIZE);
+	if (dsp->dsp_xcnt != 8 || dsp->dsp_ycnt != 8)
+	    bu_exit(1, "ERROR: DSP sample counts could not be restored\n");
+    }
+
 
     /* ================================================================
      * ECMD_DSP_SET_DATASRC: switch from file to object data source
@@ -450,6 +536,8 @@ bu_log("RT_MATRIX_EDIT_TRANS_MODEL_XYZ SUCCESS: "
 
     rt_edit_destroy(s);
     db_close(dbip);
+    if (!bu_file_delete(data_path))
+	bu_exit(1, "ERROR: Cannot remove DSP data file\n");
     return 0;
 }
 

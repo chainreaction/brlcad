@@ -52,34 +52,13 @@
 #include <string.h>
 
 #include "vmath.h"
-#include "bu/app.h"
 #include "bu/log.h"
 #include "bu/malloc.h"
 #include "bu/str.h"
 #include "raytrace.h"
 #include "rt/rt_ecmds.h"
 
-
-/* Create a minimal sketch so the extrude import does not print warnings */
-static void
-make_sketch(struct rt_wdb *wdbp, const char *skt_name)
-{
-    struct rt_sketch_internal *skt;
-    BU_ALLOC(skt, struct rt_sketch_internal);
-    skt->magic = RT_SKETCH_INTERNAL_MAGIC;
-    VSET(skt->V,     0, 0, 0);
-    VSET(skt->u_vec, 1, 0, 0);
-    VSET(skt->v_vec, 0, 1, 0);
-    skt->vert_count = 0;
-    skt->verts = NULL;
-    skt->curve.count = 0;
-    skt->curve.reverse = NULL;
-    skt->curve.segment = NULL;
-
-    /* wdb_export → rt_db_free_internal → rt_sketch_ifree frees skt;
-     * do NOT free it manually. */
-    wdb_export(wdbp, skt_name, (void *)skt, ID_SKETCH, 1.0);
-}
+#include "test_utils.h"
 
 struct directory *
 make_extrude(struct rt_wdb *wdbp, const char *skt_name)
@@ -164,12 +143,8 @@ extr_reset(struct rt_edit *s,
 }
 
 int
-main(int argc, char *argv[])
+rt_edit_test_extrude(void)
 {
-    bu_setprogname(argv[0]);
-    if (argc != 1)
-	return BRLCAD_ERROR;
-
     struct db_i *dbip = db_open_inmem();
     if (dbip == DBI_NULL)
 	bu_exit(1, "ERROR: Unable to create database instance\n");
@@ -177,7 +152,10 @@ main(int argc, char *argv[])
     struct rt_wdb *wdbp = wdb_dbopen(dbip, RT_WDB_TYPE_DB_INMEM);
 
     const char *skt_name = "test_sketch";
-    make_sketch(wdbp, skt_name);
+    const char *other_sketch = "other_sketch";
+    if (edit_test_make_sketch(wdbp, skt_name, 0.0) != 0 ||
+	edit_test_make_sketch(wdbp, other_sketch, 2.0) != 0)
+	bu_exit(1, "ERROR: Unable to create sketch fixtures\n");
 
     struct directory *dp = make_extrude(wdbp, skt_name);
 
@@ -254,6 +232,27 @@ main(int argc, char *argv[])
     rt_edit_process(s);
     if (extr_diff("ECMD_EXTR_MOV_H", cmp, edit_extr))
 	bu_exit(1, "ERROR: ECMD_EXTR_MOV_H failed\n");
+
+    extr_reset(s, edit_extr, orig, cmp);
+    s->e_inpara = 3;
+    s->local2base = 25.4;
+    s->base2local = 1.0 / s->local2base;
+    VSCALE(s->e_para, orig->V, s->base2local);
+    if (rt_edit_process(s) != BRLCAD_ERROR ||
+	extr_diff("rejected zero-height move", cmp, edit_extr))
+	bu_exit(1, "ERROR: rejected EXTRUDE height move changed geometry\n");
+    s->local2base = 1.0;
+    s->base2local = 1.0;
+
+    extr_reset(s, edit_extr, orig, cmp);
+    VMOVE(s->curr_e_axes_pos, orig->V);
+    point_t rejected_view_target;
+    MAT4X3PNT(rejected_view_target, v->gv_model2view, orig->V);
+    VMOVE(mousevec, rejected_view_target);
+    if (EDOBJ[dp->d_minor_type].ft_edit_xy(s, mousevec) != BRLCAD_ERROR ||
+	extr_diff("rejected mouse zero-height move", cmp, edit_extr))
+	bu_exit(1, "ERROR: rejected EXTRUDE mouse height move changed geometry\n");
+    VADD2(s->curr_e_axes_pos, orig->V, orig->h);
     bu_log("ECMD_EXTR_MOV_H SUCCESS: h=%g,%g,%g\n", V3ARGS(edit_extr->h));
 
     /* ================================================================
@@ -551,6 +550,101 @@ bu_log("RT_MATRIX_EDIT_TRANS_MODEL_XYZ SUCCESS: "
     if (VNEAR_EQUAL(edit_extr->v_vec, orig->v_vec, VUNITIZE_TOL))
 	bu_exit(1, "ERROR: ECMD_EXTR_ROT_B: v_vec did not change\n");
     bu_log("ECMD_EXTR_ROT_B SUCCESS: v_vec=%g,%g,%g\n", V3ARGS(edit_extr->v_vec));
+
+    rt_edit_set_edflag(s, ECMD_EXTR_SKT_NAME);
+    rt_edit_set_str(s, 0, other_sketch);
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	!BU_STR_EQUAL(edit_extr->sketch_name, other_sketch) ||
+	!edit_extr->skt ||
+	!NEAR_EQUAL(edit_extr->skt->verts[0][X], 2.0, SMALL_FASTF))
+	bu_exit(1, "ERROR: extrusion sketch reference was not replaced\n");
+
+    rt_edit_set_str(s, 0, "missing_sketch");
+    if (rt_edit_process(s) != BRLCAD_ERROR ||
+	!BU_STR_EQUAL(edit_extr->sketch_name, other_sketch) ||
+	!edit_extr->skt ||
+	!NEAR_EQUAL(edit_extr->skt->verts[0][X], 2.0, SMALL_FASTF))
+	bu_exit(1, "ERROR: missing sketch changed extrusion reference\n");
+
+    rt_edit_set_str(s, 0, "extrude");
+    if (rt_edit_process(s) != BRLCAD_ERROR ||
+	!BU_STR_EQUAL(edit_extr->sketch_name, other_sketch) ||
+	!edit_extr->skt ||
+	!NEAR_EQUAL(edit_extr->skt->verts[0][X], 2.0, SMALL_FASTF))
+	bu_exit(1, "ERROR: non-sketch reference changed extrusion\n");
+
+    const fastf_t inch_to_mm = 25.4;
+    const struct {
+	int mode;
+	fastf_t inches;
+    } inch_scales[] = {
+	{ECMD_EXTR_SCALE_H, 0.5},
+	{ECMD_EXTR_SCALE_A, 0.2},
+	{ECMD_EXTR_SCALE_B, 0.1}
+    };
+    s->local2base = inch_to_mm;
+    for (size_t i = 0; i < sizeof(inch_scales)/sizeof(inch_scales[0]); i++) {
+	extr_reset(s, edit_extr, orig, cmp);
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, inch_scales[i].mode);
+	s->e_inpara = 1;
+	s->e_para[0] = inch_scales[i].inches;
+	if (rt_edit_process(s) != BRLCAD_OK)
+	    bu_exit(1, "ERROR: extrusion inch scale mode %d failed\n", inch_scales[i].mode);
+	const fastf_t *axis;
+	switch (inch_scales[i].mode) {
+	    case ECMD_EXTR_SCALE_H: axis = edit_extr->h; break;
+	    case ECMD_EXTR_SCALE_A: axis = edit_extr->u_vec; break;
+	    default: axis = edit_extr->v_vec; break;
+	}
+	if (!NEAR_EQUAL(MAGNITUDE(axis), inch_scales[i].inches * inch_to_mm, VUNITIZE_TOL) ||
+	    !NEAR_EQUAL(s->e_para[0], inch_scales[i].inches, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: extrusion inch scale mode %d converted incorrectly\n",
+		    inch_scales[i].mode);
+	struct rt_extrude_internal saved = *edit_extr;
+	s->e_inpara = 1;
+	if (rt_edit_process(s) != BRLCAD_OK ||
+	    extr_diff("extrusion repeated inch scale", &saved, edit_extr))
+	    bu_exit(1, "ERROR: extrusion inch scale mode %d compounded\n", inch_scales[i].mode);
+    }
+
+    extr_reset(s, edit_extr, orig, cmp);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_EXTR_MOV_H);
+    s->mv_context = 0;
+    s->e_inpara = 3;
+    VSET(s->e_para, 0, 0, 0.5);
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	!NEAR_EQUAL(MAGNITUDE(edit_extr->h), 0.5 * inch_to_mm, VUNITIZE_TOL) ||
+	!NEAR_EQUAL(s->e_para[Z], 0.5, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: extrusion inch endpoint converted incorrectly\n");
+    struct rt_extrude_internal saved = *edit_extr;
+    s->e_inpara = 3;
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	extr_diff("extrusion repeated inch endpoint", &saved, edit_extr))
+	bu_exit(1, "ERROR: extrusion inch endpoint compounded\n");
+
+    /* Endpoint dragging uses base-unit cursor coordinates. */
+    extr_reset(s, edit_extr, orig, cmp);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_EXTR_MOV_H);
+    MAT_IDN(v->gv_model2view);
+    MAT_IDN(v->gv_view2model);
+    MAT_IDN(s->e_invmat);
+    VADD2(s->curr_e_axes_pos, orig->V, orig->h);
+    vect_t knob_state;
+    VSET(knob_state, 7.0, 8.0, 9.0);
+    VMOVE(s->k.tra_m_abs, knob_state);
+    VMOVE(s->k.tra_v_abs, knob_state);
+    VSET(mousevec, 2.0, 3.0, 0.0);
+    if (EDOBJ[dp->d_minor_type].ft_edit_xy(s, mousevec) != BRLCAD_OK)
+	bu_exit(1, "ERROR: extrusion mouse endpoint move failed\n");
+    vect_t expected_h;
+    VSET(expected_h, mousevec[X], mousevec[Y], orig->h[Z]);
+    if (!VNEAR_EQUAL(edit_extr->h, expected_h, VUNITIZE_TOL) ||
+	!VNEAR_EQUAL(edit_extr->V, orig->V, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: extrusion mouse endpoint moved incorrectly\n");
+    point_t view_target;
+    VSET(view_target, mousevec[X], mousevec[Y], s->curr_e_axes_pos[Z]);
+    if (!edit_test_mouse_knobs_match(s, view_target))
+	bu_exit(1, "ERROR: extrusion mouse endpoint knobs missed cursor\n");
 
     rt_edit_destroy(s);
     db_close(dbip);

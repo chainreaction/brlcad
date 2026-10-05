@@ -95,20 +95,20 @@ rt_edit_hyp_menu_item(const struct bn_tol *UNUSED(tol))
 /* ft_edit_desc descriptor for the Hyperboloid of One Sheet primitive */
 
 static const struct rt_edit_param_desc hyp_h_params[] = {
-    { "h", "Height (magnitude)", RT_EDIT_PARAM_SCALAR, 0, 1e-10, RT_EDIT_PARAM_NO_LIMIT,
-      "length", 0, NULL, NULL, NULL }
+    { "h", "Height Scale Factor", RT_EDIT_PARAM_SCALAR, 0, 1e-10, RT_EDIT_PARAM_NO_LIMIT,
+      "", 0, NULL, NULL, NULL }
 };
 static const struct rt_edit_param_desc hyp_a_params[] = {
-    { "a", "Semi-Axis A", RT_EDIT_PARAM_SCALAR, 0, 1e-10, RT_EDIT_PARAM_NO_LIMIT,
-      "length", 0, NULL, NULL, NULL }
+    { "a", "A Scale Factor", RT_EDIT_PARAM_SCALAR, 0, 1e-10, RT_EDIT_PARAM_NO_LIMIT,
+      "", 0, NULL, NULL, NULL }
 };
 static const struct rt_edit_param_desc hyp_b_params[] = {
-    { "b", "Semi-Axis B", RT_EDIT_PARAM_SCALAR, 0, 1e-10, RT_EDIT_PARAM_NO_LIMIT,
-      "length", 0, NULL, NULL, NULL }
+    { "b", "B Scale Factor", RT_EDIT_PARAM_SCALAR, 0, 1e-10, RT_EDIT_PARAM_NO_LIMIT,
+      "", 0, NULL, NULL, NULL }
 };
 static const struct rt_edit_param_desc hyp_c_params[] = {
-    { "c", "Neck Ratio c (0..1)", RT_EDIT_PARAM_SCALAR, 0, 1e-10, 1.0,
-      "fraction", 0, NULL, NULL, NULL }
+    { "c", "Neck Ratio Scale Factor", RT_EDIT_PARAM_SCALAR, 0, 1e-10, RT_EDIT_PARAM_NO_LIMIT,
+      "", 0, NULL, NULL, NULL }
 };
 static const struct rt_edit_param_desc hyp_rot_deg_params[] = {
     { "rot_xyz", "Rotation X Y Z (deg)", RT_EDIT_PARAM_VECTOR, 0,
@@ -155,16 +155,6 @@ rt_edit_hyp_write_params(
     bu_vls_printf(p, "Ratio of Neck to Base: %.9f\n", hyp->hyp_bnr);
 }
 
-#define read_params_line_incr \
-    lc = (ln) ? (ln + lcj) : NULL; \
-    if (!lc) { \
-	bu_free(wc, "wc"); \
-	return BRLCAD_ERROR; \
-    } \
-    ln = strchr(lc, tc); \
-    if (ln) *ln = '\0'; \
-    while (lc && strchr(lc, ':')) lc++
-
 C_DECL int
 rt_edit_hyp_read_params(
 	struct rt_db_internal *ip,
@@ -173,68 +163,19 @@ rt_edit_hyp_read_params(
 	fastf_t local2base
 	)
 {
-    double a = 0.0;
-    double b = 0.0;
-    double c = 0.0;
     struct rt_hyp_internal *hyp = (struct rt_hyp_internal *)ip->idb_ptr;
     RT_HYP_CK_MAGIC(hyp);
-
-    if (!fc)
+    struct rt_hyp_internal candidate = *hyp;
+    const struct edit_param_field fields[] = {
+	{"Vertex", candidate.hyp_Vi, ELEMENTS_PER_VECT, local2base},
+	{"Height", candidate.hyp_Hi, ELEMENTS_PER_VECT, local2base},
+	{"Semi-major axis", candidate.hyp_A, ELEMENTS_PER_VECT, local2base},
+	{"Semi-minor length", &candidate.hyp_b, 1, local2base},
+	{"Ratio of Neck to Base", &candidate.hyp_bnr, 1, 1.0}
+    };
+    if (edit_param_read_fields(fc, fields, sizeof(fields) / sizeof(fields[0])) != BRLCAD_OK)
 	return BRLCAD_ERROR;
-
-    // We're getting the file contents as a string, so we need to split it up
-    // to process lines. See https://stackoverflow.com/a/17983619
-
-    // Figure out if we need to deal with Windows line endings
-    const char *crpos = strchr(fc, '\r');
-    int crlf = (crpos && crpos[1] == '\n') ? 1 : 0;
-    char tc = (crlf) ? '\r' : '\n';
-    // If we're CRLF jump ahead another character.
-    int lcj = (crlf) ? 2 : 1;
-
-    char *ln = NULL;
-    char *wc = bu_strdup(fc);
-    char *lc = wc;
-
-    // Set up initial line (Vertex)
-    ln = strchr(lc, tc);
-    if (ln) *ln = '\0';
-
-    // Trim off prefixes, if user left them in
-    while (lc && strchr(lc, ':')) lc++;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(hyp->hyp_Vi, a, b, c);
-    VSCALE(hyp->hyp_Vi, hyp->hyp_Vi, local2base);
-
-    // Set up Height line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(hyp->hyp_Hi, a, b, c);
-    VSCALE(hyp->hyp_Hi, hyp->hyp_Hi, local2base);
-
-    // Set up Semi-major axis line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(hyp->hyp_A, a, b, c);
-    VSCALE(hyp->hyp_A, hyp->hyp_A, local2base);
-
-    // Set up Semi-minor length line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf", &a);
-    hyp->hyp_b = a * local2base;
-
-    // Set up Ratio of Neck to Base line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf", &a);
-    hyp->hyp_bnr = a;
-
-    // Cleanup
-    bu_free(wc, "wc");
+    *hyp = candidate;
     return BRLCAD_OK;
 }
 
@@ -247,8 +188,6 @@ ecmd_hyp_h(struct rt_edit *s)
 
     RT_HYP_CK_MAGIC(hyp);
     if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
 	s->es_scale = s->e_para[0];
     }
     VSCALE(hyp->hyp_Hi, hyp->hyp_Hi, s->es_scale);
@@ -263,8 +202,6 @@ ecmd_hyp_scale_a(struct rt_edit *s)
 
     RT_HYP_CK_MAGIC(hyp);
     if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
 	s->es_scale = s->e_para[0];
     }
     VSCALE(hyp->hyp_A, hyp->hyp_A, s->es_scale);
@@ -279,8 +216,6 @@ ecmd_hyp_scale_b(struct rt_edit *s)
 
     RT_HYP_CK_MAGIC(hyp);
     if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
 	s->es_scale = s->e_para[0];
     }
     hyp->hyp_b = hyp->hyp_b * s->es_scale;
@@ -295,8 +230,6 @@ ecmd_hyp_c(struct rt_edit *s)
 
     RT_HYP_CK_MAGIC(hyp);
     if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
 	s->es_scale = s->e_para[0];
     }
     if (hyp->hyp_bnr * s->es_scale <= 1.0) {
@@ -382,18 +315,10 @@ rt_edit_hyp_pscale(struct rt_edit *s)
 	s->e_inpara = 0;
 	return BRLCAD_ERROR;
     }
-
-    if (s->e_inpara) {
-	if (s->e_para[0] <= 0.0) {
-	    bu_vls_printf(s->log_str, "ERROR: SCALE FACTOR <= 0\n");
-	    s->e_inpara = 0;
-	    return BRLCAD_ERROR;
-	}
-
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
+    if (s->e_inpara && s->e_para[0] <= 0.0) {
+	bu_vls_printf(s->log_str, "ERROR: SCALE FACTOR <= 0\n");
+	s->e_inpara = 0;
+	return BRLCAD_ERROR;
     }
 
     switch (s->edit_flag) {

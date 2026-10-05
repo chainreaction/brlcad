@@ -1485,8 +1485,9 @@ mged_process_char(struct mged_state *s, char ch)
 int
 event_check(struct mged_state *s, int non_blocking)
 {
-    struct mged_dm *save_dm_list;
-    int save_edflag;
+    struct mged_dm *save_dm_list = NULL;
+    int save_edflag = 0;
+    int save_edit_mode = RT_EDIT_DEFAULT;
 
     if (!s || mged_shutting_down(s))
 	return -1;
@@ -1534,32 +1535,14 @@ event_check(struct mged_state *s, int non_blocking)
 	    save_coords = mged_variables->mv_coords;
 	    mged_variables->mv_coords = 'm';
 
-	    if (s->global_editing_state == ST_S_EDIT) {
-		save_edflag = MEDIT(s)->edit_flag;
-		if (!SEDIT_ROTATE)
-		    MEDIT(s)->edit_flag = RT_PARAMS_EDIT_ROT;
-	    } else {
-		save_edflag = edobj;
-		edobj = BE_O_ROTATE;
-	    }
-
-	    non_blocking++;
-	    bu_vls_printf(&vls, "knob -o %c -i -e ax %f ay %f az %f\n",
-			  MEDIT(s)->k.origin_m,
-			  MEDIT(s)->k.rot_m[X],
-			  MEDIT(s)->k.rot_m[Y],
-			  MEDIT(s)->k.rot_m[Z]);
-
-	    if (s->interp)
-		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
-	    bu_vls_free(&vls);
-
-	    mged_variables->mv_coords = save_coords;
-
-	    if (s->global_editing_state == ST_S_EDIT)
-		MEDIT(s)->edit_flag = save_edflag;
-	    else
-		edobj = save_edflag;
+	if (s->global_editing_state == ST_S_EDIT) {
+	    save_edflag = MEDIT(s)->edit_flag;
+	    save_edit_mode = MEDIT(s)->edit_mode;
+	    if (!SEDIT_ROTATE)
+		rt_edit_set_edflag(MEDIT(s), RT_PARAMS_EDIT_ROT);
+	} else {
+	    save_edflag = edobj;
+	    edobj = BE_O_ROTATE;
 	}
 	if (MEDIT(s)->k.rot_o_flag) {
 	    struct bu_vls vls = BU_VLS_INIT_ZERO;
@@ -1585,16 +1568,26 @@ event_check(struct mged_state *s, int non_blocking)
 			  MEDIT(s)->k.rot_o[Y],
 			  MEDIT(s)->k.rot_o[Z]);
 
-	    if (s->interp)
-		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
-	    bu_vls_free(&vls);
+	if (s->global_editing_state == ST_S_EDIT) {
+	    MEDIT(s)->edit_flag = save_edflag;
+	    MEDIT(s)->edit_mode = save_edit_mode;
+	} else
+	    edobj = save_edflag;
+    }
+    if (MEDIT(s)->k.rot_o_flag) {
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
+	char save_coords;
 
-	    mged_variables->mv_coords = save_coords;
+	mged_variables->mv_coords = save_coords;
 
-	    if (s->global_editing_state == ST_S_EDIT)
-		MEDIT(s)->edit_flag = save_edflag;
-	    else
-		edobj = save_edflag;
+	if (s->global_editing_state == ST_S_EDIT) {
+	    save_edflag = MEDIT(s)->edit_flag;
+	    save_edit_mode = MEDIT(s)->edit_mode;
+	    if (!SEDIT_ROTATE)
+		rt_edit_set_edflag(MEDIT(s), RT_PARAMS_EDIT_ROT);
+	} else {
+	    save_edflag = edobj;
+	    edobj = BE_O_ROTATE;
 	}
 	if (MEDIT(s)->k.rot_v_flag) {
 	    struct bu_vls vls = BU_VLS_INIT_ZERO;
@@ -1620,16 +1613,26 @@ event_check(struct mged_state *s, int non_blocking)
 			  MEDIT(s)->k.rot_v[Y],
 			  MEDIT(s)->k.rot_v[Z]);
 
-	    if (s->interp)
-		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
-	    bu_vls_free(&vls);
+	if (s->global_editing_state == ST_S_EDIT) {
+	    MEDIT(s)->edit_flag = save_edflag;
+	    MEDIT(s)->edit_mode = save_edit_mode;
+	} else
+	    edobj = save_edflag;
+    }
+    if (MEDIT(s)->k.rot_v_flag) {
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
+	char save_coords;
 
 	    mged_variables->mv_coords = save_coords;
 
-	    if (s->global_editing_state == ST_S_EDIT)
-		MEDIT(s)->edit_flag = save_edflag;
-	    else
-		edobj = save_edflag;
+	if (s->global_editing_state == ST_S_EDIT) {
+	    save_edflag = MEDIT(s)->edit_flag;
+	    save_edit_mode = MEDIT(s)->edit_mode;
+	    if (!SEDIT_ROTATE)
+		rt_edit_set_edflag(MEDIT(s), RT_PARAMS_EDIT_ROT);
+	} else {
+	    save_edflag = edobj;
+	    edobj = BE_O_ROTATE;
 	}
 	if (MEDIT(s)->k.tra_m_flag && view_state && view_state->vs_gvp) {
 	    char save_coords;
@@ -1654,16 +1657,26 @@ event_check(struct mged_state *s, int non_blocking)
 			  MEDIT(s)->k.tra_m[Y] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local,
 			  MEDIT(s)->k.tra_m[Z] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local);
 
-	    if (s->interp)
-		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
-	    bu_vls_free(&vls);
+	if (s->global_editing_state == ST_S_EDIT) {
+	    MEDIT(s)->edit_flag = save_edflag;
+	    MEDIT(s)->edit_mode = save_edit_mode;
+	} else
+	    edobj = save_edflag;
+    }
+    if (MEDIT(s)->k.tra_m_flag) {
+	char save_coords;
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-	    mged_variables->mv_coords = save_coords;
+	mged_variables->mv_coords = save_coords;
 
-	    if (s->global_editing_state == ST_S_EDIT)
-		MEDIT(s)->edit_flag = save_edflag;
-	    else
-		edobj = save_edflag;
+	if (s->global_editing_state == ST_S_EDIT) {
+	    save_edflag = MEDIT(s)->edit_flag;
+	    save_edit_mode = MEDIT(s)->edit_mode;
+	    if (!SEDIT_TRAN)
+		rt_edit_set_edflag(MEDIT(s), RT_PARAMS_EDIT_TRANS);
+	} else {
+	    save_edflag = edobj;
+	    edobj = BE_O_XY;
 	}
 	if (MEDIT(s)->k.tra_v_flag && view_state && view_state->vs_gvp) {
 	    char save_coords;
@@ -1688,16 +1701,26 @@ event_check(struct mged_state *s, int non_blocking)
 			  MEDIT(s)->k.tra_v[Y] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local,
 			  MEDIT(s)->k.tra_v[Z] * 0.05 * view_state->vs_gvp->gv_scale * s->dbip->dbi_base2local);
 
-	    if (s->interp)
-		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
-	    bu_vls_free(&vls);
+	if (s->global_editing_state == ST_S_EDIT) {
+	    MEDIT(s)->edit_flag = save_edflag;
+	    MEDIT(s)->edit_mode = save_edit_mode;
+	} else
+	    edobj = save_edflag;
+    }
+    if (MEDIT(s)->k.tra_v_flag) {
+	char save_coords;
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
 
-	    mged_variables->mv_coords = save_coords;
+	mged_variables->mv_coords = save_coords;
 
-	    if (s->global_editing_state == ST_S_EDIT)
-		MEDIT(s)->edit_flag = save_edflag;
-	    else
-		edobj = save_edflag;
+	if (s->global_editing_state == ST_S_EDIT) {
+	    save_edflag = MEDIT(s)->edit_flag;
+	    save_edit_mode = MEDIT(s)->edit_mode;
+	    if (!SEDIT_TRAN)
+		rt_edit_set_edflag(MEDIT(s), RT_PARAMS_EDIT_TRANS);
+	} else {
+	    save_edflag = edobj;
+	    edobj = BE_O_XY;
 	}
 	if (MEDIT(s)->k.sca_flag) {
 	    struct bu_vls vls = BU_VLS_INIT_ZERO;
@@ -1719,11 +1742,37 @@ event_check(struct mged_state *s, int non_blocking)
 		Tcl_Eval(s->interp, bu_vls_cstr(&vls));
 	    bu_vls_free(&vls);
 
-	    if (s->global_editing_state == ST_S_EDIT)
-		MEDIT(s)->edit_flag = save_edflag;
-	    else
-		edobj = save_edflag;
+	if (s->global_editing_state == ST_S_EDIT) {
+	    MEDIT(s)->edit_flag = save_edflag;
+	    MEDIT(s)->edit_mode = save_edit_mode;
+	} else
+	    edobj = save_edflag;
+    }
+    if (MEDIT(s)->k.sca_flag) {
+	struct bu_vls vls = BU_VLS_INIT_ZERO;
+
+	if (s->global_editing_state == ST_S_EDIT) {
+	    save_edflag = MEDIT(s)->edit_flag;
+	    save_edit_mode = MEDIT(s)->edit_mode;
+	    if (!SEDIT_SCALE)
+		rt_edit_set_edflag(MEDIT(s), RT_PARAMS_EDIT_SCALE);
+	} else {
+	    save_edflag = edobj;
+	    if (!OEDIT_SCALE)
+		edobj = BE_O_SCALE;
 	}
+
+	non_blocking++;
+	bu_vls_printf(&vls, "knob -i -e aS %f\n", MEDIT(s)->k.sca * 0.01);
+
+	Tcl_Eval(s->interp, bu_vls_addr(&vls));
+	bu_vls_free(&vls);
+
+	if (s->global_editing_state == ST_S_EDIT) {
+	    MEDIT(s)->edit_flag = save_edflag;
+	    MEDIT(s)->edit_mode = save_edit_mode;
+	} else
+	    edobj = save_edflag;
     }
 
     for (size_t di = 0; di < BU_PTBL_LEN(&active_dm_set); di++) {

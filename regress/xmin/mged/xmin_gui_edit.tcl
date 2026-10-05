@@ -23,8 +23,8 @@
 # any GUI action or database edit under test: menu, entry, button, and display
 # actions arrive through the X server.
 
-set xmin_test_dir $::env(MGED_XMIN_TEST_DIR)
-source $::env(XMIN_GUI_LIBRARY)
+set xmin_test_dir $::env(MGED_GUI_TEST_DIR)
+source $::env(GUI_TEST_LIBRARY)
 
 set xmin_deadline_ms 240000
 set xmin_poll_ms 25
@@ -45,11 +45,11 @@ set xmin_pipe_split_y 948.0
 set xmin_raytrace_completion_settle_ms 500
 
 proc xmin_write {name contents} {
-    ::xmin::test::write $name $contents
+    ::gui::test::write $name $contents
 }
 
 proc xmin_publish_target {name widget} {
-    ::xmin::test::publish_target $name $widget
+    ::gui::test::publish_target $name $widget
 }
 
 proc xmin_publish_faceplate_target {name widget bv_x bv_y} {
@@ -75,11 +75,11 @@ proc xmin_publish_model_point_target {name widget model_point} {
 }
 
 proc xmin_descendants {widget} {
-    ::xmin::test::descendants $widget
+    ::gui::test::descendants $widget
 }
 
 proc xmin_find_widget {root class text} {
-    ::xmin::test::find_widget $root $class $text
+    ::gui::test::find_widget $root $class $text
 }
 
 proc xmin_menu_inventory_walk {menu path inventory_name visited_name} {
@@ -752,6 +752,8 @@ proc xmin_wait_for_raytrace_panel {id} {
     xmin_publish_target raytrace_button $panel.raytraceB
     xmin_publish_target raytrace_active $panel.fbtoggle
     xmin_publish_target raytrace_dismiss $panel.dismissB
+    set ::xmin_raytrace_invocations 0
+    trace add execution ::do_Raytrace leave ::xmin_record_raytrace_invocation
     xmin_write raytrace_ready 1
     after $xmin_poll_ms [list xmin_monitor_entry raytrace_size $panel.sizeE]
     after $xmin_poll_ms [list xmin_monitor_entry raytrace_destination $panel.destE]
@@ -782,6 +784,14 @@ proc xmin_prepare_raytrace_reference {id} {
     xmin_write raytrace_reference_image $reference_image
     xmin_write raytrace_file_destination $gui_image
     xmin_write raytrace_reference_ready 1
+}
+
+proc xmin_record_raytrace_invocation {_command code _result _operation} {
+    if {$code != 0} {
+	return
+    }
+    incr ::xmin_raytrace_invocations
+    xmin_write raytrace_invocations $::xmin_raytrace_invocations
 }
 
 proc xmin_monitor_raytrace {id} {

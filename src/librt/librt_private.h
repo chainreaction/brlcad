@@ -211,6 +211,14 @@ extern void flip_dbmat_mat(dbfloat_t *dbp, const fastf_t *ff);
  */
 extern fastf_t ell_angle(fastf_t *p1, fastf_t a, fastf_t b, fastf_t dtol, fastf_t ntol);
 
+int _rt_rtcmp_capture_ready(void);
+/* Append an rtcmp record for a ray with final partitions. */
+void _rt_rtcmp_capture(const struct application *ap, const struct partition *parts);
+/* Optional per-ray primitive capture; state belongs to the caller until finish. */
+void *_rt_rtcmp_capture_begin(void);
+void _rt_rtcmp_capture_segment(void *state, const struct application *ap, const struct seg *segp);
+void _rt_rtcmp_capture_finish(void *state, const struct application *ap, const struct partition *parts);
+
 /**
  * used by rt_shootray_bundle()
  * FIXME: non-public API shouldn't be using rt_ prefix

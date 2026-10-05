@@ -217,6 +217,19 @@ matrix_scale_edit_flag(void)
     }
 }
 
+/* Matrix edits bypass rt_edit_process(), so their callers must synchronize
+ * MGED's cached display matrices and request a redraw. */
+static void
+mged_edit_refresh(struct mged_state *s)
+{
+    new_edit_mats(s);
+    s->update_views = 1;
+    if (DMP) {
+	dm_set_dirty(DMP, 1);
+    }
+}
+
+
 /* Apply accumulated edit operations using the librt rt_edit APIs */
 static int
 mged_librt_knob_edit_apply(struct mged_state *s,
@@ -261,26 +274,16 @@ mged_librt_knob_edit_apply(struct mged_state *s,
 	}
     }
 
-    /* For parameter edits (solid editing) finalize primitive parameter updates */
-    if (!matrix_edit) {
-	rt_edit_process(re);
-    }
-
     /* Update MGED's cached edit matrices and mark for redraw */
-    new_edit_mats(s);
-    s->update_views = 1;
-    if (DMP)
-	dm_set_dirty(DMP, 1);
+    mged_edit_refresh(s);
 
-    /* Synchronize MGED es_edclass (used by token_should_edit, knob printouts, rate loop) */
-    if (s && s->s_edit) {
-	if (did_rot) {
-	    s->s_edit->es_edclass = EDIT_CLASS_ROTATE;
-	} else if (did_tran) {
-	    s->s_edit->es_edclass = EDIT_CLASS_TRAN;
-	} else if (did_sca) {
-	    s->s_edit->es_edclass = EDIT_CLASS_SCALE;
-	}
+    /* Keep MGED's edit class in sync for knob status and rate handling. */
+    if (s && s->s_edit && did_rot) {
+	s->s_edit->es_edclass = EDIT_CLASS_ROTATE;
+    } else if (s && s->s_edit && did_tran) {
+	s->s_edit->es_edclass = EDIT_CLASS_TRAN;
+    } else if (s && s->s_edit && did_sca) {
+	s->s_edit->es_edclass = EDIT_CLASS_SCALE;
     }
 
     return BRLCAD_OK;
@@ -1659,7 +1662,12 @@ f_knob(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	}
 
 	if (view_do_tran) {
+	    /* Honor the requested view frame even when the active bview is in
+	     * object coordinates. */
+	    char save_coord = view_state->vs_gvp->gv_coord;
+	    view_state->vs_gvp->gv_coord = vcoords;
 	    bv_knobs_tran(view_state->vs_gvp, view_tvec, model_mode_final);
+	    view_state->vs_gvp->gv_coord = save_coord;
 	}
 
 	if (view_do_rot) {
@@ -2581,6 +2589,8 @@ cmd_mrot(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[]
 	}
 	int matrix_edit = (s->global_editing_state == ST_O_EDIT);
 	rt_knob_edit_rot(re, view_state->vs_gvp->gv_coord, view_state->vs_gvp->gv_rotate_about, matrix_edit, rmat);
+	if (matrix_edit)
+	    mged_edit_refresh(s);
 	return TCL_OK;
     } else {
 	int ret;
@@ -2667,6 +2677,8 @@ cmd_rot(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	}
 	int matrix_edit = (s->global_editing_state == ST_O_EDIT);
 	rt_knob_edit_rot(re, coord, view_state->vs_gvp->gv_rotate_about, matrix_edit, rmat);
+	if (matrix_edit)
+	    mged_edit_refresh(s);
 	return TCL_OK;
     } else {
 	int ret;
@@ -2721,6 +2733,8 @@ cmd_arot(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[]
 	}
 	int matrix_edit = (s->global_editing_state == ST_O_EDIT);
 	rt_knob_edit_rot(re, view_state->vs_gvp->gv_coord, view_state->vs_gvp->gv_rotate_about, matrix_edit, rmat);
+	if (matrix_edit)
+	    mged_edit_refresh(s);
 	return TCL_OK;
     } else {
 	int ret;
@@ -2769,6 +2783,8 @@ cmd_tra(ClientData clientData, Tcl_Interp *interp, int argc, const char *argv[])
 	}
 	int matrix_edit = (s->global_editing_state == ST_O_EDIT);
 	rt_knob_edit_tran(re, coord, matrix_edit, tvec);
+	if (matrix_edit)
+	    mged_edit_refresh(s);
     } else {
 	int ret;
 

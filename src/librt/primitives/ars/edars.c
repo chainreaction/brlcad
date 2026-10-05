@@ -87,8 +87,9 @@ rt_edit_ars_prim_edit_create(struct rt_edit *UNUSED(s))
 }
 
 C_DECL void
-rt_edit_ars_prim_edit_destroy(struct rt_ars_edit *e)
+rt_edit_ars_prim_edit_destroy(void *ptr)
 {
+    struct rt_ars_edit *e = (struct rt_ars_edit *)ptr;
     if (!e)
 	return;
 
@@ -363,6 +364,18 @@ rt_edit_ars_menu_str(struct bu_vls *mstr, const struct rt_db_internal *ip, const
     return BRLCAD_OK;
 }
 
+/** Convert only keyboard coordinates; mouse points are already base. */
+static void
+ars_numeric_target(point_t target, struct rt_edit *s)
+{
+    point_t model_point;
+    VSCALE(model_point, s->e_para, s->local2base);
+    if (s->mv_context)
+	MAT4X3PNT(target, s->e_invmat, model_point);
+    else
+	VMOVE(target, model_point);
+}
+
 void
 ecmd_ars_pick(struct rt_edit *s)
 {
@@ -379,20 +392,10 @@ ecmd_ars_pick(struct rt_edit *s)
 
     RT_ARS_CK_MAGIC(ars);
 
-    /* must convert to base units */
-    s->e_para[0] *= s->local2base;
-    s->e_para[1] *= s->local2base;
-    s->e_para[2] *= s->local2base;
-
     if (s->e_mvalid) {
 	VMOVE(pick_pt, s->e_mparam);
     } else if (s->e_inpara == 3) {
-	if (s->mv_context) {
-	    /* apply s->e_invmat to convert to real model space */
-	    MAT4X3PNT(pick_pt, s->e_invmat, s->e_para);
-	} else {
-	    VMOVE(pick_pt, s->e_para);
-	}
+	ars_numeric_target(pick_pt, s);
     } else if (s->e_inpara && s->e_inpara != 3) {
 	bu_vls_printf(s->log_str, "x y z coordinates required for 'pick point'\n");
 	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
@@ -564,7 +567,7 @@ ecmd_ars_dup_crv(struct rt_edit *s)
     for (size_t i=0; i<ars->ncurves+1; i++) {
 	size_t j, k;
 
-	curves[i] = (fastf_t *)bu_malloc(ars->pts_per_curve * 3 * sizeof(fastf_t),
+	curves[i] = (fastf_t *)bu_malloc((ars->pts_per_curve + 1) * 3 * sizeof(fastf_t),
 		"new curves[i]");
 
 	if (i <= (size_t)a->es_ars_crv)
@@ -572,7 +575,7 @@ ecmd_ars_dup_crv(struct rt_edit *s)
 	else
 	    k = i - 1;
 
-	for (j=0; j<ars->pts_per_curve*3; j++)
+	for (j=0; j<(ars->pts_per_curve + 1)*3; j++)
 	    curves[i][j] = ars->curves[k][j];
     }
 
@@ -605,7 +608,7 @@ ecmd_ars_dup_col(struct rt_edit *s)
     for (size_t i=0; i<ars->ncurves; i++) {
 	size_t j, k;
 
-	curves[i] = (fastf_t *)bu_malloc((ars->pts_per_curve + 1) * 3 * sizeof(fastf_t),
+	curves[i] = (fastf_t *)bu_malloc((ars->pts_per_curve + 2) * 3 * sizeof(fastf_t),
 		"new curves[i]");
 
 	for (j=0; j<ars->pts_per_curve+1; j++) {
@@ -618,6 +621,7 @@ ecmd_ars_dup_col(struct rt_edit *s)
 	    curves[i][j*3+1] = ars->curves[i][k*3+1];
 	    curves[i][j*3+2] = ars->curves[i][k*3+2];
 	}
+	VMOVE(&curves[i][(ars->pts_per_curve + 1)*3], curves[i]);
     }
 
     for (size_t i=0; i<ars->ncurves; i++)
@@ -747,22 +751,22 @@ ecmd_ars_insert_crv(struct rt_edit *s)
 
     for (size_t i = 0; i < ars->ncurves + 1; i++) {
 	curves[i] = (fastf_t *)bu_malloc(
-		ars->pts_per_curve * 3 * sizeof(fastf_t),
+		(ars->pts_per_curve + 1) * 3 * sizeof(fastf_t),
 		"ars insert curves[i]");
 
 	if ((int)i <= ins_after) {
 	    /* before or at insertion point: copy as-is */
-	    for (size_t j = 0; j < ars->pts_per_curve * 3; j++)
+	    for (size_t j = 0; j < (ars->pts_per_curve + 1) * 3; j++)
 		curves[i][j] = ars->curves[i][j];
 	} else if ((int)i == ins_after + 1) {
 	    /* the new interpolated curve */
 	    fastf_t *c0 = ars->curves[ins_after];
 	    fastf_t *c1 = ars->curves[next_crv];
-	    for (size_t j = 0; j < ars->pts_per_curve * 3; j++)
+	    for (size_t j = 0; j < (ars->pts_per_curve + 1) * 3; j++)
 		curves[i][j] = 0.5 * (c0[j] + c1[j]);
 	} else {
 	    /* after insertion point: copy from i-1 */
-	    for (size_t j = 0; j < ars->pts_per_curve * 3; j++)
+	    for (size_t j = 0; j < (ars->pts_per_curve + 1) * 3; j++)
 		curves[i][j] = ars->curves[i - 1][j];
 	}
     }
@@ -808,10 +812,10 @@ ecmd_ars_del_crv(struct rt_edit *s)
 	if (i == (size_t)a->es_ars_crv)
 	    continue;
 
-	curves[k] = (fastf_t *)bu_malloc(ars->pts_per_curve * 3 * sizeof(fastf_t),
+	curves[k] = (fastf_t *)bu_malloc((ars->pts_per_curve + 1) * 3 * sizeof(fastf_t),
 		"new curves[k]");
 
-	for (j=0; j<ars->pts_per_curve*3; j++)
+	for (j=0; j<(ars->pts_per_curve + 1)*3; j++)
 	    curves[k][j] = ars->curves[i][j];
 
 	k++;
@@ -843,7 +847,7 @@ ecmd_ars_del_col(struct rt_edit *s)
 	return;
     }
 
-    if (a->es_ars_col == 0 || (size_t)a->es_ars_col == ars->ncurves - 1) {
+    if (a->es_ars_col == 0 || (size_t)a->es_ars_col == ars->pts_per_curve - 1) {
 	bu_log("Cannot delete first or last column\n");
 	return;
     }
@@ -860,7 +864,7 @@ ecmd_ars_del_col(struct rt_edit *s)
 	size_t j, k;
 
 
-	curves[i] = (fastf_t *)bu_malloc((ars->pts_per_curve - 1) * 3 * sizeof(fastf_t),
+	curves[i] = (fastf_t *)bu_malloc(ars->pts_per_curve * 3 * sizeof(fastf_t),
 		"new curves[i]");
 
 	k = 0;
@@ -873,6 +877,7 @@ ecmd_ars_del_col(struct rt_edit *s)
 	    curves[i][k*3+2] = ars->curves[i][j*3+2];
 	    k++;
 	}
+	VMOVE(&curves[i][(ars->pts_per_curve - 1)*3], curves[i]);
     }
 
     for (size_t i=0; i<ars->ncurves; i++)
@@ -899,11 +904,6 @@ ecmd_ars_move_col(struct rt_edit *s)
 
     RT_ARS_CK_MAGIC(ars);
 
-    /* must convert to base units */
-    s->e_para[0] *= s->local2base;
-    s->e_para[1] *= s->local2base;
-    s->e_para[2] *= s->local2base;
-
     if (a->es_ars_crv < 0 || a->es_ars_col < 0) {
 	bu_log("No ARS point selected\n");
 	return;
@@ -926,12 +926,7 @@ ecmd_ars_move_col(struct rt_edit *s)
 	dist = DIST_PNT_PLANE(s->e_mparam, view_pl);
 	VJOIN1(new_pt, s->e_mparam, -dist, view_pl);
     } else if (s->e_inpara == 3) {
-	if (s->mv_context) {
-	    /* apply s->e_invmat to convert to real model space */
-	    MAT4X3PNT(new_pt, s->e_invmat, s->e_para);
-	} else {
-	    VMOVE(new_pt, s->e_para);
-	}
+	ars_numeric_target(new_pt, s);
     } else if (s->e_inpara && s->e_inpara != 3) {
 	bu_vls_printf(s->log_str, "x y z coordinates required for point movement\n");
 	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
@@ -963,11 +958,6 @@ ecmd_ars_move_crv(struct rt_edit *s)
 
     RT_ARS_CK_MAGIC(ars);
 
-    /* must convert to base units */
-    s->e_para[0] *= s->local2base;
-    s->e_para[1] *= s->local2base;
-    s->e_para[2] *= s->local2base;
-
     if (a->es_ars_crv < 0 || a->es_ars_col < 0) {
 	bu_log("No ARS point selected\n");
 	return;
@@ -990,12 +980,7 @@ ecmd_ars_move_crv(struct rt_edit *s)
 	dist = DIST_PNT_PLANE(s->e_mparam, view_pl);
 	VJOIN1(new_pt, s->e_mparam, -dist, view_pl);
     } else if (s->e_inpara == 3) {
-	if (s->mv_context) {
-	    /* apply s->e_invmat to convert to real model space */
-	    MAT4X3PNT(new_pt, s->e_invmat, s->e_para);
-	} else {
-	    VMOVE(new_pt, s->e_para);
-	}
+	ars_numeric_target(new_pt, s);
     } else if (s->e_inpara && s->e_inpara != 3) {
 	bu_vls_printf(s->log_str, "x y z coordinates required for point movement\n");
 	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
@@ -1026,11 +1011,6 @@ ecmd_ars_move_pt(struct rt_edit *s)
 
     RT_ARS_CK_MAGIC(ars);
 
-    /* must convert to base units */
-    s->e_para[0] *= s->local2base;
-    s->e_para[1] *= s->local2base;
-    s->e_para[2] *= s->local2base;
-
     if (a->es_ars_crv < 0 || a->es_ars_col < 0) {
 	bu_log("No ARS point selected\n");
 	return;
@@ -1053,12 +1033,7 @@ ecmd_ars_move_pt(struct rt_edit *s)
 	dist = DIST_PNT_PLANE(s->e_mparam, view_pl);
 	VJOIN1(new_pt, s->e_mparam, -dist, view_pl);
     } else if (s->e_inpara == 3) {
-	if (s->mv_context) {
-	    /* apply s->e_invmat to convert to real model space */
-	    MAT4X3PNT(new_pt, s->e_invmat, s->e_para);
-	} else {
-	    VMOVE(new_pt, s->e_para);
-	}
+	ars_numeric_target(new_pt, s);
     } else if (s->e_inpara && s->e_inpara != 3) {
 	bu_vls_printf(s->log_str, "x y z coordinates required for point movement\n");
 	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
@@ -1155,6 +1130,11 @@ rt_edit_ars_edit(struct rt_edit *s)
 	default:
 	    return edit_generic(s);
     }
+
+    /* Native edits may move the first point or resize a curve. */
+    struct rt_ars_internal *ars = (struct rt_ars_internal *)s->es_int.idb_ptr;
+    for (size_t i = 0; i < ars->ncurves; i++)
+	VMOVE(&ars->curves[i][ars->pts_per_curve * 3], ars->curves[i]);
 
     return 0;
 }

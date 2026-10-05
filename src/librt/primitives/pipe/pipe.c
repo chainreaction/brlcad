@@ -3991,7 +3991,7 @@ rt_pipe_import4(
 
     pip = (struct rt_pipe_internal *)ip->idb_ptr;
     pip->pipe_magic = RT_PIPE_INTERNAL_MAGIC;
-    pip->pipe_count = ntohl(*(uint32_t *)rp->pwr.pwr_pt_count);
+    pip->pipe_count = BU_GLONG((const unsigned char *)rp->pwr.pwr_pt_count);
 
     /*
      * Walk the array of segments in reverse order, allocating a
@@ -4166,7 +4166,7 @@ rt_pipe_import5(
     }
     BU_CK_EXTERNAL(ep);
 
-    pipe_count = ntohl(*(uint32_t *)ep->ext_buf);
+    pipe_count = BU_GLONG((const unsigned char *)ep->ext_buf);
     double_count = pipe_count * 6;
     byte_count = double_count * SIZEOF_NETWORK_DOUBLE;
     total_count = 4 + byte_count;
@@ -4685,6 +4685,18 @@ rt_pipe_project_apply(
             case RT_CONSTRAINT_EDIT_OP_SCALE_BEND:
                 for (BU_LIST_FOR(ps, wdb_pipe_pnt, &pip->pipe_segs_head))
                     ps->pp_bendradius *= op->proposed_scalar;
+                break;
+            case RT_CONSTRAINT_EDIT_OP_SET_ALL_OD:
+                for (BU_LIST_FOR(ps, wdb_pipe_pnt, &pip->pipe_segs_head))
+                    ps->pp_od = op->proposed_scalar;
+                break;
+            case RT_CONSTRAINT_EDIT_OP_SET_ALL_ID:
+                for (BU_LIST_FOR(ps, wdb_pipe_pnt, &pip->pipe_segs_head))
+                    ps->pp_id = op->proposed_scalar;
+                break;
+            case RT_CONSTRAINT_EDIT_OP_SET_ALL_BEND:
+                for (BU_LIST_FOR(ps, wdb_pipe_pnt, &pip->pipe_segs_head))
+                    ps->pp_bendradius = op->proposed_scalar;
                 break;
             default:
                 break;
@@ -5359,6 +5371,7 @@ rt_pipe_add_pnt(struct rt_pipe_internal *pipeip, struct wdb_pipe_pnt *pp, const 
 	    newpp->pp_bendradius = 40.0;
 	    VMOVE(newpp->pp_coord, new_pt);
 	    BU_LIST_INSERT(&pipeip->pipe_segs_head, &newpp->l);
+	    pipeip->pipe_count++;
 	    return newpp;
 	}
     }
@@ -5386,6 +5399,7 @@ rt_pipe_add_pnt(struct rt_pipe_internal *pipeip, struct wdb_pipe_pnt *pp, const 
 	return pp;
     }
 
+    pipeip->pipe_count++;
     return newpp;
 }
 
@@ -5412,6 +5426,7 @@ rt_pipe_ins_pnt(struct rt_pipe_internal *pipeip, struct wdb_pipe_pnt *pp, const 
 	    newpp->pp_bendradius = 40.0;
 	    VMOVE(newpp->pp_coord, new_pt);
 	    BU_LIST_APPEND(&pipeip->pipe_segs_head, &newpp->l);
+	    pipeip->pipe_count++;
 	    return newpp;
 	}
     }
@@ -5439,6 +5454,7 @@ rt_pipe_ins_pnt(struct rt_pipe_internal *pipeip, struct wdb_pipe_pnt *pp, const 
 	return pp;
     }
 
+    pipeip->pipe_count++;
     return newpp;
 }
 

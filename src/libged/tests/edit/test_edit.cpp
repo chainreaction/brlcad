@@ -29,6 +29,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include "bu.h"
 #include "vmath.h"
@@ -36,6 +37,8 @@
 #include "rt/db_fullpath.h"
 #include "rt/geom.h"
 #include "rt/edit.h"
+#include "rt/primitives/sketch.h"
+#include "rt/primitives/pipe.h"
 #include "wdb.h"
 #include "ged.h"
 #include "brep/util.h"
@@ -117,6 +120,35 @@ read_hrt(struct ged *gedp, const char *name, struct rt_hrt_internal *out)
 
     *out = *(struct rt_hrt_internal *)intern.idb_ptr;
     intern.idb_ptr = NULL;
+    rt_db_free_internal(&intern);
+    return BRLCAD_OK;
+}
+
+static int
+read_conic_semiaxes(struct ged *gedp, const char *name,
+	fastf_t *major, fastf_t *minor)
+{
+    struct directory *dp = db_lookup(gedp->dbip, name, LOOKUP_QUIET);
+    if (dp == RT_DIR_NULL)
+	return BRLCAD_ERROR;
+
+    struct rt_db_internal intern;
+    RT_DB_INTERNAL_INIT(&intern);
+    int id = rt_db_get_internal(&intern, dp, gedp->dbip, NULL);
+    if (id == ID_EPA) {
+	struct rt_epa_internal *epa = (struct rt_epa_internal *)intern.idb_ptr;
+	*major = epa->epa_r1;
+	*minor = epa->epa_r2;
+    } else if (id == ID_EHY) {
+	struct rt_ehy_internal *ehy = (struct rt_ehy_internal *)intern.idb_ptr;
+	*major = ehy->ehy_r1;
+	*minor = ehy->ehy_r2;
+    } else {
+	if (id > 0)
+	    rt_db_free_internal(&intern);
+	return BRLCAD_ERROR;
+    }
+
     rt_db_free_internal(&intern);
     return BRLCAD_OK;
 }
@@ -473,17 +505,21 @@ test_p0_hrt_descriptor_ops(struct ged *gedp)
     }
 
     {
-        const char *av[] = {"edit", "hrt.s", "set_x_direction", "0", "1", "0", NULL};
+        const char *av[] = {"edit", "hrt.s", "set_x_direction", "2", "0", "0", NULL};
         bu_vls_trunc(gedp->ged_result_str, 0);
         int ret = ged_exec(gedp, 6, av);
-        CHECK(ret == BRLCAD_OK, "edit hrt.s set_x_direction 0 1 0 returns OK");
+        CHECK(ret == BRLCAD_OK && read_hrt(gedp, "hrt.s", &h) == BRLCAD_OK &&
+	      NEAR_EQUAL(h.xdir[X], 2.0, NEAR_ENOUGH),
+	      "edit hrt.s set_x_direction persists an orthogonal axis");
     }
 
     {
-        const char *av[] = {"edit", "hrt.s", "set_y_direction", "1", "0", "0", NULL};
+        const char *av[] = {"edit", "hrt.s", "set_y_direction", "0", "3", "0", NULL};
         bu_vls_trunc(gedp->ged_result_str, 0);
         int ret = ged_exec(gedp, 6, av);
-        CHECK(ret == BRLCAD_OK, "edit hrt.s set_y_direction 1 0 0 returns OK");
+        CHECK(ret == BRLCAD_OK && read_hrt(gedp, "hrt.s", &h) == BRLCAD_OK &&
+	      NEAR_EQUAL(h.ydir[Y], 3.0, NEAR_ENOUGH),
+	      "edit hrt.s set_y_direction persists an orthogonal axis");
     }
 
     {
@@ -506,8 +542,10 @@ test_p0_hrt_descriptor_ops(struct ged *gedp)
         const char *av[] = {"edit", "hrt.s", "set_x_direction", "1", "1", "0", NULL};
         bu_vls_trunc(gedp->ged_result_str, 0);
         int ret = ged_exec(gedp, 6, av);
-        CHECK((ret == BRLCAD_OK) || (ret == BRLCAD_ERROR),
-              "edit hrt.s set_x_direction non-orthogonal returns a valid status");
+        CHECK(ret == BRLCAD_ERROR &&
+	      read_hrt(gedp, "hrt.s", &h) == BRLCAD_OK &&
+	      NEAR_EQUAL(h.xdir[X], 2.0, NEAR_ENOUGH),
+	      "edit hrt.s rejects a non-orthogonal axis without changing it");
     }
 
     {
@@ -515,6 +553,37 @@ test_p0_hrt_descriptor_ops(struct ged *gedp)
         bu_vls_trunc(gedp->ged_result_str, 0);
         int ret = ged_exec(gedp, 4, av);
         CHECK(ret == BRLCAD_ERROR, "edit hrt.s set_d 0 returns error");
+    }
+}
+
+static void
+test_p0_conic_semiaxis_errors(struct ged *gedp)
+{
+    const struct {
+	const char *name;
+	const char *operation;
+	const char *value;
+	const char *message;
+    } cases[] = {
+	{"epa.s", "r1", "1", "EPA rejects a semi-major axis below the semi-minor axis"},
+	{"epa.s", "r2", "10", "EPA rejects a semi-minor axis above the semi-major axis"},
+	{"ehy.s", "r1", "1", "EHY rejects a semi-major axis below the semi-minor axis"},
+	{"ehy.s", "r2", "10", "EHY rejects a semi-minor axis above the semi-major axis"}
+    };
+
+    for (const auto &c : cases) {
+	fastf_t before_major = 0.0, before_minor = 0.0;
+	fastf_t after_major = 0.0, after_minor = 0.0;
+	int have_before = read_conic_semiaxes(gedp, c.name,
+		&before_major, &before_minor);
+	const char *argv[] = {"edit", c.name, c.operation, c.value, NULL};
+	int ret = ged_exec(gedp, 4, argv);
+	int have_after = read_conic_semiaxes(gedp, c.name,
+		&after_major, &after_minor);
+	CHECK(have_before == BRLCAD_OK && ret == BRLCAD_ERROR &&
+	      have_after == BRLCAD_OK &&
+	      NEAR_EQUAL(before_major, after_major, NEAR_ENOUGH) &&
+	      NEAR_EQUAL(before_minor, after_minor, NEAR_ENOUGH), c.message);
     }
 }
 
@@ -2005,6 +2074,31 @@ test_p3_tor_r1_alias(struct ged *gedp)
     }
 }
 
+static void
+test_p3_tor_invalid_radii(struct ged *gedp)
+{
+    const struct {
+	const char *operation;
+	const char *value;
+	const char *message;
+    } cases[] = {
+	{"r1", "1", "tor rejects a major radius below its minor radius"},
+	{"r2", "20", "tor rejects a minor radius above its major radius"}
+    };
+
+    for (const auto &c : cases) {
+	struct rt_tor_internal before, after;
+	int have_before = read_tor(gedp, "tor.s", &before);
+	const char *argv[] = {"edit", "tor.s", c.operation, c.value, NULL};
+	int ret = ged_exec(gedp, 4, argv);
+	int have_after = read_tor(gedp, "tor.s", &after);
+	CHECK(have_before == BRLCAD_OK && ret == BRLCAD_ERROR &&
+	      have_after == BRLCAD_OK &&
+	      NEAR_EQUAL(before.r_a, after.r_a, NEAR_ENOUGH) &&
+	      NEAR_EQUAL(before.r_h, after.r_h, NEAR_ENOUGH), c.message);
+    }
+}
+
 /* 3-3: ell set_a — change semi-axis A magnitude */
 static void
 test_p3_ell_set_a(struct ged *gedp)
@@ -2565,21 +2659,30 @@ test_p4_eto_list_ops_complete(struct ged *gedp)
           "edit eto --list-ops lists 'rotate_c'");
 }
 
-/* 4-13: tgc move_end_h_adj_c_d — POINT param (adj C,D variant) */
+/* These variants were descriptor-only: never claim they edited geometry. */
 static void
-test_p4_tgc_move_end_h_adj_cd(struct ged *gedp)
+test_p4_tgc_unsupported_moves(struct ged *gedp)
 {
-    const char *av[] = { "edit", "tgc.s", "move_end_h_adj_c_d", "20", "0", "8", NULL };
-    bu_vls_trunc(gedp->ged_result_str, 0);
-    CHECK(ged_exec(gedp, 6, av) == BRLCAD_OK,
-          "tgc move_end_h_adj_c_d 20 0 8 returns OK");
-    struct rt_tgc_internal tgc;
-    if (read_tgc(gedp, "tgc.s", &tgc) == BRLCAD_OK) {
-        double mag = MAGNITUDE(tgc.h);
-        CHECK(mag > 0.1, "tgc: |H| > 0 after move_end_h_adj_c_d");
-    } else {
-        CHECK(0, "tgc: read_tgc succeeded after move_end_h_adj_c_d");
+    const char *ops[] = { "edit", "tgc", "--list-ops", NULL };
+    CHECK(ged_exec(gedp, 3, ops) == BRLCAD_OK,
+	  "tgc --list-ops succeeds");
+    const char *listed = bu_vls_cstr(gedp->ged_result_str);
+    CHECK(!strstr(listed, "move_end_h_adj_c_d") &&
+	  !strstr(listed, "move_end_h_move_v_adj_a_b"),
+	  "unimplemented TGC moves are not advertised");
+
+    struct rt_tgc_internal before, after;
+    if (read_tgc(gedp, "tgc.s", &before) != BRLCAD_OK) {
+	CHECK(0, "tgc state available before rejected move");
+	return;
     }
+    const char *av[] = { "edit", "tgc.s", "move_end_h_adj_c_d", "20", "0", "8", NULL };
+    CHECK(ged_exec(gedp, 6, av) == BRLCAD_ERROR,
+	  "unimplemented TGC move is rejected");
+    CHECK(read_tgc(gedp, "tgc.s", &after) == BRLCAD_OK &&
+	  VNEAR_EQUAL(before.v, after.v, NEAR_ENOUGH) &&
+	  VNEAR_EQUAL(before.h, after.h, NEAR_ENOUGH),
+	  "rejected TGC move leaves geometry unchanged");
 }
 
 /* 4-14: extrude is in --list-all-prim-ops */
@@ -2639,8 +2742,50 @@ create_p5_fixture(const char *dbpath)
         wdb_close(wdbp);
         return BRLCAD_ERROR;
     }
+    if (mk_arb8(wdbp, "arb8_rotate.s", arb_pts) != 0) {
+	bu_log("mk_arb8 rotation fixture failed\n");
+	db_close(wdbp->dbip);
+	return BRLCAD_ERROR;
+    }
+    fastf_t arb4_pts[4*3] = {
+	-5,-5,-5, 5,-5,-5, -5,5,-5, -5,-5,5
+    };
+    if (mk_arb4(wdbp, "arb4.s", arb4_pts) != 0) {
+	bu_log("mk_arb4 failed\n");
+	db_close(wdbp->dbip);
+	return BRLCAD_ERROR;
+    }
 
     wdb_close(wdbp);
+    return BRLCAD_OK;
+}
+
+static int
+read_p5_pipe_points(struct ged *gedp, size_t *count, fastf_t z, bool *found)
+{
+    struct directory *dp = db_lookup(gedp->dbip, "pipe.s", LOOKUP_QUIET);
+    if (dp == RT_DIR_NULL)
+	return BRLCAD_ERROR;
+
+    struct rt_db_internal intern;
+    RT_DB_INTERNAL_INIT(&intern);
+    int id = rt_db_get_internal(&intern, dp, gedp->dbip, NULL);
+    if (id != ID_PIPE) {
+	if (id > 0)
+	    rt_db_free_internal(&intern);
+	return BRLCAD_ERROR;
+    }
+
+    *count = 0;
+    *found = false;
+    struct rt_pipe_internal *pipe = (struct rt_pipe_internal *)intern.idb_ptr;
+    struct wdb_pipe_pnt *point;
+    for (BU_LIST_FOR(point, wdb_pipe_pnt, &pipe->pipe_segs_head)) {
+	(*count)++;
+	if (NEAR_EQUAL(point->pp_coord[Z], z, NEAR_ENOUGH))
+	    *found = true;
+    }
+    rt_db_free_internal(&intern);
     return BRLCAD_OK;
 }
 
@@ -2679,30 +2824,39 @@ test_p5_pipe_list_ops(struct ged *gedp)
 static void
 test_p5_pipe_select_next_prev(struct ged *gedp)
 {
-    /* Select the point nearest (0,0,0) */
-    {
-        const char *av[] = { "edit", "pipe.s", "select_point", "0", "0", "0", NULL };
-        bu_vls_trunc(gedp->ged_result_str, 0);
-        int ret = ged_exec(gedp, 6, av);
-        CHECK(ret == BRLCAD_OK,
-              "pipe.s select_point 0 0 0 returns OK");
-    }
-    /* Advance to the next point (0,0,10) */
-    {
-        const char *av[] = { "edit", "pipe.s", "next_point", NULL };
-        bu_vls_trunc(gedp->ged_result_str, 0);
-        int ret = ged_exec(gedp, 3, av);
-        CHECK(ret == BRLCAD_OK,
-              "pipe.s next_point returns OK");
-    }
-    /* Step back to the first point */
-    {
-        const char *av[] = { "edit", "pipe.s", "previous_point", NULL };
-        bu_vls_trunc(gedp->ged_result_str, 0);
-        int ret = ged_exec(gedp, 3, av);
-        CHECK(ret == BRLCAD_OK,
-              "pipe.s previous_point returns OK");
-    }
+    auto selected_at = [&](fastf_t z) {
+	struct db_full_path fp;
+	db_full_path_init(&fp);
+	db_add_node_to_full_path(&fp, db_lookup(gedp->dbip, "pipe.s", LOOKUP_QUIET));
+	struct rt_edit *edit = ged_edit_buf_get(gedp, &fp);
+	struct rt_pipe_edit *pipe = edit ? (struct rt_pipe_edit *)edit->ipe_ptr : NULL;
+	bool match = pipe && pipe->es_pipe_pnt &&
+	    NEAR_EQUAL(pipe->es_pipe_pnt->pp_coord[Z], z, NEAR_ENOUGH);
+	db_free_full_path(&fp);
+	return match;
+    };
+
+    const char *no_selection[] = { "edit", "pipe.s", "next_point", NULL };
+    CHECK(ged_exec(gedp, 3, no_selection) == BRLCAD_ERROR,
+	  "pipe next_point without a live selection reports an error");
+
+    const char *select[] = {
+	"edit", "-i", "pipe.s", "select_point", "0", "0", "0", NULL
+    };
+    CHECK(ged_exec(gedp, 7, select) == BRLCAD_OK && selected_at(0.0),
+	  "pipe incremental edit selects the first point");
+
+    const char *next[] = { "edit", "-i", "pipe.s", "next_point", NULL };
+    CHECK(ged_exec(gedp, 4, next) == BRLCAD_OK && selected_at(10.0),
+	  "pipe next_point selects the next point");
+
+    const char *previous[] = { "edit", "-i", "pipe.s", "previous_point", NULL };
+    CHECK(ged_exec(gedp, 4, previous) == BRLCAD_OK && selected_at(0.0),
+	  "pipe previous_point restores the first selection");
+
+    const char *reset[] = { "edit", "pipe.s", "reset", NULL };
+    CHECK(ged_exec(gedp, 3, reset) == BRLCAD_OK,
+	  "pipe reset discards the incremental selection");
 }
 
 /* ------------------------------------------------------------------ *
@@ -2711,26 +2865,27 @@ test_p5_pipe_select_next_prev(struct ged *gedp)
 static void
 test_p5_pipe_append_del(struct ged *gedp)
 {
-    /* Append a new point at (0, 0, 30) */
-    {
-        const char *av[] = { "edit", "pipe.s", "append_point", "0", "0", "30", NULL };
-        bu_vls_trunc(gedp->ged_result_str, 0);
-        CHECK(ged_exec(gedp, 6, av) == BRLCAD_OK,
-              "pipe.s append_point 0 0 30 returns OK");
-    }
-    /* Select that new point */
-    {
-        const char *av[] = { "edit", "pipe.s", "select_point", "0", "0", "30", NULL };
-        bu_vls_trunc(gedp->ged_result_str, 0);
-        ged_exec(gedp, 6, av);
-    }
-    /* Delete it */
-    {
-        const char *av[] = { "edit", "pipe.s", "delete_point", NULL };
-        bu_vls_trunc(gedp->ged_result_str, 0);
-        CHECK(ged_exec(gedp, 3, av) == BRLCAD_OK,
-              "pipe.s delete_point returns OK");
-    }
+    size_t point_count = 0;
+    bool found = false;
+    const char *append[] = {
+	"edit", "pipe.s", "append_point", "1", "0", "30", NULL
+    };
+    CHECK(ged_exec(gedp, 6, append) == BRLCAD_OK &&
+	read_p5_pipe_points(gedp, &point_count, 30.0, &found) == BRLCAD_OK &&
+	point_count == 4 && found,
+	"pipe append persists a fourth point at z=30");
+
+    const char *select[] = {
+	"edit", "-i", "pipe.s", "select_point", "1", "0", "30", NULL
+    };
+    CHECK(ged_exec(gedp, 7, select) == BRLCAD_OK,
+	"pipe selection survives in the intermediate buffer");
+
+    const char *remove[] = { "edit", "pipe.s", "delete_point", NULL };
+    CHECK(ged_exec(gedp, 3, remove) == BRLCAD_OK &&
+	read_p5_pipe_points(gedp, &point_count, 30.0, &found) == BRLCAD_OK &&
+	point_count == 3 && !found,
+	"pipe delete removes the selected appended point");
 }
 
 /* ------------------------------------------------------------------ *
@@ -2751,19 +2906,27 @@ test_p5_pipe_prepend(struct ged *gedp)
 static void
 test_p5_pipe_split(struct ged *gedp)
 {
-    /* First select a point */
-    {
-        const char *av[] = { "edit", "pipe.s", "select_point", "0", "0", "0", NULL };
-        bu_vls_trunc(gedp->ged_result_str, 0);
-        ged_exec(gedp, 6, av);
-    }
-    /* Split segment between point 0 and point 1 */
-    {
-        const char *av[] = { "edit", "pipe.s", "split_segment", "0", "0", "5", NULL };
-        bu_vls_trunc(gedp->ged_result_str, 0);
-        CHECK(ged_exec(gedp, 6, av) == BRLCAD_OK,
-              "pipe.s split_segment 0 0 5 returns OK");
-    }
+    const char *select[] = {
+	"edit", "-i", "pipe.s", "select_point", "0", "0", "-10", NULL
+    };
+    CHECK(ged_exec(gedp, 7, select) == BRLCAD_OK,
+	"pipe split selection remains in the intermediate buffer");
+    const char *next[] = { "edit", "-i", "pipe.s", "next_point", NULL };
+    CHECK(ged_exec(gedp, 4, next) == BRLCAD_OK,
+	"pipe split selects the segment from z=0 to z=10");
+
+    size_t point_count = 0;
+    bool found = false;
+    const char *split[] = {
+	"edit", "pipe.s", "split_segment", "0", "0", "5", NULL
+    };
+    int split_ret = ged_exec(gedp, 6, split);
+    if (split_ret != BRLCAD_OK)
+	bu_log("pipe split: %s\n", bu_vls_cstr(gedp->ged_result_str));
+    CHECK(split_ret == BRLCAD_OK &&
+	read_p5_pipe_points(gedp, &point_count, 5.0, &found) == BRLCAD_OK &&
+	point_count == 5 && found,
+	"pipe split persists a new point at z=5");
 }
 
 /* ------------------------------------------------------------------ *
@@ -2807,9 +2970,43 @@ read_arb8(struct ged *gedp, const char *name, struct rt_arb_internal *out)
         return BRLCAD_ERROR;
     }
     *out = *(struct rt_arb_internal *)intern.idb_ptr;
-    intern.idb_ptr = NULL;
     rt_db_free_internal(&intern);
     return BRLCAD_OK;
+}
+
+static void
+test_p5_arb8_rotate_face(struct ged *gedp)
+{
+    struct rt_arb_internal before, after;
+    if (read_arb8(gedp, "arb8_rotate.s", &before) != BRLCAD_OK) {
+	CHECK(0, "read ARB8 rotation fixture");
+	return;
+    }
+
+    const char *av[] = {
+	"edit", "arb8_rotate.s", "rotate_face", "4", "0", "45", "0", "0", NULL
+    };
+    bu_vls_trunc(gedp->ged_result_str, 0);
+    int ret = ged_exec(gedp, 8, av);
+    if (ret != BRLCAD_OK)
+	bu_log("ARB8 rotation: %s\n", bu_vls_cstr(gedp->ged_result_str));
+    CHECK(ret == BRLCAD_OK, "ARB8 face rotation returns success");
+    if (ret != BRLCAD_OK)
+	return;
+
+    if (read_arb8(gedp, "arb8_rotate.s", &after) != BRLCAD_OK) {
+	CHECK(0, "read ARB8 after face rotation");
+	return;
+    }
+
+    bool moved = false;
+    for (size_t i = 0; i < sizeof(before.pt) / sizeof(before.pt[0]); i++) {
+	if (DIST_PNT_PNT(before.pt[i], after.pt[i]) > VUNITIZE_TOL) {
+	    moved = true;
+	    break;
+	}
+    }
+    CHECK(moved, "ARB8 face rotation persists changed geometry");
 }
 
 static void
@@ -2838,18 +3035,42 @@ test_p5_arb8_move_face(struct ged *gedp)
 }
 
 /* ------------------------------------------------------------------ *
- * arb8: move_vertex (vertex 0 to a new position)                     *
+ * ARB4 supports point movement; ARB8 does not.                       *
  * ------------------------------------------------------------------ */
 static void
-test_p5_arb8_move_vertex(struct ged *gedp)
+test_p5_arb4_move_vertex(struct ged *gedp)
 {
     /* Move vertex 0 (originally at -5,-5,-5) to (-6,-5,-5) */
-    const char *av[] = { "edit", "arb8.s", "move_vertex",
+    const char *av[] = { "edit", "arb4.s", "move_vertex",
                          "0", "-6", "-5", "-5", NULL };
     bu_vls_trunc(gedp->ged_result_str, 0);
     int ret = ged_exec(gedp, 7, av);
+    if (ret != BRLCAD_OK)
+	bu_log("ARB4 move vertex: %s\n", bu_vls_cstr(gedp->ged_result_str));
     CHECK(ret == BRLCAD_OK,
-          "arb8.s move_vertex 0  -6 -5 -5 returns OK");
+          "arb4.s move_vertex 0  -6 -5 -5 returns OK");
+    if (ret == BRLCAD_OK) {
+	struct rt_arb_internal after;
+	point_t expected = {-6, -5, -5};
+	CHECK(read_arb8(gedp, "arb4.s", &after) == BRLCAD_OK &&
+	    VNEAR_EQUAL(after.pt[0], expected, VUNITIZE_TOL),
+	    "arb4.s move_vertex persists the new point");
+    }
+
+    struct rt_arb_internal before;
+    if (read_arb8(gedp, "arb8.s", &before) != BRLCAD_OK) {
+	CHECK(0, "read arb8.s before unsupported vertex move");
+	return;
+    }
+    const char *bad_av[] = { "edit", "arb8.s", "move_vertex",
+	"0", "-6", "-5", "-5", NULL };
+    bu_vls_trunc(gedp->ged_result_str, 0);
+    CHECK(ged_exec(gedp, 7, bad_av) == BRLCAD_ERROR,
+	"arb8.s rejects move_vertex");
+    struct rt_arb_internal unchanged;
+    CHECK(read_arb8(gedp, "arb8.s", &unchanged) == BRLCAD_OK &&
+	VNEAR_EQUAL(before.pt[0], unchanged.pt[0], VUNITIZE_TOL),
+	"rejected arb8 vertex move preserves geometry");
 }
 
 /* ------------------------------------------------------------------ *
@@ -2858,18 +3079,22 @@ test_p5_arb8_move_vertex(struct ged *gedp)
 static void
 test_p5_arb8_type_option(struct ged *gedp)
 {
-    const char *ok_av[] = { "edit", "-O", "type=arb8", "arb8.s", "move_vertex",
-                            "0", "-7", "-5", "-5", NULL };
+    const char *ok_av[] = { "edit", "-O", "type=arb8", "arb8.s", "move_face",
+                            "0", "0", "0", "-8", NULL };
     bu_vls_trunc(gedp->ged_result_str, 0);
-    CHECK(ged_exec(gedp, 9, ok_av) == BRLCAD_OK,
-          "arb8.s move_vertex with -O type=arb8 returns OK");
+    int ret = ged_exec(gedp, 9, ok_av);
+    if (ret != BRLCAD_OK)
+	bu_log("ARB8 move face with type: %s\n",
+	    bu_vls_cstr(gedp->ged_result_str));
+    CHECK(ret == BRLCAD_OK,
+          "arb8.s move_face with -O type=arb8 returns OK");
 
-    const char *bad_av[] = { "edit", "-O", "type=bogus", "arb8.s", "move_vertex",
-                             "0", "-8", "-5", "-5", NULL };
+    const char *bad_av[] = { "edit", "-O", "type=bogus", "arb8.s", "move_face",
+                             "0", "0", "0", "-9", NULL };
     bu_vls_trunc(gedp->ged_result_str, 0);
-    int ret = ged_exec(gedp, 9, bad_av);
+    ret = ged_exec(gedp, 9, bad_av);
     CHECK(ret == BRLCAD_ERROR,
-          "arb8.s move_vertex with invalid -O type=bogus fails");
+          "arb8.s move_face with invalid -O type=bogus fails");
 }
 
 /* ------------------------------------------------------------------ *
@@ -2921,12 +3146,38 @@ create_p6_fixture(const char *dbpath)
         return BRLCAD_ERROR;
     }
 
+    if (mk_id_units(wdbp, "GED BREP edit unit test", "in") != 0) {
+	wdb_close(wdbp);
+	return BRLCAD_ERROR;
+    }
+
     /* Build a BREP sphere at origin, radius 10. */
     ON_3dPoint centre(0.0, 0.0, 0.0);
     ON_Sphere sph(centre, 10.0);
-    ON_Brep *b = ON_BrepSphere(sph);
-    if (!b) {
-        wdb_close(wdbp);
+
+    struct rt_brep_internal *bi;
+    BU_ALLOC(bi, struct rt_brep_internal);
+    bi->magic = RT_BREP_INTERNAL_MAGIC;
+    bi->brep  = ON_BrepSphere(sph);
+
+    if (!bi->brep)
+	bu_exit(1, "ERROR: unable to create GED BREP sphere fixture\n");
+    for (int i = 0; i < bi->brep->m_S.Count(); i++) {
+	ON_Surface *surface = bi->brep->m_S[i];
+	if (!surface)
+	    bu_exit(1, "ERROR: GED BREP fixture has a null surface\n");
+	if (dynamic_cast<ON_NurbsSurface *>(surface))
+	    continue;
+	ON_NurbsSurface *nurbs = new ON_NurbsSurface;
+	if (surface->GetNurbForm(*nurbs, 0.0) <= 0)
+	    bu_exit(1, "ERROR: cannot convert GED BREP fixture to NURBS\n");
+	bi->brep->m_S[i] = nurbs;
+	delete surface;
+    }
+
+    if (wdb_export(wdbp, "brep_sph.s", (void *)bi, ID_BREP, 1.0) < 0) {
+        bu_log("wdb_export brep_sph.s failed\n");
+        db_close(wdbp->dbip);
         return BRLCAD_ERROR;
     }
 
@@ -2940,6 +3191,36 @@ create_p6_fixture(const char *dbpath)
     delete b;
     wdb_close(wdbp);
     return BRLCAD_OK;
+}
+
+static int
+read_brep_cv(struct ged *gedp, int face_index, int cv_i, int cv_j, point_t pos)
+{
+    struct directory *dp = db_lookup(gedp->dbip, "brep_sph.s", LOOKUP_QUIET);
+    if (dp == RT_DIR_NULL)
+	return BRLCAD_ERROR;
+
+    struct rt_db_internal intern;
+    RT_DB_INTERNAL_INIT(&intern);
+    if (rt_db_get_internal(&intern, dp, gedp->dbip, NULL) < 0)
+	return BRLCAD_ERROR;
+
+    int ret = BRLCAD_ERROR;
+    if (intern.idb_type == ID_BREP) {
+	struct rt_brep_internal *bi = (struct rt_brep_internal *)intern.idb_ptr;
+	if (bi->brep && face_index >= 0 && face_index < bi->brep->m_F.Count()) {
+	    ON_BrepFace *face = bi->brep->Face(face_index);
+	    const ON_NurbsSurface *ns = face ?
+		dynamic_cast<const ON_NurbsSurface *>(face->SurfaceOf()) : NULL;
+	    ON_3dPoint cv;
+	    if (ns && ns->GetCV(cv_i, cv_j, cv)) {
+		VSET(pos, cv.x, cv.y, cv.z);
+		ret = BRLCAD_OK;
+	    }
+	}
+    }
+    rt_db_free_internal(&intern);
+    return ret;
 }
 
 /* ------------------------------------------------------------------ *
@@ -2984,15 +3265,24 @@ test_p6_brep_list_ops_json(struct ged *gedp)
 static void
 test_p6_brep_select_and_move(struct ged *gedp)
 {
+    CHECK(NEAR_EQUAL(gedp->dbip->dbi_local2base, 25.4, NEAR_ENOUGH),
+	"brep_sph.s fixture uses inch database units");
+
+    point_t before = VINIT_ZERO;
+    int readable = read_brep_cv(gedp, 0, 0, 0, before);
+    CHECK(readable == BRLCAD_OK, "brep_sph.s move target CV is readable");
+    if (readable != BRLCAD_OK)
+	return;
+
     /* Select face 0, CV (0, 0) */
     {
         const char *av[] = {
-            "edit", "brep_sph.s", "select_surface_cv", "0", "0", "0", NULL
+            "edit", "-i", "brep_sph.s", "select_surface_cv", "0", "0", "0", NULL
         };
         bu_vls_trunc(gedp->ged_result_str, 0);
-        int ret = ged_exec(gedp, 6, av);
+        int ret = ged_exec(gedp, 7, av);
         CHECK(ret == BRLCAD_OK,
-              "brep_sph.s select_surface_cv 0 0 0 returns OK");
+              "brep_sph.s intermediate select_surface_cv 0 0 0 returns OK");
     }
     /* Move the selected CV by (1, 0, 0) */
     {
@@ -3004,6 +3294,13 @@ test_p6_brep_select_and_move(struct ged *gedp)
         CHECK(ret == BRLCAD_OK,
               "brep_sph.s move_surface_cv 1 0 0 returns OK");
     }
+    point_t after = VINIT_ZERO;
+    int persisted = read_brep_cv(gedp, 0, 0, 0, after);
+    CHECK(persisted == BRLCAD_OK &&
+	NEAR_EQUAL(after[X], before[X] + gedp->dbip->dbi_local2base, NEAR_ENOUGH) &&
+	NEAR_EQUAL(after[Y], before[Y], NEAR_ENOUGH) &&
+	NEAR_EQUAL(after[Z], before[Z], NEAR_ENOUGH),
+	"brep_sph.s CV move persists the requested delta");
 }
 
 /* ------------------------------------------------------------------ *
@@ -3015,12 +3312,12 @@ test_p6_brep_select_and_set(struct ged *gedp)
     /* Select face 0, CV (1, 0) */
     {
         const char *av[] = {
-            "edit", "brep_sph.s", "select_surface_cv", "0", "1", "0", NULL
+            "edit", "-i", "brep_sph.s", "select_surface_cv", "0", "1", "0", NULL
         };
         bu_vls_trunc(gedp->ged_result_str, 0);
-        int ret = ged_exec(gedp, 6, av);
+        int ret = ged_exec(gedp, 7, av);
         CHECK(ret == BRLCAD_OK,
-              "brep_sph.s select_surface_cv 0 1 0 returns OK");
+              "brep_sph.s intermediate select_surface_cv 0 1 0 returns OK");
     }
     /* Set the CV to (3, 4, 5) */
     {
@@ -3032,6 +3329,13 @@ test_p6_brep_select_and_set(struct ged *gedp)
         CHECK(ret == BRLCAD_OK,
               "brep_sph.s set_surface_cv_position 3 4 5 returns OK");
     }
+    point_t after = VINIT_ZERO;
+    int persisted = read_brep_cv(gedp, 0, 1, 0, after);
+    CHECK(persisted == BRLCAD_OK &&
+	NEAR_EQUAL(after[X], 3.0 * gedp->dbip->dbi_local2base, NEAR_ENOUGH) &&
+	NEAR_EQUAL(after[Y], 4.0 * gedp->dbip->dbi_local2base, NEAR_ENOUGH) &&
+	NEAR_EQUAL(after[Z], 5.0 * gedp->dbip->dbi_local2base, NEAR_ENOUGH),
+	"brep_sph.s CV set persists the requested position");
 }
 
 /* ------------------------------------------------------------------ *
@@ -3040,14 +3344,22 @@ test_p6_brep_select_and_set(struct ged *gedp)
 static void
 test_p6_brep_bad_face(struct ged *gedp)
 {
+    point_t before = VINIT_ZERO;
+    int readable = read_brep_cv(gedp, 0, 1, 0, before);
+    CHECK(readable == BRLCAD_OK, "brep_sph.s invalid-face target is readable");
     const char *av[] = {
         "edit", "brep_sph.s", "select_surface_cv", "9999", "0", "0", NULL
     };
     bu_vls_trunc(gedp->ged_result_str, 0);
-    /* Bad face should not crash and should emit an out-of-range diagnostic. */
     int ret = ged_exec(gedp, 6, av);
-    CHECK(ret == BRLCAD_OK || ret == BRLCAD_ERROR,
-          "brep_sph.s select_surface_cv 9999 0 0 returns without crash");
+    CHECK(ret == BRLCAD_ERROR, "brep_sph.s rejects an invalid face index");
+    CHECK(strstr(bu_vls_cstr(gedp->ged_result_str), "invalid face index") != NULL,
+          "brep_sph.s reports the invalid face index");
+    point_t after = VINIT_ZERO;
+    CHECK(readable == BRLCAD_OK &&
+	read_brep_cv(gedp, 0, 1, 0, after) == BRLCAD_OK &&
+	VNEAR_EQUAL(after, before, NEAR_ENOUGH),
+	"brep_sph.s invalid face leaves the persisted CV unchanged");
 }
 
 /* ------------------------------------------------------------------ *
@@ -3056,18 +3368,20 @@ test_p6_brep_bad_face(struct ged *gedp)
 static void
 test_p6_brep_move_no_selection(struct ged *gedp)
 {
-    /* First reset selection by making a fresh fixture GED session -
-     * just verify that a fresh object with no selection gives error. */
-    /* We open a fresh ged for isolation so the selection state is clean. */
-    /* (Re-use same db; the edit framework tracks state per ged_exec call.) */
+    point_t before = VINIT_ZERO;
+    int readable = read_brep_cv(gedp, 0, 1, 0, before);
+    CHECK(readable == BRLCAD_OK, "brep_sph.s no-selection target is readable");
     const char *av[] = {
         "edit", "brep_sph.s", "move_surface_cv", "1", "0", "0", NULL
     };
     bu_vls_trunc(gedp->ged_result_str, 0);
-    /* This may succeed or fail depending on prior selection state;
-     * just verify no crash. */
-    (void)ged_exec(gedp, 6, av);
-    CHECK(1, "brep_sph.s move_surface_cv without selection does not crash");
+    CHECK(ged_exec(gedp, 6, av) == BRLCAD_ERROR,
+          "brep_sph.s rejects a CV move without selection");
+    point_t after = VINIT_ZERO;
+    CHECK(readable == BRLCAD_OK &&
+	read_brep_cv(gedp, 0, 1, 0, after) == BRLCAD_OK &&
+	VNEAR_EQUAL(after, before, NEAR_ENOUGH),
+	"brep_sph.s rejected move leaves the persisted CV unchanged");
 }
 
 /* ------------------------------------------------------------------ *
@@ -3085,6 +3399,818 @@ test_p6_all_prim_ops_has_brep(struct ged *gedp)
           "edit --list-all-prim-ops=json includes '\"brep\"'");
 }
 
+
+/* ------------------------------------------------------------------ *
+ * Database unit coverage
+ * ------------------------------------------------------------------ */
+struct unit_sketch_state {
+    size_t vert_count;
+    point2d_t last_vertex;
+    fastf_t arc_radius;
+    int arc_center_is_left;
+    int arc_reverse;
+};
+
+static int
+create_unit_sketch(struct rt_wdb *wdbp, const char *name, fastf_t inch)
+{
+    struct rt_sketch_internal *skt;
+    BU_ALLOC(skt, struct rt_sketch_internal);
+    skt->magic = RT_SKETCH_INTERNAL_MAGIC;
+    VSET(skt->V, 0.0, 0.0, 0.0);
+    VSET(skt->u_vec, 1.0, 0.0, 0.0);
+    VSET(skt->v_vec, 0.0, 1.0, 0.0);
+    skt->vert_count = 3;
+    skt->verts = (point2d_t *)bu_calloc(skt->vert_count,
+	    sizeof(point2d_t), "unit sketch vertices");
+    V2SET(skt->verts[1], inch, 0.0);
+    V2SET(skt->verts[2], inch, inch);
+
+    struct line_seg *line;
+    BU_ALLOC(line, struct line_seg);
+    line->magic = CURVE_LSEG_MAGIC;
+    line->start = 0;
+    line->end = 1;
+
+    struct carc_seg *arc;
+    BU_ALLOC(arc, struct carc_seg);
+    arc->magic = CURVE_CARC_MAGIC;
+    arc->start = 1;
+    arc->end = 2;
+    arc->radius = inch;
+    arc->center_is_left = 1;
+    arc->orientation = 0;
+    arc->center = -1;
+
+    skt->curve.count = 2;
+    skt->curve.segment = (void **)bu_calloc(skt->curve.count,
+	    sizeof(void *), "unit sketch segments");
+    skt->curve.reverse = (int *)bu_calloc(skt->curve.count,
+	    sizeof(int), "unit sketch reverse flags");
+    skt->curve.segment[0] = line;
+    skt->curve.segment[1] = arc;
+    return wdb_export(wdbp, name, (void *)skt, ID_SKETCH, 1.0);
+}
+
+static int
+read_unit_sketch(struct ged *gedp, struct unit_sketch_state *out)
+{
+    struct directory *dp = db_lookup(gedp->dbip, "sketch.s", LOOKUP_QUIET);
+    if (dp == RT_DIR_NULL)
+	return BRLCAD_ERROR;
+
+    struct rt_db_internal intern;
+    RT_DB_INTERNAL_INIT(&intern);
+    if (rt_db_get_internal(&intern, dp, gedp->dbip, NULL) < 0)
+	return BRLCAD_ERROR;
+
+    int ret = BRLCAD_ERROR;
+    if (intern.idb_type == ID_SKETCH) {
+	struct rt_sketch_internal *skt =
+	    (struct rt_sketch_internal *)intern.idb_ptr;
+	if (skt->vert_count && skt->curve.count == 2 &&
+	    skt->curve.segment[1] &&
+	    *(uint32_t *)skt->curve.segment[1] == CURVE_CARC_MAGIC) {
+	    struct carc_seg *arc = (struct carc_seg *)skt->curve.segment[1];
+	    out->vert_count = skt->vert_count;
+	    V2MOVE(out->last_vertex, skt->verts[skt->vert_count - 1]);
+	    out->arc_radius = arc->radius;
+	    out->arc_center_is_left = arc->center_is_left;
+	    out->arc_reverse = skt->curve.reverse ? skt->curve.reverse[1] : 0;
+	    ret = BRLCAD_OK;
+	}
+    }
+    rt_db_free_internal(&intern);
+    return ret;
+}
+
+static int
+create_unit_revolve(struct rt_wdb *wdbp)
+{
+    struct rt_revolve_internal *rip;
+    BU_ALLOC(rip, struct rt_revolve_internal);
+    rip->magic = RT_REVOLVE_INTERNAL_MAGIC;
+    VSET(rip->v3d, 0.0, 0.0, 0.0);
+    VSET(rip->axis3d, 0.0, 0.0, 1.0);
+    VSET(rip->r, 1.0, 0.0, 0.0);
+    rip->ang = M_2PI;
+    bu_vls_init(&rip->sketch_name);
+    bu_vls_strcpy(&rip->sketch_name, "sketch.s");
+    rip->skt = NULL;
+    return wdb_export(wdbp, "revolve.s", (void *)rip, ID_REVOLVE, 1.0);
+}
+
+static int
+create_unit_pipe(struct rt_wdb *wdbp, fastf_t inch)
+{
+    struct bu_list points;
+    mk_pipe_init(&points);
+    point_t first = VINIT_ZERO;
+    point_t middle = {inch, 0.0, 0.0};
+    point_t last = {2.0 * inch, 0.0, 0.0};
+    mk_add_pipe_pnt(&points, first, 0.1 * inch, 0.04 * inch, 0.5 * inch);
+    mk_add_pipe_pnt(&points, middle, 0.1 * inch, 0.04 * inch, 0.5 * inch);
+    mk_add_pipe_pnt(&points, last, 0.1 * inch, 0.04 * inch, 0.5 * inch);
+
+    int ret = mk_pipe(wdbp, "unit_pipe.s", &points);
+    mk_pipe_free(&points);
+    return ret;
+}
+
+static int
+create_unit_vol(struct rt_wdb *wdbp, fastf_t inch)
+{
+    struct rt_vol_internal *vol;
+    BU_ALLOC(vol, struct rt_vol_internal);
+    vol->magic = RT_VOL_INTERNAL_MAGIC;
+    bu_strlcpy(vol->name, "unit_vol.data", RT_VOL_NAME_LEN);
+    vol->datasrc = RT_VOL_SRC_FILE;
+    vol->xdim = 4;
+    vol->ydim = 4;
+    vol->zdim = 4;
+    vol->lo = 5;
+    vol->hi = 250;
+    VSETALL(vol->cellsize, inch);
+    MAT_IDN(vol->mat);
+    vol->map = NULL;
+    vol->bip = NULL;
+    return wdb_export(wdbp, "unit_vol.s", (void *)vol, ID_VOL, 1.0);
+}
+
+static int
+create_unit_fixture(const char *dbpath)
+{
+    const fastf_t inch = 25.4;
+    struct rt_wdb *wdbp = wdb_fopen(dbpath);
+    if (!wdbp)
+        return BRLCAD_ERROR;
+
+    point_t sph_v = {inch, 0.0, 0.0};
+    point_t other_v = {3.0 * inch, 0.0, 0.0};
+    point_t extr_v = VINIT_ZERO;
+    vect_t extr_h = {0.0, 0.0, 1.0};
+    vect_t extr_u = {1.0, 0.0, 0.0};
+    vect_t extr_w = {0.0, 1.0, 0.0};
+    if (mk_id_units(wdbp, "ged edit unit test", "in") != 0 ||
+        mk_sph(wdbp, "sph.s", sph_v, inch) != 0 ||
+        mk_sph(wdbp, "other.s", other_v, inch) != 0 ||
+        mk_sph(wdbp, "scale.s", sph_v, inch) != 0 ||
+        mk_sph(wdbp, "knob.s", sph_v, inch) != 0 ||
+	create_unit_sketch(wdbp, "sketch.s", inch) != 0 ||
+	create_unit_sketch(wdbp, "sketch_other.s", inch) != 0 ||
+	create_unit_sketch(wdbp, "sketch_ops.s", inch) != 0 ||
+	mk_extrusion(wdbp, "extrude.s", "sketch.s", extr_v,
+		extr_h, extr_u, extr_w, 0) != 0 ||
+	create_unit_revolve(wdbp) != 0 ||
+	create_unit_pipe(wdbp, inch) != 0 ||
+	create_unit_vol(wdbp, inch) != 0) {
+        wdb_close(wdbp);
+        return BRLCAD_ERROR;
+    }
+
+    wdb_close(wdbp);
+    return BRLCAD_OK;
+}
+
+static void
+test_unit_sensitive_edits(struct ged *gedp)
+{
+    const fastf_t inch = 25.4;
+    struct rt_ell_internal ell;
+
+    const char *tra[] = { "edit", "sph.s", "tra", "1", "0", "0", NULL };
+    CHECK(ged_exec(gedp, 6, tra) == BRLCAD_OK, "inch edit tra returns OK");
+    CHECK(read_ell(gedp, "sph.s", &ell) == BRLCAD_OK &&
+          NEAR_EQUAL(ell.v[X], 2.0 * inch, NEAR_ENOUGH),
+          "inch edit tra translates by one inch");
+
+    const char *rel[] = { "edit", "sph.s", "translate", "-r", "1", "0", "0", NULL };
+    CHECK(ged_exec(gedp, 7, rel) == BRLCAD_OK, "inch edit translate -r returns OK");
+    CHECK(read_ell(gedp, "sph.s", &ell) == BRLCAD_OK &&
+          NEAR_EQUAL(ell.v[X], 3.0 * inch, NEAR_ENOUGH),
+          "inch edit translate -r translates by one inch");
+
+    const char *abs[] = { "edit", "sph.s", "translate", "-a", "2", "0", "0", NULL };
+    CHECK(ged_exec(gedp, 7, abs) == BRLCAD_OK, "inch edit translate -a returns OK");
+    CHECK(read_ell(gedp, "sph.s", &ell) == BRLCAD_OK &&
+          NEAR_EQUAL(ell.v[X], 2.0 * inch, NEAR_ENOUGH),
+          "inch edit translate -a uses local coordinates");
+
+    const char *obj[] = { "edit", "sph.s", "translate", "other.s", NULL };
+    CHECK(ged_exec(gedp, 4, obj) == BRLCAD_OK, "inch edit translate object returns OK");
+    CHECK(read_ell(gedp, "sph.s", &ell) == BRLCAD_OK &&
+          NEAR_EQUAL(ell.v[X], 3.0 * inch, NEAR_ENOUGH),
+          "inch edit translate object preserves base keypoint units");
+
+    const char *rot[] = { "edit", "sph.s", "rotate", "-c", "0", "0", "0", "-z", "90", NULL };
+    CHECK(ged_exec(gedp, 9, rot) == BRLCAD_OK, "inch edit rotate center returns OK");
+    CHECK(read_ell(gedp, "sph.s", &ell) == BRLCAD_OK &&
+          NEAR_EQUAL(ell.v[X], 0.0, NEAR_ENOUGH) &&
+          NEAR_EQUAL(ell.v[Y], 3.0 * inch, NEAR_ENOUGH),
+          "inch edit rotate center uses local coordinates");
+
+    const char *scale[] = { "edit", "scale.s", "scale", "-c", "0", "0", "0", "2", NULL };
+    CHECK(ged_exec(gedp, 8, scale) == BRLCAD_OK, "inch edit scale center returns OK");
+    CHECK(read_ell(gedp, "scale.s", &ell) == BRLCAD_OK &&
+          NEAR_EQUAL(ell.v[X], 2.0 * inch, NEAR_ENOUGH) &&
+          NEAR_EQUAL(MAGNITUDE(ell.a), 2.0 * inch, NEAR_ENOUGH),
+          "inch edit scale center uses local coordinates");
+
+    const char *scale_ref[] = { "edit", "scale.s", "scale", "-k", "0", "0", "0", "-a", "2", "2", "2", NULL };
+    CHECK(ged_exec(gedp, 11, scale_ref) == BRLCAD_OK, "inch edit scale reference returns OK");
+    CHECK(read_ell(gedp, "scale.s", &ell) == BRLCAD_OK &&
+          NEAR_EQUAL(MAGNITUDE(ell.a), 4.0 * inch, NEAR_ENOUGH),
+          "inch edit scale reference remains a factor");
+
+    const char *set_a[] = { "edit", "sph.s", "set_a", "2", NULL };
+    CHECK(ged_exec(gedp, 4, set_a) == BRLCAD_OK, "inch descriptor set_a returns OK");
+    CHECK(read_ell(gedp, "sph.s", &ell) == BRLCAD_OK &&
+          NEAR_EQUAL(MAGNITUDE(ell.a), 2.0 * inch, NEAR_ENOUGH),
+          "inch descriptor length input uses local coordinates");
+}
+
+static void
+test_unit_sketch_descriptor_edits(struct ged *gedp)
+{
+    const fastf_t inch = 25.4;
+    struct unit_sketch_state skt = {};
+
+    const char *add[] = { "edit", "sketch.s", "add_vertex", "2", "3", NULL };
+    CHECK(ged_exec(gedp, 5, add) == BRLCAD_OK,
+	  "inch sketch add_vertex accepts two UV coordinates");
+    CHECK(read_unit_sketch(gedp, &skt) == BRLCAD_OK &&
+	  skt.vert_count == 4 &&
+	  NEAR_EQUAL(skt.last_vertex[0], 2.0 * inch, NEAR_ENOUGH) &&
+	  NEAR_EQUAL(skt.last_vertex[1], 3.0 * inch, NEAR_ENOUGH),
+	  "inch sketch vertex coordinates are converted once");
+
+    const char *orient[] = { "edit", "sketch.s", "toggle_arc_orient", "1", NULL };
+    CHECK(ged_exec(gedp, 4, orient) == BRLCAD_OK,
+	  "sketch arc orientation accepts an explicit segment index");
+    CHECK(read_unit_sketch(gedp, &skt) == BRLCAD_OK &&
+	  skt.arc_center_is_left == 0,
+	  "sketch arc orientation persists without session selection");
+
+    const char *radius[] = { "edit", "sketch.s", "set_arc_radius", "1", "2", NULL };
+    CHECK(ged_exec(gedp, 5, radius) == BRLCAD_OK,
+	  "inch sketch set_arc_radius accepts segment and radius");
+    CHECK(read_unit_sketch(gedp, &skt) == BRLCAD_OK &&
+	  NEAR_EQUAL(skt.arc_radius, 2.0 * inch, NEAR_ENOUGH),
+	  "inch sketch arc radius is converted once");
+
+    const char *reverse[] = { "edit", "sketch.s", "toggle_seg_reverse", "1", NULL };
+    CHECK(ged_exec(gedp, 4, reverse) == BRLCAD_OK,
+	  "sketch segment reversal accepts an explicit index");
+    CHECK(read_unit_sketch(gedp, &skt) == BRLCAD_OK &&
+	  skt.arc_reverse == 1,
+	  "sketch segment reversal persists");
+
+    const char *tangent[] = {
+	"edit", "sketch.s", "set_arc_tangency", "1", "0", "0", NULL
+    };
+    CHECK(ged_exec(gedp, 6, tangent) == BRLCAD_OK,
+	  "sketch arc tangency accepts arc, adjacent segment and angle");
+    CHECK(read_unit_sketch(gedp, &skt) == BRLCAD_OK &&
+	  NEAR_EQUAL(skt.arc_radius, 0.5 * inch, NEAR_ENOUGH),
+	  "sketch arc tangency computes a base-unit radius");
+
+    const char *bad_radius[] = {
+	"edit", "sketch.s", "set_arc_radius", "999", "1", NULL
+    };
+    CHECK(ged_exec(gedp, 5, bad_radius) == BRLCAD_ERROR,
+	  "sketch arc radius rejects an invalid segment index");
+    CHECK(read_unit_sketch(gedp, &skt) == BRLCAD_OK &&
+	  NEAR_EQUAL(skt.arc_radius, 0.5 * inch, NEAR_ENOUGH),
+	  "invalid sketch edit leaves the persisted arc unchanged");
+}
+
+struct sketch_segment_expected {
+    uint32_t magic;
+    int start;
+    int end;
+};
+
+struct sketch_ops_expected {
+    std::vector<fastf_t> uv;
+    std::vector<sketch_segment_expected> segments;
+};
+
+static bool
+sketch_ops_match(struct ged *gedp, const struct sketch_ops_expected &expected)
+{
+    struct directory *dp = db_lookup(gedp->dbip, "sketch_ops.s", LOOKUP_QUIET);
+    if (dp == RT_DIR_NULL)
+	return false;
+    struct rt_db_internal intern;
+    RT_DB_INTERNAL_INIT(&intern);
+    int type = rt_db_get_internal(&intern, dp, gedp->dbip, NULL);
+    if (type != ID_SKETCH) {
+	if (type > 0)
+	    rt_db_free_internal(&intern);
+	return false;
+    }
+    const struct rt_sketch_internal *sketch =
+	(const struct rt_sketch_internal *)intern.idb_ptr;
+    const fastf_t inch = 25.4;
+    bool ok = sketch->vert_count == expected.uv.size() / 2 &&
+	sketch->curve.count == expected.segments.size();
+    for (size_t i = 0; ok && i < expected.uv.size(); ++i)
+	ok = NEAR_EQUAL(sketch->verts[i / 2][i % 2], expected.uv[i],
+	    NEAR_ENOUGH);
+    for (size_t i = 0; ok && i < expected.segments.size(); ++i) {
+	const struct sketch_segment_expected &segment = expected.segments[i];
+	const void *data = sketch->curve.segment[i];
+	if (!data || *(const uint32_t *)data != segment.magic ||
+	    sketch->curve.reverse[i]) {
+	    ok = false;
+	    break;
+	}
+	if (segment.magic == CURVE_LSEG_MAGIC) {
+	    const struct line_seg *line = (const struct line_seg *)data;
+	    ok = line->start == segment.start && line->end == segment.end;
+	} else {
+	    const struct carc_seg *arc = (const struct carc_seg *)data;
+	    ok = arc->start == segment.start && arc->end == segment.end &&
+		NEAR_EQUAL(arc->radius, inch, NEAR_ENOUGH) &&
+		arc->center_is_left == 1 && arc->orientation == 0;
+	}
+    }
+    rt_db_free_internal(&intern);
+    return ok;
+}
+
+static void
+test_unit_sketch_topology_edits(struct ged *gedp)
+{
+    const fastf_t inch = 25.4;
+    struct sketch_ops_expected expected = {
+	{0, 0, inch, 0, inch, inch},
+	{{CURVE_LSEG_MAGIC, 0, 1}, {CURVE_CARC_MAGIC, 1, 2}}
+    };
+    CHECK(sketch_ops_match(gedp, expected),
+	"inch sketch topology fixture starts with the expected geometry");
+
+    const char *append[] = {
+	"edit", "sketch_ops.s", "append_line", "2", "0", NULL
+    };
+    expected.segments.push_back({CURVE_LSEG_MAGIC, 2, 0});
+    CHECK(ged_exec(gedp, 5, append) == BRLCAD_OK &&
+	sketch_ops_match(gedp, expected),
+	"inch sketch append_line persists the correct endpoints");
+
+    const char *split[] = {
+	"edit", "sketch_ops.s", "split_segment", "0", "0.5", NULL
+    };
+    expected.uv.insert(expected.uv.end(), {0.5 * inch, 0});
+    expected.segments[0].end = 3;
+    expected.segments.insert(expected.segments.begin() + 1,
+	{CURVE_LSEG_MAGIC, 3, 1});
+    CHECK(ged_exec(gedp, 5, split) == BRLCAD_OK &&
+	sketch_ops_match(gedp, expected),
+	"inch sketch split_segment persists the midpoint and both halves");
+
+    const char *remove_line[] = {
+	"edit", "sketch_ops.s", "delete_segment", "3", NULL
+    };
+    expected.segments.pop_back();
+    CHECK(ged_exec(gedp, 4, remove_line) == BRLCAD_OK &&
+	sketch_ops_match(gedp, expected),
+	"inch sketch delete_segment removes the requested line");
+
+    const char *add[] = {
+	"edit", "sketch_ops.s", "add_vertex", "2", "3", NULL
+    };
+    expected.uv.insert(expected.uv.end(), {2 * inch, 3 * inch});
+    CHECK(ged_exec(gedp, 5, add) == BRLCAD_OK &&
+	sketch_ops_match(gedp, expected),
+	"inch sketch add_vertex persists local UV coordinates");
+
+    const char *remove_vertex[] = {
+	"edit", "sketch_ops.s", "delete_vertex", "4", NULL
+    };
+    expected.uv.resize(expected.uv.size() - 2);
+    CHECK(ged_exec(gedp, 4, remove_vertex) == BRLCAD_OK &&
+	sketch_ops_match(gedp, expected),
+	"inch sketch delete_vertex removes the unused index");
+}
+
+static int
+read_unit_extrude_reference(struct ged *gedp, std::string *name)
+{
+    struct directory *dp = db_lookup(gedp->dbip, "extrude.s", LOOKUP_QUIET);
+    if (dp == RT_DIR_NULL)
+	return BRLCAD_ERROR;
+
+    struct rt_db_internal intern;
+    RT_DB_INTERNAL_INIT(&intern);
+    int id = rt_db_get_internal(&intern, dp, gedp->dbip, NULL);
+    if (id != ID_EXTRUDE) {
+	if (id > 0)
+	    rt_db_free_internal(&intern);
+	return BRLCAD_ERROR;
+    }
+
+    struct rt_extrude_internal *extr =
+	(struct rt_extrude_internal *)intern.idb_ptr;
+    name->assign(extr->sketch_name);
+    rt_db_free_internal(&intern);
+    return BRLCAD_OK;
+}
+
+static void
+test_unit_extrude_reference(struct ged *gedp)
+{
+    std::string name;
+    const char *set_ref[] = {
+	"edit", "extrude.s", "referenced_sketch", "sketch_other.s", NULL
+    };
+    CHECK(ged_exec(gedp, 4, set_ref) == BRLCAD_OK,
+	  "extrude referenced_sketch changes the sketch");
+    CHECK(read_unit_extrude_reference(gedp, &name) == BRLCAD_OK &&
+	  name == "sketch_other.s",
+	  "extrude sketch reference persists");
+
+    const char *missing[] = {
+	"edit", "extrude.s", "referenced_sketch", "missing.s", NULL
+    };
+    CHECK(ged_exec(gedp, 4, missing) == BRLCAD_ERROR,
+	  "extrude rejects a missing sketch");
+    CHECK(read_unit_extrude_reference(gedp, &name) == BRLCAD_OK &&
+	  name == "sketch_other.s",
+	  "missing sketch leaves extrusion unchanged");
+
+    const char *wrong_type[] = {
+	"edit", "extrude.s", "referenced_sketch", "sph.s", NULL
+    };
+    CHECK(ged_exec(gedp, 4, wrong_type) == BRLCAD_ERROR,
+	  "extrude rejects a non-sketch reference");
+    CHECK(read_unit_extrude_reference(gedp, &name) == BRLCAD_OK &&
+	  name == "sketch_other.s",
+	  "non-sketch reference leaves extrusion unchanged");
+}
+
+struct unit_revolve_state {
+    point_t vertex;
+    vect_t axis;
+    vect_t start;
+    fastf_t angle;
+    std::string sketch_name;
+    bool sketch_loaded;
+};
+
+static int
+read_unit_revolve(struct ged *gedp, struct unit_revolve_state *out)
+{
+    struct directory *dp = db_lookup(gedp->dbip, "revolve.s", LOOKUP_QUIET);
+    if (dp == RT_DIR_NULL)
+	return BRLCAD_ERROR;
+
+    struct rt_db_internal intern;
+    RT_DB_INTERNAL_INIT(&intern);
+    int id = rt_db_get_internal(&intern, dp, gedp->dbip, NULL);
+    if (id != ID_REVOLVE) {
+	if (id > 0)
+	    rt_db_free_internal(&intern);
+	return BRLCAD_ERROR;
+    }
+
+    struct rt_revolve_internal *rip =
+	(struct rt_revolve_internal *)intern.idb_ptr;
+    VMOVE(out->vertex, rip->v3d);
+    VMOVE(out->axis, rip->axis3d);
+    VMOVE(out->start, rip->r);
+    out->angle = rip->ang;
+    out->sketch_name = bu_vls_cstr(&rip->sketch_name);
+    out->sketch_loaded = rip->skt != NULL;
+    rt_db_free_internal(&intern);
+    return BRLCAD_OK;
+}
+
+static void
+test_unit_revolve_edits(struct ged *gedp)
+{
+    const fastf_t inch = 25.4;
+    struct unit_revolve_state rev = {};
+
+    const char *vertex[] = {
+	"edit", "revolve.s", "set_vertex", "1", "2", "3", NULL
+    };
+    CHECK(ged_exec(gedp, 6, vertex) == BRLCAD_OK &&
+	  read_unit_revolve(gedp, &rev) == BRLCAD_OK &&
+	  NEAR_EQUAL(rev.vertex[X], inch, NEAR_ENOUGH) &&
+	  NEAR_EQUAL(rev.vertex[Y], 2.0 * inch, NEAR_ENOUGH) &&
+	  NEAR_EQUAL(rev.vertex[Z], 3.0 * inch, NEAR_ENOUGH),
+	  "inch revolve vertex edit persists in base units");
+
+    const char *axis[] = {
+	"edit", "revolve.s", "set_axis", "0", "0", "2", NULL
+    };
+    CHECK(ged_exec(gedp, 6, axis) == BRLCAD_OK &&
+	  read_unit_revolve(gedp, &rev) == BRLCAD_OK &&
+	  NEAR_EQUAL(rev.axis[Z], 2.0 * inch, NEAR_ENOUGH),
+	  "inch revolve axis edit persists in base units");
+
+    const char *start[] = {
+	"edit", "revolve.s", "set_start_vector", "3", "0", "0", NULL
+    };
+    CHECK(ged_exec(gedp, 6, start) == BRLCAD_OK &&
+	  read_unit_revolve(gedp, &rev) == BRLCAD_OK &&
+	  NEAR_EQUAL(rev.start[X], 3.0 * inch, NEAR_ENOUGH),
+	  "inch revolve start vector persists in base units");
+
+    const char *angle[] = {
+	"edit", "revolve.s", "set_sweep_angle", "180", NULL
+    };
+    CHECK(ged_exec(gedp, 4, angle) == BRLCAD_OK &&
+	  read_unit_revolve(gedp, &rev) == BRLCAD_OK &&
+	  NEAR_EQUAL(rev.angle, M_PI, NEAR_ENOUGH),
+	  "revolve sweep angle remains unitless");
+
+    const char *sketch[] = {
+	"edit", "revolve.s", "set_sketch_name", "sketch_other.s", NULL
+    };
+    CHECK(ged_exec(gedp, 4, sketch) == BRLCAD_OK &&
+	  read_unit_revolve(gedp, &rev) == BRLCAD_OK &&
+	  rev.sketch_name == "sketch_other.s" && rev.sketch_loaded,
+	  "revolve sketch reference persists and loads");
+
+    const char *missing[] = {
+	"edit", "revolve.s", "set_sketch_name", "missing.s", NULL
+    };
+    CHECK(ged_exec(gedp, 4, missing) == BRLCAD_ERROR &&
+	  read_unit_revolve(gedp, &rev) == BRLCAD_OK &&
+	  rev.sketch_name == "sketch_other.s" && rev.sketch_loaded,
+	  "missing revolve sketch leaves persisted reference unchanged");
+
+    const char *wrong_type[] = {
+	"edit", "revolve.s", "set_sketch_name", "sph.s", NULL
+    };
+    CHECK(ged_exec(gedp, 4, wrong_type) == BRLCAD_ERROR &&
+	  read_unit_revolve(gedp, &rev) == BRLCAD_OK &&
+	  rev.sketch_name == "sketch_other.s" && rev.sketch_loaded,
+	  "non-sketch revolve reference leaves geometry unchanged");
+}
+
+
+struct unit_pipe_state {
+    size_t point_count;
+    point_t first;
+    point_t second;
+    point_t last;
+    fastf_t first_od;
+    fastf_t first_id;
+    fastf_t first_bend;
+    fastf_t second_od;
+    fastf_t second_id;
+    fastf_t second_bend;
+};
+
+static int
+read_unit_pipe(struct ged *gedp, struct unit_pipe_state *out)
+{
+    struct directory *dp = db_lookup(gedp->dbip, "unit_pipe.s", LOOKUP_QUIET);
+    if (dp == RT_DIR_NULL)
+	return BRLCAD_ERROR;
+
+    struct rt_db_internal intern;
+    RT_DB_INTERNAL_INIT(&intern);
+    int id = rt_db_get_internal(&intern, dp, gedp->dbip, NULL);
+    if (id != ID_PIPE) {
+	if (id > 0)
+	    rt_db_free_internal(&intern);
+	return BRLCAD_ERROR;
+    }
+
+    struct rt_pipe_internal *pipe =
+	(struct rt_pipe_internal *)intern.idb_ptr;
+    out->point_count = 0;
+    struct wdb_pipe_pnt *point;
+    for (BU_LIST_FOR(point, wdb_pipe_pnt, &pipe->pipe_segs_head)) {
+	if (out->point_count == 0) {
+	    VMOVE(out->first, point->pp_coord);
+	    out->first_od = point->pp_od;
+	    out->first_id = point->pp_id;
+	    out->first_bend = point->pp_bendradius;
+	} else if (out->point_count == 1) {
+	    VMOVE(out->second, point->pp_coord);
+	    out->second_od = point->pp_od;
+	    out->second_id = point->pp_id;
+	    out->second_bend = point->pp_bendradius;
+	}
+	VMOVE(out->last, point->pp_coord);
+	out->point_count++;
+    }
+    rt_db_free_internal(&intern);
+    return out->point_count >= 2 ? BRLCAD_OK : BRLCAD_ERROR;
+}
+
+static int
+select_unit_pipe_point(struct ged *gedp, const char *x)
+{
+    const char *select[] = {
+	"edit", "-i", "unit_pipe.s", "select_point", x, "0", "0", NULL
+    };
+    return ged_exec(gedp, 7, select);
+}
+
+static void
+test_unit_pipe_edits(struct ged *gedp)
+{
+    const fastf_t inch = 25.4;
+    struct unit_pipe_state pipe = {};
+
+    const char *append[] = {
+	"edit", "unit_pipe.s", "append_point", "3", "0", "0", NULL
+    };
+    CHECK(ged_exec(gedp, 6, append) == BRLCAD_OK &&
+	read_unit_pipe(gedp, &pipe) == BRLCAD_OK &&
+	pipe.point_count == 4 && NEAR_EQUAL(pipe.last[X], 3.0 * inch, NEAR_ENOUGH),
+	"inch pipe append persists a base-unit point");
+
+    const char *prepend[] = {
+	"edit", "unit_pipe.s", "prepend_point", "-1", "0", "0", NULL
+    };
+    CHECK(ged_exec(gedp, 6, prepend) == BRLCAD_OK &&
+	read_unit_pipe(gedp, &pipe) == BRLCAD_OK &&
+	pipe.point_count == 5 && NEAR_EQUAL(pipe.first[X], -inch, NEAR_ENOUGH),
+	"inch pipe prepend persists a base-unit point");
+
+    const char *move[] = {
+	"edit", "unit_pipe.s", "move_point", "-1.5", "0", "0", NULL
+    };
+    CHECK(select_unit_pipe_point(gedp, "-1") == BRLCAD_OK &&
+	ged_exec(gedp, 6, move) == BRLCAD_OK &&
+	read_unit_pipe(gedp, &pipe) == BRLCAD_OK &&
+	NEAR_EQUAL(pipe.first[X], -1.5 * inch, NEAR_ENOUGH),
+	"inch pipe move persists a base-unit point");
+
+    const char *split[] = {
+	"edit", "unit_pipe.s", "split_segment", "-0.75", "0", "0", NULL
+    };
+    CHECK(select_unit_pipe_point(gedp, "-1.5") == BRLCAD_OK &&
+	ged_exec(gedp, 6, split) == BRLCAD_OK &&
+	read_unit_pipe(gedp, &pipe) == BRLCAD_OK &&
+	pipe.point_count == 6 && NEAR_EQUAL(pipe.second[X], -0.75 * inch, NEAR_ENOUGH),
+	"inch pipe split persists a base-unit point");
+
+    const char *remove[] = {
+	"edit", "unit_pipe.s", "delete_point", NULL
+    };
+    CHECK(select_unit_pipe_point(gedp, "-0.75") == BRLCAD_OK &&
+	ged_exec(gedp, 3, remove) == BRLCAD_OK &&
+	read_unit_pipe(gedp, &pipe) == BRLCAD_OK &&
+	pipe.point_count == 5 && NEAR_EQUAL(pipe.second[X], 0.0, NEAR_ENOUGH),
+	"inch pipe delete removes the selected point");
+
+    const char *point_od[] = {
+	"edit", "unit_pipe.s", "set_point_od", "0.2", NULL
+    };
+    CHECK(select_unit_pipe_point(gedp, "-1.5") == BRLCAD_OK &&
+	ged_exec(gedp, 4, point_od) == BRLCAD_OK &&
+	read_unit_pipe(gedp, &pipe) == BRLCAD_OK &&
+	NEAR_EQUAL(pipe.first_od, 0.2 * inch, NEAR_ENOUGH) &&
+	NEAR_EQUAL(pipe.second_od, 0.1 * inch, NEAR_ENOUGH),
+	"inch pipe point OD converts once");
+
+    const char *point_id[] = {
+	"edit", "unit_pipe.s", "set_point_id", "0.05", NULL
+    };
+    CHECK(select_unit_pipe_point(gedp, "-1.5") == BRLCAD_OK &&
+	ged_exec(gedp, 4, point_id) == BRLCAD_OK &&
+	read_unit_pipe(gedp, &pipe) == BRLCAD_OK &&
+	NEAR_EQUAL(pipe.first_id, 0.05 * inch, NEAR_ENOUGH),
+	"inch pipe point ID converts once");
+
+    const char *point_bend[] = {
+	"edit", "unit_pipe.s", "set_point_bend", "0.6", NULL
+    };
+    CHECK(select_unit_pipe_point(gedp, "-1.5") == BRLCAD_OK &&
+	ged_exec(gedp, 4, point_bend) == BRLCAD_OK &&
+	read_unit_pipe(gedp, &pipe) == BRLCAD_OK &&
+	NEAR_EQUAL(pipe.first_bend, 0.6 * inch, NEAR_ENOUGH),
+	"inch pipe point bend converts once");
+
+    const char *pipe_od[] = {
+	"edit", "unit_pipe.s", "set_pipe_od", "0.25", NULL
+    };
+    CHECK(ged_exec(gedp, 4, pipe_od) == BRLCAD_OK &&
+	read_unit_pipe(gedp, &pipe) == BRLCAD_OK &&
+	NEAR_EQUAL(pipe.first_od, 0.25 * inch, NEAR_ENOUGH) &&
+	NEAR_EQUAL(pipe.second_od, 0.125 * inch, NEAR_ENOUGH),
+	"inch pipe OD sets the reference point and scales the pipe");
+
+    const char *pipe_id[] = {
+	"edit", "unit_pipe.s", "set_pipe_id", "0.06", NULL
+    };
+    CHECK(ged_exec(gedp, 4, pipe_id) == BRLCAD_OK &&
+	read_unit_pipe(gedp, &pipe) == BRLCAD_OK &&
+	NEAR_EQUAL(pipe.first_id, 0.06 * inch, NEAR_ENOUGH) &&
+	NEAR_EQUAL(pipe.second_id, 0.048 * inch, NEAR_ENOUGH),
+	"inch pipe ID sets the reference point and scales the pipe");
+
+    const char *pipe_bend[] = {
+	"edit", "unit_pipe.s", "set_pipe_bend", "0.7", NULL
+    };
+    CHECK(ged_exec(gedp, 4, pipe_bend) == BRLCAD_OK &&
+	read_unit_pipe(gedp, &pipe) == BRLCAD_OK &&
+	NEAR_EQUAL(pipe.first_bend, 0.7 * inch, NEAR_ENOUGH) &&
+	NEAR_EQUAL(pipe.second_bend, 0.5 * inch * (0.7 / 0.6), NEAR_ENOUGH),
+	"inch pipe bend sets the reference point and scales the pipe");
+}
+
+struct unit_vol_state {
+    vect_t cellsize;
+    uint32_t lo;
+    uint32_t hi;
+};
+
+static int
+read_unit_vol(struct ged *gedp, struct unit_vol_state *out)
+{
+    struct directory *dp = db_lookup(gedp->dbip, "unit_vol.s", LOOKUP_QUIET);
+    if (dp == RT_DIR_NULL)
+	return BRLCAD_ERROR;
+
+    struct rt_db_internal intern;
+    RT_DB_INTERNAL_INIT(&intern);
+    int id = rt_db_get_internal(&intern, dp, gedp->dbip, NULL);
+    if (id != ID_VOL) {
+	if (id > 0)
+	    rt_db_free_internal(&intern);
+	return BRLCAD_ERROR;
+    }
+
+    struct rt_vol_internal *vol = (struct rt_vol_internal *)intern.idb_ptr;
+    VMOVE(out->cellsize, vol->cellsize);
+    out->lo = vol->lo;
+    out->hi = vol->hi;
+    rt_db_free_internal(&intern);
+    return BRLCAD_OK;
+}
+
+static void
+test_unit_vol_edits(struct ged *gedp)
+{
+    const fastf_t inch = 25.4;
+    struct unit_vol_state vol = {};
+    const vect_t expected = {2.0 * inch, 3.0 * inch, 4.0 * inch};
+
+    const char *size[] = {
+	"edit", "unit_vol.s", "voxel_size_x_y_z", "2", "3", "4", NULL
+    };
+    CHECK(ged_exec(gedp, 7, size) == BRLCAD_OK &&
+	read_unit_vol(gedp, &vol) == BRLCAD_OK &&
+	VNEAR_EQUAL(vol.cellsize, expected, NEAR_ENOUGH),
+	"inch VOL voxel sizes persist in base units");
+
+    const char *invalid_size[] = {
+	"edit", "unit_vol.s", "voxel_size_x_y_z", "2", "-3", "4", NULL
+    };
+    CHECK(ged_exec(gedp, 7, invalid_size) == BRLCAD_ERROR &&
+	read_unit_vol(gedp, &vol) == BRLCAD_OK &&
+	VNEAR_EQUAL(vol.cellsize, expected, NEAR_ENOUGH),
+	"invalid VOL voxel size leaves persisted geometry unchanged");
+
+    const char *low[] = {
+	"edit", "unit_vol.s", "threshold_low", "0", NULL
+    };
+    CHECK(ged_exec(gedp, 4, low) == BRLCAD_OK &&
+	read_unit_vol(gedp, &vol) == BRLCAD_OK && vol.lo == 0,
+	"inch VOL accepts a unitless zero low threshold");
+
+    const char *high[] = {
+	"edit", "unit_vol.s", "threshold_hi", "200", NULL
+    };
+    CHECK(ged_exec(gedp, 4, high) == BRLCAD_OK &&
+	read_unit_vol(gedp, &vol) == BRLCAD_OK && vol.hi == 200,
+	"inch VOL high threshold remains unitless");
+}
+
+static void
+test_unit_sensitive_knob_translation(struct ged *gedp)
+{
+    const fastf_t inch = 25.4;
+    struct db_full_path dfp;
+    db_full_path_init(&dfp);
+    db_add_node_to_full_path(&dfp, db_lookup(gedp->dbip, "knob.s", LOOKUP_QUIET));
+    struct bn_tol tol = BN_TOL_INIT_TOL;
+    struct bview view;
+    bv_init(&view, NULL);
+    struct rt_edit *edit = rt_edit_create(&dfp, gedp->dbip, &tol, &view);
+    vect_t delta = {1.0, 0.0, 0.0};
+
+    CHECK(edit != NULL, "inch rt_edit knob fixture created");
+    if (edit) {
+        VMOVE(edit->curr_e_axes_pos, edit->e_keypoint);
+        rt_knob_edit_tran(edit, 'm', 0, delta);
+        struct rt_ell_internal *ell = (struct rt_ell_internal *)edit->es_int.idb_ptr;
+        CHECK(NEAR_EQUAL(ell->v[X], 2.0 * inch, NEAR_ENOUGH),
+              "inch rt_edit knob translation converts once");
+        rt_edit_destroy(edit);
+    }
+
+    db_free_full_path(&dfp);
+}
 
 /* ================================================================== *
  * main
@@ -3109,6 +4235,84 @@ main(int ac, char *av[])
         bu_log("Usage: %s [-h]\n", av[0]);
         return (need_help) ? 0 : 1;
     }
+
+    /* ---------------------------------------------------------------- *
+     * Database-unit handling
+     * ---------------------------------------------------------------- */
+    struct bu_vls units_path = BU_VLS_INIT_ZERO;
+    if (make_temp_path(&units_path) != BRLCAD_OK) {
+        bu_log("ERROR: cannot create temp file for unit coverage\n"); return 1;
+    }
+    if (create_unit_fixture(bu_vls_cstr(&units_path)) != BRLCAD_OK) {
+        bu_log("ERROR: unit fixture creation failed\n");
+        bu_vls_free(&units_path); return 1;
+    }
+    {
+        struct ged *gedp = open_fixture(bu_vls_cstr(&units_path));
+        if (!gedp) { bu_log("ERROR: ged_open failed (unit coverage)\n"); bu_vls_free(&units_path); return 1; }
+        bu_log("\n--- Database-unit handling ---\n");
+        test_unit_sensitive_edits(gedp);
+	test_unit_sketch_descriptor_edits(gedp);
+	test_unit_sketch_topology_edits(gedp);
+	test_unit_extrude_reference(gedp);
+	test_unit_revolve_edits(gedp);
+	test_unit_pipe_edits(gedp);
+	test_unit_vol_edits(gedp);
+        test_unit_sensitive_knob_translation(gedp);
+        ged_close(gedp);
+    }
+    {
+        struct ged *gedp = open_fixture(bu_vls_cstr(&units_path));
+        if (!gedp) {
+            bu_log("ERROR: cannot reopen unit fixture\n");
+            bu_vls_free(&units_path);
+            return 1;
+        }
+        struct rt_ell_internal ell;
+        const fastf_t inch = 25.4;
+        CHECK(read_ell(gedp, "sph.s", &ell) == BRLCAD_OK &&
+              NEAR_EQUAL(ell.v[Y], 3.0 * inch, NEAR_ENOUGH) &&
+              NEAR_EQUAL(MAGNITUDE(ell.a), 2.0 * inch, NEAR_ENOUGH),
+              "inch edits survive closing and reopening the database");
+	struct unit_sketch_state skt = {};
+	CHECK(read_unit_sketch(gedp, &skt) == BRLCAD_OK &&
+	      skt.vert_count == 4 &&
+	      NEAR_EQUAL(skt.arc_radius, 0.5 * inch, NEAR_ENOUGH) &&
+	      skt.arc_reverse == 1,
+	      "inch sketch edits survive closing and reopening the database");
+	std::string sketch_name;
+	CHECK(read_unit_extrude_reference(gedp, &sketch_name) == BRLCAD_OK &&
+	      sketch_name == "sketch_other.s",
+	      "extrude sketch reference survives database reopen");
+	struct unit_revolve_state rev = {};
+	CHECK(read_unit_revolve(gedp, &rev) == BRLCAD_OK &&
+	      NEAR_EQUAL(rev.vertex[X], inch, NEAR_ENOUGH) &&
+	      NEAR_EQUAL(rev.axis[Z], 2.0 * inch, NEAR_ENOUGH) &&
+	      NEAR_EQUAL(rev.start[X], 3.0 * inch, NEAR_ENOUGH) &&
+	      NEAR_EQUAL(rev.angle, M_PI, NEAR_ENOUGH) &&
+	      rev.sketch_name == "sketch_other.s" && rev.sketch_loaded,
+	      "inch revolve edits survive database reopen");
+	struct unit_pipe_state pipe = {};
+	CHECK(read_unit_pipe(gedp, &pipe) == BRLCAD_OK &&
+	      pipe.point_count == 5 &&
+	      NEAR_EQUAL(pipe.first[X], -1.5 * inch, NEAR_ENOUGH) &&
+	      NEAR_EQUAL(pipe.second[X], 0.0, NEAR_ENOUGH) &&
+	      NEAR_EQUAL(pipe.last[X], 3.0 * inch, NEAR_ENOUGH) &&
+	      NEAR_EQUAL(pipe.first_od, 0.25 * inch, NEAR_ENOUGH) &&
+	      NEAR_EQUAL(pipe.first_id, 0.06 * inch, NEAR_ENOUGH) &&
+	      NEAR_EQUAL(pipe.first_bend, 0.7 * inch, NEAR_ENOUGH),
+	      "inch pipe edits survive database reopen");
+	struct unit_vol_state vol = {};
+	const vect_t expected_vol_cellsize = {
+	    2.0 * inch, 3.0 * inch, 4.0 * inch
+	};
+	CHECK(read_unit_vol(gedp, &vol) == BRLCAD_OK &&
+	      VNEAR_EQUAL(vol.cellsize, expected_vol_cellsize, NEAR_ENOUGH) &&
+	      vol.lo == 0 && vol.hi == 200,
+	      "inch VOL edits survive database reopen");
+        ged_close(gedp);
+    }
+    bu_vls_free(&units_path);
 
     /* ---------------------------------------------------------------- *
      * Section 0 — Infrastructure / smoke tests
@@ -3137,6 +4341,7 @@ main(int ac, char *av[])
         test_p0_obj_nosubcmd(gedp);
         test_p0_perturb(gedp);
         test_p0_hrt_descriptor_ops(gedp);
+        test_p0_conic_semiaxis_errors(gedp);
         test_p0_obj_help_descriptor_ops(gedp);
         test_p0_desc_coverage();
         test_p0_no_desc_returns_error();
@@ -3372,6 +4577,7 @@ main(int ac, char *av[])
         test_p3_tor_set_radius_1(gedp);
         test_p3_tor_set_radius_2(gedp);
         test_p3_tor_r1_alias(gedp);
+        test_p3_tor_invalid_radii(gedp);
         test_p3_ell_set_a(gedp);
         test_p3_ell_a_alias(gedp);
         test_p3_ell_set_abc(gedp);
@@ -3418,7 +4624,7 @@ main(int ac, char *av[])
         test_p4_tgc_move_end_h(gedp);
         test_p4_tgc_rotate_h(gedp);
         test_p4_tgc_rotate_axb(gedp);
-        test_p4_tgc_move_end_h_adj_cd(gedp);
+        test_p4_tgc_unsupported_moves(gedp);
         bu_log("--- eto: ROT_C ---\n");
         test_p4_eto_rotate_c(gedp);
         bu_log("--- cline: MOVE_H ---\n");
@@ -3468,8 +4674,9 @@ main(int ac, char *av[])
         test_p5_arb8_list_ops(gedp);
         test_p5_arb8_list_ops_json(gedp);
         test_p5_all_prim_ops_has_arb8(gedp);
+        test_p5_arb8_rotate_face(gedp);
         test_p5_arb8_move_face(gedp);
-        test_p5_arb8_move_vertex(gedp);
+        test_p5_arb4_move_vertex(gedp);
         test_p5_arb8_type_option(gedp);
         ged_close(gedp);
     }

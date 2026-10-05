@@ -38,7 +38,6 @@
 #include <cmath>
 
 #include "vmath.h"
-#include "bu/app.h"
 #include "bu/log.h"
 #include "bu/malloc.h"
 #include "bu/vls.h"
@@ -86,11 +85,8 @@ reset_s(struct rt_edit *s, struct rt_datum_internal *dp)
 
 
 int
-main(int argc, char *argv[])
+rt_edit_test_datum(void)
 {
-    bu_setprogname(argv[0]);
-    if (argc != 1) return BRLCAD_ERROR;
-
     struct db_i *dbip = db_open_inmem();
     if (dbip == DBI_NULL)
 	bu_exit(1, "ERROR: Unable to create database\n");
@@ -210,6 +206,25 @@ main(int argc, char *argv[])
     if (!NEAR_EQUAL(dp->w, 7.5, SMALL_FASTF))
 	bu_exit(1, "ERROR: set_w: got %g expected 7.5\n", dp->w);
     bu_log("TEST 6 PASS: w = %g\n", dp->w);
+
+    /* The plane scale factor is dimensionless even in a non-mm database. */
+    reset_s(s, dp);
+    s->local2base = 25.4;
+    s->base2local = 1.0 / s->local2base;
+    (*EDOBJ[dir->d_minor_type].ft_set_edit_mode)(s, ECMD_DATUM_SET_W);
+    s->e_inpara = 1;
+    s->e_para[0] = 7.5;
+    rt_edit_process(s);
+
+    fastf_t w_vals[RT_EDIT_MAXPARA] = {0};
+    int w_nvals = (*EDOBJ[dir->d_minor_type].ft_edit_get_params)(s, ECMD_DATUM_SET_W, w_vals);
+    if (!NEAR_EQUAL(dp->w, 7.5, SMALL_FASTF) ||
+	w_nvals != 1 || !NEAR_EQUAL(w_vals[0], 7.5, SMALL_FASTF))
+	bu_exit(1, "ERROR: non-mm set/get w: stored=%g returned=%g\n",
+		dp->w, w_vals[0]);
+    s->local2base = 1.0;
+    s->base2local = 1.0;
+    bu_log("TEST 6 PASS: non-mm w remains dimensionless\n");
 
     /* ================================================================
      * Test 7: rt_edit_datum_get_params returns correct pnt

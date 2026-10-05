@@ -22,54 +22,54 @@
 
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <string.h>
 #include "vmath.h"
 
 #include "bu/log.h"
-#include "bu/malloc.h"
-#include "bu/str.h"
 
 int
 bu_scan_fastf_t(int *c, const char *src, const char *delim, size_t n, ...)
 {
     va_list ap;
     int offset = 0;
-    int current_n = 0, part_n = 0;
-    int len = 0, delim_len;
+    int current_n = 0;
     size_t i;
 
-    if (c)
+    if (c) {
 	*c = 0;
+    }
 
-    if (UNLIKELY(!delim || n < 1)) {
+
+    if (UNLIKELY(!delim || !*delim || n < 1)) {
 	return 0;
     }
 
-    if (src && *src == '\0') {
-	return 0;
-    }
-
-    delim_len = (int)strlen(delim);
     va_start(ap, n);
 
     for (i = 0; i < n; i++) {
-	/* Read in the next fastf_t */
-	double scan = 0;
+	double scan = 0.0;
 	fastf_t *arg;
 
-	len = 0;
-	if (src)
-	    part_n = sscanf(src + offset, "%lf%n", &scan, &len);
-	else
-	    part_n = scanf("%lf%n", &scan, &len);
+	if (src) {
+	    const char *input = src + offset;
+	    char *end;
 
-	if (part_n != 1 || len <= 0) {
-	    break;
+	    scan = strtod(input, &end);
+	    if (end == input) {
+		break;
+	    }
+	    offset += (int)(end - input);
+	} else {
+	    int len = 0;
+
+	    if (scanf("%lf%n", &scan, &len) != 1) {
+		break;
+	    }
+	    offset += len;
 	}
 
-	current_n += part_n;
-	offset += len;
-
+	current_n++;
 	arg = va_arg(ap, fastf_t *);
 	if (arg) {
 	    *arg = (fastf_t)scan;
@@ -79,26 +79,29 @@ bu_scan_fastf_t(int *c, const char *src, const char *delim, size_t n, ...)
 	    break;
 	}
 
-	/* Make sure that a delimiter is present */
 	if (src) {
-	    if (bu_strncmp(src + offset, delim, (size_t)delim_len) != 0) {
+	    const char *input = src + offset;
+
+	    while (*input && strchr(delim, *input)) {
+		input++;
+	    }
+	    if (input == src + offset) {
 		break;
 	    }
-	    offset += delim_len;
+	    offset += (int)(input - (src + offset));
 	} else {
-	    int match = 1;
-	    int d;
-	    for (d = 0; d < delim_len; d++) {
-		int ch = getchar();
-		if (ch != (unsigned char)delim[d]) {
-		    if (ch != EOF)
-			ungetc(ch, stdin);
-		    match = 0;
+	    int character;
+	    int delimiter_count = 0;
+
+	    while ((character = fgetc(stdin)) != EOF) {
+		if (!strchr(delim, character)) {
+		    (void)ungetc(character, stdin);
 		    break;
 		}
+		delimiter_count++;
 		offset++;
 	    }
-	    if (!match) {
+	    if (!delimiter_count) {
 		break;
 	    }
 	}

@@ -23,12 +23,10 @@
  *
  * Reference HRT: V=(0,0,0), xdir=(1,0,0), ydir=(0,1,0), zdir=(0,0,1), d=0.5
  *
- * HRT uses edit_generic (no primitive-specific edit commands). Keypoint
- * is always (0,0,0) because EDOBJ[ID_HRT].ft_keypoint is NULL.
+ * HRT uses edit_generic for matrix edits. Its keypoint is the center v.
  *
- * rt_hrt_mat applies MAT4X3PNT to all four fields: v, xdir, ydir, zdir.
- * Note: xdir, ydir, zdir are treated as absolute points (not direction
- * vectors), so a translation matrix shifts them along with v.
+ * rt_hrt_mat transforms v as a point and xdir, ydir, zdir as vectors.
+ * A translation therefore moves only v.
  *
  * Rotation matrix R = bn_mat_angles(5,5,5) columns:
  *   R[:,0] = ( 0.99240387650610407,  0.09439130678413448, -0.07889757346864876)
@@ -40,7 +38,7 @@
  *   result = original * s for all four fields.
  *
  * Translation (e_para=(10,20,30)) with keypoint (0,0,0), mv_context=1:
- *   All four fields are shifted by (+10,+20,+30).
+ *   v is shifted by (+10,+20,+30); direction vectors are unchanged.
  */
 
 #include "common.h"
@@ -49,7 +47,6 @@
 #include <string.h>
 
 #include "vmath.h"
-#include "bu/app.h"
 #include "bu/log.h"
 #include "bu/malloc.h"
 #include "bu/str.h"
@@ -123,12 +120,8 @@ hrt_reset(struct rt_edit *s, struct rt_hrt_internal *edit_hrt)
 }
 
 int
-main(int argc, char *argv[])
+rt_edit_test_hrt(void)
 {
-    bu_setprogname(argv[0]);
-    if (argc != 1)
-	return BRLCAD_ERROR;
-
     struct db_i *dbip = db_open_inmem();
     if (dbip == DBI_NULL)
 	bu_exit(1, "ERROR: Unable to create database instance\n");
@@ -172,7 +165,7 @@ main(int argc, char *argv[])
      * v → (0,0,0), xdir → (2,0,0), ydir → (0,2,0), zdir → (0,0,2)
      * d unchanged.
      * ================================================================*/
-    /* HRT has no ft_set_edit_mode (NULL); set the flag directly. */
+    /* Select the generic edit flag directly. */
     rt_edit_set_edflag(s, RT_PARAMS_EDIT_SCALE);
     s->e_inpara = 0;
     s->es_scale = 2.0;
@@ -191,12 +184,8 @@ main(int argc, char *argv[])
     /* ================================================================
      * RT_PARAMS_EDIT_TRANS  (translate; keypoint (0,0,0) → e_para)
      *
-     * rt_hrt_mat applies MAT4X3PNT to all four fields.  Translation
-     * matrix shifts all four by (+10,+20,+30).
-     * v → (10,20,30)
-     * xdir: (1,0,0) → (11,20,30)  (translation applied as a point)
-     * ydir: (0,1,0) → (10,21,30)
-     * zdir: (0,0,1) → (10,20,31)
+     * The center moves to (10,20,30); the direction vectors remain
+     * unchanged because rt_hrt_mat transforms them as vectors.
      * ================================================================*/
     hrt_reset(s, edit_hrt);
     rt_edit_set_edflag(s, RT_PARAMS_EDIT_TRANS);
@@ -204,9 +193,9 @@ main(int argc, char *argv[])
     VSET(s->e_para, 10, 20, 30);
 
     VSET(ctrl.v,     10, 20, 30);
-    VSET(ctrl.xdir,  11, 20, 30);
-    VSET(ctrl.ydir,  10, 21, 30);
-    VSET(ctrl.zdir,  10, 20, 31);
+    VSET(ctrl.xdir,  1, 0, 0);
+    VSET(ctrl.ydir,  0, 1, 0);
+    VSET(ctrl.zdir,  0, 0, 1);
 
     rt_edit_process(s);
     if (hrt_diff("RT_PARAMS_EDIT_TRANS", &ctrl, edit_hrt))
@@ -372,6 +361,70 @@ main(int argc, char *argv[])
 		    V3ARGS(kp_world));
 	bu_log("RT_MATRIX_EDIT_TRANS_MODEL_XYZ SUCCESS: "
 	       "keypoint maps to (%g,%g,%g)\n", V3ARGS(kp_world));
+    }
+
+    /* Exercise every HRT-specific command with database-local lengths. */
+    {
+        const fastf_t inch = 25.4;
+        hrt_reset(s, edit_hrt);
+        s->local2base = inch;
+        s->base2local = 1.0 / inch;
+
+        const struct rt_edit_prim_desc *desc = EDOBJ[ID_HRT].ft_edit_desc();
+        if (!desc || desc->ncmd != 5)
+            bu_exit(1, "HRT descriptor is incomplete\n");
+
+        struct hrt_vector_case {
+            int command_id;
+            fastf_t *field;
+            point_t local;
+        };
+        struct hrt_vector_case vector_cases[] = {
+            {desc->cmds[0].cmd_id, edit_hrt->v,    {1.0, 2.0, 3.0}},
+            {desc->cmds[1].cmd_id, edit_hrt->xdir, {2.0, 0.0, 0.0}},
+            {desc->cmds[2].cmd_id, edit_hrt->ydir, {0.0, 3.0, 0.0}},
+            {desc->cmds[3].cmd_id, edit_hrt->zdir, {0.0, 0.0, 4.0}}
+        };
+
+        for (const struct hrt_vector_case &tc : vector_cases) {
+            EDOBJ[ID_HRT].ft_set_edit_mode(s, tc.command_id);
+            s->e_inpara = 3;
+            VMOVE(s->e_para, tc.local);
+            rt_edit_process(s);
+
+            vect_t expected;
+            VSCALE(expected, tc.local, inch);
+            fastf_t values[3] = {0.0, 0.0, 0.0};
+            if (!VNEAR_EQUAL(tc.field, expected, VUNITIZE_TOL) ||
+                EDOBJ[ID_HRT].ft_edit_get_params(s, tc.command_id, values) != 3 ||
+                !VNEAR_EQUAL(values, tc.local, VUNITIZE_TOL))
+                bu_exit(1, "HRT vector command failed for ID %d\n", tc.command_id);
+        }
+
+        EDOBJ[ID_HRT].ft_set_edit_mode(s, desc->cmds[4].cmd_id);
+        s->e_inpara = 1;
+        s->e_para[0] = 0.75;
+        rt_edit_process(s);
+        fastf_t value = 0.0;
+        if (!NEAR_EQUAL(edit_hrt->d, 0.75 * inch, VUNITIZE_TOL) ||
+            EDOBJ[ID_HRT].ft_edit_get_params(s, desc->cmds[4].cmd_id, &value) != 1 ||
+            !NEAR_EQUAL(value, 0.75, VUNITIZE_TOL))
+            bu_exit(1, "HRT cusp-distance command did not convert local units\n");
+
+        EDOBJ[ID_HRT].ft_set_edit_mode(s, desc->cmds[1].cmd_id);
+        s->e_inpara = 3;
+        VSET(s->e_para, 0.0, 1.0, 0.0);
+        vect_t valid_xdir = {2.0 * inch, 0.0, 0.0};
+        if (EDOBJ[ID_HRT].ft_edit(s) != BRLCAD_ERROR ||
+            !VNEAR_EQUAL(edit_hrt->xdir, valid_xdir, VUNITIZE_TOL))
+            bu_exit(1, "HRT accepted an axis parallel to another axis\n");
+
+        EDOBJ[ID_HRT].ft_set_edit_mode(s, desc->cmds[4].cmd_id);
+        s->e_inpara = 1;
+        s->e_para[0] = 0.0;
+        if (EDOBJ[ID_HRT].ft_edit(s) != BRLCAD_ERROR ||
+            !NEAR_EQUAL(edit_hrt->d, 0.75 * inch, VUNITIZE_TOL))
+            bu_exit(1, "HRT accepted a nonpositive cusp distance\n");
     }
 
     rt_edit_destroy(s);

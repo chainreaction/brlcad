@@ -52,7 +52,7 @@
 #include <string.h>
 
 #include "vmath.h"
-#include "bu/app.h"
+#include "bu/bitv.h"
 #include "bu/log.h"
 #include "bu/malloc.h"
 #include "bu/str.h"
@@ -60,6 +60,7 @@
 #include "raytrace.h"
 #include "rt/rt_ecmds.h"
 #include "rt/primitives/bot.h"
+#include "test_utils.h"
 
 
 /* ECMD constants from edbot.c */
@@ -100,6 +101,16 @@ capture_bot_pick(int UNUSED(argc), const char **UNUSED(argv), void *data, void *
     capture->calls++;
     bu_vls_strcpy(&capture->candidates, bu_vls_cstr((struct bu_vls *)edit->u_ptr));
     return BRLCAD_OK;
+}
+
+
+static int
+deny_bot_thickness(int UNUSED(argc), const char **UNUSED(argv), void *data,
+		   void *UNUSED(context))
+{
+    int *calls = (int *)data;
+    ++*calls;
+    return BRLCAD_ERROR;
 }
 
 
@@ -185,12 +196,8 @@ bot_reset(struct rt_edit *s, struct rt_bot_internal *bot, struct rt_bot_edit *b)
 
 
 int
-main(int argc, char *argv[])
+rt_edit_test_bot(void)
 {
-    bu_setprogname(argv[0]);
-    if (argc != 1)
-	return BRLCAD_ERROR;
-
     struct db_i *dbip = db_open_inmem();
     if (dbip == DBI_NULL)
 	bu_exit(1, "ERROR: Unable to create database instance\n");
@@ -394,6 +401,20 @@ main(int argc, char *argv[])
 	       bot->num_vertices, bot->num_faces,
 	       V3ARGS(&bot->vertices[4*3]));
     }
+
+    bot_reset(s, bot, b);
+    /* An edge selection can become stale after a topology change. */
+    bot->faces[0] = 0; bot->faces[1] = 2; bot->faces[2] = 3;
+    bot->faces[3] = 1; bot->faces[4] = 2; bot->faces[5] = 3;
+    int faces_before[12];
+    memcpy(faces_before, bot->faces, sizeof(faces_before));
+    b->bot_verts[0] = 0;
+    b->bot_verts[1] = 1;
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_BOT_ESPLIT);
+    if (rt_edit_process(s) != BRLCAD_ERROR ||
+	bot->num_vertices != 4 || bot->num_faces != 4 ||
+	memcmp(bot->faces, faces_before, sizeof(faces_before)))
+	bu_exit(1, "ERROR: stale BOT edge split changed topology\n");
 
     /* ================================================================
      * ECMD_BOT_FSPLIT: split face {0,2,3} of a fresh tetrahedron
@@ -622,6 +643,32 @@ bu_log("RT_MATRIX_EDIT_TRANS_MODEL_XYZ SUCCESS: "
 	       be->bot_verts[0], be->bot_verts[1], be->bot_verts[2]);
     }
 
+    /* The selected face is labeled at its centroid and marked with one line
+     * from the centroid to each vertex. */
+    {
+	struct rt_point_labels labels[3] = {RT_POINT_LABELS_INIT};
+	point_t lines[2 * 4];
+	mat_t identity;
+	int num_lines = 0;
+	MAT_IDN(identity);
+	EDOBJ[ID_BOT].ft_labels(&num_lines, lines, labels, 3, identity, s, &tol);
+
+	point_t centroid = {1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0};
+	point_t vertices[3] = {{1.0, 0.0, 0.0},
+			       {0.0, 1.0, 0.0},
+			       {0.0, 0.0, 1.0}};
+	if (num_lines != 3 || !BU_STR_EQUAL(labels[0].str, "face") ||
+	    !VNEAR_EQUAL(labels[0].pt, centroid, VUNITIZE_TOL) ||
+	    !BU_STR_EQUAL(labels[1].str, "pt"))
+	    bu_exit(1, "ERROR: selected BOT face label is missing or misplaced\n");
+	for (int i = 0; i < num_lines; ++i) {
+	    if (!VNEAR_EQUAL(lines[i * 2], centroid, VUNITIZE_TOL) ||
+		!VNEAR_EQUAL(lines[i * 2 + 1], vertices[i], VUNITIZE_TOL))
+		bu_exit(1, "ERROR: selected BOT face marker line %d is misplaced\n", i);
+	}
+	bu_log("ECMD_BOT_PICKT label SUCCESS: face centroid is marked\n");
+    }
+
     /* ================================================================
      * ECMD_BOT_MODE (descriptor path): set mode to RT_BOT_SOLID (2)
      * ================================================================*/
@@ -693,6 +740,10 @@ bu_log("RT_MATRIX_EDIT_TRANS_MODEL_XYZ SUCCESS: "
 
 	MAT_IDN(v->gv_view2model);
 	MAT_IDN(v->gv_model2view);
+	vect_t knob_state;
+	VSET(knob_state, 7.0, 8.0, 9.0);
+	VMOVE(s->k.tra_m_abs, knob_state);
+	VMOVE(s->k.tra_v_abs, knob_state);
 	if (rt_edit_map_clbk_set(s->m, ECMD_BOT_PICKT, BU_CLBK_DURING,
 			 capture_bot_pick, &capture) != BRLCAD_OK)
 	    bu_exit(1, "ERROR: Unable to register BOT pick callback\n");
@@ -708,9 +759,231 @@ bu_log("RT_MATRIX_EDIT_TRANS_MODEL_XYZ SUCCESS: "
 	    bu_exit(1, "ERROR: ECMD_BOT_PICKT(mouse): expected both triangles, got '%s'\n",
 		    bu_vls_cstr(&capture.candidates));
 	}
+	if (!VNEAR_EQUAL(s->k.tra_m_abs, knob_state, VUNITIZE_TOL) ||
+	    !VNEAR_EQUAL(s->k.tra_v_abs, knob_state, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BOT mouse triangle pick changed translation state\n");
 	bu_log("ECMD_BOT_PICKT(mouse) SUCCESS: %s\n",
 	       bu_vls_cstr(&capture.candidates));
 	bu_vls_free(&capture.candidates);
+	rt_edit_map_clbk_set(s->m, ECMD_BOT_PICKT, BU_CLBK_DURING, NULL, NULL);
+    }
+
+    /* Vertex and edge picks track the cursor; triangle picking does not. */
+    {
+	bot_reset(s, bot, b);
+	s->local2base = 25.4;
+	s->base2local = 1.0 / s->local2base;
+	MAT_IDN(v->gv_model2view);
+	MAT_IDN(v->gv_view2model);
+	VSETALL(s->curr_e_axes_pos, 0.0);
+	vect_t knob_state;
+	VSET(knob_state, 7.0, 8.0, 9.0);
+	VMOVE(s->k.tra_m_abs, knob_state);
+	VMOVE(s->k.tra_v_abs, knob_state);
+
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_BOT_PICKV);
+	VSET(mousevec, 1.0, 0.0, 0.0);
+	if (EDOBJ[dp->d_minor_type].ft_edit_xy(s, mousevec) != BRLCAD_OK ||
+	    b->bot_verts[0] != 1 || b->bot_verts[1] != -1)
+	    bu_exit(1, "ERROR: BOT mouse vertex pick failed\n");
+	point_t view_target;
+	VSET(view_target, mousevec[X], mousevec[Y], s->curr_e_axes_pos[Z]);
+	if (!edit_test_mouse_knobs_match(s, view_target))
+	    bu_exit(1, "ERROR: BOT mouse vertex pick knobs missed cursor\n");
+
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_BOT_PICKE);
+	VSET(mousevec, 0.5, 0.0, 0.0);
+	if (EDOBJ[dp->d_minor_type].ft_edit_xy(s, mousevec) != BRLCAD_OK ||
+	    b->bot_verts[0] < 0 || b->bot_verts[0] >= 4 ||
+	    b->bot_verts[1] < 0 || b->bot_verts[1] >= 4 ||
+	    b->bot_verts[0] == b->bot_verts[1] || b->bot_verts[2] != -1)
+	    bu_exit(1, "ERROR: BOT mouse edge pick failed\n");
+	VSET(view_target, mousevec[X], mousevec[Y], s->curr_e_axes_pos[Z]);
+	if (!edit_test_mouse_knobs_match(s, view_target))
+	    bu_exit(1, "ERROR: BOT mouse edge pick knobs missed cursor\n");
+    }
+
+    {
+	const fastf_t local2base = 25.4;
+	bot_reset(s, bot, b);
+	s->local2base = local2base;
+	s->base2local = 1.0 / local2base;
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_BOT_MOVEV);
+	b->bot_verts[0] = 2;
+	b->bot_verts[1] = -1;
+	b->bot_verts[2] = -1;
+	s->e_inpara = 3;
+	VSET(s->e_para, 1.0, 2.0, 3.0);
+	rt_edit_process(s);
+	vect_t expected, actual;
+	VSET(expected, local2base, 2.0 * local2base, 3.0 * local2base);
+	if (!VNEAR_EQUAL(&bot->vertices[6], expected, VUNITIZE_TOL) ||
+	    EDOBJ[ID_BOT].ft_edit_get_params(s, ECMD_BOT_MOVEV, actual) != 3)
+	    bu_exit(1, "ERROR: BOT vertex move did not use local units\n");
+	VSET(expected, 1.0, 2.0, 3.0);
+	if (!VNEAR_EQUAL(actual, expected, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BOT vertex getter did not use local units\n");
+	if (!VNEAR_EQUAL(s->e_para, expected, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BOT vertex move changed numeric input\n");
+	VSET(expected, local2base, 2.0 * local2base, 3.0 * local2base);
+	s->e_inpara = 3;
+	if (rt_edit_process(s) != BRLCAD_OK ||
+	    !VNEAR_EQUAL(&bot->vertices[6], expected, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BOT repeated vertex move compounded\n");
+    }
+
+    {
+	const fastf_t inch = 25.4;
+	bot_reset(s, bot, b);
+	s->local2base = inch;
+	s->base2local = 1.0 / inch;
+
+	EDOBJ[ID_BOT].ft_set_edit_mode(s, ECMD_BOT_MODE);
+	s->e_inpara = 1;
+	s->e_para[0] = RT_BOT_PLATE;
+	rt_edit_process(s);
+	if (bot->mode != RT_BOT_PLATE || !bot->thickness || !bot->face_mode)
+	    bu_exit(1, "ERROR: BOT plate mode did not allocate face data\n");
+
+	EDOBJ[ID_BOT].ft_set_edit_mode(s, ECMD_BOT_THICK);
+	s->e_inpara = 1;
+	s->e_para[0] = 0.0;
+	rt_edit_process(s);
+	for (size_t i = 0; i < bot->num_faces; i++) {
+	    if (!ZERO(bot->thickness[i]))
+		bu_exit(1, "ERROR: rejected BOT thickness changed a face\n");
+	}
+
+	EDOBJ[ID_BOT].ft_set_edit_mode(s, ECMD_BOT_THICK);
+	s->e_inpara = 1;
+	s->e_para[0] = 2.0;
+	rt_edit_process(s);
+	for (size_t i = 0; i < bot->num_faces; i++) {
+	    if (!NEAR_EQUAL(bot->thickness[i], 2.0 * inch, VUNITIZE_TOL))
+		bu_exit(1, "ERROR: BOT all-face thickness ignored inch units\n");
+	}
+
+	int denied_calls = 0;
+	if (rt_edit_map_clbk_set(s->m, ECMD_BOT_THICK, BU_CLBK_DURING,
+		deny_bot_thickness, &denied_calls) != BRLCAD_OK)
+	    bu_exit(1, "ERROR: unable to register BOT confirmation callback\n");
+	EDOBJ[ID_BOT].ft_set_edit_mode(s, ECMD_BOT_THICK);
+	s->e_inpara = 1;
+	s->e_para[0] = 4.0;
+	rt_edit_process(s);
+	rt_edit_map_clbk_set(s->m, ECMD_BOT_THICK, BU_CLBK_DURING, NULL, NULL);
+	if (denied_calls != 1 ||
+	    !NEAR_EQUAL(bot->thickness[0], 2.0 * inch, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: rejected BOT thickness edit changed a face\n");
+
+	b->bot_verts[0] = 0;
+	b->bot_verts[1] = 1;
+	b->bot_verts[2] = 2;
+	EDOBJ[ID_BOT].ft_set_edit_mode(s, ECMD_BOT_THICK);
+	s->e_inpara = 1;
+	s->e_para[0] = 3.0;
+	rt_edit_process(s);
+	fastf_t value[3] = {0};
+	if (!NEAR_EQUAL(bot->thickness[0], 3.0 * inch, VUNITIZE_TOL) ||
+	    !NEAR_EQUAL(bot->thickness[1], 2.0 * inch, VUNITIZE_TOL) ||
+	    EDOBJ[ID_BOT].ft_edit_get_params(s, ECMD_BOT_THICK, value) != 1 ||
+	    !NEAR_EQUAL(value[0], 3.0, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BOT selected-face thickness or units failed\n");
+
+	EDOBJ[ID_BOT].ft_set_edit_mode(s, ECMD_BOT_FMODE);
+	s->e_inpara = 1;
+	s->e_para[0] = 1.0;
+	rt_edit_process(s);
+	if (!BU_BITTEST(bot->face_mode, 0) || BU_BITTEST(bot->face_mode, 1))
+	    bu_exit(1, "ERROR: BOT selected-face mode failed\n");
+
+	EDOBJ[ID_BOT].ft_set_edit_mode(s, ECMD_BOT_FDEL);
+	rt_edit_process(s);
+	if (bot->num_faces != 3 || bot->faces[0] != 0 ||
+	    bot->faces[1] != 1 || bot->faces[2] != 3 ||
+	    !NEAR_EQUAL(bot->thickness[0], 2.0 * inch, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BOT face deletion damaged face data\n");
+
+	EDOBJ[ID_BOT].ft_set_edit_mode(s, ECMD_BOT_MODE);
+	s->e_inpara = 1;
+	s->e_para[0] = RT_BOT_SOLID;
+	rt_edit_process(s);
+	if (bot->mode != RT_BOT_SOLID || bot->thickness || bot->face_mode)
+	    bu_exit(1, "ERROR: BOT solid mode retained plate data\n");
+
+	EDOBJ[ID_BOT].ft_set_edit_mode(s, ECMD_BOT_ORIENT);
+	s->e_inpara = 1;
+	s->e_para[0] = RT_BOT_CW;
+	rt_edit_process(s);
+	if (bot->orientation != RT_BOT_CW)
+	    bu_exit(1, "ERROR: BOT orientation edit failed\n");
+
+	EDOBJ[ID_BOT].ft_set_edit_mode(s, ECMD_BOT_FLAGS);
+	s->e_inpara = 1;
+	s->e_para[0] = RT_BOT_USE_FLOATS;
+	rt_edit_process(s);
+	if (bot->bot_flags != RT_BOT_USE_FLOATS)
+	    bu_exit(1, "ERROR: BOT flags edit failed\n");
+
+	EDOBJ[ID_BOT].ft_set_edit_mode(s, ECMD_BOT_THICK);
+	s->e_inpara = 1;
+	s->e_para[0] = 1.0;
+	rt_edit_process(s);
+	if (bot->thickness)
+	    bu_exit(1, "ERROR: non-plate BOT accepted face thickness\n");
+
+	bot_reset(s, bot, b);
+	b->bot_verts[0] = 0;
+	b->bot_verts[1] = 1;
+	EDOBJ[ID_BOT].ft_set_edit_mode(s, ECMD_BOT_MOVEE);
+	s->e_inpara = 3;
+	VSET(s->e_para, 1.0, 0, 0);
+	rt_edit_process(s);
+	point_t edge0 = {inch, 0, 0};
+	point_t edge1 = {inch + 1, 0, 0};
+	point_t unchanged = {0, 1, 0};
+	if (!VNEAR_EQUAL(&bot->vertices[0], edge0, VUNITIZE_TOL) ||
+	    !VNEAR_EQUAL(&bot->vertices[3], edge1, VUNITIZE_TOL) ||
+	    !VNEAR_EQUAL(&bot->vertices[6], unchanged, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BOT edge move ignored inch units\n");
+	if (!NEAR_EQUAL(s->e_para[X], 1.0, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BOT edge move changed numeric input\n");
+	s->e_inpara = 3;
+	if (rt_edit_process(s) != BRLCAD_OK ||
+	    !VNEAR_EQUAL(&bot->vertices[0], edge0, VUNITIZE_TOL) ||
+	    !VNEAR_EQUAL(&bot->vertices[3], edge1, VUNITIZE_TOL) ||
+	    !VNEAR_EQUAL(&bot->vertices[6], unchanged, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BOT repeated edge move compounded\n");
+
+	bot_reset(s, bot, b);
+	b->bot_verts[0] = 0;
+	b->bot_verts[1] = 1;
+	b->bot_verts[2] = 2;
+	EDOBJ[ID_BOT].ft_set_edit_mode(s, ECMD_BOT_MOVET);
+	s->e_inpara = 3;
+	VSET(s->e_para, 0, 1.0, 0);
+	rt_edit_process(s);
+	point_t face0 = {0, inch, 0};
+	point_t face1 = {1, inch, 0};
+	point_t face2 = {0, inch + 1, 0};
+	point_t face3 = {0, 0, 1};
+	if (!VNEAR_EQUAL(&bot->vertices[0], face0, VUNITIZE_TOL) ||
+	    !VNEAR_EQUAL(&bot->vertices[3], face1, VUNITIZE_TOL) ||
+	    !VNEAR_EQUAL(&bot->vertices[6], face2, VUNITIZE_TOL) ||
+	    !VNEAR_EQUAL(&bot->vertices[9], face3, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BOT face move ignored inch units\n");
+	if (!NEAR_EQUAL(s->e_para[Y], 1.0, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BOT face move changed numeric input\n");
+	s->e_inpara = 3;
+	if (rt_edit_process(s) != BRLCAD_OK ||
+	    !VNEAR_EQUAL(&bot->vertices[0], face0, VUNITIZE_TOL) ||
+	    !VNEAR_EQUAL(&bot->vertices[3], face1, VUNITIZE_TOL) ||
+	    !VNEAR_EQUAL(&bot->vertices[6], face2, VUNITIZE_TOL) ||
+	    !VNEAR_EQUAL(&bot->vertices[9], face3, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BOT repeated face move compounded\n");
+
+	s->local2base = 1.0;
+	s->base2local = 1.0;
     }
 
     bu_log("All BOT tests PASSED\n");

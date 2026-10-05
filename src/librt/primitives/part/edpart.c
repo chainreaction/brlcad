@@ -23,16 +23,15 @@
 
 #include "common.h"
 
-#include <math.h>
-#include <string.h>
-
 #include "vmath.h"
+#include "bu/str.h"
 #include "nmg.h"
 #include "raytrace.h"
 #include "rt/geom.h"
 #include "wdb.h"
 
 #include "../edit_private.h"
+#include "part_private.h"
 
 #define ECMD_PART_H		16088
 #define ECMD_PART_VRAD		16089
@@ -192,16 +191,6 @@ rt_edit_part_write_params(
     bu_vls_printf(p, "h radius: %.9f\n", part->part_hrad * base2local);
 }
 
-#define read_params_line_incr \
-    lc = (ln) ? (ln + lcj) : NULL; \
-    if (!lc) { \
-	bu_free(wc, "wc"); \
-	return BRLCAD_ERROR; \
-    } \
-    ln = strchr(lc, tc); \
-    if (ln) *ln = '\0'; \
-    while (lc && strchr(lc, ':')) lc++
-
 C_DECL int
 rt_edit_part_read_params(
 	struct rt_db_internal *ip,
@@ -210,151 +199,54 @@ rt_edit_part_read_params(
 	fastf_t local2base
 	)
 {
-    double a = 0.0;
-    double b = 0.0;
-    double c = 0.0;
     struct rt_part_internal *part = (struct rt_part_internal *)ip->idb_ptr;
     RT_PART_CK_MAGIC(part);
 
     if (!fc)
 	return BRLCAD_ERROR;
 
-    // We're getting the file contents as a string, so we need to split it up
-    // to process lines. See https://stackoverflow.com/a/17983619
+    struct rt_part_internal staged = *part;
+    char *buffer = bu_strdup(fc);
+    char *cursor = buffer;
+    int result = BRLCAD_ERROR;
+    if (edit_param_read_vector(staged.part_V, &cursor, "Vertex", local2base) != BRLCAD_OK ||
+	edit_param_read_vector(staged.part_H, &cursor, "Height", local2base) != BRLCAD_OK ||
+	edit_param_read_scalar(&staged.part_vrad, &cursor, "v radius", local2base) != BRLCAD_OK ||
+	edit_param_read_scalar(&staged.part_hrad, &cursor, "h radius", local2base) != BRLCAD_OK ||
+	edit_param_next_line(&cursor) ||
+	part_update_type(&staged) != BRLCAD_OK)
+	goto cleanup;
 
-    // Figure out if we need to deal with Windows line endings
-    const char *crpos = strchr(fc, '\r');
-    int crlf = (crpos && crpos[1] == '\n') ? 1 : 0;
-    char tc = (crlf) ? '\r' : '\n';
-    // If we're CRLF jump ahead another character.
-    int lcj = (crlf) ? 2 : 1;
+    *part = staged;
+    result = BRLCAD_OK;
 
-    char *ln = NULL;
-    char *wc = bu_strdup(fc);
-    char *lc = wc;
-
-    // Set up initial line (Vertex)
-    ln = strchr(lc, tc);
-    if (ln) *ln = '\0';
-
-    // Trim off prefixes, if user left them in
-    while (lc && strchr(lc, ':')) lc++;
-
-    // Read the numbers
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(part->part_V, a, b, c);
-    VSCALE(part->part_V, part->part_V, local2base);
-
-    // Set up Height line
-    read_params_line_incr;
-
-    // Read the numbers
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(part->part_H, a, b, c);
-    VSCALE(part->part_H, part->part_H, local2base);
-
-    // Set up v radius line
-    read_params_line_incr;
-
-    // Read the numbers
-    sscanf(lc, "%lf", &a);
-    part->part_vrad = a * local2base;
-
-    // Set up h radius line
-    read_params_line_incr;
-
-    // Read the numbers
-    sscanf(lc, "%lf", &a);
-    part->part_hrad = a * local2base;
-
-    // Cleanup
-    bu_free(wc, "wc");
-    return BRLCAD_OK;
-}
-
-/* scale vector H */
-void
-ecmd_part_h(struct rt_edit *s)
-{
-    struct rt_part_internal *part =
-	(struct rt_part_internal *)s->es_int.idb_ptr;
-
-    RT_PART_CK_MAGIC(part);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(part->part_H);
-    }
-    VSCALE(part->part_H, part->part_H, s->es_scale);
-}
-
-/* scale v end radius */
-void
-ecmd_part_v(struct rt_edit *s)
-{
-    struct rt_part_internal *part =
-	(struct rt_part_internal *)s->es_int.idb_ptr;
-
-    RT_PART_CK_MAGIC(part);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / part->part_vrad;
-    }
-    part->part_vrad *= s->es_scale;
-}
-
-/* scale h end radius */
-void
-ecmd_part_h_end_r(struct rt_edit *s)
-{
-    struct rt_part_internal *part =
-	(struct rt_part_internal *)s->es_int.idb_ptr;
-
-    RT_PART_CK_MAGIC(part);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / part->part_hrad;
-    }
-    part->part_hrad *= s->es_scale;
+cleanup:
+    bu_free(buffer, "PART parameter text");
+    return result;
 }
 
 static int
 rt_edit_part_pscale(struct rt_edit *s)
 {
-    if (s->e_inpara > 1) {
-	bu_vls_printf(s->log_str, "ERROR: only one argument needed\n");
-	s->e_inpara = 0;
-	return BRLCAD_ERROR;
-    }
+    struct rt_part_internal *part = (struct rt_part_internal *)s->es_int.idb_ptr;
+    RT_PART_CK_MAGIC(part);
 
-    if (s->e_inpara) {
-	if (s->e_para[0] <= 0.0) {
-	    bu_vls_printf(s->log_str, "ERROR: SCALE FACTOR <= 0\n");
-	    s->e_inpara = 0;
-	    return BRLCAD_ERROR;
-	}
-
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
-    }
-
+    vect_t *axis = NULL;
+    fastf_t *radius = NULL;
     switch (s->edit_flag) {
 	case ECMD_PART_H:
-	    ecmd_part_h(s);
+	    axis = &part->part_H;
 	    break;
 	case ECMD_PART_VRAD:
-	    ecmd_part_v(s);
+	    radius = &part->part_vrad;
 	    break;
 	case ECMD_PART_HRAD:
-	    ecmd_part_h_end_r(s);
+	    radius = &part->part_hrad;
 	    break;
-    };
-
-    return 0;
+	default:
+	    return BRLCAD_ERROR;
+    }
+    return edit_scale_length(s, axis, radius);
 }
 
 C_DECL int

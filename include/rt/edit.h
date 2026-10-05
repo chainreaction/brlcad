@@ -465,6 +465,17 @@ rt_get_solid_keypoint(struct rt_edit *s, point_t *pt, const char **strp, fastf_t
 RT_EXPORT extern void
 rt_edit_set_edflag(struct rt_edit *s, int edflag);
 
+/**
+ * Set a parameter-edit translation target expressed in model base units.
+ *
+ * rt_edit's parameter-edit handlers consume e_para in database local units,
+ * while keypoints and edit axes are maintained in model base units.  This
+ * helper performs the boundary conversion for callers that have computed a
+ * target from a keypoint, axis, or view transform.
+ */
+RT_EXPORT extern void
+rt_edit_set_translation_target(struct rt_edit *s, const point_t target);
+
 RT_EXPORT extern int
 rt_edit_knob_cmd_process(
 	struct rt_edit *s,
@@ -499,8 +510,10 @@ rt_knob_edit_sca(
 	int matrix_edit);
 
 /* Equivalent to sedit - run editing logic after input data is set in
- * rt_edit container */
-RT_EXPORT extern void
+ * rt_edit container.  Transient input flags are consumed whether the edit
+ * succeeds or fails; parameter values remain available to the caller.
+ * Returns BRLCAD_ERROR if the primitive edit fails. */
+RT_EXPORT extern int
 rt_edit_process(struct rt_edit *s);
 
 /**
@@ -521,7 +534,7 @@ rt_edit_snap_point(point2d_t pt, const struct rt_edit *s);
  * restored later with rt_edit_revert().
  *
  * The snapshot is stored inside the rt_edit struct.  Calling this
- * function again overwrites any previous snapshot (single-level undo).
+ * function again replaces the previous snapshot only on success.
  *
  * @return BRLCAD_OK on success, BRLCAD_ERROR if the export failed.
  */
@@ -532,8 +545,8 @@ rt_edit_checkpoint(struct rt_edit *s);
  * Restore primitive parameters from the snapshot saved by
  * rt_edit_checkpoint().
  *
- * If no snapshot has been saved (or the last snapshot was already
- * consumed) this function logs a message and returns BRLCAD_ERROR.
+ * The snapshot remains available for repeated restores.  If none has
+ * been saved, this function logs a message and returns BRLCAD_ERROR.
  *
  * @return BRLCAD_OK on success, BRLCAD_ERROR otherwise.
  */
@@ -697,7 +710,11 @@ enum rt_constraint_edit_op_kind {
     RT_CONSTRAINT_EDIT_OP_SET_BEND,
     RT_CONSTRAINT_EDIT_OP_SCALE_OD,
     RT_CONSTRAINT_EDIT_OP_SCALE_ID,
-    RT_CONSTRAINT_EDIT_OP_SCALE_BEND
+    RT_CONSTRAINT_EDIT_OP_SCALE_BEND,
+    /* Set every point when an all-zero dimension has no scale reference. */
+    RT_CONSTRAINT_EDIT_OP_SET_ALL_OD,
+    RT_CONSTRAINT_EDIT_OP_SET_ALL_ID,
+    RT_CONSTRAINT_EDIT_OP_SET_ALL_BEND
 };
 
 struct rt_constraint_edit_param_ref {

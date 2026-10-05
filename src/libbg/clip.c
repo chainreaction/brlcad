@@ -128,6 +128,7 @@ bg_ray_vclip(point_t a, point_t b, const fastf_t *min_pt, const fastf_t *max_pt)
     double sv;
     double st;
     double mindist, maxdist;
+
     fastf_t *pt;
     fastf_t *dir;
     int i;

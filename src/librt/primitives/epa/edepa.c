@@ -196,16 +196,6 @@ rt_edit_epa_write_params(
     bu_vls_printf(p, "Semi-minor length: %.9f\n", epa->epa_r2 * base2local);
 }
 
-#define read_params_line_incr \
-    lc = (ln) ? (ln + lcj) : NULL; \
-    if (!lc) { \
-	bu_free(wc, "wc"); \
-	return BRLCAD_ERROR; \
-    } \
-    ln = strchr(lc, tc); \
-    if (ln) *ln = '\0'; \
-    while (lc && strchr(lc, ':')) lc++
-
 C_DECL int
 rt_edit_epa_read_params(
 	struct rt_db_internal *ip,
@@ -214,68 +204,21 @@ rt_edit_epa_read_params(
 	fastf_t local2base
 	)
 {
-    double a = 0.0;
-    double b = 0.0;
-    double c = 0.0;
     struct rt_epa_internal *epa = (struct rt_epa_internal *)ip->idb_ptr;
     RT_EPA_CK_MAGIC(epa);
-
-    if (!fc)
+    struct rt_epa_internal candidate = *epa;
+    const struct edit_param_field fields[] = {
+	{"Vertex", candidate.epa_V, ELEMENTS_PER_VECT, local2base},
+	{"Height", candidate.epa_H, ELEMENTS_PER_VECT, local2base},
+	{"Semi-major axis", candidate.epa_Au, ELEMENTS_PER_VECT, 1.0},
+	{"Semi-major length", &candidate.epa_r1, 1, local2base},
+	{"Semi-minor length", &candidate.epa_r2, 1, local2base}
+    };
+    if (edit_param_read_fields(fc, fields, sizeof(fields) / sizeof(fields[0])) != BRLCAD_OK ||
+	ZERO(MAGNITUDE(candidate.epa_Au)))
 	return BRLCAD_ERROR;
-
-    // We're getting the file contents as a string, so we need to split it up
-    // to process lines. See https://stackoverflow.com/a/17983619
-
-    // Figure out if we need to deal with Windows line endings
-    const char *crpos = strchr(fc, '\r');
-    int crlf = (crpos && crpos[1] == '\n') ? 1 : 0;
-    char tc = (crlf) ? '\r' : '\n';
-    // If we're CRLF jump ahead another character.
-    int lcj = (crlf) ? 2 : 1;
-
-    char *ln = NULL;
-    char *wc = bu_strdup(fc);
-    char *lc = wc;
-
-    // Set up initial line (Vertex)
-    ln = strchr(lc, tc);
-    if (ln) *ln = '\0';
-
-    // Trim off prefixes, if user left them in
-    while (lc && strchr(lc, ':')) lc++;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(epa->epa_V, a, b, c);
-    VSCALE(epa->epa_V, epa->epa_V, local2base);
-
-    // Set up Height line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(epa->epa_H, a, b, c);
-    VSCALE(epa->epa_H, epa->epa_H, local2base);
-
-    // Set up Semi-major axis line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(epa->epa_Au, a, b, c);
-    VUNITIZE(epa->epa_Au);
-
-    // Set up Semi-major length line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf", &a);
-    epa->epa_r1 = a * local2base;
-
-    // Set up Semi-minor length line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf", &a);
-    epa->epa_r2 = a * local2base;
-
-    // Cleanup
-    bu_free(wc, "wc");
+    VUNITIZE(candidate.epa_Au);
+    *epa = candidate;
     return BRLCAD_OK;
 }
 
@@ -287,84 +230,74 @@ ecmd_epa_h(struct rt_edit *s)
 	(struct rt_epa_internal *)s->es_int.idb_ptr;
 
     RT_EPA_CK_MAGIC(epa);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(epa->epa_H);
-    }
     VSCALE(epa->epa_H, epa->epa_H, s->es_scale);
 }
 
 /* scale semimajor axis of EPA */
-void
+static int
 ecmd_epa_r1(struct rt_edit *s)
 {
     struct rt_epa_internal *epa =
 	(struct rt_epa_internal *)s->es_int.idb_ptr;
 
     RT_EPA_CK_MAGIC(epa);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / epa->epa_r1;
-    }
-    if (epa->epa_r1 * s->es_scale >= epa->epa_r2)
+    if (epa->epa_r1 * s->es_scale >= epa->epa_r2) {
 	epa->epa_r1 *= s->es_scale;
-    else
-	bu_log("pscale:  semi-minor axis cannot be longer than semi-major axis!");
+	return BRLCAD_OK;
+    }
+    bu_vls_printf(s->log_str, "Semi-major axis cannot be shorter than semi-minor axis\n");
+    return BRLCAD_ERROR;
 }
 
 /* scale semiminor axis of EPA */
-void
+static int
 ecmd_epa_r2(struct rt_edit *s)
 {
     struct rt_epa_internal *epa =
 	(struct rt_epa_internal *)s->es_int.idb_ptr;
 
     RT_EPA_CK_MAGIC(epa);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / epa->epa_r2;
-    }
-    if (epa->epa_r2 * s->es_scale <= epa->epa_r1)
+    if (epa->epa_r2 * s->es_scale <= epa->epa_r1) {
 	epa->epa_r2 *= s->es_scale;
-    else
-	bu_log("pscale:  semi-minor axis cannot be longer than semi-major axis!");
+	return BRLCAD_OK;
+    }
+    bu_vls_printf(s->log_str, "Semi-minor axis cannot be longer than semi-major axis\n");
+    return BRLCAD_ERROR;
 }
 
 static int
 rt_edit_epa_pscale(struct rt_edit *s)
 {
-    if (s->e_inpara > 1) {
-	bu_vls_printf(s->log_str, "ERROR: only one argument needed\n");
-	s->e_inpara = 0;
-	return BRLCAD_ERROR;
-    }
+    struct rt_epa_internal *epa = (struct rt_epa_internal *)s->es_int.idb_ptr;
+    RT_EPA_CK_MAGIC(epa);
+    if (!s->e_inpara && ZERO(s->es_scale))
+	return BRLCAD_OK;
 
-    if (s->e_inpara) {
-	if (s->e_para[0] <= 0.0) {
-	    bu_vls_printf(s->log_str, "ERROR: SCALE FACTOR <= 0\n");
-	    s->e_inpara = 0;
+    fastf_t current;
+    switch (s->edit_flag) {
+	case ECMD_EPA_H:
+	    current = MAGNITUDE(epa->epa_H);
+	    break;
+	case ECMD_EPA_R1:
+	    current = epa->epa_r1;
+	    break;
+	case ECMD_EPA_R2:
+	    current = epa->epa_r2;
+	    break;
+	default:
 	    return BRLCAD_ERROR;
-	}
-
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
     }
+    if (edit_prepare_length_scale(s, current) != BRLCAD_OK)
+	return BRLCAD_ERROR;
 
     switch (s->edit_flag) {
 	case ECMD_EPA_H:
 	    ecmd_epa_h(s);
 	    break;
 	case ECMD_EPA_R1:
-	    ecmd_epa_r1(s);
-	    break;
+	    return ecmd_epa_r1(s);
 	case ECMD_EPA_R2:
-	    ecmd_epa_r2(s);
-	    break;
+	    return ecmd_epa_r2(s);
     };
 
     return 0;
@@ -422,9 +355,8 @@ rt_edit_epa_repair(struct bu_vls *log_str, struct rt_db_internal *ip, const stru
     BU_OPT(d[1], "", "options-json", "", NULL, &options_json, "Return JSON of supported options");
     BU_OPT_NULL(d[2]);
 
-    if (argc > 0 && argv) {
-        bu_opt_parse(NULL, argc, argv, d);
-    }
+    if (edit_repair_parse_options(log_str, argc, argv, d) != BRLCAD_OK)
+        return -1;
 
     if (options_json) {
         if (log_str) {

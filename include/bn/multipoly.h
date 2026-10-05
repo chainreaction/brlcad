@@ -38,19 +38,54 @@ __BEGIN_DECLS
 
 typedef struct bn_multipoly {
     uint32_t magic;
+    /**< Number of coefficients in the first polynomial variable. */
     int dgrs;
+    /**< Number of coefficients in the second polynomial variable. */
     int dgrt;
+    /**< Coefficient of S^s * T^t is cf[s][t]. */
     double **cf;
 }  bn_multipoly_t;
 
+
 #define BN_CK_MULTIPOLY(_p) BU_CKMAG(_p, BN_MULTIPOLY_MAGIC, "struct bn_multipoly")
 
+/**
+ * Allocate a zero-valued bivariate polynomial with the specified
+ * coefficient counts.  Both counts must be positive.
+ */
 BN_EXPORT extern struct bn_multipoly *bn_multipoly_new(int dgrs, int dgrt);
-BN_EXPORT extern void bn_multipoly_free(struct bn_multipoly *p);
-BN_EXPORT extern struct bn_multipoly *bn_multipoly_grow(struct bn_multipoly *P, int dgrs, int dgrt);
-BN_EXPORT extern struct bn_multipoly *bn_multipoly_set(struct bn_multipoly *P, int s, int t, double val);
-BN_EXPORT extern struct bn_multipoly *bn_multipoly_add(const struct bn_multipoly *p1, const struct bn_multipoly *p2);
-BN_EXPORT extern struct bn_multipoly *bn_multipoly_mul(const struct bn_multipoly *p1, const struct bn_multipoly *p2);
+
+/** Release a bivariate polynomial allocated by bn_multipoly_new(). */
+BN_EXPORT extern void bn_multipoly_free(struct bn_multipoly *poly);
+
+/**
+ * Grow a polynomial to at least the specified coefficient counts.
+ * Return NULL without modifying it if a coefficient storage size would overflow.
+ */
+BN_EXPORT extern struct bn_multipoly *bn_multipoly_grow(struct bn_multipoly *poly,
+							 int dgrs,
+							 int dgrt);
+
+/**
+ * Set the coefficient of S^s * T^t, growing the polynomial as needed.
+ * Return NULL without modifying it for negative indices or unrepresentable counts
+ * or storage sizes.
+ */
+BN_EXPORT extern struct bn_multipoly *bn_multipoly_set(struct bn_multipoly *poly,
+							int s,
+							int t,
+							double value);
+
+/** Return the sum of two bivariate polynomials. */
+BN_EXPORT extern struct bn_multipoly *bn_multipoly_add(const struct bn_multipoly *p1,
+							const struct bn_multipoly *p2);
+
+/**
+ * Return the product of two bivariate polynomials, or NULL if an operand count is
+ * nonpositive or a product coefficient count would exceed INT_MAX.
+ */
+BN_EXPORT extern struct bn_multipoly *bn_multipoly_mul(const struct bn_multipoly *p1,
+							const struct bn_multipoly *p2);
 
 __END_DECLS
 

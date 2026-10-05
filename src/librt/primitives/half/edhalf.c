@@ -24,9 +24,10 @@
 #include "common.h"
 
 #include <math.h>
-#include <string.h>
+#include <stdio.h>
 
 #include "vmath.h"
+#include "bu/str.h"
 #include "nmg.h"
 #include "raytrace.h"
 #include "rt/geom.h"
@@ -34,7 +35,6 @@
 
 #include "../edit_private.h"
 
-#define V4BASE2LOCAL(_pt) (_pt)[X]*base2local, (_pt)[Y]*base2local, (_pt)[Z]*base2local, (_pt)[W]*base2local
 
 C_DECL void
 rt_edit_hlf_write_params(
@@ -46,7 +46,7 @@ rt_edit_hlf_write_params(
     struct rt_half_internal *half = (struct rt_half_internal *)ip->idb_ptr;
     RT_HALF_CK_MAGIC(half);
 
-    bu_vls_printf(p, "Plane: %.9f %.9f %.9f %.9f\n", V4BASE2LOCAL(half->eqn));
+    bu_vls_printf(p, "Plane: %.9f %.9f %.9f %.9f\n", V3ARGS(half->eqn), half->eqn[W] * base2local);
 }
 
 C_DECL int
@@ -57,25 +57,52 @@ rt_edit_hlf_read_params(
 	fastf_t local2base
 	)
 {
-    double a = 0.0;
-    double b = 0.0;
-    double c = 0.0;
-    double d = 0.0;
     struct rt_half_internal *haf = (struct rt_half_internal *)ip->idb_ptr;
     RT_HALF_CK_MAGIC(haf);
 
-    if (!fc)
+    if (!fc || !isfinite(local2base) || local2base <= 0.0)
 	return BRLCAD_ERROR;
 
-    const char *lc = fc;
-    while (lc && strchr(lc, ':')) lc++;
+    char *buffer = bu_strdup(fc);
+    char *cursor = buffer;
+    char *line = edit_param_next_line(&cursor);
+    const char label[] = "Plane:";
+    const char *values = line;
+    double a, b, c, d;
+    int end = 0;
+    struct rt_half_internal staged = *haf;
+    fastf_t normal_length;
+    fastf_t distance;
+    int result = BRLCAD_ERROR;
+    if (!line || edit_param_next_line(&cursor))
+	goto cleanup;
 
-    sscanf(lc, "%lf %lf %lf %lf", &a, &b, &c, &d);
-    VSET(haf->eqn, a, b, c);
-    haf->eqn[W] = d * local2base;
+    if (!bu_strncmp(values, label, sizeof(label) - 1))
+	values += sizeof(label) - 1;
 
-    // Cleanup
-    return BRLCAD_OK;
+    if (sscanf(values, " %lf %lf %lf %lf %n", &a, &b, &c, &d,
+		&end) != 4 || !end || values[end] ||
+	!isfinite(a) || !isfinite(b) || !isfinite(c) || !isfinite(d))
+	goto cleanup;
+
+    VSET(staged.eqn, a, b, c);
+    normal_length = MAGNITUDE(staged.eqn);
+    distance = d * local2base;
+    if (!isfinite(normal_length) || normal_length <= SQRT_SMALL_FASTF ||
+	!isfinite(distance))
+	goto cleanup;
+
+    VSCALE(staged.eqn, staged.eqn, 1.0 / normal_length);
+    staged.eqn[W] = distance / normal_length;
+    if (!isfinite(staged.eqn[W]))
+	goto cleanup;
+
+    *haf = staged;
+    result = BRLCAD_OK;
+
+cleanup:
+    bu_free(buffer, "HALF parameter text");
+    return result;
 }
 
 /* ------------------------------------------------------------------ */
@@ -160,14 +187,14 @@ rt_edit_hlf_get_params(struct rt_edit *s, int cmd_id, fastf_t *vals)
 {
     struct rt_half_internal *haf;
     if (!s || !vals)
-	return BRLCAD_ERROR;
+	return -1;
     haf = (struct rt_half_internal *)s->es_int.idb_ptr;
     RT_HALF_CK_MAGIC(haf);
     if (cmd_id == ECMD_HALF_SET_D) {
 	vals[0] = haf->eqn[W] * s->base2local;
-	return BRLCAD_OK;
+	return 1;
     }
-    return BRLCAD_ERROR;
+    return 0;
 }
 
 /*

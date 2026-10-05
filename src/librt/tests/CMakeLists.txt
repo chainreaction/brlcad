@@ -71,7 +71,16 @@ brlcad_addexec(rt_tree_prune tree_prune.c "librt;libwdb;libbu;${M_LIBRARY}" TEST
 brlcad_add_test(NAME rt_tree_prune COMMAND rt_tree_prune)
 
 brlcad_addexec(rt_reprep_prune reprep_prune.c "librt;libwdb;libbu;${M_LIBRARY}" TEST)
-brlcad_add_test(NAME rt_reprep_prune COMMAND rt_reprep_prune)
+
+# Note - this feature is not available in a BRLCAD_ENABLE_RUNTIME_DEBUG=OFF
+# build, since it has an unavoidable performance overhead in the hot loop to
+# check if the setting is enabled.
+if (BRLCAD_ENABLE_RUNTIME_DEBUG)
+  brlcad_addexec(rt_rtcmp_capture rtcmp_capture.c "librt;libwdb;libbu;${M_LIBRARY}" TEST)
+  brlcad_add_test(NAME rt_rtcmp_capture COMMAND rt_rtcmp_capture)
+  brlcad_add_test(NAME rt_rtcmp_capture_primitives COMMAND rt_rtcmp_capture primitives)
+  brlcad_add_test(NAME rt_reprep_prune COMMAND rt_reprep_prune)
+endif()
 
 brlcad_addexec(rt_submodel_xform submodel_xform.c "librt;libwdb;libbu;${M_LIBRARY}" TEST)
 brlcad_add_test(NAME rt_submodel_xform COMMAND rt_submodel_xform)
@@ -150,6 +159,12 @@ brlcad_addexec(rt_bot_split
 target_include_directories(rt_bot_split PRIVATE ${BRLCAD_SOURCE_DIR}/src/libbg)
 brlcad_add_test(NAME rt_bot_split COMMAND rt_bot_split)
 
+brlcad_addexec(rt_ars_inside ars_inside.c "librt;libwdb;libbu;${M_LIBRARY}" TEST)
+brlcad_add_test(NAME rt_ars_inside COMMAND rt_ars_inside)
+
+brlcad_addexec(rt_pnts_bounds pnts_bounds.c "${RT_TEST_LIBS}" TEST)
+brlcad_add_test(NAME rt_pnts_bounds COMMAND rt_pnts_bounds)
+
 # boolweave testing
 brlcad_addexec(rt_boolweave rt_boolweave.c "${RT_TEST_LIBS}" TEST)
 brlcad_add_test(NAME rt_boolweave COMMAND rt_boolweave)
@@ -203,33 +218,36 @@ set(
   distcheck_files
   CMakeLists.txt
   arb_intersect.g
+  ars_inside.c
   binary_attribute.c
   binunif.c
-  brep_io.cpp
   bound_internal.c
+  brep_boolean_tests.g
+  brep_io.cpp
   crofton.c
+  cyclic_tests.g
+  datum_annot_semantics.c
   db_name.c
   default_object.c
-  datum_annot_semantics.c
   dsp_raytrace_check.c
   dsp_sa_vol_check.c
-  primitive_brep.cpp
-  reprep_prune.c
-  brep_boolean_tests.g
-  cyclic_tests.g
   extreme_ssi_test.g
   invalid_inmem.c
   lcomb_large.c
   matrix_tests.g
   metaball_adjust.c
   nurbs_surfaces.g
+  pnts_bounds.c
+  prim_tess.c
+  primitive_brep.cpp
+  reprep_prune.c
   rt_datum.c
   rt_perturb.c
+  rtcmp_capture.c
   search_stress.c
-  static_init.cpp
   sketch.g
+  static_init.cpp
   submodel_xform.c
-  prim_tess.c
   tess_timing.c
   tree_prune.c
   vds_tree.c

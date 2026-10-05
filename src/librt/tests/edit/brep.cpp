@@ -39,7 +39,6 @@
 #include <cstring>
 
 #include "vmath.h"
-#include "bu/app.h"
 #include "bu/log.h"
 #include "bu/malloc.h"
 #include "bu/vls.h"
@@ -140,10 +139,12 @@ get_cv_pos(struct rt_edit *s, int face_index, int cv_i, int cv_j,
     const ON_NurbsSurface *ns = dynamic_cast<const ON_NurbsSurface *>(surf);
     if (!ns)
 	bu_exit(1, "ERROR: face %d has no NURBS surface\n", face_index);
-    double *cv = ns->CV(cv_i, cv_j);
-    *x = cv[0];
-    *y = cv[1];
-    *z = cv[2];
+    ON_3dPoint cv;
+    if (!ns->GetCV(cv_i, cv_j, cv))
+	bu_exit(1, "ERROR: cannot read face %d CV (%d,%d)\n", face_index, cv_i, cv_j);
+    *x = cv.x;
+    *y = cv.y;
+    *z = cv.z;
 }
 
 
@@ -189,7 +190,8 @@ test_brep_select_invalid_face(struct rt_edit *s)
     s->e_para[2] = 0.0;
 
     bu_vls_trunc(s->log_str, 0);
-    rt_edit_process(s);
+    if (rt_edit_process(s) != BRLCAD_ERROR)
+	bu_exit(1, "ERROR: invalid BREP face was reported as successful\n");
 
     if (b->face_index != -1)
 	bu_exit(1,
@@ -197,6 +199,31 @@ test_brep_select_invalid_face(struct rt_edit *s)
 		"face_index=%d\n", b->face_index);
 
     bu_log("ECMD_BREP_SRF_SELECT invalid face PASS (rejected as expected)\n");
+
+    s->e_inpara = 3;
+    VSET(s->e_para, 0.0, 9999.0, 0.0);
+    if (rt_edit_process(s) != BRLCAD_ERROR || b->face_index != -1)
+	bu_exit(1, "ERROR: invalid BREP CV was reported as successful\n");
+
+    s->e_inpara = 3;
+    VSET(s->e_para, NAN, 0.0, 0.0);
+    if (rt_edit_process(s) != BRLCAD_ERROR || b->face_index != -1)
+	bu_exit(1, "ERROR: non-finite BREP face was accepted\n");
+
+    s->e_inpara = 3;
+    VSET(s->e_para, 0.5, 0.0, 0.0);
+    if (rt_edit_process(s) != BRLCAD_ERROR || b->face_index != -1)
+	bu_exit(1, "ERROR: fractional BREP face was accepted\n");
+
+    s->e_inpara = 3;
+    VSET(s->e_para, 0.0, NAN, 0.0);
+    if (rt_edit_process(s) != BRLCAD_ERROR || b->face_index != -1)
+	bu_exit(1, "ERROR: non-finite BREP CV index was accepted\n");
+
+    s->e_inpara = 3;
+    VSET(s->e_para, 0.0, 0.5, 0.0);
+    if (rt_edit_process(s) != BRLCAD_ERROR || b->face_index != -1)
+	bu_exit(1, "ERROR: fractional BREP CV index was accepted\n");
 }
 
 /* 3. SELECT rejects when e_inpara != 3 */
@@ -210,7 +237,8 @@ test_brep_select_wrong_inpara(struct rt_edit *s)
     s->e_inpara = 1; /* wrong */
     s->e_para[0] = 0.0;
 
-    rt_edit_process(s);
+    if (rt_edit_process(s) != BRLCAD_ERROR)
+	bu_exit(1, "ERROR: incomplete BREP selection was reported as successful\n");
 
     if (b->face_index != -1)
 	bu_exit(1,
@@ -300,6 +328,82 @@ test_brep_cv_set(struct rt_edit *s)
     bu_log("ECMD_BREP_SRF_CV_SET PASS: CV placed at (5,5,5)\n");
 }
 
+static void
+test_brep_nonfinite_cv_input(struct rt_edit *s)
+{
+    const int modes[] = {ECMD_BREP_SRF_CV_MOVE, ECMD_BREP_SRF_CV_SET};
+    EDOBJ[ID_BREP].ft_set_edit_mode(s, ECMD_BREP_SRF_SELECT);
+    s->e_inpara = 3;
+    VSET(s->e_para, 0.0, 0.0, 1.0);
+    if (rt_edit_process(s) != BRLCAD_OK)
+	bu_exit(1, "ERROR: could not select BREP CV for invalid input test\n");
+
+    double x, y, z;
+    get_cv_pos(s, 0, 0, 1, &x, &y, &z);
+    for (size_t i = 0; i < sizeof(modes) / sizeof(modes[0]); i++) {
+	EDOBJ[ID_BREP].ft_set_edit_mode(s, modes[i]);
+	s->e_inpara = 3;
+	VSET(s->e_para, i ? INFINITY : NAN, 0.0, 0.0);
+	if (rt_edit_process(s) != BRLCAD_ERROR)
+	    bu_exit(1, "ERROR: BREP CV mode %d accepted a non-finite input\n",
+		    modes[i]);
+	double new_x, new_y, new_z;
+	get_cv_pos(s, 0, 0, 1, &new_x, &new_y, &new_z);
+	if (!NEAR_EQUAL(new_x, x, VUNITIZE_TOL) ||
+	    !NEAR_EQUAL(new_y, y, VUNITIZE_TOL) ||
+	    !NEAR_EQUAL(new_z, z, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BREP CV mode %d changed geometry on failure\n",
+		    modes[i]);
+	s->e_inpara = 1;
+	if (rt_edit_process(s) != BRLCAD_ERROR)
+	    bu_exit(1, "ERROR: BREP CV mode %d accepted incomplete input\n",
+		    modes[i]);
+    }
+}
+
+static void
+test_brep_stale_selection(struct rt_edit *s)
+{
+    struct rt_brep_internal *bip = (struct rt_brep_internal *)s->es_int.idb_ptr;
+    struct rt_brep_edit_local *selection = (struct rt_brep_edit_local *)s->ipe_ptr;
+    EDOBJ[ID_BREP].ft_set_edit_mode(s, ECMD_BREP_SRF_SELECT);
+    s->e_inpara = 3;
+    VSET(s->e_para, 0.0, 0.0, 0.0);
+    if (rt_edit_process(s) != BRLCAD_OK)
+	bu_exit(1, "ERROR: could not select BREP CV for stale-selection test\n");
+
+    double x, y, z;
+    get_cv_pos(s, 0, 0, 0, &x, &y, &z);
+    /* Model a topology change that invalidates the selected face. */
+    selection->face_index = bip->brep->m_F.Count();
+    fastf_t vals[3] = {0.0, 0.0, 0.0};
+    if (EDOBJ[ID_BREP].ft_edit_get_params(s, ECMD_BREP_SRF_CV_SET, vals) != 0)
+	bu_exit(1, "ERROR: stale BREP selection returned CV parameters\n");
+
+    const int modes[] = {ECMD_BREP_SRF_CV_MOVE, ECMD_BREP_SRF_CV_SET};
+    for (size_t i = 0; i < sizeof(modes) / sizeof(modes[0]); i++) {
+	EDOBJ[ID_BREP].ft_set_edit_mode(s, modes[i]);
+	s->e_inpara = 3;
+	VSET(s->e_para, 1.0, 2.0, 3.0);
+	if (rt_edit_process(s) != BRLCAD_ERROR)
+	    bu_exit(1, "ERROR: BREP mode %d accepted a stale selection\n",
+		    modes[i]);
+	double new_x, new_y, new_z;
+	get_cv_pos(s, 0, 0, 0, &new_x, &new_y, &new_z);
+	if (!NEAR_EQUAL(new_x, x, VUNITIZE_TOL) ||
+	    !NEAR_EQUAL(new_y, y, VUNITIZE_TOL) ||
+	    !NEAR_EQUAL(new_z, z, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BREP mode %d changed geometry on failure\n",
+		    modes[i]);
+    }
+
+    vect_t mousevec = VINIT_ZERO;
+    if (EDOBJ[ID_BREP].ft_edit_xy(s, mousevec) != BRLCAD_ERROR ||
+	s->e_mvalid)
+	bu_exit(1, "ERROR: BREP mouse CV edit accepted a stale selection\n");
+    selection->face_index = -1;
+}
+
 /* 6. MOVE rejected when no CV is selected */
 static void
 test_brep_cv_move_no_selection(struct rt_edit *s)
@@ -313,10 +417,10 @@ test_brep_cv_move_no_selection(struct rt_edit *s)
     s->e_para[0] = s->e_para[1] = s->e_para[2] = 1.0;
 
     bu_vls_trunc(s->log_str, 0);
-    rt_edit_process(s);
+    if (rt_edit_process(s) != BRLCAD_ERROR)
+	bu_exit(1, "ERROR: BREP move without selection was reported as successful\n");
 
-    /* Verify the operation was a no-op (no crash, CV state unchanged).
-     * log_str is cleared by rt_edit_process so we cannot inspect it here. */
+    /* The rejected move must leave the selection unchanged. */
     if (b->face_index != -1 || b->srf_cv_i != -1 || b->srf_cv_j != -1)
 	bu_exit(1,
 		"ERROR: ECMD_BREP_SRF_CV_MOVE no-selection: state changed "
@@ -324,6 +428,12 @@ test_brep_cv_move_no_selection(struct rt_edit *s)
 		b->face_index, b->srf_cv_i, b->srf_cv_j);
 
     bu_log("ECMD_BREP_SRF_CV_MOVE no-selection PASS\n");
+
+    EDOBJ[ID_BREP].ft_set_edit_mode(s, ECMD_BREP_SRF_CV_SET);
+    s->e_inpara = 3;
+    if (rt_edit_process(s) != BRLCAD_ERROR ||
+	b->face_index != -1 || b->srf_cv_i != -1 || b->srf_cv_j != -1)
+	bu_exit(1, "ERROR: BREP set without selection was reported as successful\n");
 }
 
 /* 7. get_params returns the current selection */
@@ -366,8 +476,159 @@ test_brep_edit_desc(struct directory *dp)
     if (desc->ncmd != 3)
 	bu_exit(1, "ERROR: ncmd=%d, expected 3\n", desc->ncmd);
 
+    const struct rt_edit_cmd_desc *select = &desc->cmds[0];
+    if (select->cmd_id != ECMD_BREP_SRF_SELECT || select->nparam != 3)
+	bu_exit(1, "ERROR: BREP selection descriptor is incomplete\n");
+    for (int i = 0; i < select->nparam; i++) {
+	if (select->params[i].type != RT_EDIT_PARAM_INTEGER ||
+	    select->params[i].units != NULL)
+	    bu_exit(1, "ERROR: BREP selection index %d is not unitless integer\n", i);
+    }
+
     bu_log("rt_edit_brep_edit_desc PASS: prim_type='%s' ncmd=%d\n",
 	   desc->prim_type, desc->ncmd);
+}
+
+static void
+test_brep_rational_cv_local_units(struct rt_edit *s)
+{
+    const double local2base = 25.4;
+    struct rt_brep_internal *bip = (struct rt_brep_internal *)s->es_int.idb_ptr;
+    ON_Brep *brep = bip->brep;
+    int face_index = -1, cv_i = -1, cv_j = -1;
+    double weight = 0.0;
+
+    for (int f = 0; f < brep->m_F.Count() && face_index < 0; ++f) {
+	const ON_NurbsSurface *ns = dynamic_cast<const ON_NurbsSurface *>(brep->Face(f)->SurfaceOf());
+	if (!ns || !ns->IsRational())
+	    continue;
+	for (int i = 0; i < ns->m_cv_count[0] && face_index < 0; ++i) {
+	    for (int j = 0; j < ns->m_cv_count[1]; ++j) {
+		if (!NEAR_EQUAL(ns->Weight(i, j), 1.0, VUNITIZE_TOL)) {
+		    face_index = f;
+		    cv_i = i;
+		    cv_j = j;
+		    weight = ns->Weight(i, j);
+		    break;
+		}
+	    }
+	}
+    }
+    if (face_index < 0)
+	bu_exit(1, "ERROR: sphere has no weighted control vertex\n");
+
+    s->local2base = local2base;
+    s->base2local = 1.0 / local2base;
+    EDOBJ[ID_BREP].ft_set_edit_mode(s, ECMD_BREP_SRF_SELECT);
+    s->e_inpara = 3;
+    VSET(s->e_para, face_index, cv_i, cv_j);
+    rt_edit_process(s);
+
+    double x, y, z;
+    get_cv_pos(s, face_index, cv_i, cv_j, &x, &y, &z);
+    fastf_t vals[3] = {0.0, 0.0, 0.0};
+    if (EDOBJ[ID_BREP].ft_edit_get_params(s, ECMD_BREP_SRF_CV_SET, vals) != 3 ||
+	!NEAR_EQUAL(vals[0], x / local2base, VUNITIZE_TOL) ||
+	!NEAR_EQUAL(vals[1], y / local2base, VUNITIZE_TOL) ||
+	!NEAR_EQUAL(vals[2], z / local2base, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: rational BREP CV getter did not return local coordinates\n");
+
+    EDOBJ[ID_BREP].ft_set_edit_mode(s, ECMD_BREP_SRF_CV_MOVE);
+    s->e_inpara = 3;
+    VSET(s->e_para, 1.0, 2.0, 3.0);
+    rt_edit_process(s);
+    double mx, my, mz;
+    get_cv_pos(s, face_index, cv_i, cv_j, &mx, &my, &mz);
+    if (!NEAR_EQUAL(mx, x + local2base, VUNITIZE_TOL) ||
+	!NEAR_EQUAL(my, y + 2.0 * local2base, VUNITIZE_TOL) ||
+	!NEAR_EQUAL(mz, z + 3.0 * local2base, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: rational BREP CV move did not preserve Euclidean delta\n");
+
+    EDOBJ[ID_BREP].ft_set_edit_mode(s, ECMD_BREP_SRF_CV_SET);
+    s->e_inpara = 3;
+    VSET(s->e_para, 2.0, 3.0, 4.0);
+    rt_edit_process(s);
+    get_cv_pos(s, face_index, cv_i, cv_j, &x, &y, &z);
+    const ON_NurbsSurface *ns = dynamic_cast<const ON_NurbsSurface *>(brep->Face(face_index)->SurfaceOf());
+    if (!NEAR_EQUAL(x, 2.0 * local2base, VUNITIZE_TOL) ||
+	!NEAR_EQUAL(y, 3.0 * local2base, VUNITIZE_TOL) ||
+	!NEAR_EQUAL(z, 4.0 * local2base, VUNITIZE_TOL) ||
+	!NEAR_EQUAL(ns->Weight(cv_i, cv_j), weight, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: rational BREP CV set changed position or weight\n");
+    bu_log("Rational BREP CV local-unit move/set/get PASS\n");
+}
+
+static void
+test_brep_mouse_cv_edit(struct rt_edit *s)
+{
+    const int mouse_modes[] = {ECMD_BREP_SRF_CV_MOVE, ECMD_BREP_SRF_CV_SET};
+    s->local2base = 25.4;
+    s->base2local = 1.0 / s->local2base;
+    MAT_IDN(s->vp->gv_model2view);
+    MAT_IDN(s->vp->gv_view2model);
+    MAT_IDN(s->e_invmat);
+    MAT_IDN(s->e_mat);
+    s->vp->gv_scale = 1.0;
+
+    EDOBJ[ID_BREP].ft_set_edit_mode(s, ECMD_BREP_SRF_SELECT);
+    s->e_inpara = 3;
+    VSET(s->e_para, 0.0, 1.0, 1.0);
+    if (rt_edit_process(s) != BRLCAD_OK)
+	bu_exit(1, "ERROR: BREP mouse edit could not select a CV\n");
+
+    for (size_t i = 0; i < sizeof(mouse_modes) / sizeof(mouse_modes[0]); i++) {
+	double x, y, z, nx, ny, nz;
+	get_cv_pos(s, 0, 1, 1, &x, &y, &z);
+	get_cv_pos(s, 0, 1, 2, &nx, &ny, &nz);
+	vect_t instance_delta = VINIT_ZERO;
+	MAT_IDN(s->e_mat);
+	MAT_IDN(s->e_invmat);
+	if (i == 1) {
+	    /* The second drag passes through a translated edit instance. */
+	    VSET(instance_delta, 10.0, 20.0, 30.0);
+	    MAT_DELTAS_VEC(s->e_mat, instance_delta);
+	    MAT_DELTAS_VEC_NEG(s->e_invmat, instance_delta);
+	}
+	VSET(s->curr_e_axes_pos, x + instance_delta[X],
+	    y + instance_delta[Y], z + instance_delta[Z]);
+
+	vect_t knob_state, mousevec;
+	VSET(knob_state, 7.0, 8.0, 9.0);
+	VMOVE(s->k.tra_m_abs, knob_state);
+	VMOVE(s->k.tra_v_abs, knob_state);
+	VSET(mousevec, x + instance_delta[X] + 1.25,
+	    y + instance_delta[Y] - 0.75, 0.0);
+	EDOBJ[ID_BREP].ft_set_edit_mode(s, mouse_modes[i]);
+	if (EDOBJ[ID_BREP].ft_edit_xy(s, mousevec) != BRLCAD_OK ||
+	    rt_edit_process(s) != BRLCAD_OK)
+	    bu_exit(1, "ERROR: BREP mouse CV mode %d failed\n", mouse_modes[i]);
+
+	double moved_x, moved_y, moved_z, other_x, other_y, other_z;
+	get_cv_pos(s, 0, 1, 1, &moved_x, &moved_y, &moved_z);
+	get_cv_pos(s, 0, 1, 2, &other_x, &other_y, &other_z);
+	if (!NEAR_EQUAL(moved_x, x + 1.25, VUNITIZE_TOL) ||
+	    !NEAR_EQUAL(moved_y, y - 0.75, VUNITIZE_TOL) ||
+	    !NEAR_EQUAL(moved_z, z, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BREP mouse CV mode %d missed the target\n",
+		    mouse_modes[i]);
+	if (!NEAR_EQUAL(other_x, nx, VUNITIZE_TOL) ||
+	    !NEAR_EQUAL(other_y, ny, VUNITIZE_TOL) ||
+	    !NEAR_EQUAL(other_z, nz, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BREP mouse CV mode %d moved another CV\n",
+		    mouse_modes[i]);
+	if (!VNEAR_EQUAL(s->k.tra_m_abs, knob_state, VUNITIZE_TOL) ||
+	    !VNEAR_EQUAL(s->k.tra_v_abs, knob_state, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: BREP mouse CV mode %d changed translation state\n",
+		    mouse_modes[i]);
+    }
+
+    struct rt_brep_edit_local *b = (struct rt_brep_edit_local *)s->ipe_ptr;
+    b->face_index = -1;
+    EDOBJ[ID_BREP].ft_set_edit_mode(s, ECMD_BREP_SRF_CV_SET);
+    vect_t mousevec = VINIT_ZERO;
+    if (EDOBJ[ID_BREP].ft_edit_xy(s, mousevec) != BRLCAD_ERROR ||
+	s->e_mvalid)
+	bu_exit(1, "ERROR: BREP mouse CV edit accepted no selection\n");
 }
 
 
@@ -376,12 +637,8 @@ test_brep_edit_desc(struct directory *dp)
  * ------------------------------------------------------------------ */
 
 int
-main(int argc, char *argv[])
+rt_edit_test_brep(void)
 {
-    bu_setprogname(argv[0]);
-    if (argc != 1)
-	return BRLCAD_ERROR;
-
     struct db_i *dbip = db_open_inmem();
     if (dbip == DBI_NULL)
 	bu_exit(1, "ERROR: db_open_inmem failed\n");
@@ -397,8 +654,12 @@ main(int argc, char *argv[])
     test_brep_select_wrong_inpara(s);
     test_brep_cv_move(s);
     test_brep_cv_set(s);
+    test_brep_nonfinite_cv_input(s);
+    test_brep_stale_selection(s);
     test_brep_cv_move_no_selection(s);
     test_brep_get_params_select(s);
+    test_brep_rational_cv_local_units(s);
+    test_brep_mouse_cv_edit(s);
 
     rt_edit_destroy(s);
     db_close(dbip);

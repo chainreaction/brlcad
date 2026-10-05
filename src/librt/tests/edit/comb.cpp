@@ -42,7 +42,6 @@
 #include <string.h>
 
 #include "vmath.h"
-#include "bu/app.h"
 #include "bu/log.h"
 #include "bu/malloc.h"
 #include "raytrace.h"
@@ -148,12 +147,8 @@ make_test_comb(struct rt_wdb *wdbp)
 /* ------------------------------------------------------------------ */
 
 int
-main(int argc, char *argv[])
+rt_edit_test_comb(void)
 {
-    bu_setprogname(argv[0]);
-    if (argc != 1)
-	return BRLCAD_ERROR;
-
     g_dbip = db_open_inmem();
     if (g_dbip == DBI_NULL)
 	bu_exit(1, "ERROR: Unable to create in-memory database\n");
@@ -208,6 +203,8 @@ main(int argc, char *argv[])
     s->e_para[0] = (fastf_t)OP_SUBTRACT;
 
     rt_edit_process(s);
+    if (s->es_int.idb_type != ID_COMBINATION || !s->es_int.idb_ptr)
+        bu_exit(1, "ADD_MEMBER left the edit session without a combination\n");
     bu_vls_trunc(s->log_str, 0);
 
     /* Reload and verify 4 leaves */

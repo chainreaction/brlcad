@@ -28,11 +28,13 @@
 
 #include "common.h"
 
+#include <limits.h>
 #include <math.h>
 #include <string.h>
 
 #include "vmath.h"
 #include "bu/malloc.h"
+#include "bu/sort.h"
 #include "nmg.h"
 #include "raytrace.h"
 #include "rt/geom.h"
@@ -167,8 +169,8 @@
  * switching between the arc and its complement (the other arc sharing the
  * same start vertex, end vertex, and radius).
  *
- * No parameters needed (curr_seg must reference a non-full-circle CARC).
- * e_inpara = 0.
+ * Use curr_seg with e_inpara = 0, or provide a segment index in
+ * e_para[0] with e_inpara = 1.  The arc must not be a full circle.
  * Returns BRLCAD_ERROR if no CARC is selected or if it is a full circle
  * (radius < 0), since full circles have no complement.
  */
@@ -176,11 +178,9 @@
 /**
  * Set the radius of the currently selected arc or full-circle segment.
  *
- * e_para[0] = new radius in local units.
- *             Positive  → circular arc (partial).
- *             Negative  → full circle (end vertex is the centre).
- * e_inpara  = 1.
- * curr_seg must point to a CARC segment.
+ * With e_inpara = 1, curr_seg identifies the arc and e_para[0] is the
+ * radius in local units.  With e_inpara = 2, e_para[0] is the arc index
+ * and e_para[1] is the radius.  A negative radius denotes a full circle.
  */
 #define ECMD_SKETCH_SET_ARC_RADIUS    26017
 /**
@@ -196,11 +196,10 @@
  *   4. The radius and center_is_left / orientation flags of curr_seg are
  *      updated so the arc starts or ends tangentially.
  *
- * e_para layout:
- *   e_para[0]  = index of the *adjacent* segment (the one to be tangent to)
- *   e_para[1]  = tangency angle in radians (0 = direct tangency, i.e. smooth join)
- * e_inpara    = 2
- * curr_seg    must be the CARC segment to be modified (se->curr_seg >= 0).
+ * With e_inpara = 2, curr_seg selects the arc, e_para[0] selects the
+ * adjacent segment, and e_para[1] is the angle in radians.  With
+ * e_inpara = 3, e_para[0] selects the arc, e_para[1] the adjacent
+ * segment, and e_para[2] the angle.
  *
  * Returns BRLCAD_OK on success, BRLCAD_ERROR with a message if the geometry
  * is degenerate (no shared vertex, zero-length chord, etc.).
@@ -210,10 +209,10 @@
  * Edit the sketch plane parameters: origin (V), u-direction vector (A),
  * and v-direction vector (B).
  *
- * e_para layout (all values in model base units / radians as appropriate):
- *   e_para[0..2]  = new V (3-D origin in model space)
- *   e_para[3..5]  = new A (u_vec, will be normalised)
- *   e_para[6..8]  = new B (v_vec, will be normalised)
+ * e_para layout:
+ *   e_para[0..2]  = new V (3-D origin in local units)
+ *   e_para[3..5]  = new A (unitless direction, will be normalised)
+ *   e_para[6..8]  = new B (unitless direction, will be normalised)
  * e_inpara       = 9.
  *
  * The function normalises A and B and ensures they are mutually
@@ -229,8 +228,8 @@
  * assembling closed contours so that segments can be shared between curves
  * drawn in opposite directions.
  *
- * e_inpara = 0; curr_seg must be >= 0.
- * Returns BRLCAD_OK on success, BRLCAD_ERROR if no segment is selected.
+ * Use curr_seg with e_inpara = 0, or provide a segment index in
+ * e_para[0] with e_inpara = 1.  Invalid indices return BRLCAD_ERROR.
  */
 #define ECMD_SKETCH_TOGGLE_SEGMENT_REVERSE 26020
 
@@ -252,8 +251,9 @@ rt_edit_sketch_prim_edit_create(struct rt_edit *UNUSED(s))
 }
 
 C_DECL void
-rt_edit_sketch_prim_edit_destroy(struct rt_sketch_edit *se)
+rt_edit_sketch_prim_edit_destroy(void *ptr)
 {
+    struct rt_sketch_edit *se = (struct rt_sketch_edit *)ptr;
     if (!se)
 	return;
     BU_PUT(se, struct rt_sketch_edit);
@@ -349,25 +349,62 @@ static const struct rt_edit_param_desc sketch_point_param[] = {
       RT_EDIT_PARAM_NO_LIMIT, RT_EDIT_PARAM_NO_LIMIT, "length", 0, NULL, NULL, NULL }
 };
 
+static const struct rt_edit_param_desc sketch_uv_params[] = {
+    { "u", "U", RT_EDIT_PARAM_SCALAR, 0,
+      RT_EDIT_PARAM_NO_LIMIT, RT_EDIT_PARAM_NO_LIMIT, "length", 0, NULL, NULL, NULL },
+    { "v", "V", RT_EDIT_PARAM_SCALAR, 1,
+      RT_EDIT_PARAM_NO_LIMIT, RT_EDIT_PARAM_NO_LIMIT, "length", 0, NULL, NULL, NULL }
+};
+
+static const struct rt_edit_param_desc sketch_split_params[] = {
+    { "segment", "Segment Index", RT_EDIT_PARAM_INTEGER, 0,
+      0.0, RT_EDIT_PARAM_NO_LIMIT, "count", 0, NULL, NULL, NULL },
+    { "t", "Split Fraction", RT_EDIT_PARAM_SCALAR, 1,
+      0.0, 1.0, "none", 0, NULL, NULL, NULL }
+};
+
+static const struct rt_edit_param_desc sketch_line_params[] = {
+    { "start", "Start Vertex", RT_EDIT_PARAM_INTEGER, 0,
+      0.0, RT_EDIT_PARAM_NO_LIMIT, "count", 0, NULL, NULL, NULL },
+    { "end", "End Vertex", RT_EDIT_PARAM_INTEGER, 1,
+      0.0, RT_EDIT_PARAM_NO_LIMIT, "count", 0, NULL, NULL, NULL }
+};
+
+static const struct rt_edit_param_desc sketch_arc_radius_params[] = {
+    { "segment", "Arc Segment", RT_EDIT_PARAM_INTEGER, 0,
+      0.0, RT_EDIT_PARAM_NO_LIMIT, "count", 0, NULL, NULL, NULL },
+    { "radius", "Radius", RT_EDIT_PARAM_SCALAR, 1,
+      RT_EDIT_PARAM_NO_LIMIT, RT_EDIT_PARAM_NO_LIMIT, "length", 0, NULL, NULL, NULL }
+};
+
+static const struct rt_edit_param_desc sketch_tangency_params[] = {
+    { "segment", "Arc Segment", RT_EDIT_PARAM_INTEGER, 0,
+      0.0, RT_EDIT_PARAM_NO_LIMIT, "count", 0, NULL, NULL, NULL },
+    { "adjacent", "Adjacent Segment", RT_EDIT_PARAM_INTEGER, 1,
+      0.0, RT_EDIT_PARAM_NO_LIMIT, "count", 0, NULL, NULL, NULL },
+    { "angle", "Tangency Angle", RT_EDIT_PARAM_SCALAR, 2,
+      RT_EDIT_PARAM_NO_LIMIT, RT_EDIT_PARAM_NO_LIMIT, "radians", 0, NULL, NULL, NULL }
+};
+
 static const struct rt_edit_cmd_desc sketch_cmds[] = {
     { ECMD_SKETCH_PICK_VERTEX,           "Pick Vertex",          "selection", 1, sketch_idx_param,   1, 10, NULL },
-    { ECMD_SKETCH_MOVE_VERTEX,           "Move Vertex",          "movement",  1, sketch_point_param, 1, 20, NULL },
+    { ECMD_SKETCH_MOVE_VERTEX,           "Move Vertex",          "movement",  2, sketch_uv_params, 1, 20, NULL },
     { ECMD_SKETCH_PICK_SEGMENT,          "Pick Segment",         "selection", 1, sketch_idx_param,   1, 30, NULL },
-    { ECMD_SKETCH_MOVE_SEGMENT,          "Move Segment",         "movement",  1, sketch_point_param, 1, 40, NULL },
-    { ECMD_SKETCH_APPEND_LINE,           "Append Line",          "topology",  0, NULL,               1, 50, NULL },
+    { ECMD_SKETCH_MOVE_SEGMENT,          "Move Segment",         "movement",  2, sketch_uv_params, 1, 40, NULL },
+    { ECMD_SKETCH_APPEND_LINE,           "Append Line",          "topology",  2, sketch_line_params, 1, 50, NULL },
     { ECMD_SKETCH_APPEND_ARC,            "Append Arc",           "topology",  0, NULL,               1, 60, NULL },
     { ECMD_SKETCH_APPEND_BEZIER,         "Append Bezier",        "topology",  0, NULL,               1, 70, NULL },
     { ECMD_SKETCH_DELETE_VERTEX,         "Delete Vertex",        "topology",  1, sketch_idx_param,   1, 80, NULL },
     { ECMD_SKETCH_DELETE_SEGMENT,        "Delete Segment",       "topology",  1, sketch_idx_param,   1, 90, NULL },
     { ECMD_SKETCH_MOVE_VERTEX_LIST,      "Move Vertex List",     "movement",  1, sketch_point_param, 1, 100, NULL },
-    { ECMD_SKETCH_SPLIT_SEGMENT,         "Split Segment",        "topology",  1, sketch_idx_param,   1, 110, NULL },
+    { ECMD_SKETCH_SPLIT_SEGMENT,         "Split Segment",        "topology",  2, sketch_split_params, 1, 110, NULL },
     { ECMD_SKETCH_APPEND_NURB,           "Append NURB",          "topology",  0, NULL,               1, 120, NULL },
     { ECMD_SKETCH_NURB_EDIT_KV,          "NURB Edit KV",         "topology",  0, NULL,               1, 130, NULL },
     { ECMD_SKETCH_NURB_EDIT_WEIGHTS,     "NURB Edit Weights",    "topology",  0, NULL,               1, 140, NULL },
-    { ECMD_SKETCH_ADD_VERTEX,            "Add Vertex",           "topology",  1, sketch_point_param, 1, 150, NULL },
+    { ECMD_SKETCH_ADD_VERTEX,            "Add Vertex",           "topology",  2, sketch_uv_params,    1, 150, NULL },
     { ECMD_SKETCH_TOGGLE_ARC_ORIENT,     "Toggle Arc Orient",    "topology",  1, sketch_idx_param,   1, 160, NULL },
-    { ECMD_SKETCH_SET_ARC_RADIUS,        "Set Arc Radius",       "topology",  1, sketch_idx_param,   1, 170, NULL },
-    { ECMD_SKETCH_SET_TANGENCY,          "Set Arc Tangency",     "topology",  0, NULL,               1, 180, NULL },
+    { ECMD_SKETCH_SET_ARC_RADIUS,        "Set Arc Radius",       "topology",  2, sketch_arc_radius_params, 1, 170, NULL },
+    { ECMD_SKETCH_SET_TANGENCY,          "Set Arc Tangency",     "topology",  3, sketch_tangency_params,   1, 180, NULL },
     { ECMD_SKETCH_SET_PLANE,             "Set Sketch Plane",     "geometry",  0, NULL,               1, 190, NULL },
     { ECMD_SKETCH_TOGGLE_SEGMENT_REVERSE,"Toggle Seg Reverse",   "topology",  1, sketch_idx_param,   1, 200, NULL }
 };
@@ -429,6 +466,22 @@ sketch_vert_is_used(const struct rt_sketch_internal *skt, int vi)
 /* ------------------------------------------------------------------ */
 /* Edit operation implementations                                      */
 /* ------------------------------------------------------------------ */
+
+static int
+sketch_edit_index(struct rt_edit *s, int parameter, size_t limit,
+		  const char *name, int *index)
+{
+    fastf_t value = s->e_para[parameter];
+    if (!isfinite(value) || value < 0.0 || value > INT_MAX ||
+	floor(value) < value || (size_t)value >= limit) {
+	bu_vls_printf(s->log_str,
+	    "ERROR: %s must be an integer in [0, %zu)\n", name, limit);
+	s->e_inpara = 0;
+	return BRLCAD_ERROR;
+    }
+    *index = (int)value;
+    return BRLCAD_OK;
+}
 
 /*
  * Find the sketch vertex whose 3-D position projects closest to the
@@ -507,12 +560,9 @@ ecmd_sketch_pick_vertex(struct rt_edit *s)
 	return BRLCAD_ERROR;
     }
 
-    int vi = (int)s->e_para[0];
-    if (vi < 0 || (size_t)vi >= skt->vert_count) {
-	bu_vls_printf(s->log_str,
-		      "ERROR: vertex index %d out of range [0, %zu)\n",
-		      vi, skt->vert_count);
-	s->e_inpara = 0;
+    int vi;
+    if (sketch_edit_index(s, 0, skt->vert_count, "Vertex index", &vi)
+	!= BRLCAD_OK) {
 	return BRLCAD_ERROR;
     }
 
@@ -533,14 +583,21 @@ ecmd_sketch_move_vertex(struct rt_edit *s)
 	bu_vls_printf(s->log_str, "ERROR: no vertex selected (use ECMD_SKETCH_PICK_VERTEX first)\n");
 	return BRLCAD_ERROR;
     }
-    if (!s->e_inpara || s->e_inpara < 2) {
-	bu_vls_printf(s->log_str, "ERROR: two parameters required (U V in mm)\n");
+    if (s->e_inpara != 2) {
+	bu_vls_printf(s->log_str, "ERROR: two parameters required (U V in local units)\n");
 	s->e_inpara = 0;
 	return BRLCAD_ERROR;
     }
 
-    skt->verts[se->curr_vert][0] = s->e_para[0] * s->local2base;
-    skt->verts[se->curr_vert][1] = s->e_para[1] * s->local2base;
+    fastf_t u = s->e_para[0] * s->local2base;
+    fastf_t v = s->e_para[1] * s->local2base;
+    if (!isfinite(u) || !isfinite(v)) {
+	bu_vls_printf(s->log_str, "ERROR: vertex coordinates must be finite\n");
+	s->e_inpara = 0;
+	return BRLCAD_ERROR;
+    }
+    skt->verts[se->curr_vert][0] = u;
+    skt->verts[se->curr_vert][1] = v;
     rt_edit_snap_point(skt->verts[se->curr_vert], s);
     s->e_inpara = 0;
     return 0;
@@ -557,7 +614,7 @@ ecmd_sketch_move_vertex_list(struct rt_edit *s)
 	(struct rt_sketch_internal *)s->es_int.idb_ptr;
     RT_SKETCH_CK_MAGIC(skt);
 
-    if (!s->e_inpara || s->e_inpara < 3) {
+    if (s->e_inpara < 3 || s->e_inpara > RT_EDIT_MAXPARA) {
 	bu_vls_printf(s->log_str,
 		"ERROR: ECMD_SKETCH_MOVE_VERTEX_LIST: need U-delta, V-delta, "
 		"and at least one vertex index (e_inpara=%d)\n", s->e_inpara);
@@ -566,23 +623,27 @@ ecmd_sketch_move_vertex_list(struct rt_edit *s)
 
     fastf_t du = s->e_para[0] * s->local2base;
     fastf_t dv = s->e_para[1] * s->local2base;
+    if (!isfinite(du) || !isfinite(dv)) {
+	bu_vls_printf(s->log_str, "ERROR: vertex delta must be finite\n");
+	s->e_inpara = 0;
+	return BRLCAD_ERROR;
+    }
 
-    int n_moved = 0;
-    for (int k = 2; k < s->e_inpara; k++) {
-	int vi = (int)s->e_para[k];
-	if (vi < 0 || (size_t)vi >= skt->vert_count)
-	    continue;  /* skip out-of-range silently */
+    int count = s->e_inpara;
+    int vertices[RT_EDIT_MAXPARA - 2];
+    for (int k = 2; k < count; k++) {
+	if (sketch_edit_index(s, k, skt->vert_count,
+		"Vertex index", &vertices[k - 2]) != BRLCAD_OK)
+	    return BRLCAD_ERROR;
+    }
+    for (int k = 2; k < count; k++) {
+	int vi = vertices[k - 2];
 	skt->verts[vi][0] += du;
 	skt->verts[vi][1] += dv;
 	rt_edit_snap_point(skt->verts[vi], s);
-	n_moved++;
     }
 
     s->e_inpara = 0;
-    if (!n_moved) {
-	bu_vls_printf(s->log_str,
-		"WARNING: ECMD_SKETCH_MOVE_VERTEX_LIST: no valid vertices moved\n");
-    }
     return 0;
 }
 
@@ -599,12 +660,9 @@ ecmd_sketch_pick_segment(struct rt_edit *s)
 	return BRLCAD_ERROR;
     }
 
-    int si = (int)s->e_para[0];
-    if (si < 0 || (size_t)si >= skt->curve.count) {
-	bu_vls_printf(s->log_str,
-		      "ERROR: segment index %d out of range [0, %zu)\n",
-		      si, skt->curve.count);
-	s->e_inpara = 0;
+    int si;
+    if (sketch_edit_index(s, 0, skt->curve.count, "Segment index", &si)
+	!= BRLCAD_OK) {
 	return BRLCAD_ERROR;
     }
 
@@ -613,34 +671,59 @@ ecmd_sketch_pick_segment(struct rt_edit *s)
     return 0;
 }
 
-/* Collect the set of vertex indices referenced by segment[si] */
-static void
-sketch_seg_verts(const struct rt_sketch_internal *skt, int si,
-		 int *verts_out, int *count_out)
+/* Allocate enough space for every control point of the selected segment. */
+static int *
+sketch_seg_verts(const struct rt_sketch_internal *skt, int si, int *count_out)
 {
     *count_out = 0;
     void *seg = skt->curve.segment[si];
-    if (!seg) return;
+    if (!seg)
+	return NULL;
     uint32_t magic = *(uint32_t *)seg;
-    if (magic == CURVE_LSEG_MAGIC) {
-	struct line_seg *ls = (struct line_seg *)seg;
-	verts_out[(*count_out)++] = ls->start;
-	verts_out[(*count_out)++] = ls->end;
-    } else if (magic == CURVE_CARC_MAGIC) {
-	struct carc_seg *cs = (struct carc_seg *)seg;
-	verts_out[(*count_out)++] = cs->start;
-	verts_out[(*count_out)++] = cs->end;
+    int count = 0;
+    if (magic == CURVE_LSEG_MAGIC || magic == CURVE_CARC_MAGIC) {
+	count = 2;
     } else if (magic == CURVE_BEZIER_MAGIC) {
 	struct bezier_seg *bs = (struct bezier_seg *)seg;
-	int j;
-	for (j = 0; j <= bs->degree; j++)
-	    verts_out[(*count_out)++] = bs->ctl_points[j];
+	if (bs->degree < 0 || bs->degree >= INT_MAX || !bs->ctl_points)
+	    return NULL;
+	count = bs->degree + 1;
     } else if (magic == CURVE_NURB_MAGIC) {
 	struct nurb_seg *ns = (struct nurb_seg *)seg;
-	int j;
-	for (j = 0; j < ns->c_size; j++)
-	    verts_out[(*count_out)++] = ns->ctl_points[j];
+	if (ns->c_size <= 0 || !ns->ctl_points)
+	    return NULL;
+	count = ns->c_size;
     }
+    if (!count || (size_t)count > SIZE_MAX / sizeof(int))
+	return NULL;
+    int *vertices = (int *)bu_malloc((size_t)count * sizeof(int),
+	"sketch segment vertex indices");
+    if (magic == CURVE_LSEG_MAGIC) {
+	struct line_seg *ls = (struct line_seg *)seg;
+	vertices[0] = ls->start;
+	vertices[1] = ls->end;
+    } else if (magic == CURVE_CARC_MAGIC) {
+	struct carc_seg *cs = (struct carc_seg *)seg;
+	vertices[0] = cs->start;
+	vertices[1] = cs->end;
+    } else if (magic == CURVE_BEZIER_MAGIC) {
+	struct bezier_seg *bs = (struct bezier_seg *)seg;
+	memcpy(vertices, bs->ctl_points, (size_t)count * sizeof(int));
+    } else {
+	struct nurb_seg *ns = (struct nurb_seg *)seg;
+	memcpy(vertices, ns->ctl_points, (size_t)count * sizeof(int));
+    }
+    *count_out = count;
+    return vertices;
+}
+
+static int
+sketch_vertex_index_compare(const void *a, const void *b,
+			    void *UNUSED(context))
+{
+    int left = *(const int *)a;
+    int right = *(const int *)b;
+    return (left > right) - (left < right);
 }
 
 static int
@@ -655,24 +738,50 @@ ecmd_sketch_move_segment(struct rt_edit *s)
 	bu_vls_printf(s->log_str, "ERROR: no segment selected (use ECMD_SKETCH_PICK_SEGMENT first)\n");
 	return BRLCAD_ERROR;
     }
-    if (!s->e_inpara || s->e_inpara < 2) {
-	bu_vls_printf(s->log_str, "ERROR: two parameters required (dU dV in mm)\n");
+    if (s->e_inpara != 2) {
+	bu_vls_printf(s->log_str, "ERROR: two parameters required (dU dV in local units)\n");
 	s->e_inpara = 0;
 	return BRLCAD_ERROR;
     }
 
     fastf_t du = s->e_para[0] * s->local2base;
     fastf_t dv = s->e_para[1] * s->local2base;
+    if (!isfinite(du) || !isfinite(dv)) {
+	bu_vls_printf(s->log_str, "ERROR: segment delta must be finite\n");
+	s->e_inpara = 0;
+	return BRLCAD_ERROR;
+    }
 
-    int verts[64]; /* bezier degree <= 63 is more than enough */
     int nv = 0;
-    sketch_seg_verts(skt, se->curr_seg, verts, &nv);
-    int j;
-    for (j = 0; j < nv; j++) {
-	int vi = verts[j];
+    if ((size_t)se->curr_seg >= skt->curve.count) {
+	bu_vls_printf(s->log_str, "ERROR: selected segment is out of range\n");
+	return BRLCAD_ERROR;
+    }
+    int *vertices = sketch_seg_verts(skt, se->curr_seg, &nv);
+    if (!vertices) {
+	bu_vls_printf(s->log_str, "ERROR: selected segment has no vertices\n");
+	return BRLCAD_ERROR;
+    }
+    for (int j = 0; j < nv; ++j) {
+	int vi = vertices[j];
+	if (vi < 0 || (size_t)vi >= skt->vert_count ||
+	    !isfinite(skt->verts[vi][0] + du) ||
+	    !isfinite(skt->verts[vi][1] + dv)) {
+	    bu_vls_printf(s->log_str, "ERROR: invalid segment vertex\n");
+	    bu_free(vertices, "sketch segment vertex indices");
+	    return BRLCAD_ERROR;
+	}
+    }
+    bu_sort(vertices, (size_t)nv, sizeof(int), sketch_vertex_index_compare,
+	NULL);
+    for (int j = 0; j < nv; ++j) {
+	int vi = vertices[j];
+	if (j && vertices[j - 1] == vi)
+	    continue;
 	skt->verts[vi][0] += du;
 	skt->verts[vi][1] += dv;
     }
+    bu_free(vertices, "sketch segment vertex indices");
 
     s->e_inpara = 0;
     return 0;
@@ -691,14 +800,12 @@ ecmd_sketch_append_line(struct rt_edit *s)
 	return BRLCAD_ERROR;
     }
 
-    int v0 = (int)s->e_para[0];
-    int v1 = (int)s->e_para[1];
-    if (v0 < 0 || (size_t)v0 >= skt->vert_count ||
-	v1 < 0 || (size_t)v1 >= skt->vert_count) {
-	bu_vls_printf(s->log_str,
-		      "ERROR: vertex index out of range (have %zu verts)\n",
-		      skt->vert_count);
-	s->e_inpara = 0;
+    int v0;
+    int v1;
+    if (sketch_edit_index(s, 0, skt->vert_count, "Start vertex", &v0)
+	!= BRLCAD_OK ||
+	sketch_edit_index(s, 1, skt->vert_count, "End vertex", &v1)
+	!= BRLCAD_OK) {
 	return BRLCAD_ERROR;
     }
 
@@ -734,7 +841,7 @@ ecmd_sketch_append_arc(struct rt_edit *s)
 
     /* e_para: [0]=start_vi [1]=end_vi [2]=radius_mm [3]=center_is_left [4]=orientation
      * e_inpara must be 5. */
-    if (!s->e_inpara || s->e_inpara < 5) {
+    if (s->e_inpara != 5) {
 	bu_vls_printf(s->log_str,
 		"ERROR: 5 parameters required "
 		"(start_vi end_vi radius_mm center_is_left orientation)\n");
@@ -742,13 +849,18 @@ ecmd_sketch_append_arc(struct rt_edit *s)
 	return BRLCAD_ERROR;
     }
 
-    int v0  = (int)s->e_para[0];
-    int v1  = (int)s->e_para[1];
-    if (v0 < 0 || (size_t)v0 >= skt->vert_count ||
-	v1 < 0 || (size_t)v1 >= skt->vert_count) {
+    int v0;
+    int v1;
+    if (sketch_edit_index(s, 0, skt->vert_count, "Start vertex", &v0)
+	!= BRLCAD_OK ||
+	sketch_edit_index(s, 1, skt->vert_count, "End vertex", &v1)
+	!= BRLCAD_OK)
+	return BRLCAD_ERROR;
+    fastf_t radius = s->e_para[2] * s->local2base;
+    if (!isfinite(radius) || !isfinite(s->e_para[3]) ||
+	!isfinite(s->e_para[4])) {
 	bu_vls_printf(s->log_str,
-		      "ERROR: vertex index out of range (have %zu verts)\n",
-		      skt->vert_count);
+	    "ERROR: arc radius and orientation must be finite\n");
 	s->e_inpara = 0;
 	return BRLCAD_ERROR;
     }
@@ -758,9 +870,9 @@ ecmd_sketch_append_arc(struct rt_edit *s)
     cs->magic          = CURVE_CARC_MAGIC;
     cs->start          = v0;
     cs->end            = v1;
-    cs->radius         = s->e_para[2] * s->local2base;
-    cs->center_is_left = (int)s->e_para[3];
-    cs->orientation    = (int)s->e_para[4];
+    cs->radius         = radius;
+    cs->center_is_left = !ZERO(s->e_para[3]);
+    cs->orientation    = !ZERO(s->e_para[4]);
     cs->center         = -1; /* computed during sketch tessellation */
 
     size_t old_count = skt->curve.count;
@@ -790,34 +902,28 @@ ecmd_sketch_append_bezier(struct rt_edit *s)
     /* All e_inpara values are control point vertex indices.
      * degree = e_inpara - 1.
      * e_inpara must be >= 2 (at least linear bezier). */
-    if (!s->e_inpara || s->e_inpara < 2) {
+    if (s->e_inpara < 2 || s->e_inpara > RT_EDIT_MAXPARA) {
 	bu_vls_printf(s->log_str,
-		"ERROR: at least 2 vertex indices required "
-		"(e_inpara = degree+1 control points)\n");
+		"ERROR: 2 to %d control point indices required\n",
+		RT_EDIT_MAXPARA);
 	s->e_inpara = 0;
 	return BRLCAD_ERROR;
     }
 
     int degree = s->e_inpara - 1;
 
+    int indices[RT_EDIT_MAXPARA];
+    for (int j = 0; j <= degree; ++j)
+	if (sketch_edit_index(s, j, skt->vert_count, "Control point", &indices[j])
+	    != BRLCAD_OK)
+	    return BRLCAD_ERROR;
+
     struct bezier_seg *bs;
     BU_ALLOC(bs, struct bezier_seg);
     bs->magic  = CURVE_BEZIER_MAGIC;
     bs->degree = degree;
     bs->ctl_points = (int *)bu_malloc((degree + 1) * sizeof(int), "bezier ctl_points");
-    int j;
-    for (j = 0; j <= degree; j++) {
-	int vi = (int)s->e_para[j];
-	if (vi < 0 || (size_t)vi >= skt->vert_count) {
-	    bu_vls_printf(s->log_str,
-			  "ERROR: control point index %d out of range\n", vi);
-	    bu_free(bs->ctl_points, "bezier ctl_points");
-	    BU_FREE(bs, struct bezier_seg);
-	    s->e_inpara = 0;
-	    return BRLCAD_ERROR;
-	}
-	bs->ctl_points[j] = vi;
-    }
+    memcpy(bs->ctl_points, indices, (degree + 1) * sizeof(int));
 
     size_t old_count = skt->curve.count;
     skt->curve.count++;
@@ -893,24 +999,21 @@ ecmd_sketch_split_segment(struct rt_edit *s)
 	(struct rt_sketch_internal *)s->es_int.idb_ptr;
     RT_SKETCH_CK_MAGIC(skt);
 
-    if (!s->e_inpara || s->e_inpara < 2) {
+    if (s->e_inpara != 2) {
 	bu_vls_printf(s->log_str,
 		"ERROR: ECMD_SKETCH_SPLIT_SEGMENT: segment index and t "
 		"parameter required (e_inpara=%d)\n", s->e_inpara);
 	return BRLCAD_ERROR;
     }
 
-    int si     = (int)s->e_para[0];
+    int si;
     fastf_t t  = s->e_para[1];
 
-    if (si < 0 || (size_t)si >= skt->curve.count) {
-	bu_vls_printf(s->log_str,
-		"ERROR: ECMD_SKETCH_SPLIT_SEGMENT: segment index %d "
-		"out of range [0, %zu)\n", si, skt->curve.count);
-	s->e_inpara = 0;
+    if (sketch_edit_index(s, 0, skt->curve.count, "Segment index", &si)
+	!= BRLCAD_OK) {
 	return BRLCAD_ERROR;
     }
-    if (t <= 0.0 || t >= 1.0) {
+    if (!isfinite(t) || t <= 0.0 || t >= 1.0) {
 	bu_vls_printf(s->log_str,
 		"ERROR: ECMD_SKETCH_SPLIT_SEGMENT: t=%g must be in (0,1)\n", t);
 	s->e_inpara = 0;
@@ -1051,9 +1154,23 @@ ecmd_sketch_split_segment(struct rt_edit *s)
 	 */
 	struct bezier_seg *bs = (struct bezier_seg *)seg;
 	int d = bs->degree;
+	if (d < 1 || d >= RT_EDIT_MAXPARA || !bs->ctl_points) {
+	    bu_vls_printf(s->log_str,
+		"ERROR: ECMD_SKETCH_SPLIT_SEGMENT: unsupported Bezier degree\n");
+	    return BRLCAD_ERROR;
+	}
+	for (int j = 0; j <= d; ++j) {
+	    int vi = bs->ctl_points[j];
+	    if (vi < 0 || (size_t)vi >= skt->vert_count) {
+		bu_vls_printf(s->log_str,
+		    "ERROR: ECMD_SKETCH_SPLIT_SEGMENT: invalid control point\n");
+		return BRLCAD_ERROR;
+	    }
+	}
 
-	/* Build de Casteljau triangle in UV space (max degree 19) */
-	fastf_t Qu[20][20], Qv[20][20];
+	/* Build de Casteljau triangle in UV space. */
+	fastf_t Qu[RT_EDIT_MAXPARA][RT_EDIT_MAXPARA];
+	fastf_t Qv[RT_EDIT_MAXPARA][RT_EDIT_MAXPARA];
 	for (int j = 0; j <= d; j++) {
 	    Qu[0][j] = skt->verts[bs->ctl_points[j]][0];
 	    Qv[0][j] = skt->verts[bs->ctl_points[j]][1];
@@ -1066,13 +1183,13 @@ ecmd_sketch_split_segment(struct rt_edit *s)
 	}
 
 	/* Left control points: L[k] = Q[k][0] */
-	int left_verts[20];
+	int left_verts[RT_EDIT_MAXPARA];
 	left_verts[0] = bs->ctl_points[0]; /* P[0] — existing */
 	for (int k = 1; k <= d; k++)
 	    left_verts[k] = sketch_add_vertex(skt, Qu[k][0], Qv[k][0]);
 
 	/* Right control points: R[k] = Q[d-k][k] */
-	int right_verts[20];
+	int right_verts[RT_EDIT_MAXPARA];
 	right_verts[0] = left_verts[d];    /* split vertex */
 	for (int k = 1; k <= d - 1; k++)
 	    right_verts[k] = sketch_add_vertex(skt, Qu[d-k][k], Qv[d-k][k]);
@@ -1115,11 +1232,16 @@ ecmd_sketch_delete_vertex(struct rt_edit *s)
 	(struct rt_sketch_internal *)s->es_int.idb_ptr;
     RT_SKETCH_CK_MAGIC(skt);
 
-    if (se->curr_vert < 0) {
+    int vi = se->curr_vert;
+    if (s->e_inpara &&
+	(s->e_inpara != 1 ||
+	 sketch_edit_index(s, 0, skt->vert_count, "Vertex index", &vi)
+	 != BRLCAD_OK))
+	return BRLCAD_ERROR;
+    if (vi < 0 || (size_t)vi >= skt->vert_count) {
 	bu_vls_printf(s->log_str, "ERROR: no vertex selected\n");
 	return BRLCAD_ERROR;
     }
-    int vi = se->curr_vert;
     if (sketch_vert_is_used(skt, vi)) {
 	bu_vls_printf(s->log_str,
 		      "ERROR: vertex %d is referenced by a segment; delete the segment first\n",
@@ -1173,12 +1295,16 @@ ecmd_sketch_delete_segment(struct rt_edit *s)
 	(struct rt_sketch_internal *)s->es_int.idb_ptr;
     RT_SKETCH_CK_MAGIC(skt);
 
-    if (se->curr_seg < 0) {
+    int si = se->curr_seg;
+    if (s->e_inpara &&
+	(s->e_inpara != 1 ||
+	 sketch_edit_index(s, 0, skt->curve.count, "Segment index", &si)
+	 != BRLCAD_OK))
+	return BRLCAD_ERROR;
+    if (si < 0 || (size_t)si >= skt->curve.count) {
 	bu_vls_printf(s->log_str, "ERROR: no segment selected\n");
 	return BRLCAD_ERROR;
     }
-
-    int si = se->curr_seg;
 
     /* Free the segment data */
     void *seg = skt->curve.segment[si];
@@ -1262,16 +1388,19 @@ ecmd_sketch_append_nurb(struct rt_edit *s)
      * e_para[1..e_inpara-1]= control point vertex indices (c_size = e_inpara-1)
      * e_inpara             ≥ 1 + order  (need at least c_size ≥ order)
      */
-    if (!s->e_inpara || s->e_inpara < 2) {
+    if (s->e_inpara < 3 || s->e_inpara > RT_EDIT_MAXPARA) {
 	bu_vls_printf(s->log_str,
-		"ERROR: ECMD_SKETCH_APPEND_NURB: at least order + 1 control points required "
-		"(e_para[0]=order, e_para[1..]=vert_indices)\n");
+		"ERROR: ECMD_SKETCH_APPEND_NURB: 3 to %d parameters required\n",
+		RT_EDIT_MAXPARA);
 	s->e_inpara = 0;
 	return BRLCAD_ERROR;
     }
 
-    int order  = (int)s->e_para[0];
     int c_size = s->e_inpara - 1;
+    int order;
+    if (sketch_edit_index(s, 0, RT_EDIT_MAXPARA + 1, "NURB order", &order)
+	!= BRLCAD_OK)
+	return BRLCAD_ERROR;
 
     if (order < 2) {
 	bu_vls_printf(s->log_str,
@@ -1287,18 +1416,11 @@ ecmd_sketch_append_nurb(struct rt_edit *s)
 	return BRLCAD_ERROR;
     }
 
-    /* Validate all control point indices */
-    int j;
-    for (j = 0; j < c_size; j++) {
-	int vi = (int)s->e_para[1 + j];
-	if (vi < 0 || (size_t)vi >= skt->vert_count) {
-	    bu_vls_printf(s->log_str,
-		    "ERROR: ECMD_SKETCH_APPEND_NURB: control point index %d "
-		    "out of range [0, %zu)\n", vi, skt->vert_count);
-	    s->e_inpara = 0;
+    int indices[RT_EDIT_MAXPARA - 1];
+    for (int j = 0; j < c_size; ++j)
+	if (sketch_edit_index(s, j + 1, skt->vert_count,
+		"NURB control point", &indices[j]) != BRLCAD_OK)
 	    return BRLCAD_ERROR;
-	}
-    }
 
     int k_size = order + c_size;
 
@@ -1320,8 +1442,7 @@ ecmd_sketch_append_nurb(struct rt_edit *s)
     sketch_make_clamped_uniform_kv(ns->k.knots, order, c_size);
 
     ns->ctl_points = (int *)bu_malloc(c_size * sizeof(int), "nurb ctl_points");
-    for (j = 0; j < c_size; j++)
-	ns->ctl_points[j] = (int)s->e_para[1 + j];
+    memcpy(ns->ctl_points, indices, (size_t)c_size * sizeof(int));
 
     size_t old_count = skt->curve.count;
     skt->curve.count++;
@@ -1348,7 +1469,7 @@ ecmd_sketch_nurb_edit_kv(struct rt_edit *s)
 	(struct rt_sketch_internal *)s->es_int.idb_ptr;
     RT_SKETCH_CK_MAGIC(skt);
 
-    if (se->curr_seg < 0) {
+    if (se->curr_seg < 0 || (size_t)se->curr_seg >= skt->curve.count) {
 	bu_vls_printf(s->log_str,
 		"ERROR: ECMD_SKETCH_NURB_EDIT_KV: no segment selected\n");
 	return BRLCAD_ERROR;
@@ -1367,15 +1488,24 @@ ecmd_sketch_nurb_edit_kv(struct rt_edit *s)
      * e_para[1..e_inpara-1]= new knot values
      * e_inpara             = 1 + k_size
      */
-    if (!s->e_inpara || s->e_inpara < 2) {
+    if (s->e_inpara < 2 || s->e_inpara > RT_EDIT_MAXPARA) {
 	bu_vls_printf(s->log_str,
 		"ERROR: ECMD_SKETCH_NURB_EDIT_KV: k_size and knot values required\n");
 	s->e_inpara = 0;
 	return BRLCAD_ERROR;
     }
 
-    int k_size_in = (int)s->e_para[0];
-    int expected  = ns->order + ns->c_size;
+    if (ns->order < 2 || ns->c_size < ns->order ||
+	(size_t)ns->order + (size_t)ns->c_size >= RT_EDIT_MAXPARA) {
+	bu_vls_printf(s->log_str,
+	    "ERROR: ECMD_SKETCH_NURB_EDIT_KV: unsupported NURB size\n");
+	return BRLCAD_ERROR;
+    }
+    int expected = ns->order + ns->c_size;
+    int k_size_in;
+    if (sketch_edit_index(s, 0, (size_t)expected + 1,
+	"Knot count", &k_size_in) != BRLCAD_OK)
+	return BRLCAD_ERROR;
     if (k_size_in != expected) {
 	bu_vls_printf(s->log_str,
 		"ERROR: ECMD_SKETCH_NURB_EDIT_KV: k_size %d does not match "
@@ -1392,14 +1522,14 @@ ecmd_sketch_nurb_edit_kv(struct rt_edit *s)
 	return BRLCAD_ERROR;
     }
 
-    /* Verify non-decreasing order */
+    /* Verify finite, non-decreasing knots. */
     int i;
-    for (i = 0; i < k_size_in - 1; i++) {
-	if (s->e_para[1 + i + 1] < s->e_para[1 + i]) {
+    for (i = 0; i < k_size_in; i++) {
+	if (!isfinite(s->e_para[1 + i]) ||
+	    (i && s->e_para[1 + i] < s->e_para[i])) {
 	    bu_vls_printf(s->log_str,
-		    "ERROR: ECMD_SKETCH_NURB_EDIT_KV: knot vector must be "
-		    "non-decreasing (knot[%d]=%g > knot[%d]=%g)\n",
-		    i, s->e_para[1 + i], i + 1, s->e_para[1 + i + 1]);
+		    "ERROR: ECMD_SKETCH_NURB_EDIT_KV: knots must be "
+		    "finite and non-decreasing\n");
 	    s->e_inpara = 0;
 	    return BRLCAD_ERROR;
 	}
@@ -1429,7 +1559,7 @@ ecmd_sketch_nurb_edit_weights(struct rt_edit *s)
      * e_para[2..e_inpara-1]= weight values (one per control point)
      * e_inpara             = 2 + c_size
      */
-    if (!s->e_inpara || s->e_inpara < 3) {
+    if (s->e_inpara < 3 || s->e_inpara > RT_EDIT_MAXPARA) {
 	bu_vls_printf(s->log_str,
 		"ERROR: ECMD_SKETCH_NURB_EDIT_WEIGHTS: seg_index, c_size, and "
 		"at least one weight required\n");
@@ -1437,14 +1567,10 @@ ecmd_sketch_nurb_edit_weights(struct rt_edit *s)
 	return BRLCAD_ERROR;
     }
 
-    int si = (int)s->e_para[0];
-    if (si < 0 || (size_t)si >= skt->curve.count) {
-	bu_vls_printf(s->log_str,
-		"ERROR: ECMD_SKETCH_NURB_EDIT_WEIGHTS: segment index %d "
-		"out of range [0, %zu)\n", si, skt->curve.count);
-	s->e_inpara = 0;
+    int si;
+    if (sketch_edit_index(s, 0, skt->curve.count,
+	"Segment index", &si) != BRLCAD_OK)
 	return BRLCAD_ERROR;
-    }
 
     void *seg = skt->curve.segment[si];
     if (!seg || *(uint32_t *)seg != CURVE_NURB_MAGIC) {
@@ -1455,7 +1581,15 @@ ecmd_sketch_nurb_edit_weights(struct rt_edit *s)
     }
     struct nurb_seg *ns = (struct nurb_seg *)seg;
 
-    int c_size_expected = (int)s->e_para[1];
+    if (ns->c_size < 1 || ns->c_size > RT_EDIT_MAXPARA - 2) {
+	bu_vls_printf(s->log_str,
+	    "ERROR: ECMD_SKETCH_NURB_EDIT_WEIGHTS: unsupported NURB size\n");
+	return BRLCAD_ERROR;
+    }
+    int c_size_expected;
+    if (sketch_edit_index(s, 1, (size_t)ns->c_size + 1,
+	"Control point count", &c_size_expected) != BRLCAD_OK)
+	return BRLCAD_ERROR;
     if (c_size_expected != ns->c_size) {
 	bu_vls_printf(s->log_str,
 		"ERROR: ECMD_SKETCH_NURB_EDIT_WEIGHTS: c_size mismatch "
@@ -1475,7 +1609,7 @@ ecmd_sketch_nurb_edit_weights(struct rt_edit *s)
     /* Validate all weights > 0 */
     int i;
     for (i = 0; i < ns->c_size; i++) {
-	if (s->e_para[2 + i] <= 0.0) {
+	if (!isfinite(s->e_para[2 + i]) || s->e_para[2 + i] <= 0.0) {
 	    bu_vls_printf(s->log_str,
 		    "ERROR: ECMD_SKETCH_NURB_EDIT_WEIGHTS: weight[%d] = %g "
 		    "must be > 0\n", i, s->e_para[2 + i]);
@@ -1510,10 +1644,18 @@ ecmd_sketch_add_vertex(struct rt_edit *s)
 	(struct rt_sketch_internal *)s->es_int.idb_ptr;
     RT_SKETCH_CK_MAGIC(skt);
 
-    if (!s->e_inpara || s->e_inpara < 2) {
+    if (s->e_inpara != 2) {
 	bu_vls_printf(s->log_str,
 		"ERROR: ECMD_SKETCH_ADD_VERTEX: two parameters required "
 		"(U V in local units)\n");
+	return BRLCAD_ERROR;
+    }
+
+    fastf_t u = s->e_para[0] * s->local2base;
+    fastf_t v = s->e_para[1] * s->local2base;
+    if (!isfinite(u) || !isfinite(v) || skt->vert_count >= INT_MAX) {
+	bu_vls_printf(s->log_str, "ERROR: invalid sketch vertex coordinates\n");
+	s->e_inpara = 0;
 	return BRLCAD_ERROR;
     }
 
@@ -1522,8 +1664,6 @@ ecmd_sketch_add_vertex(struct rt_edit *s)
     skt->verts = (point2d_t *)bu_realloc(skt->verts,
 	    new_count * sizeof(point2d_t), "sketch verts");
 
-    fastf_t u = s->e_para[0] * s->local2base;
-    fastf_t v = s->e_para[1] * s->local2base;
     skt->verts[skt->vert_count][0] = u;
     skt->verts[skt->vert_count][1] = v;
     rt_edit_snap_point(skt->verts[skt->vert_count], s);
@@ -1536,20 +1676,38 @@ ecmd_sketch_add_vertex(struct rt_edit *s)
 }
 
 static int
-ecmd_sketch_toggle_arc_orient(struct rt_edit *s)
+sketch_edit_segment_index(struct rt_edit *s, int parameter_index, const char *command)
 {
     struct rt_sketch_edit *se = (struct rt_sketch_edit *)s->ipe_ptr;
     struct rt_sketch_internal *skt =
 	(struct rt_sketch_internal *)s->es_int.idb_ptr;
-    RT_SKETCH_CK_MAGIC(skt);
+    int index = se->curr_seg;
 
-    if (se->curr_seg < 0) {
-	bu_vls_printf(s->log_str,
-		"ERROR: ECMD_SKETCH_TOGGLE_ARC_ORIENT: no segment selected\n");
-	return BRLCAD_ERROR;
+    if (parameter_index >= 0 &&
+	sketch_edit_index(s, parameter_index, skt->curve.count,
+	    "Segment index", &index) != BRLCAD_OK)
+	return -1;
+
+    if (index < 0 || (size_t)index >= skt->curve.count) {
+	bu_vls_printf(s->log_str, "ERROR: %s: no segment selected\n", command);
+	return -1;
     }
 
-    void *seg = skt->curve.segment[se->curr_seg];
+    return index;
+}
+
+static int
+ecmd_sketch_toggle_arc_orient(struct rt_edit *s)
+{
+    struct rt_sketch_internal *skt =
+	(struct rt_sketch_internal *)s->es_int.idb_ptr;
+    RT_SKETCH_CK_MAGIC(skt);
+
+    int segment_index = sketch_edit_segment_index(s, s->e_inpara ? 0 : -1,
+	    "ECMD_SKETCH_TOGGLE_ARC_ORIENT");
+    if (segment_index < 0)
+	return BRLCAD_ERROR;
+    void *seg = skt->curve.segment[segment_index];
     if (!seg || *(uint32_t *)seg != CURVE_CARC_MAGIC) {
 	bu_vls_printf(s->log_str,
 		"ERROR: ECMD_SKETCH_TOGGLE_ARC_ORIENT: "
@@ -1574,42 +1732,42 @@ ecmd_sketch_toggle_arc_orient(struct rt_edit *s)
 static int
 ecmd_sketch_set_arc_radius(struct rt_edit *s)
 {
-    struct rt_sketch_edit *se = (struct rt_sketch_edit *)s->ipe_ptr;
     struct rt_sketch_internal *skt =
 	(struct rt_sketch_internal *)s->es_int.idb_ptr;
     RT_SKETCH_CK_MAGIC(skt);
 
-    if (se->curr_seg < 0) {
+    if (s->e_inpara < 1) {
 	bu_vls_printf(s->log_str,
-		"ERROR: ECMD_SKETCH_SET_ARC_RADIUS: no segment selected\n");
+		"ERROR: ECMD_SKETCH_SET_ARC_RADIUS: radius parameter required\n");
 	return BRLCAD_ERROR;
     }
 
-    if (!s->e_inpara || s->e_inpara < 1) {
-	bu_vls_printf(s->log_str,
-		"ERROR: ECMD_SKETCH_SET_ARC_RADIUS: "
-		"radius parameter required (e_para[0] in local units)\n");
-	s->e_inpara = 0;
+    int radius_parameter = s->e_inpara >= 2 ? 1 : 0;
+    int segment_index = sketch_edit_segment_index(s, s->e_inpara >= 2 ? 0 : -1,
+	    "ECMD_SKETCH_SET_ARC_RADIUS");
+    if (segment_index < 0)
 	return BRLCAD_ERROR;
-    }
 
-    void *seg = skt->curve.segment[se->curr_seg];
+    void *seg = skt->curve.segment[segment_index];
     if (!seg || *(uint32_t *)seg != CURVE_CARC_MAGIC) {
 	bu_vls_printf(s->log_str,
 		"ERROR: ECMD_SKETCH_SET_ARC_RADIUS: "
 		"selected segment is not a CARC\n");
-	s->e_inpara = 0;
 	return BRLCAD_ERROR;
     }
 
+    fastf_t radius = s->e_para[radius_parameter] * s->local2base;
+    if (!isfinite(radius)) {
+	bu_vls_printf(s->log_str,
+	    "ERROR: ECMD_SKETCH_SET_ARC_RADIUS: radius must be finite\n");
+	return BRLCAD_ERROR;
+    }
     struct carc_seg *cs = (struct carc_seg *)seg;
-    fastf_t new_r = s->e_para[0] * s->local2base;
-
-    cs->radius = new_r;
+    cs->radius = radius;
     cs->center = -1;  /* force recompute during tessellation */
 
     s->e_inpara = 0;
-    return 0;
+    return BRLCAD_OK;
 }
 
 /*
@@ -1751,26 +1909,22 @@ sketch_tangent_at_vertex(const struct rt_sketch_internal *skt,
 static int
 ecmd_sketch_set_tangency(struct rt_edit *s)
 {
-    struct rt_sketch_edit *se = (struct rt_sketch_edit *)s->ipe_ptr;
     struct rt_sketch_internal *skt =
 	(struct rt_sketch_internal *)s->es_int.idb_ptr;
     RT_SKETCH_CK_MAGIC(skt);
 
-    if (se->curr_seg < 0) {
+    if (s->e_inpara < 2) {
 	bu_vls_printf(s->log_str,
-		"ERROR: ECMD_SKETCH_SET_TANGENCY: no segment selected\n");
+		"ERROR: ECMD_SKETCH_SET_TANGENCY: adjacent index and angle required\n");
 	return BRLCAD_ERROR;
     }
 
-    if (!s->e_inpara || s->e_inpara < 2) {
-	bu_vls_printf(s->log_str,
-		"ERROR: ECMD_SKETCH_SET_TANGENCY: "
-		"e_para[0]=adj_seg, e_para[1]=angle required\n");
-	s->e_inpara = 0;
+    int arc_index = sketch_edit_segment_index(s, s->e_inpara >= 3 ? 0 : -1,
+	    "ECMD_SKETCH_SET_TANGENCY");
+    if (arc_index < 0)
 	return BRLCAD_ERROR;
-    }
 
-    void *arc_seg = skt->curve.segment[se->curr_seg];
+    void *arc_seg = skt->curve.segment[arc_index];
     if (!arc_seg || *(uint32_t *)arc_seg != CURVE_CARC_MAGIC) {
 	bu_vls_printf(s->log_str,
 		"ERROR: ECMD_SKETCH_SET_TANGENCY: "
@@ -1788,18 +1942,20 @@ ecmd_sketch_set_tangency(struct rt_edit *s)
 	return BRLCAD_ERROR;
     }
 
-    int adj_seg = (int)s->e_para[0];
-    fastf_t angle_rad = s->e_para[1];
-
-    if (adj_seg < 0 || (size_t)adj_seg >= skt->curve.count) {
+    int adjacent_parameter = s->e_inpara >= 3 ? 1 : 0;
+    int adj_seg = sketch_edit_segment_index(s, adjacent_parameter,
+	    "ECMD_SKETCH_SET_TANGENCY");
+    if (adj_seg < 0)
+	return BRLCAD_ERROR;
+    fastf_t angle_rad = s->e_para[adjacent_parameter + 1];
+    if (!isfinite(angle_rad)) {
 	bu_vls_printf(s->log_str,
-		"ERROR: ECMD_SKETCH_SET_TANGENCY: "
-		"adjacent segment index %d out of range [0,%zu)\n",
-		adj_seg, skt->curve.count);
+	    "ERROR: ECMD_SKETCH_SET_TANGENCY: angle must be finite\n");
 	s->e_inpara = 0;
 	return BRLCAD_ERROR;
     }
-    if (adj_seg == se->curr_seg) {
+
+    if (adj_seg == arc_index) {
 	bu_vls_printf(s->log_str,
 		"ERROR: ECMD_SKETCH_SET_TANGENCY: "
 		"adjacent segment is the same as curr_seg\n");
@@ -1878,6 +2034,12 @@ ecmd_sketch_set_tangency(struct rt_edit *s)
 
     fastf_t diff_sq = diffx*diffx + diffy*diffy;
     fastf_t new_r = diff_sq / (-2.0 * dot);
+    if (!isfinite(new_r) || ZERO(new_r)) {
+	bu_vls_printf(s->log_str,
+	    "ERROR: ECMD_SKETCH_SET_TANGENCY: invalid radius\n");
+	s->e_inpara = 0;
+	return BRLCAD_ERROR;
+    }
     if (new_r < 0.0) {
 	new_r = -new_r;
 	rdx = -rdx; rdy = -rdy;
@@ -1898,10 +2060,8 @@ ecmd_sketch_set_tangency(struct rt_edit *s)
     fastf_t cx = (da < db) ? cax : cbx;
     fastf_t cy = (da < db) ? cay : cby;
 
-    /* Determine center_is_left and orientation from centre position */
-    fastf_t diff2x = cx - bx, diff2y = cy - by;
-    fastf_t cross_cl = diff2x * rdy - diff2y * rdx;
-    cs->center_is_left = (cross_cl > 0.0) ? 1 : 0;
+    /* Determine center_is_left from the directed arc chord. */
+    cs->center_is_left = arc_center_is_left(ax, ay, bx, by, cx, cy);
 
     fastf_t diff1x = ax - cx, diff1y = ay - cy;
     /* A point one unit along the tangent from the start vertex (ax, ay).
@@ -1930,14 +2090,17 @@ ecmd_sketch_set_plane(struct rt_edit *s)
     if (!s->e_inpara || s->e_inpara < 9) {
 	bu_vls_printf(s->log_str,
 		"ERROR: ECMD_SKETCH_SET_PLANE: "
-		"9 parameters required (V[3] A[3] B[3] in base units)\n");
+		"9 parameters required (V[3] in local units, A[3] B[3] directions)\n");
 	s->e_inpara = 0;
 	return BRLCAD_ERROR;
     }
 
     point_t origin;
     vect_t a, b;
-    VSET(origin, s->e_para[0], s->e_para[1], s->e_para[2]);
+    VSET(origin,
+	 s->e_para[0] * s->local2base,
+	 s->e_para[1] * s->local2base,
+	 s->e_para[2] * s->local2base);
     VSET(a, s->e_para[3], s->e_para[4], s->e_para[5]);
     VSET(b, s->e_para[6], s->e_para[7], s->e_para[8]);
 
@@ -1973,27 +2136,20 @@ ecmd_sketch_set_plane(struct rt_edit *s)
 static int
 ecmd_sketch_toggle_segment_reverse(struct rt_edit *s)
 {
-    struct rt_sketch_edit *se = (struct rt_sketch_edit *)s->ipe_ptr;
     struct rt_sketch_internal *skt =
 	(struct rt_sketch_internal *)s->es_int.idb_ptr;
     RT_SKETCH_CK_MAGIC(skt);
 
-    if (se->curr_seg < 0 || (size_t)se->curr_seg >= skt->curve.count) {
-	bu_vls_printf(s->log_str,
-		"ERROR: ECMD_SKETCH_TOGGLE_SEGMENT_REVERSE: "
-		"no segment selected\n");
+    int segment_index = sketch_edit_segment_index(s, s->e_inpara ? 0 : -1,
+	    "ECMD_SKETCH_TOGGLE_SEGMENT_REVERSE");
+    if (segment_index < 0)
 	return BRLCAD_ERROR;
-    }
 
-    /* Allocate the reverse array if it does not yet exist */
     if (!skt->curve.reverse) {
 	skt->curve.reverse = (int *)bu_calloc(skt->curve.count,
-					      sizeof(int),
-					      "sketch reverse array");
+		sizeof(int), "sketch reverse array");
     }
-
-    skt->curve.reverse[se->curr_seg] ^= 1;
-
+    skt->curve.reverse[segment_index] ^= 1;
     return BRLCAD_OK;
 }
 

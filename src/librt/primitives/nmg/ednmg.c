@@ -24,6 +24,7 @@
 
 #include "common.h"
 
+#include <limits.h>
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
@@ -33,6 +34,7 @@
 
 #include "vmath.h"
 #include "bn.h"
+#include "bu/ptbl.h"
 #include "nmg.h"
 #include "rt/geom.h"
 #include "raytrace.h"
@@ -93,25 +95,33 @@ rt_edit_nmg_prim_edit_create(struct rt_edit *UNUSED(s))
     e->es_eu = NULL;
     e->lu_copy = NULL;
     e->es_s = NULL;
+    e->es_s_from_extrusion = 0;
     e->es_v = NULL;
     e->es_fu = NULL;
 
     return (void *)e;
 }
 
-C_DECL void
-rt_edit_nmg_prim_edit_destroy(struct rt_nmg_edit *e)
+/* The extrusion template owns a separate temporary model. */
+static void
+nmg_edit_free_loop_copy(struct rt_nmg_edit *e)
 {
+    if (!e->lu_copy)
+	return;
+
+    struct model *m = nmg_find_model(&e->lu_copy->l.magic);
+    nmg_km(m);
+    e->lu_copy = NULL;
+}
+
+C_DECL void
+rt_edit_nmg_prim_edit_destroy(void *ptr)
+{
+    struct rt_nmg_edit *e = (struct rt_nmg_edit *)ptr;
     if (!e)
 	return;
 
-    // Sanity
-    e->es_eu = NULL;
-    if (e->lu_copy) {
-	struct model *m = nmg_find_model(&e->lu_copy->l.magic);
-	nmg_km(m);
-	e->lu_copy = (struct loopuse *)NULL;
-    }
+    nmg_edit_free_loop_copy(e);
 
     BU_PUT(e, struct rt_nmg_edit);
 }
@@ -120,8 +130,10 @@ C_DECL void
 rt_edit_nmg_prim_edit_reset(struct rt_edit *s)
 {
     struct rt_nmg_edit *n = (struct rt_nmg_edit *)s->ipe_ptr;
+    nmg_edit_free_loop_copy(n);
     n->es_eu = NULL;
     n->es_s = NULL;
+    n->es_s_from_extrusion = 0;
     n->es_v = NULL;
     n->es_fu = NULL;
 }
@@ -250,6 +262,9 @@ rt_edit_nmg_set_edit_mode(struct rt_edit *s, int mode)
 		fastf_t area;
 		int wire_loop_count = 0;
 		s->edit_mode = RT_PARAMS_EDIT_TRANS;
+		nmg_edit_free_loop_copy(n);
+		n->es_s = NULL;
+		n->es_s_from_extrusion = 0;
 
 		m = (struct model *)s->es_int.idb_ptr;
 		NMG_CK_MODEL(m);
@@ -373,15 +388,7 @@ rt_edit_nmg_set_edit_mode(struct rt_edit *s, int mode)
 
 		sh = lu->up.s_p;
 
-		if (BU_LIST_NON_EMPTY(&sh->fu_hd)) {
-		    /* make a new shell to hold the extruded solid */
-
-		    r = BU_LIST_FIRST(nmgregion, &m->r_hd);
-		    NMG_CK_REGION(r);
-		    n->es_s = nmg_msv(r);
-		} else {
-		    n->es_s = sh;
-		}
+		n->es_s = sh;
 
 	    }
 	    break;
@@ -657,44 +664,99 @@ rt_edit_nmg_labels(
 }
 
 
-void ecmd_nmg_emove(struct rt_edit *s)
+static void
+nmg_edit_target_point(point_t target, const struct rt_edit *s, const point_t local)
+{
+    point_t base_point;
+
+    VSCALE(base_point, local, s->local2base);
+    if (s->mv_context)
+	MAT4X3PNT(target, s->e_invmat, base_point);
+    else
+	VMOVE(target, base_point);
+}
+
+static int
+nmg_edit_move_edge(struct rt_edit *s, const point_t new_pt)
+{
+    struct rt_nmg_edit *n = (struct rt_nmg_edit *)s->ipe_ptr;
+    struct model *original = (struct model *)s->es_int.idb_ptr;
+    struct model *candidate;
+    struct nmg_struct_counts counts;
+    uint32_t **candidate_structs;
+    struct edgeuse *candidate_eu;
+    int result;
+
+    if (nmg_find_model(&n->es_eu->l.magic) != original)
+	return 1;
+
+    /* A wire move cannot fail after it starts changing geometry. */
+    if (!nmg_find_fu_of_eu(n->es_eu))
+	return nmg_move_edge_thru_pnt(n->es_eu, new_pt, s->tol);
+
+    candidate = nmg_clone_model(original);
+    if (!candidate)
+	return 1;
+
+    candidate_structs = nmg_m_struct_count(&counts, candidate);
+    candidate_eu = (struct edgeuse *)candidate_structs[n->es_eu->index];
+    NMG_CK_EDGEUSE(candidate_eu);
+    result = nmg_move_edge_thru_pnt(candidate_eu, new_pt, s->tol);
+    if (result) {
+	bu_free(candidate_structs, "NMG candidate structures");
+	nmg_km(candidate);
+	return result;
+    }
+
+    /* Clone indices identify the corresponding selections in the new model. */
+    n->es_eu = candidate_eu;
+    if (n->es_v && nmg_find_model(&n->es_v->magic) == original)
+	n->es_v = (struct vertex *)candidate_structs[n->es_v->index];
+    if (n->es_fu && nmg_find_model(&n->es_fu->l.magic) == original)
+	n->es_fu = (struct faceuse *)candidate_structs[n->es_fu->index];
+    if (n->es_s && nmg_find_model(&n->es_s->l.magic) == original)
+	n->es_s = (struct shell *)candidate_structs[n->es_s->index];
+    bu_free(candidate_structs, "NMG candidate structures");
+    s->es_int.idb_ptr = (void *)candidate;
+    nmg_km(original);
+    return 0;
+}
+
+static int
+ecmd_nmg_emove(struct rt_edit *s)
 {
     struct rt_nmg_edit *n = (struct rt_nmg_edit *)s->ipe_ptr;
     point_t new_pt;
     bu_clbk_t f = NULL;
     void *d = NULL;
 
-    /* must convert to base units */
-    s->e_para[0] *= s->local2base;
-    s->e_para[1] *= s->local2base;
-    s->e_para[2] *= s->local2base;
-
     if (!n->es_eu) {
 	bu_vls_printf(s->log_str, "No edge selected!\n");
 	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
 	if (f)
 	    (*f)(0, NULL, d, NULL);
-	return;
+	return BRLCAD_ERROR;
     }
     NMG_CK_EDGEUSE(n->es_eu);
 
     if (s->e_mvalid) {
 	VMOVE(new_pt, s->e_mparam);
     } else if (s->e_inpara == 3) {
-	if (s->mv_context) {
-	    /* apply s->e_invmat to convert to real model space */
-	    MAT4X3PNT(new_pt, s->e_invmat, s->e_para);
-	} else {
-	    VMOVE(new_pt, s->e_para);
-	}
+	nmg_edit_target_point(new_pt, s, s->e_para);
     } else if (s->e_inpara && s->e_inpara != 3) {
 	bu_vls_printf(s->log_str, "x y z coordinates required for edge move\n");
 	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
 	if (f)
 	    (*f)(0, NULL, d, NULL);
-	return;
+	return BRLCAD_ERROR;
     } else if (!s->e_mvalid && !s->e_inpara)
-	return;
+	return BRLCAD_OK;
+
+    if (!isfinite(new_pt[X]) || !isfinite(new_pt[Y]) ||
+	!isfinite(new_pt[Z])) {
+	bu_vls_printf(s->log_str, "Edge Move: Target must be finite\n");
+	return BRLCAD_ERROR;
+    }
 
     if (!nmg_find_fu_of_eu(n->es_eu) && *n->es_eu->up.magic_p == NMG_LOOPUSE_MAGIC) {
 	struct loopuse *lu;
@@ -725,18 +787,22 @@ void ecmd_nmg_emove(struct rt_edit *s)
 		rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
 		if (f)
 		    (*f)(0, NULL, d, NULL);
-		return;
+		return BRLCAD_ERROR;
 	    }
 	    VJOIN1(new_pt, new_pt, dist, view_dir);
 	}
     }
 
-    if (nmg_move_edge_thru_pnt(n->es_eu, new_pt, s->tol) < 0) {
-	VPRINT("Unable to hit", new_pt);
+    if (nmg_edit_move_edge(s, new_pt)) {
+	bu_vls_printf(s->log_str, "Edge Move: Unable to hit (%g %g %g)\n",
+	    V3ARGS(new_pt));
+	return BRLCAD_ERROR;
     }
+    return BRLCAD_OK;
 }
 
-void ecmd_nmg_ekill(struct rt_edit *s)
+static int
+ecmd_nmg_ekill(struct rt_edit *s)
 {
     struct rt_nmg_edit *n = (struct rt_nmg_edit *)s->ipe_ptr;
     struct model *m;
@@ -749,7 +815,7 @@ void ecmd_nmg_ekill(struct rt_edit *s)
 	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
 	if (f)
 	    (*f)(0, NULL, d, NULL);
-	return;
+	return BRLCAD_ERROR;
     }
     NMG_CK_EDGEUSE(n->es_eu);
 
@@ -769,7 +835,7 @@ void ecmd_nmg_ekill(struct rt_edit *s)
 	    if (f)
 		(*f)(0, NULL, d, NULL);
 	    rt_edit_set_edflag(s, RT_EDIT_IDLE);
-	    return;
+	    return BRLCAD_ERROR;
 	}
 
 	prev_eu = BU_LIST_PPREV_CIRC(edgeuse, &n->es_eu->l);
@@ -787,11 +853,11 @@ void ecmd_nmg_ekill(struct rt_edit *s)
 		rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
 		if (f)
 		    (*f)(0, NULL, d, NULL);
-		return;
+		return BRLCAD_ERROR;
 	    }
 	    NMG_CK_EDGEUSE(n->es_eu->eumate_p);
 	    nmg_movevu(n->es_eu->eumate_p->vu_p, n->es_eu->vu_p->v_p);
-	    return;
+	    return BRLCAD_OK;
 	}
 
 	next_eu = BU_LIST_PNEXT_CIRC(edgeuse, &n->es_eu->l);
@@ -811,16 +877,20 @@ void ecmd_nmg_ekill(struct rt_edit *s)
 	VMOVE(eg->e_pt, next_eu->vu_p->v_p->vg_p->coord);
 	VSUB2(eg->e_dir, next_eu->eumate_p->vu_p->v_p->vg_p->coord, next_eu->vu_p->v_p->vg_p->coord);
 
-	return;
+	return BRLCAD_OK;
     } else if (*n->es_eu->up.magic_p == NMG_SHELL_MAGIC) {
 	/* wire edge, just kill it */
 	(void)nmg_keu(n->es_eu);
 	n->es_eu = (struct edgeuse *)NULL;
 	nmg_rebound(m, s->tol);
+	return BRLCAD_OK;
     }
+    bu_vls_printf(s->log_str, "Edge Delete: Unsupported edge type\n");
+    return BRLCAD_ERROR;
 }
 
-void ecmd_nmg_esplit(struct rt_edit *s)
+static int
+ecmd_nmg_esplit(struct rt_edit *s)
 {
     struct rt_nmg_edit *n = (struct rt_nmg_edit *)s->ipe_ptr;
     struct vertex *v=(struct vertex *)NULL;
@@ -832,17 +902,12 @@ void ecmd_nmg_esplit(struct rt_edit *s)
     bu_clbk_t f = NULL;
     void *d = NULL;
 
-    /* must convert to base units */
-    s->e_para[0] *= s->local2base;
-    s->e_para[1] *= s->local2base;
-    s->e_para[2] *= s->local2base;
-
     if (!n->es_eu) {
 	bu_vls_printf(s->log_str, "No edge selected!\n");
 	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
 	if (f)
 	    (*f)(0, NULL, d, NULL);
-	return;
+	return BRLCAD_ERROR;
     }
     NMG_CK_EDGEUSE(n->es_eu);
     m = nmg_find_model(&n->es_eu->l.magic);
@@ -850,20 +915,21 @@ void ecmd_nmg_esplit(struct rt_edit *s)
     if (s->e_mvalid) {
 	VMOVE(new_pt, s->e_mparam);
     } else if (s->e_inpara == 3) {
-	if (s->mv_context) {
-	    /* apply s->e_invmat to convert to real model space */
-	    MAT4X3PNT(new_pt, s->e_invmat, s->e_para);
-	} else {
-	    VMOVE(new_pt, s->e_para);
-	}
+	nmg_edit_target_point(new_pt, s, s->e_para);
     } else if (s->e_inpara && s->e_inpara != 3) {
 	bu_vls_printf(s->log_str, "x y z coordinates required for edge split\n");
 	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
 	if (f)
 	    (*f)(0, NULL, d, NULL);
-	return;
+	return BRLCAD_ERROR;
     } else if (!s->e_mvalid && !s->e_inpara)
-	return;
+	return BRLCAD_OK;
+
+    if (!isfinite(new_pt[X]) || !isfinite(new_pt[Y]) ||
+	!isfinite(new_pt[Z])) {
+	bu_vls_printf(s->log_str, "Edge Split: Target must be finite\n");
+	return BRLCAD_ERROR;
+    }
 
     if (*n->es_eu->up.magic_p == NMG_LOOPUSE_MAGIC) {
 	struct loopuse *lu;
@@ -878,7 +944,7 @@ void ecmd_nmg_esplit(struct rt_edit *s)
 	    rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
 	    if (f)
 		(*f)(0, NULL, d, NULL);
-	    return;
+	    return BRLCAD_ERROR;
 	}
 
 	/* get plane equation for loop */
@@ -899,7 +965,7 @@ void ecmd_nmg_esplit(struct rt_edit *s)
 		rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
 		if (f)
 		    (*f)(0, NULL, d, NULL);
-		return;
+		return BRLCAD_ERROR;
 	    }
 	    VJOIN1(new_pt, new_pt, dist, view_dir);
 	}
@@ -911,13 +977,14 @@ void ecmd_nmg_esplit(struct rt_edit *s)
     NMG_CK_EDGE_G_LSEG(eg);
     VMOVE(eg->e_pt, new_pt);
     VSUB2(eg->e_dir, n->es_eu->eumate_p->vu_p->v_p->vg_p->coord, new_pt);
+    return BRLCAD_OK;
 }
 
-void ecmd_nmg_lextru(struct rt_edit *s)
+static int
+nmg_edit_extrude_to(struct rt_edit *s, const point_t to_pt)
 {
     struct rt_nmg_edit *n = (struct rt_nmg_edit *)s->ipe_ptr;
     fastf_t dist;
-    point_t to_pt;
     vect_t extrude_vec;
     struct loopuse *new_lu;
     struct faceuse *fu;
@@ -927,58 +994,46 @@ void ecmd_nmg_lextru(struct rt_edit *s)
     bu_clbk_t f = NULL;
     void *d = NULL;
 
-    /* must convert to base units */
-    s->e_para[0] *= s->local2base;
-    s->e_para[1] *= s->local2base;
-    s->e_para[2] *= s->local2base;
-
-    if (s->e_mvalid) {
-	VMOVE(to_pt, s->e_mparam);
-    } else if (s->e_inpara == 3) {
-	if (s->mv_context) {
-	    /* apply s->e_invmat to convert to real model space */
-	    MAT4X3PNT(to_pt, s->e_invmat, s->e_para);
-	} else {
-	    VMOVE(to_pt, s->e_para);
-	}
-    } else if (s->e_inpara == 1) {
-	VJOIN1(to_pt, n->lu_keypoint, s->e_para[0], n->lu_pl);
-    } else if (s->e_inpara && s->e_inpara != 3) {
-	bu_vls_printf(s->log_str, "x y z coordinates required for loop extrusion\n");
-	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
-	if (f)
-	    (*f)(0, NULL, d, NULL);
-	return;
-    } else if (!s->e_mvalid && !s->e_inpara) {
-	return;
+    if (!n->lu_copy || !n->es_s) {
+	bu_vls_printf(s->log_str, "No wire loop selected for extrusion\n");
+	return BRLCAD_ERROR;
     }
-
+    if (!isfinite(to_pt[X]) || !isfinite(to_pt[Y]) ||
+	!isfinite(to_pt[Z])) {
+	bu_vls_printf(s->log_str, "Loop Extrude: Target must be finite\n");
+	return BRLCAD_ERROR;
+    }
     VSUB2(extrude_vec, to_pt, n->lu_keypoint);
+    if (!isfinite(extrude_vec[X]) || !isfinite(extrude_vec[Y]) ||
+	!isfinite(extrude_vec[Z])) {
+	bu_vls_printf(s->log_str, "Loop Extrude: Direction must be finite\n");
+	return BRLCAD_ERROR;
+    }
 
     if (bg_isect_line3_plane(&dist, to_pt, extrude_vec, n->lu_pl, s->tol) < 1) {
 	bu_vls_printf(s->log_str, "Cannot extrude parallel to plane of loop\n");
 	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
 	if (f)
 	    (*f)(0, NULL, d, NULL);
-	return;
+	return BRLCAD_ERROR;
     }
 
-    if (BU_LIST_NON_EMPTY(&n->es_s->fu_hd)) {
-	struct nmgregion *r;
-
-	r = n->es_s->r_p;
-	(void) nmg_ks(n->es_s);
-	n->es_s = nmg_msv(r);
-    }
-
-    new_lu = nmg_dup_loop(n->lu_copy, &n->es_s->l.magic, (long **)0);
-    area = nmg_loop_plane_area(new_lu, new_lu_pl);
+    area = nmg_loop_plane_area(n->lu_copy, new_lu_pl);
     if (area < 0.0) {
 	bu_vls_printf(s->log_str, "loop to be extruded as no area!\n");
 	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
 	if (f)
 	    (*f)(0, NULL, d, NULL);
-	return;
+	return BRLCAD_ERROR;
+    }
+
+    struct shell *prior_preview = n->es_s_from_extrusion ? n->es_s : NULL;
+    struct shell *new_shell = nmg_msv(n->es_s->r_p);
+    new_lu = nmg_dup_loop(n->lu_copy, &new_shell->l.magic, (long **)0);
+    if (!new_lu) {
+	bu_vls_printf(s->log_str, "Loop Extrude: Failed to copy wire loop\n");
+	(void)nmg_ks(new_shell);
+	return BRLCAD_ERROR;
     }
 
     if (VDOT(extrude_vec, new_lu_pl) > 0.0) {
@@ -994,9 +1049,16 @@ void ecmd_nmg_lextru(struct rt_edit *s)
 	nmg_face_g(fu, new_lu_pl);
     }
 
-    (void)nmg_extrude_face(fu, extrude_vec, s->vlfree, s->tol);
-
-    nmg_fix_normals(fu->s_p, s->vlfree, s->tol);
+    if (nmg_extrude_face(fu, extrude_vec, s->vlfree, s->tol) < 0) {
+	bu_vls_printf(s->log_str, "Loop Extrude: Failed to construct solid\n");
+	(void)nmg_ks(new_shell);
+	return BRLCAD_ERROR;
+    }
+    nmg_fix_normals(new_shell, s->vlfree, s->tol);
+    if (prior_preview)
+	(void)nmg_ks(prior_preview);
+    n->es_s = new_shell;
+    n->es_s_from_extrusion = 1;
 
     m = nmg_find_model(&fu->l.magic);
     nmg_rebound(m, s->tol);
@@ -1013,6 +1075,34 @@ void ecmd_nmg_lextru(struct rt_edit *s)
     rt_edit_map_clbk_get(&f, &d, s->m, ECMD_VIEW_SET_FLAG, BU_CLBK_DURING);
     if (f)
 	(*f)(0, NULL, d, &vs_flag);
+    return BRLCAD_OK;
+}
+
+static int
+ecmd_nmg_lextru(struct rt_edit *s)
+{
+    struct rt_nmg_edit *n = (struct rt_nmg_edit *)s->ipe_ptr;
+    point_t to_pt;
+    bu_clbk_t f = NULL;
+    void *d = NULL;
+
+    if (s->e_mvalid) {
+	VMOVE(to_pt, s->e_mparam);
+    } else if (s->e_inpara == 3) {
+	nmg_edit_target_point(to_pt, s, s->e_para);
+    } else if (s->e_inpara == 1) {
+	VJOIN1(to_pt, n->lu_keypoint, s->e_para[0] * s->local2base, n->lu_pl);
+    } else if (s->e_inpara) {
+	bu_vls_printf(s->log_str, "x y z coordinates required for loop extrusion\n");
+	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
+	if (f)
+	    (*f)(0, NULL, d, NULL);
+	return BRLCAD_ERROR;
+    } else {
+	return BRLCAD_OK;
+    }
+
+    return nmg_edit_extrude_to(s, to_pt);
 }
 
 /* Extrude current loop in an explicit direction + distance.
@@ -1020,42 +1110,41 @@ void ecmd_nmg_lextru(struct rt_edit *s)
  * e_para[3]    = extrusion distance (local units)
  * e_inpara must be 4.
  *
- * Converts to target_pt = lu_keypoint + normalise(dir)*dist, then calls
- * the standard ecmd_nmg_lextru() via the e_inpara=3 path. */
-static void
+ * Computes the base-unit target and shares the extrusion operation. */
+static int
 ecmd_nmg_lextru_dir(struct rt_edit *s)
 {
     struct rt_nmg_edit *n = (struct rt_nmg_edit *)s->ipe_ptr;
 
-    if (!s->e_inpara || s->e_inpara < 4) {
+    if (s->e_inpara != 4) {
 	bu_vls_printf(s->log_str,
 		"ERROR: ECMD_NMG_LEXTRU_DIR: need direction (3 components) "
 		"and distance (e_inpara=4)\n");
-	return;
+	return BRLCAD_ERROR;
     }
 
     vect_t dir;
     VSET(dir, s->e_para[0], s->e_para[1], s->e_para[2]);
     double mag = MAGNITUDE(dir);
-    if (mag < SQRT_SMALL_FASTF) {
+    if (!isfinite(mag) || mag < SQRT_SMALL_FASTF ||
+	!isfinite(s->e_para[3])) {
 	bu_vls_printf(s->log_str,
-		"ERROR: ECMD_NMG_LEXTRU_DIR: zero-length direction vector\n");
-	return;
+		"ERROR: ECMD_NMG_LEXTRU_DIR: direction and distance must be finite and direction nonzero\n");
+	return BRLCAD_ERROR;
     }
     VSCALE(dir, dir, 1.0 / mag);
 
-    fastf_t dist = s->e_para[3] * s->local2base;
-
-    /* Build the target point and pass to the standard path */
     point_t to_pt;
-    VJOIN1(to_pt, n->lu_keypoint, dist, dir);
+    if (s->e_mvalid) {
+	VMOVE(to_pt, s->e_mparam);
+    } else {
+	point_t local_keypoint, local_target;
+	VSCALE(local_keypoint, n->lu_keypoint, s->base2local);
+	VJOIN1(local_target, local_keypoint, s->e_para[3], dir);
+	nmg_edit_target_point(to_pt, s, local_target);
+    }
 
-    /* Override e_para/e_inpara to use the x,y,z form */
-    VMOVE(s->e_para, to_pt);
-    s->e_inpara = 3;
-    s->local2base = 1.0;  /* already converted above */
-
-    ecmd_nmg_lextru(s);
+    return nmg_edit_extrude_to(s, to_pt);
 }
 
 
@@ -1113,6 +1202,22 @@ void ecmd_nmg_epick(struct rt_edit *s, const vect_t mousevec)
 	    (*f)(0, NULL, d, NULL);
 	bu_vls_free(&tmp_vls);
     }
+    edit_abs_tra(s, pos_view);
+}
+
+static int
+nmg_edit_index(struct rt_edit *s, const char *name, int *index)
+{
+    fastf_t value = s->e_para[0];
+    if (s->e_inpara != 1 || !isfinite(value) || value < 0.0 ||
+	value > INT_MAX || floor(value) < value) {
+	bu_vls_printf(s->log_str,
+	    "ERROR: %s must be a nonnegative integer\n", name);
+	s->e_inpara = 0;
+	return BRLCAD_ERROR;
+    }
+    *index = (int)value;
+    return BRLCAD_OK;
 }
 
 /* ------------------------------------------------------------------
@@ -1127,13 +1232,9 @@ ecmd_nmg_vpick(struct rt_edit *s)
     struct model *m = (struct model *)s->es_int.idb_ptr;
     NMG_CK_MODEL(m);
 
-    if (!s->e_inpara || s->e_inpara < 1) {
-	bu_vls_printf(s->log_str, "ERROR: vertex index required\n");
-	s->e_inpara = 0;
+    int target;
+    if (nmg_edit_index(s, "Vertex index", &target) != BRLCAD_OK)
 	return BRLCAD_ERROR;
-    }
-
-    int target = (int)s->e_para[0];
     int idx = 0;
     /* Walk all edgeuses; each unique vertex is encountered at least once */
     struct nmgregion *r;
@@ -1188,13 +1289,7 @@ ecmd_nmg_vmove(struct rt_edit *s)
     if (s->e_mvalid) {
 	VMOVE(new_pt, s->e_mparam);
     } else if (s->e_inpara == 3) {
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
-	if (s->mv_context)
-	    MAT4X3PNT(new_pt, s->e_invmat, s->e_para);
-	else
-	    VMOVE(new_pt, s->e_para);
+	nmg_edit_target_point(new_pt, s, s->e_para);
     } else if (s->e_inpara && s->e_inpara != 3) {
 	bu_vls_printf(s->log_str, "X Y Z coordinates required for vertex move\n");
 	return BRLCAD_ERROR;
@@ -1202,6 +1297,11 @@ ecmd_nmg_vmove(struct rt_edit *s)
 	return 0;
     }
 
+    if (!isfinite(new_pt[X]) || !isfinite(new_pt[Y]) ||
+	!isfinite(new_pt[Z])) {
+	bu_vls_printf(s->log_str, "ERROR: vertex position must be finite\n");
+	return BRLCAD_ERROR;
+    }
     nmg_vertex_gv(n->es_v, new_pt);
     s->e_inpara = 0;
     return 0;
@@ -1219,13 +1319,9 @@ ecmd_nmg_fpick(struct rt_edit *s)
     struct model *m = (struct model *)s->es_int.idb_ptr;
     NMG_CK_MODEL(m);
 
-    if (!s->e_inpara || s->e_inpara < 1) {
-	bu_vls_printf(s->log_str, "ERROR: face index required\n");
-	s->e_inpara = 0;
+    int target;
+    if (nmg_edit_index(s, "Face index", &target) != BRLCAD_OK)
 	return BRLCAD_ERROR;
-    }
-
-    int target = (int)s->e_para[0];
     int idx = 0;
     struct nmgregion *r;
     for (BU_LIST_FOR(r, nmgregion, &m->r_hd)) {
@@ -1276,8 +1372,15 @@ ecmd_nmg_fmove(struct rt_edit *s)
     delta[0] = s->e_para[0] * s->local2base;
     delta[1] = s->e_para[1] * s->local2base;
     delta[2] = s->e_para[2] * s->local2base;
+    if (!isfinite(delta[X]) || !isfinite(delta[Y]) ||
+	!isfinite(delta[Z])) {
+	bu_vls_printf(s->log_str, "ERROR: face delta must be finite\n");
+	return BRLCAD_ERROR;
+    }
 
-    /* Move every vertex referenced by this faceuse's loops */
+    /* A face may reference one vertex through more than one loop. */
+    struct bu_ptbl vertices = BU_PTBL_INIT_ZERO;
+    bu_ptbl_init(&vertices, 8, "NMG face vertices");
     struct loopuse *lu;
     for (BU_LIST_FOR(lu, loopuse, &n->es_fu->lu_hd)) {
 	NMG_CK_LOOPUSE(lu);
@@ -1287,11 +1390,27 @@ ecmd_nmg_fmove(struct rt_edit *s)
 	for (BU_LIST_FOR(eu, edgeuse, &lu->down_hd)) {
 	    struct vertex *v = eu->vu_p->v_p;
 	    NMG_CK_VERTEX(v);
-	    point_t new_pt;
-	    VADD2(new_pt, v->vg_p->coord, delta);
-	    nmg_vertex_gv(v, new_pt);
+	    bu_ptbl_ins_unique(&vertices, (long *)v);
 	}
     }
+
+    for (size_t i = 0; i < BU_PTBL_LEN(&vertices); ++i) {
+	struct vertex *v = (struct vertex *)BU_PTBL_GET(&vertices, i);
+	if (!v->vg_p || !isfinite(v->vg_p->coord[X] + delta[X]) ||
+	    !isfinite(v->vg_p->coord[Y] + delta[Y]) ||
+	    !isfinite(v->vg_p->coord[Z] + delta[Z])) {
+	    bu_vls_printf(s->log_str, "ERROR: invalid face vertex\n");
+	    bu_ptbl_free(&vertices);
+	    return BRLCAD_ERROR;
+	}
+    }
+    for (size_t i = 0; i < BU_PTBL_LEN(&vertices); ++i) {
+	struct vertex *v = (struct vertex *)BU_PTBL_GET(&vertices, i);
+	point_t new_pt;
+	VADD2(new_pt, v->vg_p->coord, delta);
+	nmg_vertex_gv(v, new_pt);
+    }
+    bu_ptbl_free(&vertices);
 
     s->e_inpara = 0;
     return 0;
@@ -1330,20 +1449,15 @@ rt_edit_nmg_edit(struct rt_edit *s)
 	case ECMD_NMG_FMOVE:
 	    return ecmd_nmg_fmove(s);
 	case ECMD_NMG_EMOVE:
-	    ecmd_nmg_emove(s);
-	    break;
+	    return ecmd_nmg_emove(s);
 	case ECMD_NMG_EKILL:
-	    ecmd_nmg_ekill(s);
-	    /* fall through */
+	    return ecmd_nmg_ekill(s);
 	case ECMD_NMG_ESPLIT:
-	    ecmd_nmg_esplit(s);
-	    break;
+	    return ecmd_nmg_esplit(s);
 	case ECMD_NMG_LEXTRU:
-	    ecmd_nmg_lextru(s);
-	    break;
+	    return ecmd_nmg_lextru(s);
 	case ECMD_NMG_LEXTRU_DIR:
-	    ecmd_nmg_lextru_dir(s);
-	    break;
+	    return ecmd_nmg_lextru_dir(s);
 	default:
 	    return edit_generic(s);
     }
@@ -1376,7 +1490,7 @@ rt_edit_nmg_edit_xy(
 	    /* Edge pick is done directly in ecmd_nmg_epick (uses view-space
 	     * search), not via the generic e_mparam path. */
 	    ecmd_nmg_epick(s, mousevec);
-	    break;
+	    return BRLCAD_OK;
 	case ECMD_NMG_EMOVE:
 	case ECMD_NMG_ESPLIT:
 	case ECMD_NMG_VMOVE:

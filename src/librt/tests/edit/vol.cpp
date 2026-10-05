@@ -49,11 +49,15 @@
 
 #include "common.h"
 
+#include <limits.h>
 #include <math.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "vmath.h"
 #include "bu/app.h"
+#include "bu/file.h"
 #include "bu/log.h"
 #include "bu/malloc.h"
 #include "bu/str.h"
@@ -67,6 +71,15 @@
 #define ECMD_VOL_THRESH_LO	13050
 #define ECMD_VOL_THRESH_HI	13051
 #define ECMD_VOL_FNAME		13052
+
+
+static int
+vol_filename_callback(int UNUSED(argc), const char **UNUSED(argv),
+                      void *data, void *result)
+{
+    *(char **)result = (char *)data;
+    return BRLCAD_OK;
+}
 
 
 struct directory *
@@ -121,12 +134,8 @@ vol_reset(struct rt_edit *s, struct rt_vol_internal *edit_vol)
 
 
 int
-main(int argc, char *argv[])
+rt_edit_test_vol(void)
 {
-    bu_setprogname(argv[0]);
-    if (argc != 1)
-	return BRLCAD_ERROR;
-
     struct db_i *dbip = db_open_inmem();
     if (dbip == DBI_NULL)
 	bu_exit(1, "ERROR: Unable to create database instance\n");
@@ -155,6 +164,7 @@ main(int argc, char *argv[])
 
     struct rt_edit *s = rt_edit_create(&fp, dbip, &tol, v);
     s->mv_context = 1;
+    const fastf_t inch = 25.4;
 
     struct rt_vol_internal *edit_vol =
 	(struct rt_vol_internal *)s->es_int.idb_ptr;
@@ -229,6 +239,22 @@ main(int argc, char *argv[])
 		edit_vol->mat[15]);
     bu_log("RT_PARAMS_EDIT_SCALE SUCCESS: mat[15]=%g (encodes scale=2)\n",
 	   edit_vol->mat[15]);
+
+    vol_reset(s, edit_vol);
+    s->e_inpara = 2;
+    s->e_para[0] = 2.0;
+    s->e_para[1] = 3.0;
+    if (rt_edit_process(s) != BRLCAD_ERROR ||
+	!NEAR_EQUAL(edit_vol->mat[15], 1.0, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: rejected generic VOL scale changed geometry or succeeded\n");
+
+    vol_reset(s, edit_vol);
+    s->e_inpara = 1;
+    s->e_para[0] = 0.0;
+    if (rt_edit_process(s) != BRLCAD_ERROR ||
+	!NEAR_EQUAL(edit_vol->mat[15], 1.0, VUNITIZE_TOL) ||
+	!NEAR_EQUAL(s->acc_sc_sol, 1.0, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: rejected zero VOL scale changed edit state\n");
 
     /* ================================================================
      * RT_PARAMS_EDIT_TRANS (translate; keypoint (0,0,0) → e_para=(5,5,5))
@@ -352,8 +378,153 @@ bu_log("RT_MATRIX_EDIT_TRANS_MODEL_XYZ SUCCESS: "
        "keypoint maps to (%g,%g,%g)\n", V3ARGS(kp_world));
     }
 
+    {
+	vol_reset(s, edit_vol);
+	s->local2base = inch;
+	s->base2local = 1.0 / inch;
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_VOL_CSIZE);
+	s->e_inpara = 3;
+	VSET(s->e_para, 1.0, 2.0, 3.0);
+	rt_edit_process(s);
+	vect_t expected;
+	VSET(expected, inch, 2.0 * inch, 3.0 * inch);
+	if (!VNEAR_EQUAL(edit_vol->cellsize, expected, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: VOL cell size did not use local units\n");
+    }
+
+    vol_reset(s, edit_vol);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_VOL_CSIZE);
+    VSET(s->e_para, 1.0, 2.0, 3.0);
+    for (int repeat = 0; repeat < 2; repeat++) {
+	s->e_inpara = 3;
+	if (rt_edit_process(s) != BRLCAD_OK ||
+	    !NEAR_EQUAL(edit_vol->cellsize[X], inch, VUNITIZE_TOL) ||
+	    !NEAR_EQUAL(s->e_para[X], 1.0, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: repeated VOL cell-size edit reconverted input\n");
+    }
+
+    vol_reset(s, edit_vol);
+    s->e_inpara = 2;
+    VSET(s->e_para, 1.0, 2.0, 3.0);
+    if (rt_edit_process(s) != BRLCAD_ERROR ||
+	!NEAR_EQUAL(edit_vol->cellsize[X], 1.0, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: incomplete VOL cell size reported success\n");
+
+    vol_reset(s, edit_vol);
+    s->e_inpara = 3;
+    VSET(s->e_para, 1.0, -2.0, 3.0);
+    if (rt_edit_process(s) != BRLCAD_ERROR ||
+	!NEAR_EQUAL(edit_vol->cellsize[Y], 1.0, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: negative VOL cell size was accepted\n");
+
+    vol_reset(s, edit_vol);
+    s->es_scale = NAN;
+    if (rt_edit_process(s) != BRLCAD_ERROR ||
+	!NEAR_EQUAL(edit_vol->cellsize[X], 1.0, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: VOL accepted a non-finite cell-size scale\n");
+
+    vol_reset(s, edit_vol);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_VOL_THRESH_LO);
+    s->e_inpara = 1;
+    s->e_para[0] = 0.0;
+    if (rt_edit_process(s) != BRLCAD_OK || edit_vol->lo != 0)
+	bu_exit(1, "ERROR: VOL rejected a zero low threshold\n");
+
+    vol_reset(s, edit_vol);
+    s->e_para[0] = 0.0;
+    s->es_scale = 1.5;
+    if (rt_edit_process(s) != BRLCAD_OK || edit_vol->lo != 7)
+	bu_exit(1, "ERROR: VOL low-threshold knob used stale numeric input\n");
+
+    vol_reset(s, edit_vol);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_VOL_THRESH_HI);
+    s->e_inpara = 1;
+    s->e_para[0] = 0.0;
+    if (rt_edit_process(s) != BRLCAD_OK || edit_vol->hi != 0)
+	bu_exit(1, "ERROR: VOL rejected a zero high threshold\n");
+
+    vol_reset(s, edit_vol);
+    s->e_para[0] = 0.0;
+    s->es_scale = 0.5;
+    if (rt_edit_process(s) != BRLCAD_OK || edit_vol->hi != 125)
+	bu_exit(1, "ERROR: VOL high-threshold knob used stale numeric input\n");
+    vol_reset(s, edit_vol);
+    edit_vol->lo = 0;
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_VOL_THRESH_LO);
+    s->e_para[0] = 0.0;
+    s->es_scale = 0.5;
+    if (rt_edit_process(s) != BRLCAD_OK || edit_vol->lo != 0)
+	bu_exit(1, "ERROR: VOL underflowed a zero threshold\n");
+
+    vol_reset(s, edit_vol);
+    s->e_inpara = 1;
+    s->e_para[0] = -1.0;
+    if (rt_edit_process(s) != BRLCAD_ERROR || edit_vol->lo != 5)
+	bu_exit(1, "ERROR: VOL accepted a negative threshold\n");
+
+    vol_reset(s, edit_vol);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_VOL_THRESH_HI);
+    s->e_inpara = 1;
+    s->e_para[0] = UCHAR_MAX + 1;
+    if (rt_edit_process(s) != BRLCAD_OK || edit_vol->hi != UCHAR_MAX)
+	bu_exit(1, "ERROR: VOL threshold did not saturate at byte maximum\n");
+
+    /* Filename and file dimensions are not length-valued parameters. */
+    char data_path[MAXPATHLEN] = {0};
+    FILE *data = bu_temp_file(data_path, sizeof(data_path));
+    if (!data)
+        bu_exit(1, "ERROR: Cannot create VOL data file\n");
+    unsigned char voxels[4 * 4 * 4] = {0};
+    size_t written = fwrite(voxels, 1, sizeof(voxels), data);
+    int close_status = fclose(data);
+    if (written != sizeof(voxels) || close_status != 0)
+        bu_exit(1, "ERROR: Cannot write VOL data file\n");
+
+    if (rt_edit_map_clbk_set(s->m, ECMD_GET_FILENAME, BU_CLBK_DURING,
+                             vol_filename_callback, data_path) != BRLCAD_OK)
+        bu_exit(1, "ERROR: Unable to register VOL filename callback\n");
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_VOL_FNAME);
+    rt_edit_process(s);
+    if (!BU_STR_EQUAL(edit_vol->name, data_path))
+        bu_exit(1, "ERROR: VOL filename command did not select the file\n");
+
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_VOL_FSIZE);
+    s->e_inpara = 3;
+    VSET(s->e_para, 2.0, 4.0, 8.0);
+    rt_edit_process(s);
+    if (edit_vol->xdim != 2 || edit_vol->ydim != 4 || edit_vol->zdim != 8)
+        bu_exit(1, "ERROR: VOL dimensions were converted as lengths\n");
+
+    s->e_inpara = 3;
+    VSET(s->e_para, 5.0, 5.0, 5.0);
+    if (EDOBJ[dp->d_minor_type].ft_edit(s) == BRLCAD_OK ||
+        edit_vol->xdim != 2 || edit_vol->ydim != 4 || edit_vol->zdim != 8)
+        bu_exit(1, "ERROR: VOL accepted dimensions larger than its file\n");
+
+    const fastf_t invalid_dims[][3] = {
+	{-1.0, 4.0, 8.0}, {0.0, 4.0, 8.0}, {2.5, 4.0, 8.0}
+    };
+    for (const auto &dims : invalid_dims) {
+	s->e_inpara = 3;
+	VMOVE(s->e_para, dims);
+	if (rt_edit_process(s) != BRLCAD_ERROR ||
+	    edit_vol->xdim != 2 || edit_vol->ydim != 4 || edit_vol->zdim != 8)
+	    bu_exit(1, "ERROR: VOL accepted invalid file dimensions\n");
+    }
+
+    const uint32_t overflow_dim = (uint32_t)UINT16_MAX + 1U;
+    edit_vol->xdim = overflow_dim;
+    edit_vol->ydim = overflow_dim;
+    edit_vol->zdim = overflow_dim;
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_VOL_FNAME);
+    s->e_inpara = 0;
+    if (rt_edit_process(s) != BRLCAD_ERROR)
+	bu_exit(1, "ERROR: VOL accepted an undersized file after overflow\n");
+
     rt_edit_destroy(s);
     db_close(dbip);
+    if (!bu_file_delete(data_path))
+        bu_exit(1, "ERROR: Cannot remove VOL data file\n");
     return 0;
 }
 

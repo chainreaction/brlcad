@@ -68,6 +68,7 @@ set(
   sca_view.mged
   search_exec.mged
   sed.mged
+  sed_reset.mged
   set_perspective.mged
   setview.mged
   size.mged
@@ -100,6 +101,7 @@ if(TARGET mged)
       continue()
     endif(TNAME STREQUAL "")
 
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${testfile}")
     file(READ "${CMAKE_CURRENT_SOURCE_DIR}/${testfile}" TEST_CONTENTS)
     if(TNAME STREQUAL "search_exec")
       string(CONFIGURE "${TEST_CONTENTS}" TEST_CONTENTS @ONLY)
@@ -126,6 +128,12 @@ if(TARGET mged)
     elseif(TNAME STREQUAL "arb")
       set(TEST_EXPECT "'arb' testing completed")
       set(TEST_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/regress_${testfile}")
+    elseif(TNAME MATCHES "^(extrude|facedef|mirface|permute)$")
+      set(TEST_EXPECT "'${TNAME}' testing completed")
+      set(TEST_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/regress_${testfile}")
+    elseif(TNAME STREQUAL "edgedir")
+      set(TEST_EXPECT "'edarb edgedir' testing completed")
+      set(TEST_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/regress_${testfile}")
     elseif(TNAME STREQUAL "killtree")
       set(TEST_EXPECT "KILL Solid:  killtree_dup.s")
       set(TEST_REJECT "db_lookup(killtree_dup.s) failed")
@@ -138,6 +146,10 @@ if(TARGET mged)
     elseif(TNAME STREQUAL "prim_edit")
       set(TEST_EXPECT "Primitive parameter editing testing completed")
       set(TEST_REJECT "FAIL:")
+    elseif(TNAME STREQUAL "sed_reset")
+      set(TEST_EXPECT "PASS: 'sed_reset' testing completed")
+      set(TEST_REJECT "FAIL:")
+      set(TEST_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/regress_${testfile}")
     elseif(TNAME STREQUAL "overlap_plotting")
       set(TEST_DB "${CMAKE_SOURCE_DIR}/src/libged/tests/ged_tests.g")
       set(TEST_EXPECT "PASS overlap plotting")
@@ -187,6 +199,7 @@ distclean(${mged_outfiles})
 
 cmakefiles(
   CMakeLists.txt
+  csg_edit.mged
   mged.tcl
   regression_resources.tcl
   search_exec_procs.tcl

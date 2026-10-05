@@ -24,6 +24,7 @@
 #include "common.h"
 
 #include <math.h>
+#include <limits.h>
 #include <string.h>
 
 #include "bg/tri_ray.h"
@@ -97,8 +98,9 @@ rt_edit_bot_prim_edit_create(struct rt_edit *UNUSED(s))
 }
 
 C_DECL void
-rt_edit_bot_prim_edit_destroy(struct rt_bot_edit *b)
+rt_edit_bot_prim_edit_destroy(void *ptr)
 {
+    struct rt_bot_edit *b = (struct rt_bot_edit *)ptr;
     if (!b)
 	return;
 
@@ -233,6 +235,7 @@ rt_edit_bot_labels(
 	VADD3(mid_pt, p1, p2, p3);
 
 	VSCALE(mid_pt, mid_pt, one_third);
+	POINT_LABEL_STR(mid_pt, "face");
 
 	*num_lines = 3;
 	VMOVE(lines[0], mid_pt);
@@ -352,29 +355,65 @@ ecmd_bot_orient(struct rt_edit *s)
 int
 ecmd_bot_thick(struct rt_edit *s)
 {
+    struct rt_bot_internal *bot = (struct rt_bot_internal *)s->es_int.idb_ptr;
+    struct rt_bot_edit *b = (struct rt_bot_edit *)s->ipe_ptr;
+    bu_clbk_t callback = NULL;
+    void *callback_data = NULL;
+    size_t face_no;
+
+    RT_BOT_CK_MAGIC(bot);
+    face_no = bot->num_faces;
 
     if (s->e_inpara != 1) {
-	bu_vls_printf(s->log_str, "ERROR: only one argument needed\n");
+	bu_vls_printf(s->log_str, "ERROR: one thickness value is required\n");
 	s->e_inpara = 0;
 	return BRLCAD_ERROR;
     }
 
-    if (s->e_para[0] <= 0.0) {
-	bu_vls_printf(s->log_str, "ERROR: SCALE FACTOR <= 0\n");
+    fastf_t thickness = s->e_para[0] * s->local2base;
+    if (!isfinite(thickness) || thickness <= 0.0) {
+	bu_vls_printf(s->log_str, "ERROR: face thickness must be positive\n");
 	s->e_inpara = 0;
 	return BRLCAD_ERROR;
     }
 
-    /* must convert to base units */
-    s->e_para[0] *= s->local2base;
+    rt_edit_map_clbk_get(&callback, &callback_data, s->m,
+	    ECMD_BOT_THICK, BU_CLBK_DURING);
+    if (callback && callback(0, NULL, callback_data, s) != BRLCAD_OK) {
+	s->e_inpara = 0;
+	return BRLCAD_ERROR;
+    }
 
-    // Set bot->thickness array using the callback
-    bu_clbk_t f = NULL;
-    void *d = NULL;
-    rt_edit_map_clbk_get(&f, &d, s->m, ECMD_BOT_THICK, BU_CLBK_DURING);
-    if (f)
-	(*f)(0, NULL, d, s);
+    if ((bot->mode != RT_BOT_PLATE && bot->mode != RT_BOT_PLATE_NOCOS) ||
+	!bot->thickness) {
+	bu_vls_printf(s->log_str, "ERROR: face thickness requires a plate BOT\n");
+	s->e_inpara = 0;
+	return BRLCAD_ERROR;
+    }
 
+    if (b->bot_verts[0] >= 0 && b->bot_verts[1] >= 0 && b->bot_verts[2] >= 0) {
+	for (size_t i = 0; i < bot->num_faces; i++) {
+	    if (bot->faces[3*i] == b->bot_verts[0] &&
+		bot->faces[3*i+1] == b->bot_verts[1] &&
+		bot->faces[3*i+2] == b->bot_verts[2]) {
+		face_no = i;
+		break;
+	    }
+	}
+	if (face_no == bot->num_faces) {
+	    bu_vls_printf(s->log_str, "ERROR: selected BOT face was not found\n");
+	    s->e_inpara = 0;
+	    return BRLCAD_ERROR;
+	}
+    }
+
+    if (face_no == bot->num_faces) {
+	for (size_t i = 0; i < bot->num_faces; i++)
+	    bot->thickness[i] = thickness;
+    } else {
+	bot->thickness[face_no] = thickness;
+    }
+    s->e_inpara = 0;
     return BRLCAD_OK;
 }
 
@@ -506,6 +545,22 @@ ecmd_bot_fdel(struct rt_edit *s)
  * e_inpara >= 4
  */
 static int
+bot_vertex_index(struct rt_edit *s, int param, size_t vertex_count, int *vertex)
+{
+    fastf_t index = s->e_para[param];
+    if (!isfinite(index) || index < 0.0 ||
+	index >= (fastf_t)vertex_count || index > (fastf_t)INT_MAX ||
+	!ZERO(index - floor(index))) {
+	bu_vls_printf(s->log_str,
+		"ERROR: invalid vertex index %g (valid range [0, %zu))\n",
+		index, vertex_count);
+	return BRLCAD_ERROR;
+    }
+    *vertex = (int)index;
+    return BRLCAD_OK;
+}
+
+static int
 ecmd_bot_movev_list(struct rt_edit *s)
 {
     struct rt_bot_internal *bot =
@@ -523,17 +578,22 @@ ecmd_bot_movev_list(struct rt_edit *s)
     delta[0] = s->e_para[0] * s->local2base;
     delta[1] = s->e_para[1] * s->local2base;
     delta[2] = s->e_para[2] * s->local2base;
+    if (!isfinite(delta[0]) || !isfinite(delta[1]) || !isfinite(delta[2])) {
+	bu_vls_printf(s->log_str, "ERROR: BOT vertex delta must be finite\n");
+	s->e_inpara = 0;
+	return BRLCAD_ERROR;
+    }
 
     int n_verts = s->e_inpara - 3;
     for (int i = 0; i < n_verts; i++) {
-	int vi = (int)s->e_para[3 + i];
-	if (vi < 0 || (size_t)vi >= bot->num_vertices) {
-	    bu_vls_printf(s->log_str,
-		    "ERROR: vertex index %d out of range [0, %zu)\n",
-		    vi, bot->num_vertices);
+	int vi;
+	if (bot_vertex_index(s, 3 + i, bot->num_vertices, &vi) != BRLCAD_OK) {
 	    s->e_inpara = 0;
 	    return BRLCAD_ERROR;
 	}
+    }
+    for (int i = 0; i < n_verts; i++) {
+	int vi = (int)s->e_para[3 + i];
 	VADD2(&bot->vertices[vi * 3], &bot->vertices[vi * 3], delta);
     }
 
@@ -550,6 +610,21 @@ ecmd_bot_movev_list(struct rt_edit *s)
  * No e_para needed.
  */
 static int
+bot_face_edge_other(const int *face, int v0, int v1)
+{
+    if ((face[0] == v0 && face[1] == v1) ||
+	(face[0] == v1 && face[1] == v0))
+	return face[2];
+    if ((face[1] == v0 && face[2] == v1) ||
+	(face[1] == v1 && face[2] == v0))
+	return face[0];
+    if ((face[2] == v0 && face[0] == v1) ||
+	(face[2] == v1 && face[0] == v0))
+	return face[1];
+    return -1;
+}
+
+static int
 ecmd_bot_esplit(struct rt_edit *s)
 {
     struct rt_bot_edit *b = (struct rt_bot_edit *)s->ipe_ptr;
@@ -559,10 +634,22 @@ ecmd_bot_esplit(struct rt_edit *s)
 
     int v0 = b->bot_verts[0];
     int v1 = b->bot_verts[1];
-    if (v0 < 0 || v1 < 0 || b->bot_verts[2] >= 0) {
+    if (v0 < 0 || v1 < 0 || v0 == v1 ||
+	(size_t)v0 >= bot->num_vertices || (size_t)v1 >= bot->num_vertices ||
+	b->bot_verts[2] >= 0) {
 	bu_vls_printf(s->log_str,
 		"ERROR: ECMD_BOT_ESPLIT requires a single edge selection "
 		"(ECMD_BOT_PICKE first)\n");
+	return BRLCAD_ERROR;
+    }
+
+    size_t incident_faces = 0;
+    for (size_t fi = 0; fi < bot->num_faces; fi++) {
+	if (bot_face_edge_other(&bot->faces[fi * 3], v0, v1) >= 0)
+	    incident_faces++;
+    }
+    if (!incident_faces) {
+	bu_vls_printf(s->log_str, "ERROR: selected BOT edge was not found\n");
 	return BRLCAD_ERROR;
     }
 
@@ -579,24 +666,13 @@ ecmd_bot_esplit(struct rt_edit *s)
 
     /* Find and replace every face containing the edge v0–v1 */
     size_t orig_nf = bot->num_faces;
+    size_t *new_face_parents = bot->face_mode && orig_nf ?
+	(size_t *)bu_malloc(orig_nf * sizeof(size_t), "split BOT face parents") :
+	NULL;
     for (size_t fi = 0; fi < orig_nf; fi++) {
-	int f0 = bot->faces[fi*3];
-	int f1 = bot->faces[fi*3+1];
-	int f2 = bot->faces[fi*3+2];
-
-	/* Check whether this face contains the directed or reverse edge */
-	int other = -1;
-	int ea = -1, eb = -1;   /* the two edge verts in this face */
-	if ((f0 == v0 && f1 == v1) || (f0 == v1 && f1 == v0)) {
-	    ea = f0; eb = f1; other = f2;
-	} else if ((f1 == v0 && f2 == v1) || (f1 == v1 && f2 == v0)) {
-	    ea = f1; eb = f2; other = f0;
-	} else if ((f2 == v0 && f0 == v1) || (f2 == v1 && f0 == v0)) {
-	    ea = f2; eb = f0; other = f1;
-	}
+	int other = bot_face_edge_other(&bot->faces[fi * 3], v0, v1);
 	if (other < 0)
 	    continue;   /* edge not in this face */
-	(void)ea; (void)eb;
 
 	/* Replace this face with face (v0, new_vi, other) */
 	bot->faces[fi*3]   = v0;
@@ -610,12 +686,29 @@ ecmd_bot_esplit(struct rt_edit *s)
 	bot->faces[(bot->num_faces-1)*3]   = new_vi;
 	bot->faces[(bot->num_faces-1)*3+1] = v1;
 	bot->faces[(bot->num_faces-1)*3+2] = other;
+	if (new_face_parents)
+	    new_face_parents[bot->num_faces - orig_nf - 1] = fi;
 
 	if (bot->thickness) {
 	    bot->thickness = (fastf_t *)bu_realloc(bot->thickness,
 		    bot->num_faces * sizeof(fastf_t), "bot thickness");
 	    bot->thickness[bot->num_faces-1] = bot->thickness[fi];
 	}
+    }
+
+    if (new_face_parents) {
+	struct bu_bitv *new_face_mode = bu_bitv_new(bot->num_faces);
+	for (size_t fi = 0; fi < orig_nf; fi++) {
+	    if (BU_BITTEST(bot->face_mode, fi))
+		BU_BITSET(new_face_mode, fi);
+	}
+	for (size_t fi = orig_nf; fi < bot->num_faces; fi++) {
+	    if (BU_BITTEST(bot->face_mode, new_face_parents[fi - orig_nf]))
+		BU_BITSET(new_face_mode, fi);
+	}
+	bu_bitv_free(bot->face_mode);
+	bot->face_mode = new_face_mode;
+	bu_free(new_face_parents, "split BOT face parents");
     }
 
     b->bot_verts[0] = -1;
@@ -773,6 +866,34 @@ ecmd_bot_face_fuse(struct rt_edit *s)
     return BRLCAD_OK;
 }
 
+/** Numeric points are local; mouse points are already in model units. */
+static int
+bot_edit_target_point(point_t target, struct rt_edit *s)
+{
+    if (s->e_mvalid) {
+	VMOVE(target, s->e_mparam);
+	return 1;
+    }
+    if (s->e_inpara == 3) {
+	point_t model_point;
+	VSCALE(model_point, s->e_para, s->local2base);
+	if (s->mv_context)
+	    MAT4X3PNT(target, s->e_invmat, model_point);
+	else
+	    VMOVE(target, model_point);
+	return 1;
+    }
+    if (s->e_inpara) {
+	bu_vls_printf(s->log_str, "x y z coordinates required for point movement\n");
+	bu_clbk_t f = NULL;
+	void *d = NULL;
+	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
+	if (f)
+	    (*f)(0, NULL, d, NULL);
+    }
+    return 0;
+}
+
 void
 ecmd_bot_movev(struct rt_edit *s)
 {
@@ -780,9 +901,6 @@ ecmd_bot_movev(struct rt_edit *s)
     struct rt_bot_internal *bot = (struct rt_bot_internal *)s->es_int.idb_ptr;
     int vert;
     point_t new_pt = VINIT_ZERO;
-    bu_clbk_t f = NULL;
-    void *d = NULL;
-
     RT_BOT_CK_MAGIC(bot);
 
     if (b->bot_verts[0] < 0) {
@@ -801,29 +919,8 @@ ecmd_bot_movev(struct rt_edit *s)
     }
 
     vert = b->bot_verts[0];
-    if (s->e_mvalid) {
-	VMOVE(new_pt, s->e_mparam);
-    } else if (s->e_inpara == 3) {
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
-
-	if (s->mv_context) {
-	    /* apply s->e_invmat to convert to real model space */
-	    MAT4X3PNT(new_pt, s->e_invmat, s->e_para);
-	} else {
-	    VMOVE(new_pt, s->e_para);
-	}
-    } else if (s->e_inpara && s->e_inpara != 3) {
-	bu_vls_printf(s->log_str, "x y z coordinates required for point movement\n");
-	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
-	if (f)
-	    (*f)(0, NULL, d, NULL);
+    if (!bot_edit_target_point(new_pt, s))
 	return;
-    } else if (!s->e_mvalid && !s->e_inpara) {
-	return;
-    }
 
     VMOVE(&bot->vertices[vert*3], new_pt);
 }
@@ -838,7 +935,6 @@ ecmd_bot_movee(struct rt_edit *s)
     point_t new_pt = VINIT_ZERO;
     bu_clbk_t f = NULL;
     void *d = NULL;
-
     RT_BOT_CK_MAGIC(bot);
 
     if (b->bot_verts[0] < 0 || b->bot_verts[1] < 0) {
@@ -855,30 +951,8 @@ ecmd_bot_movee(struct rt_edit *s)
     }
     v1 = b->bot_verts[0];
     v2 = b->bot_verts[1];
-    if (s->e_mvalid) {
-	VMOVE(new_pt, s->e_mparam);
-    } else if (s->e_inpara == 3) {
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
-
-	if (s->mv_context) {
-	    /* apply s->e_invmat to convert to real model space */
-	    MAT4X3PNT(new_pt, s->e_invmat, s->e_para);
-	} else {
-	    VMOVE(new_pt, s->e_para);
-	}
-    } else if (s->e_inpara && s->e_inpara != 3) {
-	bu_vls_printf(s->log_str, "x y z coordinates required for point movement\n");
-	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
-	if (f)
-	    (*f)(0, NULL, d, NULL);
+    if (!bot_edit_target_point(new_pt, s))
 	return;
-    } else if (!s->e_mvalid && !s->e_inpara) {
-	return;
-    }
-
 
     VSUB2(diff, new_pt, &bot->vertices[v1*3]);
     VMOVE(&bot->vertices[v1*3], new_pt);
@@ -895,7 +969,6 @@ ecmd_bot_movet(struct rt_edit *s)
     vect_t diff;
     bu_clbk_t f = NULL;
     void *d = NULL;
-
     RT_BOT_CK_MAGIC(bot);
 
     if (b->bot_verts[0] < 0 || b->bot_verts[1] < 0 || b->bot_verts[2] < 0) {
@@ -909,29 +982,8 @@ ecmd_bot_movet(struct rt_edit *s)
     v2 = b->bot_verts[1];
     v3 = b->bot_verts[2];
 
-    if (s->e_mvalid) {
-	VMOVE(new_pt, s->e_mparam);
-    } else if (s->e_inpara == 3) {
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
-
-	if (s->mv_context) {
-	    /* apply s->e_invmat to convert to real model space */
-	    MAT4X3PNT(new_pt, s->e_invmat, s->e_para);
-	} else {
-	    VMOVE(new_pt, s->e_para);
-	}
-    } else if (s->e_inpara && s->e_inpara != 3) {
-	bu_vls_printf(s->log_str, "x y z coordinates required for point movement\n");
-	rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
-	if (f)
-	    (*f)(0, NULL, d, NULL);
+    if (!bot_edit_target_point(new_pt, s))
 	return;
-    } else if (!s->e_mvalid && !s->e_inpara) {
-	return;
-    }
 
     VSUB2(diff, new_pt, &bot->vertices[v1*3]);
     VMOVE(&bot->vertices[v1*3], new_pt);
@@ -976,6 +1028,7 @@ ecmd_bot_pickv(struct rt_edit *s, const vect_t mousevec)
     if (f)
 	(*f)(0, NULL, d, NULL);
 
+    edit_abs_tra(s, pos_view);
     return BRLCAD_OK;
 }
 
@@ -1016,6 +1069,7 @@ ecmd_bot_picke(struct rt_edit *s, const vect_t mousevec)
     if (f)
 	(*f)(0, NULL, d, NULL);
 
+    edit_abs_tra(s, pos_view);
     return BRLCAD_OK;
 }
 
@@ -1061,8 +1115,7 @@ ecmd_bot_pickt(struct rt_edit *s, const vect_t mousevec)
 	b->bot_verts[1] = -1;
 	b->bot_verts[2] = -1;
 	bu_vls_free(&vls);
-    }
-    if (hits == 1) {
+    } else if (hits == 1) {
 	sscanf(bu_vls_cstr(&vls), " { { %d %d %d", &b->bot_verts[0], &b->bot_verts[1], &b->bot_verts[2]);
 	bu_vls_free(&vls);
     } else {
@@ -1144,32 +1197,57 @@ rt_edit_bot_edit(struct rt_edit *s)
 	    ecmd_bot_movet(s);
 	    break;
 	case ECMD_BOT_PICKV:
-	    /* Descriptor path: select vertex by index from e_para[0] */
-	    if (s->e_inpara >= 1) {
-		b->bot_verts[0] = (int)s->e_para[0];
-		b->bot_verts[1] = -1;
-		b->bot_verts[2] = -1;
-		s->e_inpara = 0;
-	    }
-	    break;
 	case ECMD_BOT_PICKE:
-	    /* Descriptor path: select edge by vertex pair from e_para[0..1] */
-	    if (s->e_inpara >= 2) {
-		b->bot_verts[0] = (int)s->e_para[0];
-		b->bot_verts[1] = (int)s->e_para[1];
-		b->bot_verts[2] = -1;
+	case ECMD_BOT_PICKT: {
+	    int n = s->edit_flag == ECMD_BOT_PICKV ? 1 :
+		(s->edit_flag == ECMD_BOT_PICKE ? 2 : 3);
+	    if (s->e_inpara >= n) {
+		struct rt_bot_internal *bot =
+		    (struct rt_bot_internal *)s->es_int.idb_ptr;
+		int selected[3] = {-1, -1, -1};
+		for (int i = 0; i < n; ++i) {
+		    if (bot_vertex_index(s, i, bot->num_vertices,
+				 &selected[i]) != BRLCAD_OK) {
+			s->e_inpara = 0;
+			return BRLCAD_ERROR;
+		    }
+		}
+		if (n > 1) {
+		    int found = 0;
+		    int distinct = selected[0] != selected[1] &&
+			(n == 2 || (selected[0] != selected[2] &&
+				    selected[1] != selected[2]));
+		    for (size_t fi = 0; distinct && fi < bot->num_faces; ++fi) {
+			const int *face = &bot->faces[fi * 3];
+			if (n == 3) {
+			    found = face[0] == selected[0] &&
+				face[1] == selected[1] &&
+				face[2] == selected[2];
+			} else {
+			    int has_first = 0;
+			    int has_second = 0;
+			    for (int j = 0; j < 3; ++j) {
+				has_first |= face[j] == selected[0];
+				has_second |= face[j] == selected[1];
+			    }
+			    found = has_first && has_second;
+			}
+			if (found)
+			    break;
+		    }
+		    if (!found) {
+			bu_vls_printf(s->log_str, "ERROR: selected BOT %s not found\n",
+				n == 2 ? "edge" : "face");
+			s->e_inpara = 0;
+			return BRLCAD_ERROR;
+		    }
+		}
+		for (int i = 0; i < 3; ++i)
+		    b->bot_verts[i] = selected[i];
 		s->e_inpara = 0;
 	    }
 	    break;
-	case ECMD_BOT_PICKT:
-	    /* Descriptor path: select face by vertex triple from e_para[0..2] */
-	    if (s->e_inpara >= 3) {
-		b->bot_verts[0] = (int)s->e_para[0];
-		b->bot_verts[1] = (int)s->e_para[1];
-		b->bot_verts[2] = (int)s->e_para[2];
-		s->e_inpara = 0;
-	    }
-	    break;
+	}
 	default:
 	    return edit_generic(s);
     }
@@ -1204,14 +1282,14 @@ rt_edit_bot_edit_xy(
 	case ECMD_BOT_PICKV:
 	    if (ecmd_bot_pickv(s, mousevec) != BRLCAD_OK)
 		return BRLCAD_ERROR;
-	    break;
+	    return BRLCAD_OK;
 	case ECMD_BOT_PICKE:
 	    if (ecmd_bot_picke(s, mousevec) != BRLCAD_OK)
 		return BRLCAD_ERROR;
-	    break;
+	    return BRLCAD_OK;
 	case ECMD_BOT_PICKT:
 	    ecmd_bot_pickt(s, mousevec);
-	    break;
+	    return BRLCAD_OK;
 	case ECMD_BOT_MOVEV:
 	case ECMD_BOT_MOVEE:
 	case ECMD_BOT_MOVET:
@@ -1481,9 +1559,8 @@ rt_edit_bot_repair(struct bu_vls *log_str, struct rt_db_internal *ip, const stru
     BU_OPT(d[3], "",   "options-json",        "",             NULL,                   &options_json,  "Return JSON of supported options");
     BU_OPT_NULL(d[4]);
 
-    if (argc > 0 && argv) {
-        bu_opt_parse(NULL, argc, argv, d);
-    }
+    if (edit_repair_parse_options(log_str, argc, argv, d) != BRLCAD_OK)
+        return -1;
 
     if (options_json) {
         if (log_str) {

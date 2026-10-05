@@ -254,6 +254,7 @@ rt_edit_reset(struct rt_edit *s)
     MAT_IDN(s->e_invmat);
     MAT_IDN(s->e_mat);
     MAT_IDN(s->incr_change);
+    MAT_IDN(s->model2objview);
     MAT_IDN(s->model_changes);
     VSETALL(s->curr_e_axes_pos, 0.0);
     VSETALL(s->e_axes_pos, 0.0);
@@ -291,9 +292,12 @@ rt_edit_reset(struct rt_edit *s)
     s->mv_context = 0;
     s->snap.enabled = 0;
     s->snap.spacing = 1.0;
+    s->dbip = NULL;
+    s->tol = NULL;
     s->u_ptr = NULL;
     s->update_views = 0;
     s->vlfree = NULL;
+    s->vp = NULL;
 
     bu_vls_trunc(s->log_str, 0);
 }
@@ -570,6 +574,16 @@ rt_edit_set_edflag(struct rt_edit *s, int edflag)
 	    s->edit_mode = RT_EDIT_DEFAULT;
 	    break;
     }
+}
+
+void
+rt_edit_set_translation_target(struct rt_edit *s, const point_t target)
+{
+    if (!s)
+	return;
+
+    VSCALE(s->e_para, target, s->base2local);
+    s->e_inpara = 3;
 }
 
 /* Processing of editing knob twists. */
@@ -967,8 +981,9 @@ rt_knob_edit_tran(struct rt_edit *s,
 
 	rt_edit_set_knob_edflag(s, RT_PARAMS_EDIT_TRANS);
 
-	VADD2(s->e_para, delta, s->curr_e_axes_pos);
-	s->e_inpara = 3;
+	point_t target;
+	VADD2(target, delta, s->curr_e_axes_pos);
+	rt_edit_set_translation_target(s, target);
 	rt_edit_process(s);
 	s->edit_flag = save_edflag;
 	s->edit_mode = save_mode;
@@ -1092,6 +1107,14 @@ rt_knob_edit_sca(struct rt_edit *s, int matrix_edit)
    }
 }
 
+static void
+rt_edit_clear_input(struct rt_edit *s)
+{
+    s->e_inpara = 0;
+    s->e_mvalid = 0;
+    s->es_scale = 0.0;
+}
+
 /*
  * A great deal of magic takes place here, to accomplish solid editing.
  *
@@ -1101,13 +1124,26 @@ rt_knob_edit_sca(struct rt_edit *s, int matrix_edit)
  * A lot of processing is deferred to here, so that the "p" command
  * can operate on an equal footing to mouse events.
  */
-void
+int
 rt_edit_process(struct rt_edit *s)
 {
     bu_clbk_t f = NULL;
     void *d = NULL;
 
-    ++s->update_views;
+    if (!s)
+	return BRLCAD_ERROR;
+
+    const int type = s->es_int.idb_type;
+    if (type <= ID_NULL || type > ID_MAX_SOLID ||
+	!s->es_int.idb_ptr || EDOBJ[type].magic != RT_FUNCTAB_MAGIC) {
+	bu_vls_printf(s->log_str, "rt_edit_process: no editable solid\n");
+	rt_edit_clear_input(s);
+	return BRLCAD_ERROR;
+    }
+
+    const int prior_update_views = s->update_views;
+    if (!s->update_views)
+	s->update_views = 1;
 
     int had_method = 0;
     const struct rt_db_internal *ip = &s->es_int;
@@ -1118,9 +1154,10 @@ rt_edit_process(struct rt_edit *s)
 		rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_STR, BU_CLBK_DURING);
 		if (f)
 		    (*f)(0, NULL, d, NULL);
-		bu_vls_trunc(s->log_str, 0);
 	    }
-	    return;
+	    s->update_views = prior_update_views;
+	    rt_edit_clear_input(s);
+	    return BRLCAD_ERROR;
 	}
 	if (bu_vls_strlen(s->log_str)) {
 	    rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_STR, BU_CLBK_DURING);
@@ -1135,7 +1172,7 @@ rt_edit_process(struct rt_edit *s)
 
 	case RT_EDIT_IDLE:
 	    /* do nothing more */
-	    --s->update_views;
+	    s->update_views = prior_update_views;
 	    break;
 	default:
 	    {
@@ -1152,6 +1189,9 @@ rt_edit_process(struct rt_edit *s)
 		rt_edit_map_clbk_get(&f, &d, s->m, ECMD_PRINT_RESULTS, BU_CLBK_DURING);
 		if (f)
 		    (*f)(0, NULL, d, NULL);
+		s->update_views = prior_update_views;
+		rt_edit_clear_input(s);
+		return BRLCAD_ERROR;
 	    }
     }
 
@@ -1181,8 +1221,8 @@ rt_edit_process(struct rt_edit *s)
     }
 
     // Inputs processed, reset
-    s->e_inpara = 0;
-    s->e_mvalid = 0;
+    rt_edit_clear_input(s);
+    return BRLCAD_OK;
 }
 
 void
@@ -1204,15 +1244,15 @@ rt_edit_checkpoint(struct rt_edit *s)
 
     RT_CK_DB_INTERNAL(&s->es_int);
 
-    /* Release any previous snapshot */
-    bu_free_external(&s->es_ckpt);
-    BU_EXTERNAL_INIT(&s->es_ckpt);
-
-    if (rt_obj_export(&s->es_ckpt, &s->es_int, 1.0, s->dbip) < 0) {
+    struct bu_external candidate = BU_EXTERNAL_INIT_ZERO;
+    if (rt_obj_export(&candidate, &s->es_int, 1.0, s->dbip) < 0) {
+	bu_free_external(&candidate);
 	bu_vls_printf(s->log_str, "rt_edit_checkpoint: export failed\n");
 	return BRLCAD_ERROR;
     }
 
+    bu_free_external(&s->es_ckpt);
+    s->es_ckpt = candidate;
     return BRLCAD_OK;
 }
 
@@ -1228,26 +1268,41 @@ rt_edit_revert(struct rt_edit *s)
 	return BRLCAD_ERROR;
     }
 
-    int type = s->es_int.idb_type;
+    const int type = s->es_int.idb_type;
+    if (type <= ID_NULL || type > ID_MAX_SOLID || !s->es_int.idb_ptr) {
+	bu_vls_printf(s->log_str, "rt_edit_revert: no editable solid\n");
+	return BRLCAD_ERROR;
+    }
 
-    /* Release current contents */
-    rt_db_free_internal(&s->es_int);
-    RT_DB_INTERNAL_INIT(&s->es_int);
-
-    /* rt_obj_import dispatches on ip->idb_minor_type, which RT_DB_INTERNAL_INIT
-     * resets to -1.  Restore the saved type so the right ft_importN is called. */
-    s->es_int.idb_minor_type = type;
-
+    struct rt_db_internal restored;
+    RT_DB_INTERNAL_INIT(&restored);
+    restored.idb_minor_type = type;
     mat_t identity;
     MAT_IDN(identity);
-    if (rt_obj_import(&s->es_int, &s->es_ckpt, identity, s->dbip) < 0) {
+    int import_result = rt_obj_import(&restored, &s->es_ckpt, identity, s->dbip);
+    /* SPH and REC import through the ELL and TGC internal formats. */
+    bool compatible_type = restored.idb_type == type ||
+	(type == ID_SPH && restored.idb_type == ID_ELL) ||
+	(type == ID_REC && restored.idb_type == ID_TGC);
+    if (import_result < 0 || !compatible_type || !restored.idb_ptr) {
+	rt_db_free_internal(&restored);
 	bu_vls_printf(s->log_str, "rt_edit_revert: import failed\n");
 	return BRLCAD_ERROR;
     }
 
-    /* If the type changed for some reason (shouldn't happen), keep the original */
-    if (s->es_int.idb_type != type)
-	s->es_int.idb_type = type;
+    restored.idb_type = type;
+    restored.idb_meth = &OBJ[type];
+
+    if (s->ipe_ptr && EDOBJ[type].ft_prim_edit_reset)
+	(*EDOBJ[type].ft_prim_edit_reset)(s);
+    rt_db_free_internal(&s->es_int);
+    s->es_int = restored;
+    rt_edit_clear_input(s);
+    s->acc_sc_sol = 1.0;
+    if (!s->e_keyfixed) {
+	s->e_keytag = "";
+	rt_get_solid_keypoint(s, &s->e_keypoint, &s->e_keytag, s->e_mat);
+    }
 
     return BRLCAD_OK;
 }

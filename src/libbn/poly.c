@@ -28,7 +28,6 @@
 
 #include "common.h"
 
-#include <stdlib.h>  /* for abs */
 #include <stdio.h>
 #include <math.h>
 
@@ -49,29 +48,40 @@ static const struct bn_poly bn_Zero_poly = { BN_POLY_MAGIC, 0, {0.0} };
 struct bn_poly *
 bn_poly_mul(struct bn_poly *product, const struct bn_poly *m1, const struct bn_poly *m2)
 {
-    struct bn_poly result;
-
     if (!product || !m1 || !m2)
 	return BN_POLY_NULL;
 
-    if (m1->dgr + m2->dgr > BN_MAX_POLY_DEGREE)
+    if (m1->dgr > BN_MAX_POLY_DEGREE ||
+	m2->dgr > BN_MAX_POLY_DEGREE ||
+	m1->dgr > BN_MAX_POLY_DEGREE - m2->dgr) {
 	return BN_POLY_NULL;
+    }
+
+    if (product == m1 || product == m2) {
+	struct bn_poly result;
+
+	if (!bn_poly_mul(&result, m1, m2)) {
+	    return BN_POLY_NULL;
+	}
+	*product = result;
+	return product;
+    }
 
     if (m1->dgr == 1 && m2->dgr == 1) {
-	result = bn_Zero_poly;
-	result.dgr = 2;
-	result.cf[0] = m1->cf[0] * m2->cf[0];
-	result.cf[1] = m1->cf[0] * m2->cf[1] +
+	product->magic = BN_POLY_MAGIC;
+	product->dgr = 2;
+	product->cf[0] = m1->cf[0] * m2->cf[0];
+	product->cf[1] = m1->cf[0] * m2->cf[1] +
 	    m1->cf[1] * m2->cf[0];
 	result.cf[2] = m1->cf[1] * m2->cf[1];
 	*product = result;
 	return product;
     }
     if (m1->dgr == 2 && m2->dgr == 2) {
-	result = bn_Zero_poly;
-	result.dgr = 4;
-	result.cf[0] = m1->cf[0] * m2->cf[0];
-	result.cf[1] = m1->cf[0] * m2->cf[1] +
+	product->magic = BN_POLY_MAGIC;
+	product->dgr = 4;
+	product->cf[0] = m1->cf[0] * m2->cf[0];
+	product->cf[1] = m1->cf[0] * m2->cf[1] +
 	    m1->cf[1] * m2->cf[0];
 	result.cf[2] = m1->cf[0] * m2->cf[2] +
 	    m1->cf[1] * m2->cf[1] +
@@ -90,9 +100,11 @@ bn_poly_mul(struct bn_poly *product, const struct bn_poly *m1, const struct bn_p
 	result = bn_Zero_poly;
 	result.dgr = m1->dgr + m2->dgr;
 
-	for (ct1 = 0; ct1 <= m1->dgr; ++ct1) {
-	    for (ct2 = 0; ct2 <= m2->dgr; ++ct2) {
-		result.cf[ct1 + ct2] +=
+	product->dgr = m1->dgr + m2->dgr;
+
+	for (ct1=0; ct1 <= m1->dgr; ++ct1) {
+	    for (ct2=0; ct2 <= m2->dgr; ++ct2) {
+		product->cf[ct1+ct2] +=
 		    m1->cf[ct1] * m2->cf[ct2];
 	    }
 	}
@@ -121,32 +133,29 @@ struct bn_poly *
 bn_poly_add(struct bn_poly *sum, const struct bn_poly *poly1, const struct bn_poly *poly2)
 {
     struct bn_poly result;
-    struct bn_poly tmp;
-    size_t i, offset;
+    register size_t i, offset;
 
     if (!sum || !poly1 || !poly2)
 	return BN_POLY_NULL;
 
-    offset = labs((long)poly1->dgr - (long)poly2->dgr);
-
-    tmp = bn_Zero_poly;
+    offset = (poly1->dgr >= poly2->dgr) ?
+	poly1->dgr - poly2->dgr : poly2->dgr - poly1->dgr;
 
     if (poly1->dgr >= poly2->dgr) {
 	result = *poly1;
 	for (i = 0; i <= poly2->dgr && (i + offset) <= BN_MAX_POLY_DEGREE; ++i) {
-	    tmp.cf[i + offset] = poly2->cf[i];
+	    result.cf[i+offset] += poly2->cf[i];
 	}
     } else {
 	result = *poly2;
 	for (i = 0; i <= poly1->dgr && (i + offset) <= BN_MAX_POLY_DEGREE; ++i) {
-	    tmp.cf[i + offset] = poly1->cf[i];
+	    result.cf[i+offset] += poly1->cf[i];
 	}
     }
 
-    for (i = 0; i <= result.dgr && i <= BN_MAX_POLY_DEGREE; ++i) {
-	result.cf[i] += tmp.cf[i];
-    }
+    result.magic = BN_POLY_MAGIC;
     *sum = result;
+
     return sum;
 }
 
@@ -155,7 +164,6 @@ struct bn_poly *
 bn_poly_sub(struct bn_poly *diff, const struct bn_poly *poly1, const struct bn_poly *poly2)
 {
     struct bn_poly result;
-    struct bn_poly tmp;
     size_t i, offset;
 
     if (!diff || !poly1 || !poly2)
@@ -163,25 +171,24 @@ bn_poly_sub(struct bn_poly *diff, const struct bn_poly *poly1, const struct bn_p
 
     offset = labs((long)poly1->dgr - (long)poly2->dgr);
 
-    result = bn_Zero_poly;
-    tmp = bn_Zero_poly;
-
     if (poly1->dgr >= poly2->dgr) {
 	result = *poly1;
 	for (i = 0; i <= poly2->dgr && (i + offset) <= BN_MAX_POLY_DEGREE; ++i) {
-	    tmp.cf[i + offset] = poly2->cf[i];
+	    result.cf[i + offset] -= poly2->cf[i];
 	}
     } else {
+	result = bn_Zero_poly;
 	result.dgr = poly2->dgr;
 	for (i = 0; i <= poly1->dgr && (i + offset) <= BN_MAX_POLY_DEGREE; ++i) {
 	    result.cf[i + offset] = poly1->cf[i];
 	}
-	tmp = *poly2;
+	for (i=0; i <= poly2->dgr && (i + offset) < BN_MAX_POLY_DEGREE; ++i) {
+	    result.cf[i] -= poly2->cf[i];
+	}
     }
 
-    for (i = 0; i <= result.dgr && i <= BN_MAX_POLY_DEGREE; ++i) {
-	result.cf[i] -= tmp.cf[i];
-    }
+    result.magic = BN_POLY_MAGIC;
+
     *diff = result;
     return diff;
 }
@@ -201,13 +208,20 @@ bn_poly_synthetic_division(struct bn_poly *quo, struct bn_poly *rem, const struc
     r = bn_Zero_poly; /* struct copy */
 
     if (dvsor->dgr > dvdend->dgr) {
-	q.dgr = 0;
-	q.cf[0] = 0.0;
-	r = *dvdend;
-	*quo = q;
-	*rem = r;
+	*rem = *dvdend;
+	*quo = bn_Zero_poly;
 	return;
     }
+
+    if (dvsor->dgr == 0) {
+	for (n=0; n <= quo->dgr; ++n) {
+	    quo->cf[n] /= dvsor->cf[0];
+	}
+	return;
+    }
+
+    quo->dgr = dvdend->dgr - dvsor->dgr;
+    rem->dgr = dvsor->dgr - 1;
 
     q.dgr = dvdend->dgr - dvsor->dgr;
     if ((r.dgr = dvsor->dgr - 1) > dvdend->dgr)
@@ -233,13 +247,14 @@ bn_poly_synthetic_division(struct bn_poly *quo, struct bn_poly *rem, const struc
 int
 bn_poly_quadratic_roots(struct bn_complex *roots, const struct bn_poly *quadrat)
 {
+    struct bn_poly monic;
     fastf_t discrim, denom, rad;
     const fastf_t small = SMALL_FASTF;
 
     if (!roots || !quadrat)
 	return 0;
 
-    if (NEAR_ZERO(quadrat->cf[0], small)) {
+    if (ZERO(quadrat->cf[0]) && fpclassify(quadrat->cf[0]) == FP_ZERO) {
 	/* root = -cf[2] / cf[1] */
 	if (NEAR_ZERO(quadrat->cf[1], small)) {
 	    /* No solution.  Now what? */
@@ -251,6 +266,12 @@ bn_poly_quadratic_roots(struct bn_complex *roots, const struct bn_poly *quadrat)
 	roots[0].im = roots[1].im = 0.0;
 	return 1;	/* OK - repeated root */
     }
+
+    if (!NEAR_EQUAL(quadrat->cf[0], 1.0, small)) {
+	monic = *quadrat;
+	bn_poly_scale(&monic, 1.0 / monic.cf[0]);
+	quadrat = &monic;
+	}
 
     discrim = quadrat->cf[1]*quadrat->cf[1] - 4.0* quadrat->cf[0]*quadrat->cf[2];
     denom = 0.5 / quadrat->cf[0];
@@ -300,7 +321,7 @@ bn_poly_cubic_roots(struct bn_complex *roots, const struct bn_poly *eqn)
     fastf_t a, b, c1, c1_3rd, delta;
     int i;
 
-    if (!roots || !eqn || ZERO(eqn->cf[0]))
+    if (!roots || !eqn || (ZERO(eqn->cf[0]) && fpclassify(eqn->cf[0]) == FP_ZERO))
 	return 0;
 
     /* Cardano's formula below is expressed for a monic polynomial. */
@@ -395,7 +416,7 @@ bn_poly_quartic_roots(struct bn_complex *roots, const struct bn_poly *eqn)
 
 #define Max3(a, b, c) ((c)>((a)>(b)?(a):(b)) ? (c) : ((a)>(b)?(a):(b)))
 
-    if (!roots || !eqn || ZERO(eqn->cf[0]))
+    if (!roots || !eqn || (ZERO(eqn->cf[0]) && fpclassify(eqn->cf[0]) == FP_ZERO))
 	return 0;
 
     /* Ferrari's formula below is expressed for a monic polynomial. */

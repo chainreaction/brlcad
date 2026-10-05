@@ -297,16 +297,11 @@ ecmd_bot_thick_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUS
     struct rt_bot_edit *b = (struct rt_bot_edit *)MEDIT(s)->ipe_ptr;
     RT_BOT_CK_MAGIC(bot);
 
-    size_t face_no = 0;
-    int face_state = 0;
-
     if (bot->mode != RT_BOT_PLATE && bot->mode != RT_BOT_PLATE_NOCOS) {
 	if (Tcl_VarEval(s->interp, "cad_dialog ", ".bot_err ", "$mged_gui(mged,screen) ", "{Not Plate Mode} ",
 		    "{Cannot edit face thickness in a non-plate BOT} ", "\"\" ", "0 ", "OK ",
 		    (char *)NULL) != TCL_OK)
-	{
 	    bu_log("cad_dialog failed: %s\n", Tcl_GetStringResult(s->interp));
-	}
 	return BRLCAD_ERROR;
     }
 
@@ -314,41 +309,15 @@ ecmd_bot_thick_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, void *UNUS
 	bot->thickness = (fastf_t *)bu_calloc(bot->num_faces, sizeof(fastf_t), "BOT thickness");
 
     if (b->bot_verts[0] < 0 || b->bot_verts[1] < 0 || b->bot_verts[2] < 0) {
-	/* setting thickness for all faces */
-	(void)Tcl_VarEval(s->interp, "cad_dialog ", ".bot_err ",
+	if (Tcl_VarEval(s->interp, "cad_dialog ", ".bot_err ",
 		"$mged_gui(mged,screen) ", "{Setting Thickness for All Faces} ",
 		"{No face is selected, so this operation will modify all the faces in this BOT} ",
-		"\"\" ", "0 ", "OK ", "CANCEL ", (char *)NULL);
+		"\"\" ", "0 ", "OK ", "CANCEL ", (char *)NULL) != TCL_OK) {
+	    bu_log("cad_dialog failed: %s\n", Tcl_GetStringResult(s->interp));
+	    return BRLCAD_ERROR;
+	}
 	if (atoi(Tcl_GetStringResult(s->interp)))
 	    return BRLCAD_ERROR;
-
-	if (bot->thickness) {
-	    for (size_t i=0; i<bot->num_faces; i++)
-		bot->thickness[i] = MEDIT(s)->e_para[0];
-	}
-    } else {
-	/* setting thickness for just one face */
-
-	face_state = -1;
-	if (bot->faces) {
-	    for (size_t i=0; i < bot->num_faces; i++) {
-		if (b->bot_verts[0] == bot->faces[i*3] &&
-			b->bot_verts[1] == bot->faces[i*3+1] &&
-			b->bot_verts[2] == bot->faces[i*3+2])
-		{
-		    face_no = i;
-		    face_state = 0;
-		    break;
-		}
-	    }
-	}
-	if (face_state < 0) {
-	    bu_log("Cannot find face with vertices %d %d %d!\n", V3ARGS(b->bot_verts));
-	    return BRLCAD_ERROR;
-	}
-
-	if (bot->thickness && face_no < bot->num_faces)
-	    bot->thickness[face_no] = MEDIT(s)->e_para[0];
     }
 
     return BRLCAD_OK;
@@ -525,11 +494,12 @@ ecmd_bot_pickt_multihit_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, v
     struct rt_bot_edit *b = (struct rt_bot_edit *)se->ipe_ptr;
     struct bu_vls *vls = (struct bu_vls *)se->u_ptr;
 
-    // Evil Tcl variable linkage.  Will need to figure out how to do this
-    // "on the fly" with temporary s_edit structure internal variables...
-    Tcl_LinkVar(s->interp, "bot_v1", (char *)&b->bot_verts[0], TCL_LINK_INT);
-    Tcl_LinkVar(s->interp, "bot_v2", (char *)&b->bot_verts[1], TCL_LINK_INT);
-    Tcl_LinkVar(s->interp, "bot_v3", (char *)&b->bot_verts[2], TCL_LINK_INT);
+    /* The chooser is nonmodal, so it cannot safely retain links to this edit
+     * state.  Clear the old selection while the user chooses a new face; the
+     * Tcl callback applies the chosen indices through the normal edit path. */
+    b->bot_verts[0] = -1;
+    b->bot_verts[1] = -1;
+    b->bot_verts[2] = -1;
 
     int ret_tcl = Tcl_VarEval(s->interp, "bot_face_select ", bu_vls_cstr(vls), (char *)NULL);
     int ret = BRLCAD_OK;
@@ -540,9 +510,6 @@ ecmd_bot_pickt_multihit_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, v
 	b->bot_verts[2] = -1;
 	ret = BRLCAD_ERROR;
     }
-    Tcl_UnlinkVar(s->interp, "bot_v1");
-    Tcl_UnlinkVar(s->interp, "bot_v2");
-    Tcl_UnlinkVar(s->interp, "bot_v3");
     return ret;
 }
 
@@ -587,33 +554,11 @@ ecmd_extrude_skt_name_clbk(int UNUSED(ac), const char **UNUSED(av), void *d, voi
     }
 
     bu_vls_free(&tcl_cmd);
-
-    if (extr->sketch_name)
-	bu_free((char *)extr->sketch_name, "extr->sketch_name");
-
-    const char *svar = Tcl_GetVar(s->interp, "final_sketch_name", TCL_GLOBAL_ONLY);
-    if (!svar)
+    const char *name = Tcl_GetVar(s->interp, "final_sketch_name", TCL_GLOBAL_ONLY);
+    if (!name)
 	return BRLCAD_ERROR;
-    extr->sketch_name = bu_strdup(svar);
 
-    struct directory *dp = RT_DIR_NULL;
-    if ((dp = db_lookup(s->dbip, extr->sketch_name, 0)) == RT_DIR_NULL) {
-	bu_log("Warning: %s does not exist!\n",	extr->sketch_name);
-	extr->skt = (struct rt_sketch_internal *)NULL;
-    } else {
-	/* import the new sketch */
-	struct rt_db_internal tmp_ip;
-	int itype = rt_db_get_internal(&tmp_ip, dp, s->dbip, bn_mat_identity);
-	if (itype != ID_SKETCH) {
-	    bu_log("rt_extrude_import: ERROR: Cannot import sketch (%.16s) for extrusion\n", extr->sketch_name);
-	    if (itype >= 0)
-		rt_db_free_internal(&tmp_ip);
-	    extr->skt = (struct rt_sketch_internal *)NULL;
-	} else {
-	    extr->skt = (struct rt_sketch_internal *)tmp_ip.idb_ptr;
-	}
-    }
-
+    rt_edit_set_str(se, 0, name);
     return BRLCAD_OK;
 }
 
@@ -891,13 +836,16 @@ sedit_mouse(struct mged_state *s, const vect_t mousevec)
 	    if (s->interp)
 		Tcl_AppendResult(s->interp, bu_vls_cstr(MEDIT(s)->log_str), (char *)NULL);
 	    bu_vls_trunc(MEDIT(s)->log_str, 0);
+	    mged_print_result(0, NULL, s, NULL);
 	}
     }
 
     if (ret == BRLCAD_ERROR)
 	return;
 
-    rt_edit_process(MEDIT(s));
+    /* XY rotation's knob path has already processed the edit. */
+    if (MEDIT(s)->edit_flag != RT_PARAMS_EDIT_ROT)
+	rt_edit_process(MEDIT(s));
 }
 
 /*
@@ -932,6 +880,8 @@ objedit_mouse(struct mged_state *s, const vect_t mousevec)
 		rt_edit_set_edflag(MEDIT(s), RT_MATRIX_EDIT_SCALE_Z);
 		break;
 	}
+    } else if (movedir & ROTARROW) {
+	rt_edit_set_edflag(MEDIT(s), RT_MATRIX_EDIT_ROT);
     } else if (movedir & (RARROW|UARROW)) {
 	int use_x = (movedir & RARROW) ? 1 : 0;
 	int use_y = (movedir & UARROW) ? 1 : 0;
@@ -1988,57 +1938,25 @@ f_sedit_reset(ClientData clientData, Tcl_Interp *interp, int argc, const char *U
 	return TCL_ERROR;
     }
 
-    int idb_type = MEDIT(s)->es_int.idb_type;
-
-    /* reset internal variables before freeing internal */
-    if (idb_type > ID_NULL && idb_type <= ID_MAX_SOLID && EDOBJ[idb_type].ft_prim_edit_reset)
-	(*EDOBJ[idb_type].ft_prim_edit_reset)(MEDIT(s));
-
-    /* free old copy */
-    rt_db_free_internal(&MEDIT(s)->es_int);
-
-    /* read in a fresh copy */
     if (!illump || !illump->s_u_data)
 	return TCL_ERROR;
+
     struct ged_bv_data *bdata = (struct ged_bv_data *)illump->s_u_data;
-    if (!s->dbip || bdata->s_fullpath.fp_len <= 0 || !LAST_SOLID(bdata))
+    if (!bdata->s_fullpath.fp_len) {
+	Tcl_AppendResult(interp, "sedit_reset(NULL): solid import failure\n", (char *)NULL);
 	return TCL_ERROR;
-
-    if (rt_db_get_internal(&MEDIT(s)->es_int, LAST_SOLID(bdata),
-			   s->dbip, NULL) < 0) {
-	Tcl_AppendResult(interp, "sedit_reset(",
-		LAST_SOLID(bdata)->d_namep,
-		"):  solid import failure\n", (char *)NULL);
-	return TCL_ERROR;				/* FAIL */
     }
-    RT_CK_DB_INTERNAL(&MEDIT(s)->es_int);
+
+    struct directory *dp = LAST_SOLID(bdata);
+    if (reinit_edit_state(s, bdata) != BRLCAD_OK) {
+	Tcl_AppendResult(interp, "sedit_reset(",
+		dp->d_namep,
+		"): solid import failure\n", (char *)NULL);
+	return TCL_ERROR;
+    }
+
+    init_sedit_vars(s);
     replot_editing_solid(0, NULL, s, NULL);
-
-    /* Establish initial keypoint */
-    MEDIT(s)->e_keytag = "";
-    rt_get_solid_keypoint(MEDIT(s), &MEDIT(s)->e_keypoint, &MEDIT(s)->e_keytag, MEDIT(s)->e_mat);
-
-    /* Reset relevant variables */
-    MAT_IDN(MEDIT(s)->acc_rot_sol);
-    VSETALL(MEDIT(s)->k.rot_m_abs, 0.0);
-    VSETALL(MEDIT(s)->k.rot_o_abs, 0.0);
-    VSETALL(MEDIT(s)->k.rot_v_abs, 0.0);
-    VSETALL(MEDIT(s)->k.rot_m_abs_last, 0.0);
-    VSETALL(MEDIT(s)->k.rot_o_abs_last, 0.0);
-    VSETALL(MEDIT(s)->k.rot_v_abs_last, 0.0);
-    VSETALL(MEDIT(s)->k.tra_m_abs, 0.0);
-    VSETALL(MEDIT(s)->k.tra_v_abs, 0.0);
-    VSETALL(MEDIT(s)->k.tra_m_abs_last, 0.0);
-    VSETALL(MEDIT(s)->k.tra_v_abs_last, 0.0);
-    MEDIT(s)->k.sca_abs = 0.0;
-    MEDIT(s)->acc_sc_sol = 1.0;
-    VSETALL(MEDIT(s)->k.rot_m, 0.0);
-    VSETALL(MEDIT(s)->k.rot_o, 0.0);
-    VSETALL(MEDIT(s)->k.rot_v, 0.0);
-    VSETALL(MEDIT(s)->k.tra_m, 0.0);
-    VSETALL(MEDIT(s)->k.tra_v, 0.0);
-
-    set_e_axes_pos(s, 1);
     s->update_views = 1;
     if (DMP)
 	dm_set_dirty(DMP, 1);

@@ -44,12 +44,12 @@
 #include <string.h>
 
 #include "vmath.h"
-#include "bu/app.h"
 #include "bu/log.h"
 #include "bu/malloc.h"
 #include "bu/str.h"
 #include "raytrace.h"
 #include "rt/rt_ecmds.h"
+#include "test_utils.h"
 
 
 struct directory *
@@ -128,12 +128,8 @@ cline_reset(struct rt_edit *s, struct rt_cline_internal *edit_cline,
 }
 
 int
-main(int argc, char *argv[])
+rt_edit_test_cline(void)
 {
-    bu_setprogname(argv[0]);
-    if (argc != 1)
-	return BRLCAD_ERROR;
-
     struct db_i *dbip = db_open_inmem();
     if (dbip == DBI_NULL)
 	bu_exit(1, "ERROR: Unable to create database instance\n");
@@ -262,6 +258,27 @@ main(int argc, char *argv[])
     rt_edit_process(s);
     if (cline_diff("ECMD_CLINE_MOVE_H", cmp, edit_cline))
 	bu_exit(1, "ERROR: ECMD_CLINE_MOVE_H failed\n");
+
+    cline_reset(s, edit_cline, orig, cmp);
+    s->e_inpara = 3;
+    s->local2base = 25.4;
+    s->base2local = 1.0 / s->local2base;
+    VSCALE(s->e_para, orig->v, s->base2local);
+    if (rt_edit_process(s) != BRLCAD_ERROR ||
+	cline_diff("rejected zero-height move", cmp, edit_cline))
+	bu_exit(1, "ERROR: rejected CLINE height move changed geometry\n");
+    s->local2base = 1.0;
+    s->base2local = 1.0;
+
+    cline_reset(s, edit_cline, orig, cmp);
+    VMOVE(s->curr_e_axes_pos, orig->v);
+    point_t rejected_view_target;
+    MAT4X3PNT(rejected_view_target, v->gv_model2view, orig->v);
+    VMOVE(mousevec, rejected_view_target);
+    if (EDOBJ[dp->d_minor_type].ft_edit_xy(s, mousevec) != BRLCAD_ERROR ||
+	cline_diff("rejected mouse zero-height move", cmp, edit_cline))
+	bu_exit(1, "ERROR: rejected CLINE mouse height move changed geometry\n");
+    VADD2(s->curr_e_axes_pos, orig->v, orig->h);
     bu_log("ECMD_CLINE_MOVE_H SUCCESS: h=%g,%g,%g\n", V3ARGS(edit_cline->h));
 
     /* ================================================================
@@ -463,6 +480,98 @@ if (!VNEAR_EQUAL(kp_world, expected, VUNITIZE_TOL))
 bu_log("RT_MATRIX_EDIT_TRANS_MODEL_XYZ SUCCESS: "
        "keypoint maps to (%g,%g,%g)\n", V3ARGS(kp_world));
     }
+
+    const fastf_t inch_to_mm = 25.4;
+    const struct {
+	int mode;
+	fastf_t inches;
+    } inch_scales[] = {
+	{ECMD_CLINE_SCALE_H, 0.25},
+	{ECMD_CLINE_SCALE_R, 0.2},
+	{ECMD_CLINE_SCALE_T, 0.1}
+    };
+    s->local2base = inch_to_mm;
+    for (size_t i = 0; i < sizeof(inch_scales)/sizeof(inch_scales[0]); i++) {
+	cline_reset(s, edit_cline, orig, cmp);
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, inch_scales[i].mode);
+	s->e_inpara = 1;
+	s->e_para[0] = inch_scales[i].inches;
+	if (rt_edit_process(s) != BRLCAD_OK)
+	    bu_exit(1, "ERROR: CLINE inch scale mode %d failed\n", inch_scales[i].mode);
+	fastf_t length;
+	switch (inch_scales[i].mode) {
+	    case ECMD_CLINE_SCALE_H: length = MAGNITUDE(edit_cline->h); break;
+	    case ECMD_CLINE_SCALE_R: length = edit_cline->radius; break;
+	    default: length = edit_cline->thickness; break;
+	}
+	if (!NEAR_EQUAL(length, inch_scales[i].inches * inch_to_mm, VUNITIZE_TOL) ||
+	    !NEAR_EQUAL(s->e_para[0], inch_scales[i].inches, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: CLINE inch scale mode %d converted incorrectly\n",
+		    inch_scales[i].mode);
+	struct rt_cline_internal saved = *edit_cline;
+	s->e_inpara = 1;
+	if (rt_edit_process(s) != BRLCAD_OK ||
+	    cline_diff("CLINE repeated inch scale", &saved, edit_cline))
+	    bu_exit(1, "ERROR: CLINE inch scale mode %d compounded\n", inch_scales[i].mode);
+    }
+
+    cline_reset(s, edit_cline, orig, cmp);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_CLINE_MOVE_H);
+    s->mv_context = 0;
+    s->e_inpara = 3;
+    VSET(s->e_para, 0, 0, 0.5);
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	!NEAR_EQUAL(MAGNITUDE(edit_cline->h), 0.5 * inch_to_mm, VUNITIZE_TOL) ||
+	!NEAR_EQUAL(s->e_para[Z], 0.5, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: CLINE inch endpoint converted incorrectly\n");
+    struct rt_cline_internal saved = *edit_cline;
+    s->e_inpara = 3;
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	cline_diff("CLINE repeated inch endpoint", &saved, edit_cline))
+	bu_exit(1, "ERROR: CLINE inch endpoint compounded\n");
+
+    cline_reset(s, edit_cline, orig, cmp);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, RT_PARAMS_EDIT_TRANS);
+    s->mv_context = 0;
+    s->e_keyfixed = 0;
+    MAT_IDN(s->e_invmat);
+    MAT_IDN(s->model_changes);
+    VSET(s->e_keypoint, 0, 0, 0);
+    s->e_inpara = 1;
+    VSET(s->e_para, 0.5, 0, 0);
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	!NEAR_EQUAL(edit_cline->v[X], 0.5 * inch_to_mm, VUNITIZE_TOL) ||
+	!NEAR_EQUAL(s->e_para[X], 0.5, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: generic inch translation converted incorrectly\n");
+    saved = *edit_cline;
+    s->e_inpara = 1;
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	cline_diff("generic repeated inch translation", &saved, edit_cline))
+	bu_exit(1, "ERROR: generic inch translation compounded\n");
+
+    /* Endpoint dragging uses base-unit cursor coordinates. */
+    cline_reset(s, edit_cline, orig, cmp);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_CLINE_MOVE_H);
+    MAT_IDN(v->gv_model2view);
+    MAT_IDN(v->gv_view2model);
+    MAT_IDN(s->e_invmat);
+    VADD2(s->curr_e_axes_pos, orig->v, orig->h);
+    vect_t knob_state;
+    VSET(knob_state, 7.0, 8.0, 9.0);
+    VMOVE(s->k.tra_m_abs, knob_state);
+    VMOVE(s->k.tra_v_abs, knob_state);
+    VSET(mousevec, 2.0, 3.0, 0.0);
+    if (EDOBJ[dp->d_minor_type].ft_edit_xy(s, mousevec) != BRLCAD_OK)
+	bu_exit(1, "ERROR: CLINE mouse endpoint move failed\n");
+    vect_t expected_h;
+    VSET(expected_h, mousevec[X], mousevec[Y], orig->h[Z]);
+    if (!VNEAR_EQUAL(edit_cline->h, expected_h, VUNITIZE_TOL) ||
+	!VNEAR_EQUAL(edit_cline->v, orig->v, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: CLINE mouse endpoint moved incorrectly\n");
+    point_t view_target;
+    VSET(view_target, mousevec[X], mousevec[Y], s->curr_e_axes_pos[Z]);
+    if (!edit_test_mouse_knobs_match(s, view_target))
+	bu_exit(1, "ERROR: CLINE mouse endpoint knobs missed cursor\n");
 
     rt_edit_destroy(s);
     db_close(dbip);

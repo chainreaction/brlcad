@@ -28,16 +28,14 @@
 
 #include "common.h"
 
-#include <stdio.h>
-#include <math.h>
+#include <limits.h>
 
-#include "bu/interrupt.h"
 #include "bu/malloc.h"
-#include "vmath.h"
 #include "bn/multipoly.h"
 
 
 #define FAILSTR "failure in multipoly.c"
+
 
 /**
  *        bn_multipoly_new
@@ -54,17 +52,19 @@ bn_multipoly_new(int dgrs, int dgrt)
 	return NULL;
 
     BU_ALLOC(newmp, struct bn_multipoly);
-    newmp->magic = BN_MULTIPOLY_MAGIC;
-    newmp->dgrs = dgrs;
-    newmp->dgrt = dgrt;
     newmp->cf = (double **)bu_calloc(dgrs, sizeof(double *), FAILSTR);
 
     for (i = 0; i < dgrs; i++) {
 	newmp->cf[i] = (double *)bu_calloc(dgrt, sizeof(double), FAILSTR);
     }
 
+    newmp->dgrs = dgrs;
+    newmp->dgrt = dgrt;
+    newmp->magic = BN_MULTIPOLY_MAGIC;
+
     return newmp;
 }
+
 
 /**
  *        bn_multipoly_free
@@ -92,6 +92,7 @@ bn_multipoly_free(struct bn_multipoly *p)
     bu_free(p, "bn_multipoly");
 }
 
+
 /**
  *        bn_multipoly_grow
  *
@@ -113,9 +114,14 @@ bn_multipoly_grow(struct bn_multipoly *P, int dgrs, int dgrt)
     if (target_s == P->dgrs && target_t == P->dgrt)
 	return P;
 
+    if ((size_t)target_s > SIZE_MAX / sizeof(*P->cf) ||
+	(size_t)target_t > SIZE_MAX / sizeof(**P->cf)) {
+	return NULL;
+    }
+
     /* If row count increases, reallocate the pointer array */
     if (target_s > P->dgrs) {
-	P->cf = (double **)bu_realloc(P->cf, target_s * sizeof(double *), FAILSTR);
+	P->cf = (double **)bu_realloc(P->cf, target_s * sizeof(*P->cf), FAILSTR);
 	/* Allocate new rows with target_t columns */
 	for (i = P->dgrs; i < target_s; i++) {
 	    P->cf[i] = (double *)bu_calloc(target_t, sizeof(double), FAILSTR);
@@ -125,7 +131,7 @@ bn_multipoly_grow(struct bn_multipoly *P, int dgrs, int dgrt)
     /* If column count increases, reallocate existing rows */
     if (target_t > P->dgrt) {
 	for (i = 0; i < P->dgrs; i++) {
-	    P->cf[i] = (double *)bu_realloc(P->cf[i], target_t * sizeof(double), FAILSTR);
+	    P->cf[i] = (double *)bu_realloc(P->cf[i], target_t * sizeof(*P->cf[i]), FAILSTR);
 	    for (j = P->dgrt; j < target_t; j++) {
 		P->cf[i][j] = 0.0;
 	    }
@@ -145,12 +151,18 @@ bn_multipoly_grow(struct bn_multipoly *P, int dgrs, int dgrt)
 struct bn_multipoly *
 bn_multipoly_set(struct bn_multipoly *P, int s, int t, double val)
 {
-    if (!P || s < 0 || t < 0)
+    if (!P || s < 0 || t < 0 || s == INT_MAX || t == INT_MAX) {
 	return NULL;
+    }
+
     BN_CK_MULTIPOLY(P);
-    if (!bn_multipoly_grow(P, s + 1, t + 1))
+
+    if (!bn_multipoly_grow(P, s + 1, t + 1)) {
 	return NULL;
+    }
+
     P->cf[s][t] = val;
+
     return P;
 }
 
@@ -194,24 +206,30 @@ bn_multipoly_add(const struct bn_multipoly *p1, const struct bn_multipoly *p2)
  * @brief multiply two polynomials
  */
 struct bn_multipoly *
-bn_multipoly_mul(const struct bn_multipoly *p1, const struct bn_multipoly *p2)
+bn_multipoly_mul(register const struct bn_multipoly *p1, register const struct bn_multipoly *p2)
 {
     struct bn_multipoly *product;
     int s1, s2, t1, t2;
 
-    if (!p1 || !p2)
+    if (!p1 || !p2 || p1->dgrs <= 0 || p1->dgrt <= 0 ||
+	p2->dgrs <= 0 || p2->dgrt <= 0) {
 	return NULL;
+    }
+
     BN_CK_MULTIPOLY(p1);
     BN_CK_MULTIPOLY(p2);
 
-    product = bn_multipoly_new(p1->dgrs + p2->dgrs, p1->dgrt + p2->dgrt);
-    if (!product)
+    if (p1->dgrs > INT_MAX - (p2->dgrs - 1) ||
+	p1->dgrt > INT_MAX - (p2->dgrt - 1)) {
 	return NULL;
+    }
 
+    product = bn_multipoly_new(p1->dgrs + (p2->dgrs - 1),
+			       p1->dgrt + (p2->dgrt - 1));
     for (s1 = 0; s1 < p1->dgrs; s1++) {
 	for (t1 = 0; t1 < p1->dgrt; t1++) {
 	    for (s2 = 0; s2 < p2->dgrs; s2++) {
-		for (t2 = 0; t2 < p2->dgrt; p2++) {
+		for (t2 = 0; t2 < p2->dgrt; t2++) {
 		    product->cf[s1 + s2][t1 + t2] += p1->cf[s1][t1] * p2->cf[s2][t2];
 		}
 	    }

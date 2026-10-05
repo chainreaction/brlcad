@@ -96,6 +96,8 @@ wgl_share_dlist(struct dm *dmp1, struct dm *dmp2)
     if (!mvars)
 	return BRLCAD_ERROR;
 
+    mvars = (struct gl_vars *)dmp1->i->m_vars;
+
     if (dmp2 == (struct dm *)NULL) {
 	/* create a new graphics context for dmp1 with private display lists */
 
@@ -249,6 +251,11 @@ wgl_share_dlist(struct dm *dmp1, struct dm *dmp2)
 		       ((struct wgl_vars *)dmp2->i->dm_vars.priv_vars)->glxc);
 	wglDeleteContext(old_glxContext);
     }
+
+    struct dm *target_dmp = dmp2 ? dmp2 : dmp1;
+    struct gl_vars *target_mvars = (struct gl_vars *)target_dmp->i->m_vars;
+    gl_setZBuffer(target_dmp, target_mvars->zbuffer_on);
+    gl_setLight(target_dmp, target_mvars->lighting_on);
 
     return BRLCAD_OK;
 }

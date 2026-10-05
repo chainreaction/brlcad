@@ -41,6 +41,9 @@
 #define ECMD_ETO_RD		21058
 #define ECMD_ETO_SCALE_C	21059
 
+/* Keep edited radii safely above the geometric zero tolerance. */
+#define ETO_RADIUS_FLOOR (4.0 * SQRT_SMALL_FASTF)
+
 C_DECL void
 rt_edit_eto_set_edit_mode(struct rt_edit *s, int mode)
 {
@@ -139,21 +142,11 @@ rt_edit_eto_write_params(
     RT_ETO_CK_MAGIC(eto);
 
     bu_vls_printf(p, "Vertex: %.9f %.9f %.9f\n", V3BASE2LOCAL(eto->eto_V));
-    bu_vls_printf(p, "Normal: %.9f %.9f %.9f\n", V3BASE2LOCAL(eto->eto_N));
+    bu_vls_printf(p, "Normal: %.9f %.9f %.9f\n", V3ARGS(eto->eto_N));
     bu_vls_printf(p, "Semi-major axis: %.9f %.9f %.9f\n", V3BASE2LOCAL(eto->eto_C));
     bu_vls_printf(p, "Semi-minor length: %.9f\n", eto->eto_rd * base2local);
     bu_vls_printf(p, "Radius of rotation: %.9f\n", eto->eto_r * base2local);
 }
-
-#define read_params_line_incr \
-    lc = (ln) ? (ln + lcj) : NULL; \
-    if (!lc) { \
-	bu_free(wc, "wc"); \
-	return BRLCAD_ERROR; \
-    } \
-    ln = strchr(lc, tc); \
-    if (ln) *ln = '\0'; \
-    while (lc && strchr(lc, ':')) lc++
 
 C_DECL int
 rt_edit_eto_read_params(
@@ -163,103 +156,61 @@ rt_edit_eto_read_params(
 	fastf_t local2base
 	)
 {
-    double a = 0.0;
-    double b = 0.0;
-    double c = 0.0;
     struct rt_eto_internal *eto = (struct rt_eto_internal *)ip->idb_ptr;
     RT_ETO_CK_MAGIC(eto);
-
-    if (!fc)
+    struct rt_eto_internal candidate = *eto;
+    const struct edit_param_field fields[] = {
+	{"Vertex", candidate.eto_V, ELEMENTS_PER_VECT, local2base},
+	{"Normal", candidate.eto_N, ELEMENTS_PER_VECT, 1.0},
+	{"Semi-major axis", candidate.eto_C, ELEMENTS_PER_VECT, local2base},
+	{"Semi-minor length", &candidate.eto_rd, 1, local2base},
+	{"Radius of rotation", &candidate.eto_r, 1, local2base}
+    };
+    if (edit_param_read_fields(fc, fields, sizeof(fields) / sizeof(fields[0])) != BRLCAD_OK ||
+	ZERO(MAGNITUDE(candidate.eto_N)))
 	return BRLCAD_ERROR;
-
-    // We're getting the file contents as a string, so we need to split it up
-    // to process lines. See https://stackoverflow.com/a/17983619
-
-    // Figure out if we need to deal with Windows line endings
-    const char *crpos = strchr(fc, '\r');
-    int crlf = (crpos && crpos[1] == '\n') ? 1 : 0;
-    char tc = (crlf) ? '\r' : '\n';
-    // If we're CRLF jump ahead another character.
-    int lcj = (crlf) ? 2 : 1;
-
-    char *ln = NULL;
-    char *wc = bu_strdup(fc);
-    char *lc = wc;
-
-    // Set up initial line (Vertex)
-    ln = strchr(lc, tc);
-    if (ln) *ln = '\0';
-
-    // Trim off prefixes, if user left them in
-    while (lc && strchr(lc, ':')) lc++;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(eto->eto_V, a, b, c);
-    VSCALE(eto->eto_V, eto->eto_V, local2base);
-
-    // Set up Normal line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(eto->eto_N, a, b, c);
-    VUNITIZE(eto->eto_N);
-
-    // Set up Semi-major axis line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(eto->eto_C, a, b, c);
-    VSCALE(eto->eto_C, eto->eto_C, local2base);
-
-    // Set up Semi-minor length line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf", &a);
-    eto->eto_rd = a * local2base;
-
-    // Set up Radius of rotation line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf", &a);
-    eto->eto_r = a * local2base;
-
-    // Cleanup
-    bu_free(wc, "wc");
+    VUNITIZE(candidate.eto_N);
+    *eto = candidate;
     return BRLCAD_OK;
 }
 
 /* scale radius 1 (r) of ETO */
-void
+static int
 ecmd_eto_r(struct rt_edit *s)
 {
     struct rt_eto_internal *eto =
 	(struct rt_eto_internal *)s->es_int.idb_ptr;
-    fastf_t ch, cv, dh, newrad;
+    fastf_t ch, cv, dh;
     vect_t Nu;
 
     RT_ETO_CK_MAGIC(eto);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	newrad = s->e_para[0];
-    } else {
-	newrad = eto->eto_r * s->es_scale;
+    fastf_t newrad = eto->eto_r * s->es_scale;
+    fastf_t c_length = MAGNITUDE(eto->eto_C);
+    if (!isfinite(newrad) || !isfinite(c_length) || c_length <= 0.0) {
+	bu_vls_printf(s->log_str, "Cannot scale an invalid ETO radius\n");
+	return BRLCAD_ERROR;
     }
-    if (newrad < SQRT_SMALL_FASTF) newrad = 4*SQRT_SMALL_FASTF;
+    if (newrad < SQRT_SMALL_FASTF)
+	newrad = ETO_RADIUS_FLOOR;
     VMOVE(Nu, eto->eto_N);
     VUNITIZE(Nu);
     /* get horiz and vert components of C and Rd */
     cv = VDOT(eto->eto_C, Nu);
-    ch = sqrt(VDOT(eto->eto_C, eto->eto_C) - cv * cv);
+    ch = sqrt(fmax(0.0, VDOT(eto->eto_C, eto->eto_C) - cv * cv));
     /* angle between C and Nu */
-    dh = eto->eto_rd * cv / MAGNITUDE(eto->eto_C);
+    dh = eto->eto_rd * cv / c_length;
     /* make sure revolved ellipse doesn't overlap itself */
-    if (ch <= newrad && dh <= newrad)
+
+    if (isfinite(ch) && isfinite(dh) && ch <= newrad && dh <= newrad) {
 	eto->eto_r = newrad;
+	return BRLCAD_OK;
+    }
+    bu_vls_printf(s->log_str, "ETO major radius is too small for its ellipse\n");
+    return BRLCAD_ERROR;
 }
 
 /* scale Rd, ellipse semi-minor axis length, of ETO */
-void
+static int
 ecmd_eto_rd(struct rt_edit *s)
 {
     struct rt_eto_internal *eto =
@@ -268,27 +219,30 @@ ecmd_eto_rd(struct rt_edit *s)
     vect_t Nu;
 
     RT_ETO_CK_MAGIC(eto);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	newrad = s->e_para[0];
-    } else {
-	newrad = eto->eto_rd * s->es_scale;
-    }
-    if (newrad < SQRT_SMALL_FASTF) newrad = 4*SQRT_SMALL_FASTF;
+    newrad = eto->eto_rd * s->es_scale;
     work = MAGNITUDE(eto->eto_C);
+    if (!isfinite(newrad) || !isfinite(work) || work <= 0.0) {
+	bu_vls_printf(s->log_str, "Cannot scale an invalid ETO tube radius\n");
+	return BRLCAD_ERROR;
+    }
+    if (newrad < SQRT_SMALL_FASTF)
+	newrad = ETO_RADIUS_FLOOR;
     if (newrad <= work) {
 	VMOVE(Nu, eto->eto_N);
 	VUNITIZE(Nu);
 	dh = newrad * VDOT(eto->eto_C, Nu) / work;
 	/* make sure revolved ellipse doesn't overlap itself */
-	if (dh <= eto->eto_r)
+	if (isfinite(dh) && dh <= eto->eto_r) {
 	    eto->eto_rd = newrad;
+	    return BRLCAD_OK;
+	}
     }
+    bu_vls_printf(s->log_str, "ETO tube radius exceeds its major axis or radius\n");
+    return BRLCAD_ERROR;
 }
 
 /* scale vector C */
-void
+static int
 ecmd_eto_scale_c(struct rt_edit *s)
 {
     struct rt_eto_internal *eto =
@@ -297,21 +251,25 @@ ecmd_eto_scale_c(struct rt_edit *s)
     vect_t Nu, Work;
 
     RT_ETO_CK_MAGIC(eto);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(eto->eto_C);
+    fastf_t new_length = s->es_scale * MAGNITUDE(eto->eto_C);
+    if (!isfinite(new_length) || new_length <= 0.0) {
+	bu_vls_printf(s->log_str, "ETO axis length must be finite and positive\n");
+	return BRLCAD_ERROR;
     }
-    if (s->es_scale * MAGNITUDE(eto->eto_C) >= eto->eto_rd) {
+    if (new_length >= eto->eto_rd) {
 	VMOVE(Nu, eto->eto_N);
 	VUNITIZE(Nu);
 	VSCALE(Work, eto->eto_C, s->es_scale);
 	/* get horiz and vert comps of C and Rd */
 	cv = VDOT(Work, Nu);
-	ch = sqrt(VDOT(Work, Work) - cv * cv);
-	if (ch <= eto->eto_r)
+	ch = sqrt(fmax(0.0, VDOT(Work, Work) - cv * cv));
+	if (isfinite(ch) && ch <= eto->eto_r) {
 	    VMOVE(eto->eto_C, Work);
+	    return BRLCAD_OK;
+	}
     }
+    bu_vls_printf(s->log_str, "ETO major axis violates its radius constraints\n");
+    return BRLCAD_ERROR;
 }
 
 /* rotate ellipse semi-major axis vector */
@@ -386,38 +344,37 @@ ecmd_eto_rot_c(struct rt_edit *s)
 static int
 rt_edit_eto_pscale(struct rt_edit *s)
 {
-    if (s->e_inpara > 1) {
-	bu_vls_printf(s->log_str, "ERROR: only one argument needed\n");
-	s->e_inpara = 0;
-	return BRLCAD_ERROR;
-    }
+    struct rt_eto_internal *eto = (struct rt_eto_internal *)s->es_int.idb_ptr;
+    RT_ETO_CK_MAGIC(eto);
+    if (!s->e_inpara && ZERO(s->es_scale))
+	return BRLCAD_OK;
 
-    if (s->e_inpara) {
-	if (s->e_para[0] <= 0.0) {
-	    bu_vls_printf(s->log_str, "ERROR: SCALE FACTOR <= 0\n");
-	    s->e_inpara = 0;
+    fastf_t current;
+    switch (s->edit_flag) {
+	case ECMD_ETO_R:
+	    current = eto->eto_r;
+	    break;
+	case ECMD_ETO_RD:
+	    current = eto->eto_rd;
+	    break;
+	case ECMD_ETO_SCALE_C:
+	    current = MAGNITUDE(eto->eto_C);
+	    break;
+	default:
 	    return BRLCAD_ERROR;
-	}
-
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
     }
+    if (edit_prepare_length_scale(s, current) != BRLCAD_OK)
+	return BRLCAD_ERROR;
 
     switch (s->edit_flag) {
 	case ECMD_ETO_R:
-	    ecmd_eto_r(s);
-	    break;
+	    return ecmd_eto_r(s);
 	case ECMD_ETO_RD:
-	    ecmd_eto_rd(s);
-	    break;
+	    return ecmd_eto_rd(s);
 	case ECMD_ETO_SCALE_C:
-	    ecmd_eto_scale_c(s);
-	    break;
-    };
-
-    return 0;
+	    return ecmd_eto_scale_c(s);
+    }
+    return BRLCAD_ERROR;
 }
 
 C_DECL int
@@ -474,9 +431,8 @@ rt_edit_eto_repair(struct bu_vls *log_str, struct rt_db_internal *ip, const stru
     BU_OPT(d[1], "", "options-json", "", NULL, &options_json, "Return JSON of supported options");
     BU_OPT_NULL(d[2]);
 
-    if (argc > 0 && argv) {
-        bu_opt_parse(NULL, argc, argv, d);
-    }
+    if (edit_repair_parse_options(log_str, argc, argv, d) != BRLCAD_OK)
+        return -1;
 
     if (options_json) {
         if (log_str) {

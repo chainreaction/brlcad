@@ -260,16 +260,6 @@ rt_edit_ell_write_params(
     bu_vls_printf(p, "C: %.9f %.9f %.9f\n", V3BASE2LOCAL(ell->c));
 }
 
-#define read_params_line_incr \
-    lc = (ln) ? (ln + lcj) : NULL; \
-    if (!lc) { \
-	bu_free(wc, "wc"); \
-	return BRLCAD_ERROR; \
-    } \
-    ln = strchr(lc, tc); \
-    if (ln) *ln = '\0'; \
-    while (lc && strchr(lc, ':')) lc++
-
 C_DECL int
 rt_edit_ell_read_params(
 	struct rt_db_internal *ip,
@@ -278,170 +268,49 @@ rt_edit_ell_read_params(
 	fastf_t local2base
 	)
 {
-    double a = 0.0;
-    double b = 0.0;
-    double c = 0.0;
     struct rt_ell_internal *ell = (struct rt_ell_internal *)ip->idb_ptr;
     RT_ELL_CK_MAGIC(ell);
 
     if (!fc)
 	return BRLCAD_ERROR;
 
-    // We're getting the file contents as a string, so we need to split it up
-    // to process lines. See https://stackoverflow.com/a/17983619
+    struct rt_ell_internal staged = *ell;
+    char *buffer = bu_strdup(fc);
+    char *cursor = buffer;
+    int result = BRLCAD_ERROR;
 
-    // Figure out if we need to deal with Windows line endings
-    const char *crpos = strchr(fc, '\r');
-    int crlf = (crpos && crpos[1] == '\n') ? 1 : 0;
-    char tc = (crlf) ? '\r' : '\n';
-    // If we're CRLF jump ahead another character.
-    int lcj = (crlf) ? 2 : 1;
+    if (edit_param_read_vector(staged.v, &cursor, "Vertex", local2base) != BRLCAD_OK ||
+	edit_param_read_vector(staged.a, &cursor, "A", local2base) != BRLCAD_OK ||
+	edit_param_read_vector(staged.b, &cursor, "B", local2base) != BRLCAD_OK ||
+	edit_param_read_vector(staged.c, &cursor, "C", local2base) != BRLCAD_OK ||
+	edit_param_next_line(&cursor))
+	goto cleanup;
 
-    char *ln = NULL;
-    char *wc = bu_strdup(fc);
-    char *lc = wc;
+    *ell = staged;
+    result = BRLCAD_OK;
 
-    // Set up initial line (Vertex)
-    ln = strchr(lc, tc);
-    if (ln) *ln = '\0';
-
-    // Trim off prefixes, if user left them in
-    while (lc && strchr(lc, ':')) lc++;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(ell->v, a, b, c);
-    VSCALE(ell->v, ell->v, local2base);
-
-    // Set up A line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(ell->a, a, b, c);
-    VSCALE(ell->a, ell->a, local2base);
-
-    // Set up B line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(ell->b, a, b, c);
-    VSCALE(ell->b, ell->b, local2base);
-
-    // Set up C line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(ell->c, a, b, c);
-    VSCALE(ell->c, ell->c, local2base);
-
-    // Cleanup
-    bu_free(wc, "wc");
-    return BRLCAD_OK;
-}
-
-/* scale vector A */
-void
-ecmd_ell_scale_a(struct rt_edit *s)
-{
-    struct rt_ell_internal *ell =
-	(struct rt_ell_internal *)s->es_int.idb_ptr;
-    RT_ELL_CK_MAGIC(ell);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->es_scale = s->e_para[0] * s->e_mat[15] /
-	    MAGNITUDE(ell->a);
-    }
-    VSCALE(ell->a, ell->a, s->es_scale);
-}
-
-/* scale vector B */
-void
-ecmd_ell_scale_b(struct rt_edit *s)
-{
-    struct rt_ell_internal *ell =
-	(struct rt_ell_internal *)s->es_int.idb_ptr;
-    RT_ELL_CK_MAGIC(ell);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->es_scale = s->e_para[0] * s->e_mat[15] /
-	    MAGNITUDE(ell->b);
-    }
-    VSCALE(ell->b, ell->b, s->es_scale);
-}
-
-/* scale vector C */
-void
-ecmd_ell_scale_c(struct rt_edit *s)
-{
-    struct rt_ell_internal *ell =
-	(struct rt_ell_internal *)s->es_int.idb_ptr;
-    RT_ELL_CK_MAGIC(ell);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->es_scale = s->e_para[0] * s->e_mat[15] /
-	    MAGNITUDE(ell->c);
-    }
-    VSCALE(ell->c, ell->c, s->es_scale);
-}
-
-/* set A, B, and C length the same */
-void
-ecmd_ell_scale_abc(struct rt_edit *s)
-{
-    fastf_t ma, mb;
-    struct rt_ell_internal *ell =
-	(struct rt_ell_internal *)s->es_int.idb_ptr;
-    RT_ELL_CK_MAGIC(ell);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->es_scale = s->e_para[0] * s->e_mat[15] /
-	    MAGNITUDE(ell->a);
-    }
-    VSCALE(ell->a, ell->a, s->es_scale);
-    ma = MAGNITUDE(ell->a);
-    mb = MAGNITUDE(ell->b);
-    VSCALE(ell->b, ell->b, ma/mb);
-    mb = MAGNITUDE(ell->c);
-    VSCALE(ell->c, ell->c, ma/mb);
+cleanup:
+    bu_free(buffer, "ELL parameter text");
+    return result;
 }
 
 static int
 rt_edit_ell_pscale(struct rt_edit *s)
 {
-    if (s->e_inpara > 1) {
-	bu_vls_printf(s->log_str, "ERROR: only one argument needed\n");
-	s->e_inpara = 0;
-	return BRLCAD_ERROR;
-    }
-
-    if (s->e_inpara) {
-	if (s->e_para[0] <= 0.0) {
-	    bu_vls_printf(s->log_str, "ERROR: SCALE FACTOR <= 0\n");
-	    s->e_inpara = 0;
-	    return BRLCAD_ERROR;
-	}
-
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
-    }
-
+    struct rt_ell_internal *ell = (struct rt_ell_internal *)s->es_int.idb_ptr;
+    RT_ELL_CK_MAGIC(ell);
     switch (s->edit_flag) {
 	case ECMD_ELL_SCALE_A:
-	    ecmd_ell_scale_a(s);
-	    break;
-	case ECMD_ELL_SCALE_B:
-	    ecmd_ell_scale_b(s);
-	    break;
-	case ECMD_ELL_SCALE_C:
-	    ecmd_ell_scale_c(s);
-	    break;
+	    return edit_scale_length(s, &ell->a, NULL);
 	case ECMD_ELL_SCALE_ABC:
-	    ecmd_ell_scale_abc(s);
-	    break;
-    };
-
-    return 0;
+	    return edit_scale_equal_axes(s, ell->a, ell->b, ell->c);
+	case ECMD_ELL_SCALE_B:
+	    return edit_scale_length(s, &ell->b, NULL);
+	case ECMD_ELL_SCALE_C:
+	    return edit_scale_length(s, &ell->c, NULL);
+	default:
+	    return BRLCAD_ERROR;
+    }
 }
 
 C_DECL int
@@ -518,9 +387,8 @@ rt_edit_ell_repair(struct bu_vls *log_str, struct rt_db_internal *ip, const stru
     BU_OPT(d[1], "", "options-json", "", NULL, &options_json, "Return JSON of supported options");
     BU_OPT_NULL(d[2]);
 
-    if (argc > 0 && argv) {
-        bu_opt_parse(NULL, argc, argv, d);
-    }
+    if (edit_repair_parse_options(log_str, argc, argv, d) != BRLCAD_OK)
+        return -1;
 
     if (options_json) {
         if (log_str) {

@@ -101,6 +101,8 @@
 
 # FIXME: File defines globals used outside this file.
 
+include(CMakePushCheckState)
+
 # When we need to have CMake treat includes as system paths to avoid
 # warnings, we add those patterns to the SYS_INCLUDE_PATTERNS list.
 #
@@ -117,14 +119,16 @@ mark_as_advanced(SYS_INCLUDE_PATTERNS)
 # ${BRLCAD_EXT_DIR}/install copies, so wrap logic to do so into a
 # function.
 function(strip_excluded RDIR EXPATTERNS)
+  file(GLOB_RECURSE staged_files LIST_DIRECTORIES false RELATIVE "${RDIR}" "${RDIR}/*")
   foreach(ep ${${EXPATTERNS}})
-    file(GLOB_RECURSE MATCHING_FILES LIST_DIRECTORIES false RELATIVE "${RDIR}" "${RDIR}/${ep}")
-    foreach(rf ${MATCHING_FILES})
+    set(matching_files ${staged_files})
+    list(FILTER matching_files INCLUDE REGEX "${ep}")
+    foreach(rf ${matching_files})
       file(REMOVE "${RDIR}/${rf}")
-      if(EXISTS ${RDIR}/${rf})
+      if(EXISTS "${RDIR}/${rf}")
         message(FATAL_ERROR "Removing ${RDIR}/${rf} failed")
-      endif(EXISTS ${RDIR}/${rf})
-    endforeach(rf ${MATCHING_FILES})
+      endif(EXISTS "${RDIR}/${rf}")
+    endforeach(rf ${matching_files})
   endforeach(ep ${${EXPATTERNS}})
 endfunction(strip_excluded)
 
@@ -2196,7 +2200,11 @@ macro(find_package_opencv)
   set(OpenCV_DIR_TMP "${OpenCV_DIR}")
   set(OpenCV_DIR "${CMAKE_BINARY_DIR}/${LIB_DIR}/cmake/opencv4")
   set(OpenCV_ROOT ${CMAKE_BINARY_DIR})
-  find_package(OpenCV COMPONENTS core features2d imgproc highgui)
+  find_package(OpenCV CONFIG COMPONENTS core imgproc imgcodecs highgui)
+  if(OpenCV_FOUND AND OpenCV_VERSION_MAJOR GREATER_EQUAL 5)
+    # OpenCV 5 moved boundingRect from imgproc to geometry.
+    find_package(OpenCV CONFIG COMPONENTS geometry)
+  endif()
   unset(OpenCV_ROOT)
 
   # If no bundled copy, see what the system has
@@ -2444,12 +2452,20 @@ macro(find_package_qt)
   mark_as_advanced(Qt5Gui_DIR)
 endmacro(find_package_qt)
 
-macro(_check_bullet_double RESULT_VAR INCDIRS LIBS)
-  set(CMAKE_REQUIRED_INCLUDES ${INCDIRS})
-  set(CMAKE_REQUIRED_LIBRARIES ${LIBS})
+function(_check_bullet_double RESULT_VAR INCDIRS LIBS)
+  # Match the simulation plugin's treatment of Bullet headers while retaining
+  # the library link check that distinguishes double from single precision.
+  set(_bullet_probe_target "_brlcad_${RESULT_VAR}_probe")
+  add_library(${_bullet_probe_target} INTERFACE IMPORTED)
+  target_include_directories(${_bullet_probe_target} SYSTEM INTERFACE ${INCDIRS})
+  target_link_libraries(${_bullet_probe_target} INTERFACE ${LIBS})
+
+  cmake_push_check_state(RESET)
+  set(CMAKE_REQUIRED_LIBRARIES ${_bullet_probe_target})
   set(CMAKE_REQUIRED_DEFINITIONS "-DBT_USE_DOUBLE_PRECISION")
   check_cxx_source_compiles("${_bullet_check_src}" ${RESULT_VAR})
-endmacro()
+  cmake_pop_check_state()
+endfunction()
 
 # Bullet - physics library
 macro(find_package_bullet)

@@ -42,6 +42,7 @@ set(
   test_process.c
   test_ptbl.c
   test_realpath.c
+  test_scan.c
   test_semaphore.c
   test_snooze.c
   test_sort.c
@@ -127,6 +128,7 @@ brlcad_add_test(NAME bu_list_empty COMMAND bu_test test_list 0)
 brlcad_add_test(NAME bu_list_single COMMAND bu_test test_list 1)
 brlcad_add_test(NAME bu_list_many COMMAND bu_test test_list 16)
 brlcad_add_test(NAME bu_sscanf_compare COMMAND bu_sscanf)
+brlcad_add_test(NAME bu_scan_fastf_t COMMAND bu_test test_scan)
 brlcad_add_test(NAME bu_gethostname_lookup COMMAND bu_gethostname)
 
 
@@ -198,6 +200,7 @@ brlcad_add_test(NAME bu_file_mime_png   COMMAND bu_test test_file_mime png 3 BU_
 #      bu_temp_filename testing    #
 ####################################
 brlcad_add_test(NAME bu_temp_filename  COMMAND bu_test test_temp_filename "single")
+brlcad_add_test(NAME bu_temp_binary    COMMAND bu_test test_temp_filename "binary")
 #BRLCAD_ADD_TEST(NAME bu_temp_filename  COMMAND bu_test test_temp_filename "parallel")
 
 #

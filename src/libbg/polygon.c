@@ -92,7 +92,7 @@ bg_polygon_view_bbox(point2d_t *bmin, point2d_t *bmax, struct bg_polygon *p, mat
     // contours.  ONLY considering positive contour points.
     for (size_t i = 0; i < p->num_contours; i++) {
 	struct bg_poly_contour *c = &p->contour[i];
-	if (!c->num_points || !c->point)
+	if (!c->num_points || !c->point || (p->hole && p->hole[i]))
 	    continue;
 	for (size_t j = 0; j < c->num_points; j++) {
 	    point_t vpoint;
@@ -154,22 +154,26 @@ bg_3d_polygon_centroid(point_t *cent, size_t npts, const point_t *pts)
 {
     size_t i;
     vect_t normal = VINIT_ZERO;
-    point_t c_acc = VINIT_ZERO;
-    fastf_t total_weight = 0.0;
     fastf_t mag_normal;
+    point_t centroid = VINIT_ZERO;
+    vect_t edge0, edge1, cross;
+    fastf_t signed_area = 0.0;
 
     if (!pts || !cent || npts < 3)
 	return 1;
 
     VSETALL(*cent, 0.0);
 
-    /* Compute normal vector using Newell's method */
-    for (i = 0; i < npts; i++) {
-	size_t next = (i + 1 == npts) ? 0 : i + 1;
-	normal[0] += (pts[i][1] - pts[next][1]) * (pts[i][2] + pts[next][2]);
-	normal[1] += (pts[i][2] - pts[next][2]) * (pts[i][0] + pts[next][0]);
-	normal[2] += (pts[i][0] - pts[next][0]) * (pts[i][1] + pts[next][1]);
+    /* calculate the normal */
+    for (size_t i = 1; i + 1 < npts; i++) {
+	VSUB2(edge0, pts[i], pts[0]);
+	VSUB2(edge1, pts[i + 1], pts[0]);
+	VCROSS(cross, edge0, edge1);
+	VADD2(normal, normal, cross);
     }
+    if (MAGNITUDE(normal) <= SMALL_FASTF)
+	return 1;
+    VUNITIZE(normal);
 
     mag_normal = MAGNITUDE(normal);
     if (mag_normal < VDIVIDE_TOL) {
@@ -180,42 +184,29 @@ bg_3d_polygon_centroid(point_t *cent, size_t npts, const point_t *pts)
 	VSCALE(*cent, *cent, 1.0 / (fastf_t)npts);
 	return 0;
     }
-
     VSCALE(normal, normal, 1.0 / mag_normal);
 
-    /* Triangulate fan from pts[0] and compute weighted area centroid */
-    for (i = 1; i < npts - 1; i++) {
-	vect_t edge1, edge2, cross;
-	fastf_t area;
-	point_t tri_cent;
+    for (size_t i = 1; i + 1 < npts; i++) {
+	point_t triangle_centroid;
+	fastf_t triangle_area;
 
-	VSUB2(edge1, pts[i], pts[0]);
-	VSUB2(edge2, pts[i + 1], pts[0]);
-	VCROSS(cross, edge1, edge2);
-	area = 0.5 * VDOT(cross, normal);
-
-	/* Triangle centroid */
-	VADD2(tri_cent, pts[0], pts[i]);
-	VADD2(tri_cent, tri_cent, pts[i + 1]);
-	VSCALE(tri_cent, tri_cent, 1.0 / 3.0);
-
-	/* Accumulate */
-	c_acc[0] += area * tri_cent[0];
-	c_acc[1] += area * tri_cent[1];
-	c_acc[2] += area * tri_cent[2];
-	total_weight += area;
+	VSUB2(edge0, pts[i], pts[0]);
+	VSUB2(edge1, pts[i + 1], pts[0]);
+	VCROSS(cross, edge0, edge1);
+	triangle_area = VDOT(cross, normal);
+	signed_area += triangle_area;
+	VADD2(triangle_centroid, pts[0], pts[i]);
+	VADD2(triangle_centroid, triangle_centroid, pts[i + 1]);
+	VSCALE(triangle_centroid, triangle_centroid, triangle_area / 3.0);
+	VADD2(centroid, centroid, triangle_centroid);
     }
 
-    if (fabs(total_weight) < VDIVIDE_TOL) {
-	/* Degenerate fan or self-cancelling areas; fall back to vertex average */
-	for (i = 0; i < npts; i++) {
-	    VADD2(*cent, *cent, pts[i]);
-	}
-	VSCALE(*cent, *cent, 1.0 / (fastf_t)npts);
-	return 0;
-    }
+    if (NEAR_ZERO(signed_area, SMALL_FASTF))
+	return 1;
 
-    VSCALE(*cent, c_acc, 1.0 / total_weight);
+    VSCALE(centroid, centroid, 1.0 / signed_area);
+    VMOVE(*cent, centroid);
+
     return 0;
 }
 
@@ -278,6 +269,7 @@ bg_3d_polygon_make_pnts_planes(size_t *npts, point_t **pts, size_t neqs, const p
 
 
 struct sort_ccw_data {
+    point_t centroid;
     vect_t x_axis;
     vect_t y_axis;
 };
@@ -287,20 +279,26 @@ static int
 sort_ccw_3d(const void *left, const void *right, void *context)
 {
     const struct sort_ccw_data *data = (const struct sort_ccw_data *)context;
-    const fastf_t *left_point = (const fastf_t *)left;
-    const fastf_t *right_point = (const fastf_t *)right;
-    double left_angle = atan2(VDOT(left_point, data->y_axis),
-	    VDOT(left_point, data->x_axis));
-    double right_angle = atan2(VDOT(right_point, data->y_axis),
-	    VDOT(right_point, data->x_axis));
+    const point_t *left_point = (const point_t *)left;
+    const point_t *right_point = (const point_t *)right;
+    vect_t left_offset, right_offset;
+    double left_angle, right_angle;
+    double left_radius, right_radius;
+
+    VSUB2(left_offset, *left_point, data->centroid);
+    VSUB2(right_offset, *right_point, data->centroid);
+    left_angle = atan2(VDOT(left_offset, data->y_axis),
+	    VDOT(left_offset, data->x_axis));
+    right_angle = atan2(VDOT(right_offset, data->y_axis),
+	    VDOT(right_offset, data->x_axis));
 
     if (left_angle < right_angle)
 	return -1;
     if (left_angle > right_angle)
 	return 1;
 
-    double left_radius = MAGSQ(left_point);
-    double right_radius = MAGSQ(right_point);
+    left_radius = MAGSQ(left_offset);
+    right_radius = MAGSQ(right_offset);
     if (left_radius < right_radius)
 	return -1;
     if (left_radius > right_radius)
@@ -313,11 +311,10 @@ int
 bg_3d_polygon_sort_ccw(size_t npts, point_t *pts, plane_t cmp)
 {
     size_t i;
-    point_t centroid;
     vect_t normal;
     struct sort_ccw_data data;
 
-    if (!pts || npts < 3)
+    if (!pts || !cmp || npts < 3)
 	return 1;
     if (MAGNITUDE(cmp) < VDIVIDE_TOL)
 	return 1;
@@ -327,20 +324,12 @@ bg_3d_polygon_sort_ccw(size_t npts, point_t *pts, plane_t cmp)
     bn_vec_ortho(data.x_axis, normal);
     VCROSS(data.y_axis, normal, data.x_axis);
 
-    /* Angular ordering is about the polygon center, not the model origin.
-     * Translate temporarily so the comparator only needs the plane axes. */
-    VSETALL(centroid, 0.0);
+    VSETALL(data.centroid, 0.0);
     for (i = 0; i < npts; i++)
-	VADD2(centroid, centroid, pts[i]);
-    VSCALE(centroid, centroid, 1.0 / (double)npts);
-
-    for (i = 0; i < npts; i++)
-	VSUB2(pts[i], pts[i], centroid);
+	VADD2(data.centroid, data.centroid, pts[i]);
+    VSCALE(data.centroid, data.centroid, 1.0 / (fastf_t)npts);
 
     bu_sort(pts, npts, sizeof(point_t), sort_ccw_3d, &data);
-
-    for (i = 0; i < npts; i++)
-	VADD2(pts[i], pts[i], centroid);
 
     return 0;
 }

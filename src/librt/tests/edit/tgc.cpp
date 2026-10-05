@@ -34,12 +34,12 @@
 #include <string.h>
 
 #include "vmath.h"
-#include "bu/app.h"
 #include "bu/log.h"
 #include "bu/malloc.h"
 #include "bu/str.h"
 #include "raytrace.h"
 #include "rt/rt_ecmds.h"
+#include "test_utils.h"
 
 
 struct directory *
@@ -118,12 +118,8 @@ tgc_reset(struct rt_edit *s, struct rt_tgc_internal *edit_tgc,
 }
 
 int
-main(int argc, char *argv[])
+rt_edit_test_tgc(void)
 {
-    bu_setprogname(argv[0]);
-    if (argc != 1)
-	return BRLCAD_ERROR;
-
     struct db_i *dbip = db_open_inmem();
     if (dbip == DBI_NULL)
         bu_exit(1, "ERROR: Unable to create database instance\n");
@@ -390,6 +386,34 @@ main(int argc, char *argv[])
 	bu_exit(1, "ERROR: ECMD_TGC_MV_HH failed\n");
     bu_log("ECMD_TGC_MV_HH SUCCESS: h=%g,%g,%g\n", V3ARGS(edit_tgc->h));
 
+    const int height_moves[] = {ECMD_TGC_MV_H, ECMD_TGC_MV_HH};
+    for (size_t i = 0; i < sizeof(height_moves) / sizeof(height_moves[0]); i++) {
+	tgc_reset(s, edit_tgc, orig_tgc, cmp_tgc);
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, height_moves[i]);
+	s->local2base = 25.4;
+	s->base2local = 1.0 / s->local2base;
+	s->e_inpara = 3;
+	VSCALE(s->e_para, orig_tgc->v, s->base2local);
+	int result = rt_edit_process(s);
+	if (result != BRLCAD_ERROR ||
+	    tgc_diff("rejected zero-height move", cmp_tgc, edit_tgc))
+	    bu_exit(1, "ERROR: rejected TGC height move changed geometry (mode %d, result %d, h %g %g %g)\n",
+		height_moves[i], result, V3ARGS(edit_tgc->h));
+	s->local2base = 1.0;
+	s->base2local = 1.0;
+    }
+
+    tgc_reset(s, edit_tgc, orig_tgc, cmp_tgc);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_TGC_MV_H);
+    VMOVE(s->curr_e_axes_pos, orig_tgc->v);
+    point_t rejected_view_target;
+    MAT4X3PNT(rejected_view_target, v->gv_model2view, orig_tgc->v);
+    VMOVE(mousevec, rejected_view_target);
+    if (EDOBJ[dp->d_minor_type].ft_edit_xy(s, mousevec) != BRLCAD_ERROR ||
+	tgc_diff("rejected mouse zero-height move", cmp_tgc, edit_tgc))
+	bu_exit(1, "ERROR: rejected TGC mouse height move changed geometry\n");
+    VADD2(s->curr_e_axes_pos, orig_tgc->v, orig_tgc->h);
+
     /* ================================================================
      * ECMD_TGC_ROT_H  (rotate H vector by (5,5,5) degrees about keypoint=v)
      *   h_new = R * h where R = bn_mat_angles(5,5,5)
@@ -555,6 +579,12 @@ main(int argc, char *argv[])
     EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_TGC_MV_H);
     /* curr_e_axes_pos for MV_H is the H endpoint = v + h = (5,3,18) */
     VADD2(s->curr_e_axes_pos, orig_tgc->v, orig_tgc->h);
+    vect_t knob_state;
+    VSET(knob_state, 7.0, 8.0, 9.0);
+    VMOVE(s->k.tra_m_abs, knob_state);
+    VMOVE(s->k.tra_v_abs, knob_state);
+    s->local2base = 25.4;
+    s->base2local = 1.0 / s->local2base;
 
     {
 	int xpos = 500;
@@ -567,6 +597,14 @@ main(int argc, char *argv[])
     bu_vls_trunc(s->log_str, 0);
     if ((*EDOBJ[dp->d_minor_type].ft_edit_xy)(s, mousevec) == BRLCAD_ERROR)
 	bu_exit(1, "ERROR: ECMD_TGC_MV_H(xy) failed ft_edit_xy: %s\n", bu_vls_cstr(s->log_str));
+    point_t view_target;
+    MAT4X3PNT(view_target, v->gv_model2view, s->curr_e_axes_pos);
+    view_target[X] = mousevec[X];
+    view_target[Y] = mousevec[Y];
+    if (!edit_test_mouse_knobs_match(s, view_target))
+	bu_exit(1, "ERROR: TGC mouse endpoint knobs missed cursor\n");
+    s->local2base = 1.0;
+    s->base2local = 1.0;
 
     /* h_new is determined by view transform; confirmed by build + run.
      * After rt_edit_process, the MV_H function also recomputes a,b,c,d
@@ -669,6 +707,111 @@ if (!VNEAR_EQUAL(kp_world, expected, VUNITIZE_TOL))
 bu_log("RT_MATRIX_EDIT_TRANS_MODEL_XYZ SUCCESS: "
        "keypoint maps to (%g,%g,%g)\n", V3ARGS(kp_world));
     }
+
+    const fastf_t inch_to_mm = 25.4;
+    const struct {
+	int mode;
+	fastf_t inches;
+    } inch_scales[] = {
+	{ECMD_TGC_SCALE_H, 0.5}, {ECMD_TGC_SCALE_H_V, 0.5},
+	{ECMD_TGC_SCALE_H_CD, 0.5}, {ECMD_TGC_SCALE_H_V_AB, 0.5},
+	{ECMD_TGC_SCALE_A, 0.2}, {ECMD_TGC_SCALE_B, 0.2},
+	{ECMD_TGC_SCALE_C, 0.2}, {ECMD_TGC_SCALE_D, 0.2},
+	{ECMD_TGC_SCALE_AB, 0.2}, {ECMD_TGC_SCALE_CD, 0.1},
+	{ECMD_TGC_SCALE_ABCD, 0.2}
+    };
+    s->local2base = inch_to_mm;
+    for (size_t i = 0; i < sizeof(inch_scales)/sizeof(inch_scales[0]); i++) {
+	tgc_reset(s, edit_tgc, orig_tgc, cmp_tgc);
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, inch_scales[i].mode);
+	s->e_inpara = 1;
+	s->e_para[0] = inch_scales[i].inches;
+	if (rt_edit_process(s) != BRLCAD_OK)
+	    bu_exit(1, "ERROR: TGC inch scale mode %d failed\n", inch_scales[i].mode);
+	const fastf_t *axis = NULL;
+	switch (inch_scales[i].mode) {
+	    case ECMD_TGC_SCALE_H:
+	    case ECMD_TGC_SCALE_H_V:
+	    case ECMD_TGC_SCALE_H_CD:
+	    case ECMD_TGC_SCALE_H_V_AB: axis = edit_tgc->h; break;
+	    case ECMD_TGC_SCALE_A:
+	    case ECMD_TGC_SCALE_AB:
+	    case ECMD_TGC_SCALE_ABCD: axis = edit_tgc->a; break;
+	    case ECMD_TGC_SCALE_B: axis = edit_tgc->b; break;
+	    case ECMD_TGC_SCALE_C:
+	    case ECMD_TGC_SCALE_CD: axis = edit_tgc->c; break;
+	    case ECMD_TGC_SCALE_D: axis = edit_tgc->d; break;
+	}
+	if (!axis || !NEAR_EQUAL(MAGNITUDE(axis), inch_scales[i].inches * inch_to_mm, VUNITIZE_TOL) ||
+	    !NEAR_EQUAL(s->e_para[0], inch_scales[i].inches, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: TGC inch scale mode %d converted incorrectly\n", inch_scales[i].mode);
+	struct rt_tgc_internal saved = *edit_tgc;
+	s->e_inpara = 1;
+	if (rt_edit_process(s) != BRLCAD_OK || tgc_diff("TGC repeated inch scale", &saved, edit_tgc))
+	    bu_exit(1, "ERROR: TGC inch scale mode %d compounded\n", inch_scales[i].mode);
+    }
+
+    tgc_reset(s, edit_tgc, orig_tgc, cmp_tgc);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_TGC_SCALE_H);
+    if (rt_edit_process(s) != BRLCAD_OK || tgc_diff("TGC empty scale", orig_tgc, edit_tgc))
+	bu_exit(1, "ERROR: TGC empty scale changed geometry\n");
+
+    tgc_reset(s, edit_tgc, orig_tgc, cmp_tgc);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_TGC_SCALE_A);
+    s->es_scale = 2.5;
+    if (rt_edit_process(s) != BRLCAD_OK || !NEAR_EQUAL(MAGNITUDE(edit_tgc->a), 7.5, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: TGC dimensionless scale used database units\n");
+
+    tgc_reset(s, edit_tgc, orig_tgc, cmp_tgc);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_TGC_SCALE_H_CD);
+    s->e_inpara = 1;
+    s->e_para[0] = 4.0;
+    if (rt_edit_process(s) != BRLCAD_ERROR || tgc_diff("TGC rejected scale", orig_tgc, edit_tgc))
+	bu_exit(1, "ERROR: TGC rejected scale changed geometry or succeeded\n");
+
+    const int move_modes[] = {ECMD_TGC_MV_H, ECMD_TGC_MV_HH};
+    for (size_t i = 0; i < sizeof(move_modes)/sizeof(move_modes[0]); i++) {
+	tgc_reset(s, edit_tgc, orig_tgc, cmp_tgc);
+	EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, move_modes[i]);
+	s->mv_context = 0;
+	s->e_inpara = 3;
+	VSET(s->e_para, 5.0/inch_to_mm, 3.0/inch_to_mm, 26.0/inch_to_mm);
+	vect_t entered;
+	VMOVE(entered, s->e_para);
+	vect_t expected_h;
+	VSET(expected_h, 0, 0, 16);
+	if (rt_edit_process(s) != BRLCAD_OK ||
+	    !VNEAR_EQUAL(edit_tgc->h, expected_h, VUNITIZE_TOL) ||
+	    !VNEAR_EQUAL(s->e_para, entered, VUNITIZE_TOL))
+	    bu_exit(1, "ERROR: TGC inch move mode %d converted incorrectly\n", move_modes[i]);
+	struct rt_tgc_internal saved = *edit_tgc;
+	s->e_inpara = 3;
+	if (rt_edit_process(s) != BRLCAD_OK ||
+	    tgc_diff("TGC repeated inch move", &saved, edit_tgc))
+	    bu_exit(1, "ERROR: TGC inch move mode %d compounded\n", move_modes[i]);
+    }
+
+    tgc_reset(s, edit_tgc, orig_tgc, cmp_tgc);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_TGC_MV_HH);
+    MAT_IDN(v->gv_model2view);
+    MAT_IDN(v->gv_view2model);
+    MAT_IDN(s->e_invmat);
+    VADD2(s->curr_e_axes_pos, orig_tgc->v, orig_tgc->h);
+    vect_t expected_h, hh_knob_state;
+    VSET(hh_knob_state, 7.0, 8.0, 9.0);
+    VMOVE(s->k.tra_m_abs, hh_knob_state);
+    VMOVE(s->k.tra_v_abs, hh_knob_state);
+    VSET(mousevec, orig_tgc->v[X] + 0.2, orig_tgc->v[Y] + 0.3, 0.0);
+    if (EDOBJ[dp->d_minor_type].ft_edit_xy(s, mousevec) != BRLCAD_OK)
+	bu_exit(1, "ERROR: TGC mouse MV_HH failed\n");
+    VSET(expected_h, 0.2, 0.3, orig_tgc->h[Z]);
+    if (!VNEAR_EQUAL(edit_tgc->h, expected_h, VUNITIZE_TOL) ||
+	!VNEAR_EQUAL(edit_tgc->v, orig_tgc->v, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: TGC mouse MV_HH changed geometry incorrectly\n");
+    point_t hh_view_target;
+    VSET(hh_view_target, mousevec[X], mousevec[Y], s->curr_e_axes_pos[Z]);
+    if (!edit_test_mouse_knobs_match(s, hh_view_target))
+	bu_exit(1, "ERROR: TGC mouse MV_HH knobs missed cursor\n");
 
     rt_edit_destroy(s);
     db_close(dbip);

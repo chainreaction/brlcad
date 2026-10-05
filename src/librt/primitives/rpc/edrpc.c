@@ -195,16 +195,6 @@ rt_edit_rpc_write_params(
 }
 
 
-#define read_params_line_incr \
-    lc = (ln) ? (ln + lcj) : NULL; \
-    if (!lc) { \
-	bu_free(wc, "wc"); \
-	return BRLCAD_ERROR; \
-    } \
-    ln = strchr(lc, tc); \
-    if (ln) *ln = '\0'; \
-    while (lc && strchr(lc, ':')) lc++
-
 C_DECL int
 rt_edit_rpc_read_params(
 	struct rt_db_internal *ip,
@@ -213,148 +203,43 @@ rt_edit_rpc_read_params(
 	fastf_t local2base
 	)
 {
-    double a = 0.0;
-    double b = 0.0;
-    double c = 0.0;
     struct rt_rpc_internal *rpc = (struct rt_rpc_internal *)ip->idb_ptr;
     RT_RPC_CK_MAGIC(rpc);
-
-    if (!fc)
+    struct rt_rpc_internal candidate = *rpc;
+    const struct edit_param_field fields[] = {
+	{"Vertex", candidate.rpc_V, ELEMENTS_PER_VECT, local2base},
+	{"Height", candidate.rpc_H, ELEMENTS_PER_VECT, local2base},
+	{"Breadth", candidate.rpc_B, ELEMENTS_PER_VECT, local2base},
+	{"Half-width", &candidate.rpc_r, 1, local2base}
+    };
+    if (edit_param_read_fields(fc, fields, sizeof(fields) / sizeof(fields[0])) != BRLCAD_OK)
 	return BRLCAD_ERROR;
-
-    // We're getting the file contents as a string, so we need to split it up
-    // to process lines. See https://stackoverflow.com/a/17983619
-
-    // Figure out if we need to deal with Windows line endings
-    const char *crpos = strchr(fc, '\r');
-    int crlf = (crpos && crpos[1] == '\n') ? 1 : 0;
-    char tc = (crlf) ? '\r' : '\n';
-    // If we're CRLF jump ahead another character.
-    int lcj = (crlf) ? 2 : 1;
-
-    char *ln = NULL;
-    char *wc = bu_strdup(fc);
-    char *lc = wc;
-
-    // Set up initial line (Vertex)
-    ln = strchr(lc, tc);
-    if (ln) *ln = '\0';
-
-    // Trim off prefixes, if user left them in
-    while (lc && strchr(lc, ':')) lc++;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(rpc->rpc_V, a, b, c);
-    VSCALE(rpc->rpc_V, rpc->rpc_V, local2base);
-
-    // Set up Height line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(rpc->rpc_H, a, b, c);
-    VSCALE(rpc->rpc_H, rpc->rpc_H, local2base);
-
-    // Set up Breadth line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-    VSET(rpc->rpc_B, a, b, c);
-    VSCALE(rpc->rpc_B, rpc->rpc_B, local2base);
-
-    // Set up Half-width line
-    read_params_line_incr;
-
-    sscanf(lc, "%lf", &a);
-    rpc->rpc_r = a * local2base;
-
-    // Cleanup
-    bu_free(wc, "wc");
+    *rpc = candidate;
     return BRLCAD_OK;
-}
-
-/* scale vector B */
-void
-ecmd_rpc_b(struct rt_edit *s)
-{
-    struct rt_rpc_internal *rpc =
-	(struct rt_rpc_internal *)s->es_int.idb_ptr;
-    RT_RPC_CK_MAGIC(rpc);
-
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(rpc->rpc_B);
-    }
-    VSCALE(rpc->rpc_B, rpc->rpc_B, s->es_scale);
-}
-
-/* scale vector H */
-void
-ecmd_rpc_h(struct rt_edit *s)
-{
-    struct rt_rpc_internal *rpc =
-	(struct rt_rpc_internal *)s->es_int.idb_ptr;
-
-    RT_RPC_CK_MAGIC(rpc);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / MAGNITUDE(rpc->rpc_H);
-    }
-    VSCALE(rpc->rpc_H, rpc->rpc_H, s->es_scale);
-}
-
-/* scale rectangular half-width of RPC */
-void
-ecmd_rpc_r(struct rt_edit *s)
-{
-    struct rt_rpc_internal *rpc =
-	(struct rt_rpc_internal *)s->es_int.idb_ptr;
-
-    RT_RPC_CK_MAGIC(rpc);
-    if (s->e_inpara) {
-	/* take s->e_mat[15] (path scaling) into account */
-	s->e_para[0] *= s->e_mat[15];
-	s->es_scale = s->e_para[0] / rpc->rpc_r;
-    }
-    rpc->rpc_r *= s->es_scale;
 }
 
 static int
 rt_edit_rpc_pscale(struct rt_edit *s)
 {
-    if (s->e_inpara > 1) {
-	bu_vls_printf(s->log_str, "ERROR: only one argument needed\n");
-	s->e_inpara = 0;
-	return BRLCAD_ERROR;
-    }
+    struct rt_rpc_internal *rpc = (struct rt_rpc_internal *)s->es_int.idb_ptr;
+    RT_RPC_CK_MAGIC(rpc);
 
-    if (s->e_inpara) {
-	if (s->e_para[0] <= 0.0) {
-	    bu_vls_printf(s->log_str, "ERROR: SCALE FACTOR <= 0\n");
-	    s->e_inpara = 0;
-	    return BRLCAD_ERROR;
-	}
-
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
-    }
-
+    vect_t *axis = NULL;
+    fastf_t *radius = NULL;
     switch (s->edit_flag) {
 	case ECMD_RPC_B:
-	    ecmd_rpc_b(s);
+	    axis = &rpc->rpc_B;
 	    break;
 	case ECMD_RPC_H:
-	    ecmd_rpc_h(s);
+	    axis = &rpc->rpc_H;
 	    break;
 	case ECMD_RPC_R:
-	    ecmd_rpc_r(s);
+	    radius = &rpc->rpc_r;
 	    break;
-    };
-
-    return 0;
+	default:
+	    return BRLCAD_ERROR;
+    }
+    return edit_scale_length(s, axis, radius);
 }
 
 C_DECL int
@@ -409,9 +294,8 @@ rt_edit_rpc_repair(struct bu_vls *log_str, struct rt_db_internal *ip, const stru
     BU_OPT(d[1], "", "options-json", "", NULL, &options_json, "Return JSON of supported options");
     BU_OPT_NULL(d[2]);
 
-    if (argc > 0 && argv) {
-        bu_opt_parse(NULL, argc, argv, d);
-    }
+    if (edit_repair_parse_options(log_str, argc, argv, d) != BRLCAD_OK)
+        return -1;
 
     if (options_json) {
         if (log_str) {

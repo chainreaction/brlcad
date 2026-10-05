@@ -47,6 +47,8 @@
 #define ECMD_ARB_ROTATE_FACE	4015
 #define ECMD_ARB_MOVE_EDGE	4036
 
+enum { ARB8_FACE_COUNT = 6, ARB8_VERTEX_COUNT = 8, ARB8_EDGE_COUNT = 12 };
+
 /* ------------------------------------------------------------------ */
 /* ft_edit_desc descriptor for the ARB8 primitive                     */
 /* ------------------------------------------------------------------ */
@@ -56,7 +58,7 @@
  *
  *   move_face / move_edge / move_vertex:
  *     e_para[0] = integer index (face 0-5, edge 0-11, or vertex 0-7)
- *     e_para[1..3] = X Y Z  (point/vector in model coords)
+ *     e_para[1..3] = X Y Z  (point in database local units)
  *     → total e_inpara = 4
  *
  *   rotate_face:
@@ -72,7 +74,7 @@ static const struct rt_edit_param_desc arb_move_face_params[] = {
 	RT_EDIT_PARAM_INTEGER, /* type        */
 	0,                    /* index        */
 	0.0,                  /* range_min    */
-	5.0,                  /* range_max    */
+	ARB8_FACE_COUNT - 1,  /* range_max    */
 	NULL,                 /* units        */
 	0, NULL, NULL,        /* enum (unused) */
 	NULL                  /* prim_field   */
@@ -147,7 +149,7 @@ static const struct rt_edit_param_desc arb_rotate_face_params[] = {
 	RT_EDIT_PARAM_INTEGER, /* type        */
 	0,                    /* index        */
 	0.0,                  /* range_min    */
-	5.0,                  /* range_max    */
+	ARB8_FACE_COUNT - 1,  /* range_max    */
 	NULL,                 /* units        */
 	0, NULL, NULL,        /* enum (unused) */
 	NULL                  /* prim_field   */
@@ -158,7 +160,7 @@ static const struct rt_edit_param_desc arb_rotate_face_params[] = {
 	RT_EDIT_PARAM_INTEGER, /* type        */
 	1,                    /* index        */
 	0.0,                  /* range_min    */
-	7.0,                  /* range_max    */
+	ARB8_VERTEX_COUNT - 1, /* range_max  */
 	NULL,                 /* units        */
 	0, NULL, NULL,        /* enum (unused) */
 	NULL                  /* prim_field   */
@@ -205,7 +207,7 @@ static const struct rt_edit_cmd_desc arb_cmds[] = {
 	arb_move_vertex_params, /* params     */
 	1,                    /* interactive  */
 	30                    /* display_order */,
-	"arb8,arb7,arb6,arb5,arb4" /* req_types */
+	"arb7,arb6,arb5,arb4" /* req_types */
     },
     {
 	ECMD_ARB_ROTATE_FACE, /* cmd_id       */
@@ -253,8 +255,9 @@ rt_edit_arb_prim_edit_create(struct rt_edit *UNUSED(s))
 }
 
 C_DECL void
-rt_edit_arb_prim_edit_destroy(struct rt_arb8_edit *a)
+rt_edit_arb_prim_edit_destroy(void *ptr)
 {
+    struct rt_arb8_edit *a = (struct rt_arb8_edit *)ptr;
     if (!a)
 	return;
     BU_PUT(a, struct rt_arb8_edit);
@@ -964,16 +967,6 @@ rt_edit_arb_write_params(
     }
 }
 
-#define read_params_line_incr \
-    lc = (ln) ? (ln + lcj) : NULL; \
-    if (!lc) { \
-	bu_free(wc, "wc"); \
-	return BRLCAD_ERROR; \
-    } \
-    ln = strchr(lc, tc); \
-    if (ln) *ln = '\0'; \
-    while (lc && strchr(lc, ':')) lc++
-
 C_DECL int
 rt_edit_arb_read_params(
 	struct rt_db_internal *ip,
@@ -982,72 +975,79 @@ rt_edit_arb_read_params(
 	fastf_t local2base
 	)
 {
-    double a = 0.0;
-    double b = 0.0;
-    double c = 0.0;
-    static int uvec[8];
-    static int svec[11];
-    static int cgtype = 8;
     struct rt_arb_internal *arb = (struct rt_arb_internal *)ip->idb_ptr;
     RT_ARB_CK_MAGIC(arb);
-    rt_arb_get_cgtype(&cgtype, arb, tol, uvec, svec);
 
-    if (!fc)
+    if (!fc || !isfinite(local2base) || local2base <= 0.0)
 	return BRLCAD_ERROR;
 
-    // We're getting the file contents as a string, so we need to split it up
-    // to process lines. See https://stackoverflow.com/a/17983619
+    int uvec[8];
+    int svec[11];
+    int cgtype = ARB8;
+    for (int i = 0; i < ARB8_VERTEX_COUNT; ++i)
+	uvec[i] = -1;
+    if (!rt_arb_get_cgtype(&cgtype, arb, tol, uvec, svec))
+	return BRLCAD_ERROR;
 
-    // Figure out if we need to deal with Windows line endings
-    const char *crpos = strchr(fc, '\r');
-    int crlf = (crpos && crpos[1] == '\n') ? 1 : 0;
-    char tc = (crlf) ? '\r' : '\n';
-    // If we're CRLF jump ahead another character.
-    int lcj = (crlf) ? 2 : 1;
-
-    char *ln = NULL;
-    char *wc = bu_strdup(fc);
-    char *lc = wc;
-
-    // Set up initial line (pt[0])
-    ln = strchr(lc, tc);
-    if (ln) *ln = '\0';
-
-    // Trim off prefixes, if user left them in
-    while (lc && strchr(lc, ':')) lc++;
-
-
-    for (int i=0; i<8; i++) {
-	/* only read vertices that we wrote */
+    struct rt_arb_internal staged = *arb;
+    char *buffer = bu_strdup(fc);
+    char *cursor = buffer;
+    int expected_index = 1;
+    for (int i = 0; i < ARB8_VERTEX_COUNT; ++i) {
 	if (useThisVertex(i, uvec, svec)) {
-	    if (i != 0) {
-		// Above sets up initial line - otherwise,
-		// we need to stage the next one.
-		read_params_line_incr;
+	    char *line = edit_param_next_line(&cursor);
+	    if (!line)
+		goto failure;
+	    const char *coords = line;
+	    int index = 0, prefix_length = 0;
+	    if (!bu_strncmp(line, "pt[", 3)) {
+		if (sscanf(line, "pt[%d]: %n", &index,
+			&prefix_length) != 1 || !prefix_length ||
+		    index != expected_index)
+		    goto failure;
+		coords += prefix_length;
 	    }
-	    sscanf(lc, "%lf %lf %lf", &a, &b, &c);
-	    VSET(arb->pt[i], a, b, c);
-	    VSCALE(arb->pt[i], arb->pt[i], local2base);
+	    double x, y, z;
+	    int end = 0;
+	    if (sscanf(coords, " %lf %lf %lf %n", &x, &y, &z, &end) != 3 ||
+		!end || coords[end] || !isfinite(x) || !isfinite(y) ||
+		!isfinite(z))
+		goto failure;
+	    VSET(staged.pt[i], x * local2base, y * local2base,
+		z * local2base);
+	    if (!isfinite(staged.pt[i][X]) || !isfinite(staged.pt[i][Y]) ||
+		!isfinite(staged.pt[i][Z]))
+		goto failure;
+	    ++expected_index;
 	}
     }
 
-    /* fill in the duplicate vertices (based on rt_arb_get_cgtype call) */
-    if (svec[0] != -1) {
+    if (edit_param_next_line(&cursor))
+	goto failure;
+
+    /* Duplicate vertices retain the original ARB variant. */
+    if (svec[0] > 0) {
 	for (int i=1; i<svec[0]; i++) {
 	    int start = 2;
-	    VMOVE(arb->pt[svec[start+i]], arb->pt[svec[start]]);
+	    VMOVE(staged.pt[svec[start+i]], staged.pt[svec[start]]);
 	}
     }
-    if (svec[1] != -1) {
+    if (svec[1] > 0) {
 	int start = 2 + svec[0];
 	for (int i=1; i<svec[1]; i++) {
-	    VMOVE(arb->pt[svec[start+i]], arb->pt[svec[start]]);
+	    VMOVE(staged.pt[svec[start+i]], staged.pt[svec[start]]);
 	}
     }
 
-    // Cleanup
-    bu_free(wc, "wc");
+    if (rt_arb_check_points(&staged, cgtype, tol))
+	goto failure;
+    memcpy(arb->pt, staged.pt, sizeof(staged.pt));
+    bu_free(buffer, "ARB parameter text");
     return BRLCAD_OK;
+
+failure:
+    bu_free(buffer, "ARB parameter text");
+    return BRLCAD_ERROR;
 }
 
 #define RT_ARB_EDIT_EDGE 0
@@ -1169,6 +1169,17 @@ rt_arb_edit(struct bu_vls *error_msg_ret,
 	return 1;
     }
 
+    /* Intersections and plane updates can fail after changing several points. */
+    struct rt_arb_internal *original_arb = arb;
+    plane_t *original_planes = planes;
+    struct rt_arb_internal candidate = *arb;
+    plane_t candidate_planes[6];
+    vect_t edit_position;
+    memcpy(candidate_planes, planes, sizeof(candidate_planes));
+    VMOVE(edit_position, pos_model);
+    arb = &candidate;
+    planes = candidate_planes;
+
     /* set the pointer */
     switch (arb_type) {
 	case ARB4:
@@ -1246,7 +1257,7 @@ rt_arb_edit(struct bu_vls *error_msg_ret,
     /* do the arb editing */
     if (edit_class == RT_ARB_EDIT_POINT) {
 	/* moving a point - not an edge */
-	VMOVE(arb->pt[edit_type], pos_model);
+	VMOVE(arb->pt[edit_type], edit_position);
 	edptr += 4;
     } else if (edit_class == RT_ARB_EDIT_EDGE) {
 	vect_t edge_dir;
@@ -1256,8 +1267,8 @@ rt_arb_edit(struct bu_vls *error_msg_ret,
 	pt2 = *edptr++;
 
 	if (flags & RT_ARB_EDIT_EDGE_DIR) {
-	    VMOVE(edge_dir, pos_model);
-	    VMOVE(pos_model, arb->pt[pt1]);
+	    VMOVE(edge_dir, edit_position);
+	    VMOVE(edit_position, arb->pt[pt1]);
 	} else {
 	    /* calculate edge direction */
 	    VSUB2(edge_dir, arb->pt[pt2], arb->pt[pt1]);
@@ -1271,7 +1282,7 @@ rt_arb_edit(struct bu_vls *error_msg_ret,
 	bp2 = *edptr++;
 
 	/* move the edge */
-	if (rt_arb_move_edge(error_msg_ret, arb, pos_model, bp1, bp2, pt1, pt2,
+	if (rt_arb_move_edge(error_msg_ret, arb, edit_position, bp1, bp2, pt1, pt2,
 			     edge_dir, planes, tol))
 	    goto err;
     }
@@ -1377,6 +1388,8 @@ rt_arb_edit(struct bu_vls *error_msg_ret,
 	    goto err;
     }
 
+    memcpy(original_arb->pt, candidate.pt, sizeof(candidate.pt));
+    memcpy(original_planes, candidate_planes, sizeof(candidate_planes));
     return 0;		/* OK */
 
 err:
@@ -1480,24 +1493,6 @@ ecmd_arb_specific_menu(struct rt_edit *s)
     }
 }
 
-/*
- * arb_unpack_index_param - descriptor-form helper
- *
- * When the descriptor passes an index + N further values, the caller
- * stores them as e_para[0]=index, e_para[1..N]=data.
- * Unpack: write the index into *idx_out, shift data[0..N-1] down to
- * e_para[0..N-1], and reduce e_inpara by 1.
- */
-static void
-arb_unpack_index_param(struct rt_edit *s, int *idx_out)
-{
-    int i;
-    *idx_out = (int)s->e_para[0];
-    for (i = 1; i < s->e_inpara; i++)
-	s->e_para[i - 1] = s->e_para[i];
-    s->e_inpara--;
-}
-
 static int
 edarb_canonicalize(struct rt_edit *s, struct rt_arb_internal *arb)
 {
@@ -1519,58 +1514,89 @@ edarb_canonicalize(struct rt_edit *s, struct rt_arb_internal *arb)
     return BRLCAD_OK;
 }
 
+static int
+arb_move_face_to_point(struct rt_edit *s, const point_t target)
+{
+    struct rt_arb8_edit *a = (struct rt_arb8_edit *)s->ipe_ptr;
+    struct rt_arb_internal *arb = (struct rt_arb_internal *)s->es_int.idb_ptr;
+    struct rt_arb_internal candidate;
+    plane_t planes[6];
+    struct bu_vls error_msg = BU_VLS_INIT_ZERO;
+    int arb_type;
+
+    RT_ARB_CK_MAGIC(arb);
+    if (a->edit_menu < 0 || a->edit_menu >= ARB8_FACE_COUNT) {
+	bu_vls_printf(s->log_str, "Invalid ARB face index %d\n", a->edit_menu);
+	return BRLCAD_ERROR;
+    }
+
+    candidate = *arb;
+    memcpy(planes, a->es_peqn, sizeof(planes));
+    planes[a->edit_menu][W] = VDOT(planes[a->edit_menu], target);
+    arb_type = rt_arb_edit_type(s->log_str, s, arb, 0, s->tol);
+    if (!arb_type)
+	return BRLCAD_ERROR;
+
+    if (rt_arb_calc_points(&candidate, arb_type, (const plane_t *)planes, s->tol)) {
+	bu_vls_printf(s->log_str, "Cannot calculate ARB points\n");
+	return BRLCAD_ERROR;
+    }
+    if (edarb_canonicalize(s, &candidate) != BRLCAD_OK)
+	return BRLCAD_ERROR;
+
+    if (rt_arb_calc_planes(&error_msg, &candidate, arb_type, planes, s->tol)) {
+	bu_vls_printf(s->log_str, "%s", bu_vls_cstr(&error_msg));
+	bu_vls_free(&error_msg);
+	return BRLCAD_ERROR;
+    }
+    bu_vls_free(&error_msg);
+
+    memcpy(arb->pt, candidate.pt, sizeof(arb->pt));
+    memcpy(a->es_peqn, planes, sizeof(planes));
+    return BRLCAD_OK;
+}
+
+static int
+arb_numeric_target(point_t target, struct rt_edit *s, int *edit_menu)
+{
+    const fastf_t *coords = s->e_para;
+    point_t model_point;
+
+    if (s->e_inpara == 4) {
+	if (!(coords[0] >= 0.0 && coords[0] < ARB8_EDGE_COUNT) ||
+	    !EQUAL(coords[0], (fastf_t)(int)coords[0])) {
+	    bu_vls_printf(s->log_str, "ARB edit index must be an integer\n");
+	    return BRLCAD_ERROR;
+	}
+	*edit_menu = (int)coords[0];
+	coords++;
+    } else if (s->e_inpara != 3) {
+	bu_vls_printf(s->log_str, "ERROR: three arguments needed\n");
+	s->e_inpara = 0;
+	return BRLCAD_ERROR;
+    }
+
+    VSCALE(model_point, coords, s->local2base);
+    if (s->mv_context)
+	MAT4X3PNT(target, s->e_invmat, model_point);
+    else
+	VMOVE(target, model_point);
+
+    return BRLCAD_OK;
+}
+
 int
 ecmd_arb_move_face(struct rt_edit *s)
 {
     struct rt_arb8_edit *a = (struct rt_arb8_edit *)s->ipe_ptr;
 
-    /* move face through definite point */
-    if (s->e_inpara) {
+    if (!s->e_inpara)
+	return BRLCAD_OK;
 
-	/*
-	 * Extended form: 4 parameters → e_para[0]=face_index, e_para[1..3]=point.
-	 * Unpack the face index and shift the coord triple down.
-	 */
-	if (s->e_inpara == 4)
-	    arb_unpack_index_param(s, &a->edit_menu);
-
-	if (s->e_inpara != 3) {
-	    bu_vls_printf(s->log_str, "ERROR: three arguments needed\n");
-	    s->e_inpara = 0;
-	    return BRLCAD_ERROR;
-	}
-
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
-
-	vect_t work;
-	struct rt_arb_internal *arb = (struct rt_arb_internal *)s->es_int.idb_ptr;
-	RT_ARB_CK_MAGIC(arb);
-
-	if (s->mv_context) {
-	    /* apply s->e_invmat to convert to real model space */
-	    MAT4X3PNT(work, s->e_invmat, s->e_para);
-	} else {
-	    VMOVE(work, s->e_para);
-	}
-	/* change D of planar equation */
-	a->es_peqn[a->edit_menu][W]=VDOT(&a->es_peqn[a->edit_menu][0], work);
-	/* find new vertices, put in record in vector notation */
-
-	int arb_type = rt_arb_edit_type(s->log_str, s, arb, 0, s->tol);
-	if (arb_type == 0)
-	    return BRLCAD_ERROR;
-
-	(void)rt_arb_calc_points(arb, arb_type, (const plane_t *)a->es_peqn, s->tol);
-	
-	if (edarb_canonicalize(s, arb) != BRLCAD_OK) {
-	    return BRLCAD_ERROR;
-	}
-    }
-
-    return 0;
+    point_t target;
+    if (arb_numeric_target(target, s, &a->edit_menu) != BRLCAD_OK)
+	return BRLCAD_ERROR;
+    return arb_move_face_to_point(s, target);
 }
 
 void
@@ -1620,6 +1646,8 @@ int
 ecmd_arb_rotate_face(struct rt_edit *s)
 {
     struct rt_arb8_edit *a = (struct rt_arb8_edit *)s->ipe_ptr;
+    const fastf_t *angles = s->e_para;
+    int angle_count = s->e_inpara;
 
     /* rotate a GENARB8 defining plane through a fixed vertex */
     fastf_t *eqp;
@@ -1629,27 +1657,18 @@ ecmd_arb_rotate_face(struct rt_edit *s)
     struct rt_arb_internal *arb = (struct rt_arb_internal *)s->es_int.idb_ptr;
     RT_ARB_CK_MAGIC(arb);
 
-    /*
-     * Extended form (from descriptor): 5 parameters:
-     *   e_para[0] = face index  → a->edit_menu
-     *   e_para[1] = fixv index  → a->fixv
-     *   e_para[2..4] = Euler rotation angles X Y Z (degrees)
-     * Unpack and reduce to the standard 3-param case.
-     */
-    if (s->e_inpara == 5) {
-	/*
-	 * Extended form (from descriptor): 5 parameters:
-	 *   e_para[0] = face index  → a->edit_menu
-	 *   e_para[1] = fixv index  → a->fixv
-	 *   e_para[2..4] = Euler rotation angles X Y Z (degrees)
-	 * Unpack the face index first, then unpack the fixv index.
-	 */
-	arb_unpack_index_param(s, &a->edit_menu);  /* e_inpara now 4 */
-	{
-	    int fixv_tmp;
-	    arb_unpack_index_param(s, &fixv_tmp);   /* e_inpara now 3 */
-	    a->fixv = (short)fixv_tmp;
+    if (angle_count == 5) {
+	if (!(angles[0] >= 0.0 && angles[0] < ARB8_FACE_COUNT) ||
+	    !(angles[1] >= 0.0 && angles[1] < ARB8_VERTEX_COUNT) ||
+	    !EQUAL(angles[0], (fastf_t)(int)angles[0]) ||
+	    !EQUAL(angles[1], (fastf_t)(int)angles[1])) {
+	    bu_vls_printf(s->log_str, "ARB face and vertex indexes must be integers\n");
+	    return BRLCAD_ERROR;
 	}
+	a->edit_menu = (int)angles[0];
+	a->fixv = (short)angles[1];
+	angles += 2;
+	angle_count = 3;
 	{
 	    struct bu_vls error_msg = BU_VLS_INIT_ZERO;
 	    int arb_type2 = rt_arb_edit_type(s->log_str, s, arb, 0, s->tol);
@@ -1664,12 +1683,18 @@ ecmd_arb_rotate_face(struct rt_edit *s)
 	}
     }
 
+    if (a->edit_menu < 0 || a->edit_menu >= ARB8_FACE_COUNT ||
+	a->fixv < 0 || a->fixv >= ARB8_VERTEX_COUNT) {
+	bu_vls_printf(s->log_str, "Invalid ARB face or fixed vertex index\n");
+	return BRLCAD_ERROR;
+    }
+
     if (s->e_inpara) {
 
 	vect_t work;
-	static mat_t invsolr;
-	static vect_t tempvec;
-	static float rota, fb_a;
+	mat_t invsolr;
+	vect_t tempvec;
+	fastf_t rota, fb_a;
 
 	/*
 	 * Keyboard parameters in degrees.
@@ -1681,14 +1706,14 @@ ecmd_arb_rotate_face(struct rt_edit *s)
 	VMOVE(work, eqp);
 	MAT4X3VEC(eqp, invsolr, work);
 
-	if (s->e_inpara == 3) {
+	if (angle_count == 3) {
 	    /* 3 params:  absolute X, Y, Z rotations */
 	    /* Build completely new rotation change */
 	    MAT_IDN(s->model_changes);
 	    bn_mat_angles(s->model_changes,
-		    s->e_para[0],
-		    s->e_para[1],
-		    s->e_para[2]);
+		    angles[0],
+		    angles[1],
+		    angles[2]);
 	    MAT_COPY(s->acc_rot_sol, s->model_changes);
 
 	    /* Borrow s->incr_change matrix here */
@@ -1713,10 +1738,10 @@ ecmd_arb_rotate_face(struct rt_edit *s)
 		VMOVE(work, eqp);
 		MAT4X3VEC(eqp, s->model_changes, work);
 	    }
-	} else if (s->e_inpara == 2) {
+	} else if (angle_count == 2) {
 	    /* 2 parameters:  rot, fb were given */
-	    rota= s->e_para[0] * DEG2RAD;
-	    fb_a  = s->e_para[1] * DEG2RAD;
+	    rota= angles[0] * DEG2RAD;
+	    fb_a  = angles[1] * DEG2RAD;
 
 	    /* calculate normal vector (length = 1) from rot, struct fb */
 	    a->es_peqn[a->edit_menu][0] = cos(fb_a) * cos(rota);
@@ -1762,22 +1787,49 @@ ecmd_arb_rotate_face(struct rt_edit *s)
     if (arb_type == 0)
 	return BRLCAD_ERROR;
 
-    (void)rt_arb_calc_points(arb, arb_type, (const plane_t *)a->es_peqn, s->tol);
-    
+    if (rt_arb_calc_points(arb, arb_type, (const plane_t *)a->es_peqn, s->tol)) {
+	bu_vls_printf(s->log_str, "Cannot calculate ARB points\n");
+	return BRLCAD_ERROR;
+    }
+
     if (edarb_canonicalize(s, arb) != BRLCAD_OK) {
 	return BRLCAD_ERROR;
     }
+    if (rt_arb_calc_planes(s->log_str, arb, arb_type, a->es_peqn, s->tol))
+	return BRLCAD_ERROR;
     MAT_IDN(s->incr_change);
-
-    /* no need to calc_planes again */
-    f = NULL; d = NULL;
-    rt_edit_map_clbk_get(&f, &d, s->m, ECMD_REPLOT_EDITING_SOLID, BU_CLBK_DURING);
-    if (f)
-	(*f)(0, NULL, d, NULL);
 
     s->e_inpara = 0;
 
     return 0;
+}
+
+struct arb_point_edit_index {
+    int arb_type;
+    int vertex;
+    int edit_menu;
+};
+
+static int
+arb_point_edit_menu(int arb_type, int index, int vertex_index)
+{
+    /* Parameter indices name vertices; the older menus name edit-table rows. */
+    static const struct arb_point_edit_index point_edits[] = {
+	{ARB4, 0, 0}, {ARB4, 1, 1}, {ARB4, 2, 2}, {ARB4, 4, 4},
+	{ARB4, 4, RT_ARB4_MOVE_POINT_4},
+	{ARB5, 4, RT_ARB5_MOVE_POINT_5},
+	{ARB6, 4, RT_ARB6_MOVE_POINT_5},
+	{ARB6, 6, RT_ARB6_MOVE_POINT_6},
+	{ARB7, 4, RT_ARB7_MOVE_POINT_5}
+    };
+
+    for (size_t i = 0; i < sizeof(point_edits) / sizeof(point_edits[0]); i++) {
+	const struct arb_point_edit_index *point = &point_edits[i];
+	if (point->arb_type == arb_type &&
+	    (vertex_index ? point->vertex : point->edit_menu) == index)
+	    return point->edit_menu;
+    }
+    return -1;
 }
 
 int
@@ -1787,55 +1839,34 @@ edit_arb_element(struct rt_edit *s)
 
     if (s->e_inpara) {
 
-	/*
-	 * Extended form: 4 parameters → e_para[0]=index, e_para[1..3]=coords.
-	 * Unpack the element index and shift the coord triple down.
-	 */
-	if (s->e_inpara == 4)
-	    arb_unpack_index_param(s, &a->edit_menu);
-
-	if (s->e_inpara != 3) {
-	    bu_vls_printf(s->log_str, "ERROR: three arguments needed\n");
-	    s->e_inpara = 0;
-	    return BRLCAD_ERROR;
-	}
-
-	/* must convert to base units */
-	s->e_para[0] *= s->local2base;
-	s->e_para[1] *= s->local2base;
-	s->e_para[2] *= s->local2base;
-
 	vect_t work;
-	if (s->mv_context) {
-	    /* apply s->e_invmat to convert to real model space */
-	    MAT4X3PNT(work, s->e_invmat, s->e_para);
-	} else {
-	    VMOVE(work, s->e_para);
+	int parameter_vertex = (s->edit_flag == PTARB && s->e_inpara == 4);
+	if (arb_numeric_target(work, s, &a->edit_menu) != BRLCAD_OK)
+	    return BRLCAD_ERROR;
+	if (s->edit_flag == PTARB) {
+	    struct rt_arb_internal *arb = (struct rt_arb_internal *)s->es_int.idb_ptr;
+	    int arb_type = rt_arb_edit_type(s->log_str, s, arb, 0, s->tol);
+	    int vertex = a->edit_menu;
+
+	    if (arb_type == 0)
+		return BRLCAD_ERROR;
+	    a->edit_menu = arb_point_edit_menu(arb_type, a->edit_menu,
+		parameter_vertex);
+	    if (a->edit_menu < 0) {
+		bu_vls_printf(s->log_str, "ARB%d has no point edit for vertex %d\n",
+			arb_type, vertex);
+		return BRLCAD_ERROR;
+	    }
 	}
-	editarb(s, work);
+	if (editarb(s, work) != BRLCAD_OK)
+	    return BRLCAD_ERROR;
     }
 
     return 0;
 }
 
-void
-arb_mv_pnt_to(struct rt_edit *s, const vect_t mousevec)
-{
-    vect_t pos_view = VINIT_ZERO;	/* Unrotated view space pos */
-    vect_t temp = VINIT_ZERO;
-    vect_t pos_model = VINIT_ZERO;	/* Rotated screen space pos */
-    /* move an arb point to indicated point */
-    /* point is located at es_values[a->edit_menu*3] */
-    MAT4X3PNT(pos_view, s->vp->gv_model2view, s->curr_e_axes_pos);
-    pos_view[X] = mousevec[X];
-    pos_view[Y] = mousevec[Y];
-    MAT4X3PNT(temp, s->vp->gv_view2model, pos_view);
-    MAT4X3PNT(pos_model, s->e_invmat, temp);
-    editarb(s, pos_model);
-}
-
-void
-edarb_mousevec(struct rt_edit *s, const vect_t mousevec)
+static int
+arb_mouse_move_element(struct rt_edit *s, const vect_t mousevec)
 {
     vect_t pos_view = VINIT_ZERO;	/* Unrotated view space pos */
     vect_t temp = VINIT_ZERO;
@@ -1845,13 +1876,15 @@ edarb_mousevec(struct rt_edit *s, const vect_t mousevec)
     pos_view[Y] = mousevec[Y];
     MAT4X3PNT(temp, s->vp->gv_view2model, pos_view);
     MAT4X3PNT(pos_model, s->e_invmat, temp);
-    editarb(s, pos_model);
+    if (editarb(s, pos_model) != BRLCAD_OK)
+	return BRLCAD_ERROR;
+    edit_abs_tra(s, pos_view);
+    return BRLCAD_OK;
 }
 
-void
+static int
 edarb_move_face_mousevec(struct rt_edit *s, const vect_t mousevec)
 {
-    struct rt_arb8_edit *a = (struct rt_arb8_edit *)s->ipe_ptr;
     vect_t pos_view = VINIT_ZERO;	/* Unrotated view space pos */
     vect_t temp = VINIT_ZERO;
     vect_t pos_model = VINIT_ZERO;	/* Rotated screen space pos */
@@ -1860,26 +1893,10 @@ edarb_move_face_mousevec(struct rt_edit *s, const vect_t mousevec)
     pos_view[Y] = mousevec[Y];
     MAT4X3PNT(temp, s->vp->gv_view2model, pos_view);
     MAT4X3PNT(pos_model, s->e_invmat, temp);
-    /* change D of planar equation */
-    a->es_peqn[a->edit_menu][W]=VDOT(&a->es_peqn[a->edit_menu][0], pos_model);
-    /* calculate new vertices, put in record as vectors */
-    {
-	struct rt_arb_internal *arb=
-	    (struct rt_arb_internal *)s->es_int.idb_ptr;
-
-	RT_ARB_CK_MAGIC(arb);
-
-	int arb_type = rt_arb_edit_type(s->log_str, s, arb, 0, s->tol);
-	if (arb_type == 0)
-	    return;
-
-	(void)rt_arb_calc_points(arb, arb_type, (const plane_t *)a->es_peqn, s->tol);
-	
-	if (edarb_canonicalize(s, arb) != BRLCAD_OK) {
-	    /* We don't have a return value for this function, so just return */
-	    return;
-	}
-    }
+    if (arb_move_face_to_point(s, pos_model) != BRLCAD_OK)
+	return BRLCAD_ERROR;
+    edit_abs_tra(s, pos_view);
+    return BRLCAD_OK;
 }
 
 C_DECL int
@@ -1889,13 +1906,27 @@ rt_edit_arb_edit(struct rt_edit *s)
     struct rt_arb_internal *arb = (struct rt_arb_internal *)s->es_int.idb_ptr;
     struct rt_arb8_edit *a = (struct rt_arb8_edit *)s->ipe_ptr;
     RT_ARB_CK_MAGIC(arb);
+    struct rt_arb_internal original_arb = *arb;
+    plane_t original_planes[6];
+    memcpy(original_planes, a->es_peqn, sizeof(original_planes));
     int ret = 0;
 
     int arb_type = rt_arb_edit_type(s->log_str, s, arb, 0, s->tol);
     if (arb_type == 0)
 	return BRLCAD_ERROR;
-    if (rt_arb_calc_planes(&error_msg, arb, arb_type, a->es_peqn, s->tol)) {
-	bu_vls_printf(s->log_str, "\nCannot calculate plane equations for ARB8\n");
+
+    int validation_issues = 0;
+    (void)rt_arb_validate(NULL, arb, s->tol, &validation_issues);
+    int planes_valid = !(validation_issues & RT_ARB_VALIDATE_NONCOPLANAR) &&
+	!rt_arb_calc_planes(&error_msg, arb, arb_type, a->es_peqn, s->tol);
+    int planes_required = s->edit_flag == ECMD_ARB_MOVE_FACE ||
+	s->edit_flag == ECMD_ARB_SETUP_ROTFACE ||
+	s->edit_flag == ECMD_ARB_ROTATE_FACE ||
+	s->edit_flag == PTARB || s->edit_flag == EARB;
+    if (!planes_valid && planes_required) {
+	bu_vls_printf(s->log_str,
+		"Cannot edit ARB faces or edges without valid face planes: %s",
+		bu_vls_cstr(&error_msg));
 	bu_vls_free(&error_msg);
 	return BRLCAD_ERROR;
     }
@@ -1917,24 +1948,38 @@ rt_edit_arb_edit(struct rt_edit *s)
 	    break;
 	case ECMD_ARB_MAIN_MENU:
 	    ecmd_arb_main_menu(s);
-	    break;
+	    return BRLCAD_OK;
 	case ECMD_ARB_SPECIFIC_MENU:
 	    if (ecmd_arb_specific_menu(s) != BRLCAD_OK)
 		return -1;
-	    break;
+	    return BRLCAD_OK;
 	case ECMD_ARB_MOVE_FACE:
 	    return ecmd_arb_move_face(s);
 	case ECMD_ARB_SETUP_ROTFACE:
 	    ecmd_arb_setup_rotface(s);
 	    break;
 	case ECMD_ARB_ROTATE_FACE:
+	{
+	    mat_t original_acc_rot, original_model_changes, original_incr_change;
+	    int original_menu = a->edit_menu;
+	    int original_fixv = a->fixv;
+	    MAT_COPY(original_acc_rot, s->acc_rot_sol);
+	    MAT_COPY(original_model_changes, s->model_changes);
+	    MAT_COPY(original_incr_change, s->incr_change);
 	    ret = ecmd_arb_rotate_face(s);
-	    if (ret)
+	    if (ret) {
+		memcpy(arb->pt, original_arb.pt, sizeof(arb->pt));
+		memcpy(a->es_peqn, original_planes, sizeof(original_planes));
+		MAT_COPY(s->acc_rot_sol, original_acc_rot);
+		MAT_COPY(s->model_changes, original_model_changes);
+		MAT_COPY(s->incr_change, original_incr_change);
+		a->edit_menu = original_menu;
+		a->fixv = original_fixv;
 		return ret;
-	    /* ecmd_arb_rotate_face handles plane calc and replot directly;
-	     * return 1 to signal rt_edit_process to skip its post-dispatch
-	     * switch (avoiding a redundant arb_planecalc and replot). */
-	    return 1;
+	    }
+	    /* The plane is current; bypass arb_planecalc below. */
+	    return BRLCAD_OK;
+	}
 	case PTARB:     /* move an ARB point */
 	case EARB:      /* edit an ARB edge */
 	    return edit_arb_element(s);
@@ -1944,19 +1989,34 @@ rt_edit_arb_edit(struct rt_edit *s)
 
 arb_planecalc:
 
+    if (ret != BRLCAD_OK)
+	goto arb_failed;
+    /* Rigid and uniform whole-solid transforms preserve an invalid ARB's
+     * shape.  They must remain usable even when face-specific editing cannot
+     * construct a complete set of planes. */
+    if (!planes_valid)
+	return ret;
     if (edarb_canonicalize(s, arb) != BRLCAD_OK) {
-	return BRLCAD_ERROR;
+	goto arb_failed;
     }
 
     /* must re-calculate the face plane equations for arbs */
     arb_type = rt_arb_edit_type(s->log_str, s, arb, 0, s->tol);
     if (arb_type == 0)
-	return BRLCAD_ERROR;
-    if (rt_arb_calc_planes(&error_msg, arb, arb_type, a->es_peqn, s->tol) < 0)
+	goto arb_failed;
+    if (rt_arb_calc_planes(&error_msg, arb, arb_type, a->es_peqn, s->tol) < 0) {
 	bu_vls_printf(s->log_str, "%s", bu_vls_cstr(&error_msg));
+	bu_vls_free(&error_msg);
+	goto arb_failed;
+    }
     bu_vls_free(&error_msg);
 
     return ret;
+
+arb_failed:
+    memcpy(arb->pt, original_arb.pt, sizeof(arb->pt));
+    memcpy(a->es_peqn, original_planes, sizeof(original_planes));
+    return BRLCAD_ERROR;
 }
 
 C_DECL int
@@ -1977,14 +2037,10 @@ rt_edit_arb_edit_xy(
 	    edit_stra_xy(&pos_view, s, mousevec);
 	    break;
 	case PTARB:
-	    arb_mv_pnt_to(s, mousevec);
-	    break;
 	case EARB:
-	    edarb_mousevec(s, mousevec);
-	    break;
+	    return arb_mouse_move_element(s, mousevec);
 	case ECMD_ARB_MOVE_FACE:
-	    edarb_move_face_mousevec(s, mousevec);
-	    break;
+	    return edarb_move_face_mousevec(s, mousevec);
 	default:
 	    return edit_generic_xy(s, mousevec);
     }
@@ -2632,9 +2688,8 @@ rt_edit_arb_repair(struct bu_vls *log_str, struct rt_db_internal *ip, const stru
     BU_OPT(d[2], "", "options-json", "", NULL, &options_json, "Return JSON of supported options");
     BU_OPT_NULL(d[3]);
 
-    if (argc > 0 && argv) {
-        bu_opt_parse(NULL, argc, argv, d);
-    }
+    if (edit_repair_parse_options(log_str, argc, argv, d) != BRLCAD_OK)
+        return -1;
 
     if (options_json) {
         if (log_str) {

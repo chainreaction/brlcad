@@ -25,10 +25,14 @@
 
 #include "common.h"
 
+#include <stdint.h>
+
 #include "vmath.h"
 #include "bn.h"
 #include "rt/functab.h"
 #include "rt/edit.h"
+
+struct bu_opt_desc;
 
 __BEGIN_DECLS
 
@@ -50,6 +54,61 @@ edit_keypoint(
 /* scale the solid uniformly about its vertex point */
 int
 edit_sscale(struct rt_edit *s);
+
+/* Prepare a scale factor for a length-valued primitive parameter. */
+int
+edit_prepare_length_scale(struct rt_edit *s, fastf_t current);
+
+/* Scale one vector magnitude or scalar length. */
+int
+edit_scale_length(struct rt_edit *s, vect_t *axis, fastf_t *scalar);
+
+/* Scale A to a requested length, then match B and C to it. */
+int
+edit_scale_equal_axes(struct rt_edit *s, vect_t a, vect_t b, vect_t c);
+
+/* Reject height endpoint edits that would collapse the primitive. */
+int
+edit_validate_height(struct rt_edit *s, const vect_t height);
+
+/* Validate dimension counts before converting numeric edit parameters. */
+int
+edit_parse_sample_count(uint32_t *count, fastf_t value);
+
+/* Check sample storage without multiplying possibly untrusted dimensions. */
+int
+edit_file_has_samples(intmax_t file_size, const uint32_t *dims,
+		size_t count, size_t bytes_per_sample);
+
+/* Reject invalid repair options before a primitive can change geometry. */
+int
+edit_repair_parse_options(struct bu_vls *log_str, int argc,
+			  const char **argv, const struct bu_opt_desc *options);
+
+/* Split a writable LF/CRLF parameter buffer without losing its cursor. */
+char *
+edit_param_next_line(char **cursor);
+
+/* Read a finite vector in local units, with or without its field label. */
+int
+edit_param_read_vector(point_t out, char **cursor, const char *label,
+		       fastf_t local2base);
+
+/* Read one finite scalar in local units, with or without its field label. */
+int
+edit_param_read_scalar(fastf_t *out, char **cursor, const char *label,
+		       fastf_t local2base);
+
+struct edit_param_field {
+    const char *label;
+    fastf_t *value;
+    int count;
+    fastf_t conversion;
+};
+
+int
+edit_param_read_fields(const char *text, const struct edit_param_field *fields,
+		size_t field_count);
 
 /* translate solid */
 void

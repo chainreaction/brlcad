@@ -25,7 +25,6 @@
 
 #include "common.h"
 
-#include <cmath>
 #include <string.h>
 
 #include <iostream>
@@ -35,12 +34,12 @@
 #include "bu/path.h"
 #include "bu/ptbl.h"
 #include "rt/search.h"
-#include "rt/calc.h"
 #include "rt/db_instance.h"
 #include "rt/primitives/bot.h"
 #include "wdb.h"
 #include "../ged_private.h"
 #include "./ged_facetize.h"
+#include "./validation.h"
 
 static const size_t FACETIZE_TERMINAL_DETAIL_LIMIT = 10u;
 static const char FACETIZE_LOG_EXTENSION[] = ".log";
@@ -285,72 +284,6 @@ _db_uniq_test(struct bu_vls *n, void *data)
 }
 
 int
-_ged_facetize_csg_bbox(struct db_i *dbip, const char *obj_name, point_t rpp_min, point_t rpp_max)
-{
-    if (!dbip || !obj_name || !rpp_min || !rpp_max)
-	return BRLCAD_ERROR;
-
-    struct directory *dp = db_lookup(dbip, obj_name, LOOKUP_QUIET);
-    if (dp == RT_DIR_NULL)
-	return BRLCAD_ERROR;
-
-    if (rt_bound_internal(dbip, dp, rpp_min, rpp_max) != 0)
-	return BRLCAD_ERROR;
-
-    vect_t d;
-    VSUB2(d, rpp_max, rpp_min);
-    if (d[X] <= 0.0 || d[Y] <= 0.0 || d[Z] <= 0.0)
-	return BRLCAD_ERROR;
-
-    for (int i = 0; i < 3; i++) {
-	if (!std::isfinite(rpp_min[i]) || !std::isfinite(rpp_max[i]))
-	    return BRLCAD_ERROR;
-    }
-
-    return BRLCAD_OK;
-}
-
-int
-_ged_validate_objs_list(struct _ged_facetize_state *s, int argc, const char *argv[], int newobj_cnt)
-{
-    int i;
-    struct ged *gedp = s->gedp;
-
-    if (s->in_place && newobj_cnt) {
-	bu_vls_printf(gedp->ged_result_str, "In place conversion specified, but object list includes objects that do not exist:\n");
-	for (i = argc - newobj_cnt; i < argc; i++) {
-	    bu_vls_printf(gedp->ged_result_str, "       %s\n", argv[i]);
-	}
-	bu_vls_printf(gedp->ged_result_str, "\nAborting.  When performing an in-place facetization, a single pre-existing object must be specified.\n");
-	return BRLCAD_ERROR;
-
-    }
-
-    if (!s->in_place) {
-	if (newobj_cnt < 1) {
-	    bu_vls_printf(gedp->ged_result_str, "all objects listed already exist, aborting.  (Need new object name to write out results to.)\n");
-	    return BRLCAD_ERROR;
-	}
-
-	if (newobj_cnt > 1) {
-	    bu_vls_printf(gedp->ged_result_str, "More than one object listed does not exist:\n");
-	    for (i = argc - newobj_cnt; i < argc; i++) {
-		bu_vls_printf(gedp->ged_result_str, "   %s\n", argv[i]);
-	    }
-	    bu_vls_printf(gedp->ged_result_str, "\nAborting.  Need to specify exactly one object name that does not exist to hold facetization output.\n");
-	    return BRLCAD_ERROR;
-	}
-
-	if (argc - newobj_cnt == 0) {
-	    bu_vls_printf(gedp->ged_result_str, "No existing objects specified, nothing to facetize.  Aborting.\n");
-	    return BRLCAD_ERROR;
-	}
-    }
-
-    return BRLCAD_OK;
-}
-
-int
 _ged_facetize_write_bot(struct db_i *dbip, struct rt_bot_internal *bot, const char *name, int verbosity)
 {
     if (!dbip || !bot || !name)
@@ -366,6 +299,21 @@ _ged_facetize_write_bot(struct db_i *dbip, struct rt_bot_internal *bot, const ch
 
     bu_avs_init_empty(&intern.idb_avs);
     (void)bu_avs_add(&intern.idb_avs, "facetized", "1");
+
+    /* In-memory databases do not have the file allocator used by
+     * rt_db_put_internal.  Route them through their dedicated writer so
+     * isolated workers can finish evaluation before announcing a staged
+     * disk write to the parent. */
+    if (!dbip->dbi_filename) {
+	struct rt_wdb *wdbp = wdb_dbopen(dbip, RT_WDB_TYPE_DB_INMEM);
+	if (!wdbp || wdb_put_internal(wdbp, name, &intern, 1.0) < 0) {
+	    if (verbosity >= 0)
+		bu_log("Failed to write %s to in-memory database\n", name);
+	    rt_db_free_internal(&intern);
+	    return BRLCAD_ERROR;
+	}
+	return BRLCAD_OK;
+    }
 
     struct directory *dp = db_diradd(dbip, name, RT_DIR_PHONY_ADDR, 0, RT_DIR_SOLID, (void *)&intern.idb_type);
     if (dp == RT_DIR_NULL) {
@@ -597,8 +545,20 @@ bot_fixup(struct _ged_facetize_state *s, struct db_i *wdbip, struct directory *b
 
     // Have faces, test with raytracer
     struct rt_i *rtip = rt_i_create(wdbip);
-    rt_gettree(rtip, bname);
-    rt_prep(rtip);
+    struct bu_hook_list saved_hooks = BU_HOOK_LIST_INIT_ZERO;
+    facetize_log_hooks_silence(&saved_hooks);
+    int prep_status = rt_gettree(rtip, bname);
+    if (prep_status == 0)
+	rt_prep(rtip);
+    facetize_log_hooks_restore(&saved_hooks);
+
+    if (prep_status != 0 || !rtip->stats.nsolids || !rtip->stats.nregions) {
+	facetize_log(s, 2, "\t%s: raytrace preparation failed; retaining original manifold result.\n", bname);
+	rt_i_destroy(rtip);
+	rt_db_free_internal(&bot_intern);
+	return NULL;
+    }
+
     facetize_log(s, 2, "\t%s: raytrace preparation complete; scanning %zu faces...\n", bname, bot->num_faces);
     struct bu_ptbl tfaces = BU_PTBL_INIT_ZERO;
     int have_thin_faces = rt_bot_thin_check(&tfaces, bot, rtip, VUNITIZE_TOL, 0);

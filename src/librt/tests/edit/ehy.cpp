@@ -44,7 +44,6 @@
 #include <string.h>
 
 #include "vmath.h"
-#include "bu/app.h"
 #include "bu/log.h"
 #include "bu/malloc.h"
 #include "bu/str.h"
@@ -140,12 +139,8 @@ ehy_reset(struct rt_edit *s, struct rt_ehy_internal *edit_ehy,
 }
 
 int
-main(int argc, char *argv[])
+rt_edit_test_ehy(void)
 {
-    bu_setprogname(argv[0]);
-    if (argc != 1)
-	return BRLCAD_ERROR;
-
     struct db_i *dbip = db_open_inmem();
     if (dbip == DBI_NULL)
 	bu_exit(1, "ERROR: Unable to create database instance\n");
@@ -482,6 +477,69 @@ if (!VNEAR_EQUAL(kp_world, expected, VUNITIZE_TOL))
 bu_log("RT_MATRIX_EDIT_TRANS_MODEL_XYZ SUCCESS: "
        "keypoint maps to (%g,%g,%g)\n", V3ARGS(kp_world));
     }
+
+    const fastf_t inch = 25.4;
+    ehy_reset(s, edit_ehy, orig_ehy, cmp_ehy);
+    s->local2base = inch;
+    s->base2local = 1.0 / inch;
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_EHY_R1);
+    s->e_inpara = 1;
+    s->e_para[0] = 0.3;
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	!NEAR_EQUAL(edit_ehy->ehy_r1, 0.3 * inch, VUNITIZE_TOL) ||
+	!NEAR_EQUAL(s->e_para[0], 0.3, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: EHY semi-major radius ignored local units\n");
+
+    s->e_inpara = 1;
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	!NEAR_EQUAL(edit_ehy->ehy_r1, 0.3 * inch, VUNITIZE_TOL) ||
+	!NEAR_EQUAL(s->e_para[0], 0.3, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: EHY reinterpreted a reused local length\n");
+
+    ehy_reset(s, edit_ehy, orig_ehy, cmp_ehy);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_EHY_R2);
+    s->e_inpara = 1;
+    s->e_para[0] = 0.2;
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	!NEAR_EQUAL(edit_ehy->ehy_r2, 0.2 * inch, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: EHY semi-minor radius ignored local units\n");
+
+    ehy_reset(s, edit_ehy, orig_ehy, cmp_ehy);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_EHY_C);
+    s->es_scale = 2.5;
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	!NEAR_EQUAL(edit_ehy->ehy_c, 2.5 * orig_ehy->ehy_c, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: EHY dimensionless asymptote scale used local units\n");
+
+    ehy_reset(s, edit_ehy, orig_ehy, cmp_ehy);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_EHY_R1);
+    s->e_inpara = 1;
+    s->e_para[0] = 0.1;
+    if (rt_edit_process(s) != BRLCAD_ERROR ||
+	!NEAR_EQUAL(edit_ehy->ehy_r1, orig_ehy->ehy_r1, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: EHY accepted a semi-major radius below the semi-minor radius\n");
+
+    ehy_reset(s, edit_ehy, orig_ehy, cmp_ehy);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_EHY_R2);
+    s->e_inpara = 1;
+    s->e_para[0] = 0.5;
+    if (rt_edit_process(s) != BRLCAD_ERROR ||
+	!NEAR_EQUAL(edit_ehy->ehy_r2, orig_ehy->ehy_r2, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: EHY accepted a semi-minor radius above the semi-major radius\n");
+
+    ehy_reset(s, edit_ehy, orig_ehy, cmp_ehy);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_EHY_C);
+    if (rt_edit_process(s) != BRLCAD_OK ||
+	!NEAR_EQUAL(edit_ehy->ehy_c, orig_ehy->ehy_c, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: EHY empty asymptote-distance edit changed geometry\n");
+
+    ehy_reset(s, edit_ehy, orig_ehy, cmp_ehy);
+    EDOBJ[dp->d_minor_type].ft_set_edit_mode(s, ECMD_EHY_C);
+    s->e_inpara = 1;
+    s->e_para[0] = NAN;
+    if (rt_edit_process(s) != BRLCAD_ERROR ||
+	!NEAR_EQUAL(edit_ehy->ehy_c, orig_ehy->ehy_c, VUNITIZE_TOL))
+	bu_exit(1, "ERROR: EHY accepted a non-finite asymptote distance\n");
 
     rt_edit_destroy(s);
     db_close(dbip);
