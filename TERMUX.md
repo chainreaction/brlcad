@@ -25,7 +25,7 @@ proot, no Linux container.
 | Termux prefix | `/data/data/com.termux/files/usr` |
 | Compiler | clang 21.1.8 / libc++ (bionic) |
 | CMake | 4.4.4 |
-| BRL-CAD | 7.42.x; recipe validated at `48a87e7e13`, branch rebased onto `7929a747ad` |
+| BRL-CAD | 7.46.x (validated on `7929a747ad`) |
 | Build type | `Release`, `make -j6` |
 
 Result: build reaches **100 %**; `mged`, `rt` and all converters run headless, the
@@ -99,7 +99,7 @@ the bext side.** Apply them in order:
 ```bash
 P=$BRLCAD_SRC/misc/termux/patches
 
-# 3a. bext driver CMakeLists (assetimport, geogram, opencv, opennurbs)
+# 3a. bext driver CMakeLists (assetimport, geogram, opencv, opennurbs, tinygltf)
 git -C "$BEXT_SRC" apply "$P/02-bext-drivers.patch"
 
 # 3b. bext submodules
@@ -109,7 +109,12 @@ git -C "$BEXT_SRC/poissonrecon/PoissonRecon" apply "$P/12-poissonrecon_PoissonRe
 git -C "$BEXT_SRC/stepcode/stepcode"         apply "$P/13-stepcode_stepcode.patch"
 git -C "$BEXT_SRC/utahrle/utahrle"           apply "$P/14-utahrle_utahrle.patch"
 
-# 3c. edits that ExternalProject only makes in its build-tree copies
+# 3c. tinygltf: newer BRL-CAD uses the v3 API (tiny_gltf_v3.h), but the pinned
+#     bext submodule is still v2.  Move it to the current 'release' branch head.
+git -C "$BEXT_SRC/tinygltf/tinygltf" fetch origin release
+git -C "$BEXT_SRC/tinygltf/tinygltf" checkout origin/release
+
+# 3d. edits that ExternalProject only makes in its build-tree copies
 bash "$BRLCAD_SRC/misc/termux/bext-extra-edits.sh"
 ```
 
@@ -123,6 +128,7 @@ bash "$BRLCAD_SRC/misc/termux/bext-extra-edits.sh"
 | `geogram/CMakeLists.txt` | `-DVORPALINE_PLATFORM=Linux64-nonx86-clang-dynamic` | arm64, no SSE |
 | `opencv/CMakeLists.txt` | `-DBUILD_ANDROID_PROJECTS=OFF -DBUILD_ANDROID_EXAMPLES=OFF` | they try to pull in the NDK |
 | `opennurbs/CMakeLists.txt` | add `-lfreetype` to linker flags | freetype symbols not propagated |
+| `tinygltf/CMakeLists.txt` + `tinygltf.patch` | build tinygltf v3 as a library and export `tinygltf::tinygltf` | upstream switched to the v3 API |
 
 **bext submodules**
 
@@ -242,6 +248,9 @@ Expected: `mged` prints `sph`; `rt` reports `4096 rays` and writes a non-empty
 | `fuzz_*` link errors, `make all` fails | fuzzer runtime not available for this clang/bionic | `regress/fuzz` disabled (**already in this branch**) |
 | assimp / geogram / stepcode / utahrle / opennurbs compile errors | newer stricter clang, x86-only flags, missing `strings.h`, NDK-only paths | bext patches in `misc/termux/patches/` |
 | `mged`/`rt` cannot find `.so` at runtime | Termux has no `ldconfig` | `export LD_LIBRARY_PATH=$BRLCAD_BUILD/lib` (or install and use its lib dir) |
+| `undefined symbol: modf` (or any math symbol) linking a tool | upstream moved `M_LIBRARY` from public `BU_LIBS` to private `BU_PRIVATE_LIBS`, and bionic keeps libm separate (unlike glibc ≥ 2.34) | `src/libbu/CMakeLists.txt` exposes `m` via `PUBLIC_LIBS` (**already in this branch**) |
+| `undefined symbol: FT_*` linking a static OpenNURBS consumer | static `libopennurbsStatic.a` references FreeType, which is not implicit on Android | `misc/CMake/FindOPENNURBS.cmake` adds FreeType to `OPENNURBS::OPENNURBS-static` deps (**already in this branch**) |
+| `fatal error: 'tiny_gltf_v3.h' file not found` | BRL-CAD moved to tinygltf v3; the pinned bext submodule is v2 | update the `tinygltf` submodule to `release` head (§3c) + apply `02-bext-drivers.patch` |
 
 ---
 

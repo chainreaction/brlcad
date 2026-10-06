@@ -1,3 +1,26 @@
+diff --git a/misc/CMake/FindOPENNURBS.cmake b/misc/CMake/FindOPENNURBS.cmake
+index 7a48606983..3d90f81df7 100644
+--- a/misc/CMake/FindOPENNURBS.cmake
++++ b/misc/CMake/FindOPENNURBS.cmake
+@@ -169,6 +169,18 @@ if(OPENNURBS_FOUND)
+       list(APPEND _OPENNURBS_STATIC_DEPS ${UUID_LIBRARIES})
+     endif()
+ 
++    # Termux/bionic: the static OpenNURBS archive references FreeType symbols
++    # (font handling) and FreeType is not linked implicitly on Android, so a
++    # static OpenNURBS consumer must pull it in explicitly.
++    if(NOT TARGET Freetype::Freetype)
++      find_package(Freetype QUIET)
++    endif()
++    if(TARGET Freetype::Freetype)
++      list(APPEND _OPENNURBS_STATIC_DEPS Freetype::Freetype)
++    elseif(FREETYPE_LIBRARIES)
++      list(APPEND _OPENNURBS_STATIC_DEPS ${FREETYPE_LIBRARIES})
++    endif()
++
+     add_library(OPENNURBS::OPENNURBS-static STATIC IMPORTED GLOBAL)
+     set_target_properties(
+       OPENNURBS::OPENNURBS-static PROPERTIES
 diff --git a/regress/CMakeLists.txt b/regress/CMakeLists.txt
 index 29d9541b58..d02f470f22 100644
 --- a/regress/CMakeLists.txt
@@ -12,10 +35,10 @@ index 29d9541b58..d02f470f22 100644
  # Geometry difference reporting
  add_subdirectory(gdiff)
 diff --git a/src/libbu/CMakeLists.txt b/src/libbu/CMakeLists.txt
-index b8ab0c0571..fba91af4d1 100644
+index b8ab0c0571..143adfe1ec 100644
 --- a/src/libbu/CMakeLists.txt
 +++ b/src/libbu/CMakeLists.txt
-@@ -153,6 +153,13 @@ set(
+@@ -153,6 +153,20 @@ set(
    ${M_LIBRARY}
  )
  
@@ -26,9 +49,24 @@ index b8ab0c0571..fba91af4d1 100644
 +  list(APPEND BU_PRIVATE_LIBS ${ANDROID_SHMEM_LIBRARY})
 +endif(ANDROID_SHMEM_LIBRARY)
 +
++# Termux/bionic: libm is a separate library and is NOT part of the default
++# link (unlike glibc >= 2.34, where most math moved into libc).  Upstream
++# moved the former BU_LIBS over to PRIVATE_LIBS, so consumers of libbu such as
++# src/util no longer inherit -lm and fail with "undefined symbol: modf".
++# Expose libm to libbu consumers again.
++set(BU_PUBLIC_LIBS m)
++
  # Include directories needed by libbu users
  set(BU_INCLUDE_DIRS ${BRLCAD_BINARY_DIR}/include ${BRLCAD_SOURCE_DIR}/include)
  
+@@ -160,6 +174,7 @@ set(BU_INCLUDE_DIRS ${BRLCAD_BINARY_DIR}/include ${BRLCAD_SOURCE_DIR}/include)
+ set(BU_LOCAL_INCLUDE_DIRS ${BSON_INCLUDE_DIR} ${LMDB_INCLUDE_DIR} ${UUID_INCLUDE_DIR})
+ 
+ brlcad_addlib(libbu "${LIBBU_SOURCES}" "${BU_INCLUDE_DIRS}" "${BU_LOCAL_INCLUDE_DIRS}"
++  PUBLIC_LIBS ${BU_PUBLIC_LIBS}
+   PRIVATE_LIBS ${BU_PRIVATE_LIBS}
+   UNITY_BUILD_SKIP
+   backtrace.c
 diff --git a/src/libbu/semaphore.c b/src/libbu/semaphore.c
 index 5279c4b2e7..f11e36c39b 100644
 --- a/src/libbu/semaphore.c

@@ -169,6 +169,18 @@ if(OPENNURBS_FOUND)
       list(APPEND _OPENNURBS_STATIC_DEPS ${UUID_LIBRARIES})
     endif()
 
+    # Termux/bionic: the static OpenNURBS archive references FreeType symbols
+    # (font handling) and FreeType is not linked implicitly on Android, so a
+    # static OpenNURBS consumer must pull it in explicitly.
+    if(NOT TARGET Freetype::Freetype)
+      find_package(Freetype QUIET)
+    endif()
+    if(TARGET Freetype::Freetype)
+      list(APPEND _OPENNURBS_STATIC_DEPS Freetype::Freetype)
+    elseif(FREETYPE_LIBRARIES)
+      list(APPEND _OPENNURBS_STATIC_DEPS ${FREETYPE_LIBRARIES})
+    endif()
+
     add_library(OPENNURBS::OPENNURBS-static STATIC IMPORTED GLOBAL)
     set_target_properties(
       OPENNURBS::OPENNURBS-static PROPERTIES

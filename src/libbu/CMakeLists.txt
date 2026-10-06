@@ -160,6 +160,13 @@ if(ANDROID_SHMEM_LIBRARY)
   list(APPEND BU_PRIVATE_LIBS ${ANDROID_SHMEM_LIBRARY})
 endif(ANDROID_SHMEM_LIBRARY)
 
+# Termux/bionic: libm is a separate library and is NOT part of the default
+# link (unlike glibc >= 2.34, where most math moved into libc).  Upstream
+# moved the former BU_LIBS over to PRIVATE_LIBS, so consumers of libbu such as
+# src/util no longer inherit -lm and fail with "undefined symbol: modf".
+# Expose libm to libbu consumers again.
+set(BU_PUBLIC_LIBS m)
+
 # Include directories needed by libbu users
 set(BU_INCLUDE_DIRS ${BRLCAD_BINARY_DIR}/include ${BRLCAD_SOURCE_DIR}/include)
 
@@ -167,6 +174,7 @@ set(BU_INCLUDE_DIRS ${BRLCAD_BINARY_DIR}/include ${BRLCAD_SOURCE_DIR}/include)
 set(BU_LOCAL_INCLUDE_DIRS ${BSON_INCLUDE_DIR} ${LMDB_INCLUDE_DIR} ${UUID_INCLUDE_DIR})
 
 brlcad_addlib(libbu "${LIBBU_SOURCES}" "${BU_INCLUDE_DIRS}" "${BU_LOCAL_INCLUDE_DIRS}"
+  PUBLIC_LIBS ${BU_PUBLIC_LIBS}
   PRIVATE_LIBS ${BU_PRIVATE_LIBS}
   UNITY_BUILD_SKIP
   backtrace.c

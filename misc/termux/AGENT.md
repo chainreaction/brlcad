@@ -89,6 +89,13 @@ apply "$BEXT_SRC/poissonrecon/PoissonRecon" "$P/12-poissonrecon_PoissonRecon.pat
 apply "$BEXT_SRC/stepcode/stepcode"        "$P/13-stepcode_stepcode.patch"
 apply "$BEXT_SRC/utahrle/utahrle"          "$P/14-utahrle_utahrle.patch"
 
+# tinygltf: BRL-CAD now uses the v3 API; the pinned submodule is v2.
+# Move the submodule to the current 'release' head (idempotent).
+if ! grep -q 'tiny_gltf_v3.h' "$BEXT_SRC/tinygltf/tinygltf/CMakeLists.txt" 2>/dev/null; then
+  git -C "$BEXT_SRC/tinygltf/tinygltf" fetch origin release
+  git -C "$BEXT_SRC/tinygltf/tinygltf" checkout origin/release
+fi
+
 BEXT_SRC="$BEXT_SRC" BEXT_BUILD="$BEXT_BUILD" bash "$BRLCAD_SRC/misc/termux/bext-extra-edits.sh"
 ```
 
@@ -153,6 +160,9 @@ grep -q 'rays' /tmp/agent_rt.log || exit 1
 | `undefined reference to shmget` / `shmat` | `libandroid-shmem` not linked: check `src/libbu/CMakeLists.txt` and the `-landroid-shmem` linker flags |
 | any `-msse*`/`__SSE__` error | a bext submodule patch was not applied |
 | `Cannot find -lfreetype` / undefined freetype symbols | add `-lfreetype` to linker flags (`opennurbs` patch + BRL-CAD configure) |
+| `undefined symbol: FT_Done_Face` / other `FT_*` linking a static OpenNURBS consumer | `misc/CMake/FindOPENNURBS.cmake` must add FreeType to `OPENNURBS::OPENNURBS-static` (`INTERFACE_LINK_LIBRARIES`) |
+| `undefined symbol: modf` (or another math symbol) linking a tool | `src/libbu/CMakeLists.txt` must expose `m` via `PUBLIC_LIBS ${BU_PUBLIC_LIBS}`; the error means it is only in `BU_PRIVATE_LIBS` |
+| `fatal error: 'tiny_gltf_v3.h' file not found` | update the `tinygltf` submodule to `release` head (Step 3) and ensure `02-bext-drivers.patch` applied; rebuild the `TINYGLTF_BLD-install` target after removing `bext_build/tinygltf/TINYGLTF_BLD-prefix` |
 | `fuzz_*` / sanitizer link errors | `regress/fuzz` must stay disabled |
 | binary runs but `error while loading shared libraries` | set `LD_LIBRARY_PATH` |
 
