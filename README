@@ -1,4 +1,5 @@
 >>> TERMUX / ANDROID (aarch64) BUILD GUIDE: https://github.com/chainreaction/brlcad/blob/termux/TERMUX.md <<<
+>>> READY-TO-RUN TUI WORK SESSION (tmux + mged + build): brlcad-tui --install  ->  https://github.com/chainreaction/brlcad/blob/termux/misc/termux/brlcad-tui <<<
 =================================================================================================================
 
                           BRL-CAD
