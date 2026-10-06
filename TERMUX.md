@@ -310,6 +310,16 @@ BRLCAD_BUILD="$BRLCAD_BUILD" [BRLCAD_DB=model.g] [START_AGENT=1] \
   bash "$BRLCAD_SRC/misc/termux/start-work.sh"
 ```
 
+For a one-command launcher, install the bundled shim once and then just call
+`brlcad-tui` (it auto-detects the checkout and the configured build directory):
+
+```bash
+bash "$BRLCAD_SRC/misc/termux/brlcad-tui" --install   # symlink into $PREFIX/bin
+
+brlcad-tui                    # start / re-attach the work session
+brlcad-tui model.g            # ... and open model.g in the mged window
+```
+
 `start-work.sh` acquires the wake lock, creates the `agent` / `mged` / `build`
 windows, pipes the build window to `~/brlcad-logs/<session>-build.log`, and
 attaches; re-running it just re-attaches.  Release the lock when you are done
@@ -434,6 +444,7 @@ misc/termux/AGENT.md              deterministic guide (agents/automation)
 misc/termux/smoke-test.sh         asserted model → render → STL smoke test
 misc/termux/tmux.conf             persistent-session tmux config (extended keys)
 misc/termux/start-work.sh         wake-lock + agent/mged/build tmux session
+misc/termux/brlcad-tui            one-command launcher (installs into $PREFIX/bin)
 misc/termux/bext-extra-edits.sh   copy-only bext edits (idempotent)
 misc/termux/patches/              bext patches (01 is the BRL-CAD tree, for other checkouts)
 ```

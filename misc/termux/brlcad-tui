@@ -1,0 +1,74 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# ---------------------------------------------------------------------------
+# brlcad-tui — one-command launcher for the BRL-CAD Termux work session.
+#
+# Install once (creates a symlink in $PREFIX/bin so the script can locate the
+# repository it lives in):
+#
+#   bash misc/termux/brlcad-tui --install
+#
+# Then just:
+#
+#   brlcad-tui                 # start / re-attach the work session
+#   brlcad-tui model.g         # ... and open model.g in the mged window
+#
+# Environment (all optional):
+#   BRLCAD_SRC    BRL-CAD checkout root; auto-detected from the script location
+#   BRLCAD_BUILD  build directory; defaults to $BRLCAD_SRC/build, then build2
+#   SESSION, START_AGENT, AGENT_CMD, LOG_DIR   see start-work.sh
+# ---------------------------------------------------------------------------
+set -euo pipefail
+
+PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+self=$(readlink -f "$0")
+here=$(cd "$(dirname "$self")" && pwd)
+
+case "${1:-}" in
+    --install)
+        ln -sf "$self" "$PREFIX/bin/brlcad-tui"
+        echo "installed: $PREFIX/bin/brlcad-tui -> $self"
+        exit 0
+        ;;
+    -h|--help)
+        echo "usage: brlcad-tui [--install] [database.g]"
+        echo "  --install   symlink this script into $PREFIX/bin"
+        echo "  database.g  opened in the mged window (optional)"
+        exit 0
+        ;;
+esac
+
+# Repository root: from the caller, else from the script location.
+if [ -z "${BRLCAD_SRC:-}" ]; then
+    BRLCAD_SRC=$(cd "$here/../.." 2>/dev/null && pwd) || {
+        echo "brlcad-tui: cannot locate the checkout; set BRLCAD_SRC" >&2
+        exit 1
+    }
+fi
+
+start_work="$here/start-work.sh"
+[ -f "$start_work" ] || start_work="$BRLCAD_SRC/misc/termux/start-work.sh"
+[ -f "$start_work" ] || {
+    echo "brlcad-tui: start-work.sh not found; set BRLCAD_SRC" >&2
+    exit 1
+}
+
+# Default build directory: prefer an already-configured CMake build.
+if [ -z "${BRLCAD_BUILD:-}" ]; then
+    for d in "$BRLCAD_SRC/build" "$BRLCAD_SRC/build2"; do
+        if [ -f "$d/CMakeCache.txt" ]; then
+            BRLCAD_BUILD=$d
+            break
+        fi
+    done
+    : "${BRLCAD_BUILD:=$BRLCAD_SRC/build}"
+fi
+
+# Optional positional argument: the database to open in mged.
+if [ "$#" -ge 1 ] && [ -z "${BRLCAD_DB:-}" ]; then
+    BRLCAD_DB=$1
+fi
+
+export BRLCAD_SRC BRLCAD_BUILD
+[ -n "${BRLCAD_DB:-}" ] && export BRLCAD_DB
+
+exec bash "$start_work"
