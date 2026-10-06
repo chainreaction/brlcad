@@ -238,14 +238,20 @@ The script (for users and agents alike) is fully asserted and exits non-zero on
 any failure:
 
 1. **Model** — builds a CSG region `demo.r = box - ball`: an ARB8 cube
-   1000×1000×1000 mm minus a sphere of radius 500 mm (a cube with a spherical
-   cavity), using mged's default primitives.
+   1000×1000×1000 mm minus a sphere of radius 300 mm centred on the top face
+   (`make -o 0 0 500 -s 600 ball sph`), i.e. a cube with a clearly **visible**
+   hemispherical dimple.
+
+   > A sphere that is merely *inscribed* in the cube (radius 500) leaves an
+   > entirely internal cavity: the STL is geometrically correct, but from the
+   > outside you only see a plain cube.  Offset the sphere to a face so the cut
+   > opens up and is visible.
 2. **Render** — `rt` renders one 64×64 frame to `demo.pix` and must report rays.
 3. **ASCII STL** — `g-stl` writes `demo.stl`; the test checks the `solid` /
-   `endsolid` framing and counts `facet normal` entries (300).
+   `endsolid` framing and counts `facet normal` entries.
 4. **Binary STL** — `g-stl -b` writes `demo_bin.stl`; the test reads the
    triangle count from byte offset 80 and asserts
-   `file size == 84 + triangles * 50` (300 triangles → 15 084 bytes).
+   `file size == 84 + triangles * 50` (182 triangles → 9 184 bytes).
 
 Expected tail:
 

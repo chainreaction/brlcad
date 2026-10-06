@@ -35,10 +35,10 @@ for exe in mged rt g-stl; do
     [ -x "$BRLCAD_BIN/$exe" ] || fail "$exe not found at $BRLCAD_BIN/$exe"
 done
 
-# --- 1. build a model: region demo.r = box - ball -------------------------
-echo "[1/4] creating model (box - ball)"
+# --- 1. build a model: region demo.r = box - ball (visible dimple) --------
+echo "[1/4] creating model (box with a spherical dimple)"
 printf '%s\n' \
-    'make ball sph' \
+    'make -o 0 0 500 -s 600 ball sph' \
     'make box rpp' \
     'r demo.r u box - ball' \
     'ls' \
