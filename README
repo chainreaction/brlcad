@@ -75,6 +75,9 @@ Typically, the following steps should result in a successful install:
 See the included INSTALL text file for explanation of the various
 cmake configuration options available for building BRL-CAD.
 
+Building BRL-CAD on Termux / Android (aarch64) has a dedicated guide:
+  https://github.com/chainreaction/brlcad/blob/termux/TERMUX.md
+
 
 BENCHMARK
 ---------
