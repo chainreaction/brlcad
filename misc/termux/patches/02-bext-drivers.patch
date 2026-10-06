@@ -1,0 +1,50 @@
+diff --git a/assetimport/CMakeLists.txt b/assetimport/CMakeLists.txt
+index 6f30b8d6..5fb14ae3 100644
+--- a/assetimport/CMakeLists.txt
++++ b/assetimport/CMakeLists.txt
+@@ -38,6 +38,7 @@ if (ENABLE_ASSETIMPORT)
+     -DCMAKE_INSTALL_PREFIX=${CMAKE_BUNDLE_INSTALL_PREFIX}
+     -DCMAKE_INSTALL_RPATH=${CMAKE_BUNDLE_INSTALL_PREFIX}/${LIB_DIR}
+     -DCMAKE_INSTALL_LIBDIR:PATH=${LIB_DIR}
++    -DASSIMP_WARNINGS_AS_ERRORS=OFF
+     -DASSIMP_BUILD_USE_CCACHE=OFF
+     -DASSIMP_BUILD_ASSIMP_TOOLS=OFF
+     -DASSIMP_BUILD_TESTS=OFF
+diff --git a/geogram/CMakeLists.txt b/geogram/CMakeLists.txt
+index 7a8bd553..96b6b4ca 100644
+--- a/geogram/CMakeLists.txt
++++ b/geogram/CMakeLists.txt
+@@ -27,6 +27,7 @@ if (ENABLE_GEOGRAM)
+     -DCMAKE_INSTALL_PREFIX=${CMAKE_BUNDLE_INSTALL_PREFIX}
+     -DCMAKE_INSTALL_LIBDIR:PATH=${LIB_DIR}
+     -DCMAKE_INSTALL_RPATH=${CMAKE_BUNDLE_INSTALL_PREFIX}/${LIB_DIR}
++    -DVORPALINE_PLATFORM=Linux64-nonx86-clang-dynamic
+     -DGEOGRAM_LIB_ONLY=ON
+     -DGEOGRAM_WITH_GRAPHICS=OFF
+     -DGEOGRAM_WITH_LUA=OFF
+diff --git a/opencv/CMakeLists.txt b/opencv/CMakeLists.txt
+index 89e3ba48..8371e90b 100644
+--- a/opencv/CMakeLists.txt
++++ b/opencv/CMakeLists.txt
+@@ -41,6 +41,8 @@ if (ENABLE_OPENCV)
+     -DCMAKE_INSTALL_RPATH=${CMAKE_BUNDLE_INSTALL_PREFIX}/${LIB_DIR}
+     -DBUILD_IPP_IW=OFF
+     -DBUILD_ITT=OFF
++    -DBUILD_ANDROID_PROJECTS=OFF
++    -DBUILD_ANDROID_EXAMPLES=OFF
+     -DBUILD_JAVA=OFF
+     -DBUILD_JPEG=OFF
+     -DBUILD_PERF_TESTS=OFF
+diff --git a/opennurbs/CMakeLists.txt b/opennurbs/CMakeLists.txt
+index ad3ebf4e..110f1da5 100644
+--- a/opennurbs/CMakeLists.txt
++++ b/opennurbs/CMakeLists.txt
+@@ -47,6 +47,8 @@ if (ENABLE_OPENNURBS)
+     COMMAND ${CMAKE_COMMAND};-E;copy;${PROJECT_SOURCE_DIR}/CMake/FindZLIB.cmake;<SOURCE_DIR>/CMake/FindZLIB.cmake
+     CMAKE_ARGS
+     ${BUILD_TYPE_SPECIFIER}
++    -DCMAKE_SHARED_LINKER_FLAGS=-lfreetype
++    -DCMAKE_EXE_LINKER_FLAGS=-lfreetype
+     $<$<BOOL:${ZLIB_TARGET}>:-DZ_PREFIX=ON>
+     $<$<BOOL:${ZLIB_TARGET}>:-DZ_PREFIX_STR=${Z_PREFIX_STR}>
+     -DZLIB_ROOT=$<$<BOOL:${ZLIB_TARGET}>:${CMAKE_BUNDLE_INSTALL_PREFIX}>

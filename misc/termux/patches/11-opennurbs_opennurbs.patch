@@ -1,0 +1,13 @@
+diff --git a/opennurbs_freetype.cpp b/opennurbs_freetype.cpp
+index 212ced5a..28df9e27 100644
+--- a/opennurbs_freetype.cpp
++++ b/opennurbs_freetype.cpp
+@@ -1492,7 +1492,7 @@ ON_FreeTypeFace* ON_FreeType::CreateFace(
+   f = ON_FreeType::Internal_CreateFaceFromAppleFont(font.AppleCTFont(bIsSubstituteFont));
+ #endif
+ 
+-#if defined(ON_RUNTIME_ANDROID)
++#if 0
+   f = ON_FreeType::Internal_CreateFaceWithAndroidNdk(font);
+ #endif
+ 

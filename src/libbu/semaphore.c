@@ -88,7 +88,12 @@ static mutext_t bu_init_lock = SEMAPHORE_INIT;
 struct bu_semaphores {
     uint32_t magic;
     pthread_mutex_t mu;
-};
+} __attribute__((aligned(8)));
+/* Termux/bionic: pthread_mutex_t only has 4-byte alignment, so
+ * struct bu_semaphores ends up 4-byte aligned.  BU_CKMAG()/
+ * BU_CK_MAGIC() require pointer alignment, so every
+ * bu_semaphore_acquire() on an odd index trips a spurious
+ * "mis-aligned" fatal error.  Force 8-byte alignment. */
 
 static pthread_mutex_t bu_init_lock = SEMAPHORE_INIT;
 #  define DEFINED_BU_SEMAPHORES 1

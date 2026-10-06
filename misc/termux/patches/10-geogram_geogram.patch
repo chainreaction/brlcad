@@ -1,0 +1,15 @@
+diff --git a/cmake/platforms/Linux-clang.cmake b/cmake/platforms/Linux-clang.cmake
+index 6225b43f4..95942b749 100644
+--- a/cmake/platforms/Linux-clang.cmake
++++ b/cmake/platforms/Linux-clang.cmake
+@@ -36,9 +36,7 @@ add_flags(CMAKE_C_FLAGS -Wno-unknown-warning-option)
+ #add_flags(CMAKE_CXX_FLAGS_RELEASE -D_FORTIFY_SOURCE=2)
+ #add_flags(CMAKE_C_FLAGS_RELEASE -D_FORTIFY_SOURCE=2)
+ 
+-# Enable SSE3 instruction set
+-add_flags(CMAKE_CXX_FLAGS -msse3)
+-add_flags(CMAKE_C_FLAGS -msse3)
++# SSE3 disabled (non-x86 target)
+ 
+ # C++17 standard
+ add_flags(CMAKE_CXX_FLAGS -Qunused-arguments -std=c++17 -Wno-c++98-compat)

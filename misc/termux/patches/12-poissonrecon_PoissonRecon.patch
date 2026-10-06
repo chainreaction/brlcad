@@ -1,0 +1,14 @@
+diff --git a/Src/MyMiscellany.h b/Src/MyMiscellany.h
+index 509cf3d..9153a13 100644
+--- a/Src/MyMiscellany.h
++++ b/Src/MyMiscellany.h
+@@ -32,7 +32,9 @@ DAMAGE.
+ #include <sstream>
+ #include <filesystem>
+ #include <string.h>
++#if defined( _WIN32 ) || defined( _WIN64 )
+ #include <sys/timeb.h>
++#endif
+ #include <cstdio>
+ #include <ctime>
+ #include <chrono>

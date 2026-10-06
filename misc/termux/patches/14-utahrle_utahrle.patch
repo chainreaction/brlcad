@@ -1,0 +1,36 @@
+diff --git a/rle_getrow.c b/rle_getrow.c
+index d97566c..46a1949 100644
+--- a/rle_getrow.c
++++ b/rle_getrow.c
+@@ -36,6 +36,7 @@ static char rcs_ident[] = "$Id$";
+ #include "stdio.h"
+ #include "rle.h"
+ #include "rle_code.h"
++#include <strings.h>
+ 
+ /* Read a two-byte "short" that started in VAX (LITTLE_ENDIAN) order */
+ #define VAXSHORT( var, fp )\
+diff --git a/rle_hdr.c b/rle_hdr.c
+index a189320..6d452b3 100644
+--- a/rle_hdr.c
++++ b/rle_hdr.c
+@@ -27,6 +27,7 @@
+ static char rcsid[] = "$Header$";
+ 
+ #include "rle.h"
++#include <strings.h>
+ 
+ /*****************************************************************
+  * TAG( rle_names )
+diff --git a/rle_rawrow.c b/rle_rawrow.c
+index a4909e9..a818618 100644
+--- a/rle_rawrow.c
++++ b/rle_rawrow.c
+@@ -10,6 +10,7 @@
+ 
+ #include "rle.h"
+ #include "rle_raw.h"
++#include <strings.h>
+ 
+ /*****************************************************************
+  * TAG( rle_rawtorow )

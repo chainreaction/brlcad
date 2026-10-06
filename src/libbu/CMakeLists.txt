@@ -153,6 +153,13 @@ set(
   ${M_LIBRARY}
 )
 
+# Termux: bionic's <sys/shm.h> redirects shmget/shmat to libandroid_shm*
+# symbols provided by libandroid-shmem.
+find_library(ANDROID_SHMEM_LIBRARY android-shmem)
+if(ANDROID_SHMEM_LIBRARY)
+  list(APPEND BU_PRIVATE_LIBS ${ANDROID_SHMEM_LIBRARY})
+endif(ANDROID_SHMEM_LIBRARY)
+
 # Include directories needed by libbu users
 set(BU_INCLUDE_DIRS ${BRLCAD_BINARY_DIR}/include ${BRLCAD_SOURCE_DIR}/include)
 

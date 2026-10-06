@@ -39,7 +39,7 @@ add_subdirectory(dsp)
 add_subdirectory(dxf)
 
 # Fuzz tests (if supported by the compiler)
-add_subdirectory(fuzz)
+# add_subdirectory(fuzz)  # disabled on Termux: fuzzer sanitizer runtime missing
 
 # Geometry difference reporting
 add_subdirectory(gdiff)
