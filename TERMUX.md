@@ -30,7 +30,7 @@ proot, no Linux container.
 
 Result: build reaches **100 %**; `mged`, `rt` and all converters run headless, the
 example `.g` databases are generated, and the Tcl/Tk GUI libraries are linked
-(the GUI itself needs an X server — see §7).
+(the GUI itself needs an X server — see §8).
 
 Wall-clock: roughly **1–3 h** on a phone-class SoC, depending on throttling.
 `-j6` is the recommended parallelism; `-j8` only pushes the SoC into thermal
@@ -54,7 +54,7 @@ pkg install libandroid-shmem
 # image / text / compression deps
 pkg install freetype libpng libjpeg-turbo libtiff libexpat libsqlite zlib zstd
 
-# optional — GPU / Vulkan diagnostics (see §7)
+# optional — GPU / Vulkan diagnostics (see §8)
 pkg install mesa-vulkan-icd-freedreno vulkan-tools clinfo
 ```
 
@@ -155,7 +155,7 @@ bext is meant to be built **separately**; BRL-CAD then consumes the result via
 `BRLCAD_EXT_DIR`.
 
 ```bash
-unset CFLAGS CXXFLAGS SYSROOT          # never let --sysroot leak in, see §6
+unset CFLAGS CXXFLAGS SYSROOT          # never let --sysroot leak in, see §7
 export CFLAGS="--target=aarch64-linux-android36"
 export CXXFLAGS="$CFLAGS"
 
@@ -279,7 +279,95 @@ Expected: `mged` prints `sph`; `rt` reports `4096 rays` and writes a non-empty
 
 ---
 
-## 6. Pitfall → cause → fix
+## 6. Command-line / TUI workflow
+
+BRL-CAD is fully usable on Termux with **no GUI at all** — this is the most
+reliable and lowest-power way to use it on a phone.  The GUI (§8) is optional.
+The recommended setup composes three layers:
+
+| Layer | Tool | Role |
+|---|---|---|
+| Substrate | `tmux` + `termux-wake-lock` | keeps sessions alive across app restarts |
+| Domain | `mged -c` / `mged -p`, `bwish` | geometry work in text / Tcl |
+| Automation | an agent TUI (e.g. `pi`) or shell scripts | edits, builds, diagnosis |
+
+### 6.1 Persistent session
+
+```bash
+pkg install tmux termux-api    # termux-api provides termux-wake-lock
+termux-wake-lock               # stop Android from killing the background server
+tmux new -s brlcad
+```
+
+Create windows with `Ctrl-b c` and switch with `Ctrl-b 0/1/2`:
+
+| Window | Command | Purpose |
+|---|---|---|
+| `mged` | `mged -c model.g` | interactive Tcl/mged console |
+| `build` | `make -j6 2>&1 \| tee make.log` | long build + log |
+| `agent` | `pi` | automation / code editing |
+
+Detach with `Ctrl-b d`; reconnect with `tmux attach -t brlcad`.  If the Termux
+app itself is restarted, the tmux server and its windows survive — far more
+robust than a foreground process.
+
+### 6.2 The mged text interface
+
+* `mged -c db.g` — classic text-only mode: a Tcl REPL with all mged commands.
+* `mged -p db.g` — **pipe mode**: emits `CMD_DONE` sentinels after each command,
+  so a script or an agent can drive mged deterministically (a text "API").
+* `--rcfile FILE`, `--set VAR=VALUE`, `--rset ...` — reproducible startup; or a
+  `~/.mgedrc` for personal defaults.
+* `bwish`, or `tclsh` with the BRL-CAD Tcl packages, for standalone scripts.
+
+Example batch run (no GUI):
+
+```bash
+printf 'make sph sph\nr demo.r u sph\nquit\n' | mged -c demo.g
+```
+
+### 6.3 Long builds that survive a crash
+
+A background build must not depend on the foreground TUI staying alive
+(sessions *do* die occasionally).  Run it detached and write a sentinel when it
+finishes:
+
+```bash
+setsid bash -c 'make -j6 > make.log 2>&1; echo MAKE_EXIT=$? >> make.log' &
+# later, even after a crash or reattach:
+grep -q MAKE_EXIT make.log && tail -3 make.log || echo "still running"
+```
+
+Use `timeout` around individual steps so a hung tool cannot stall the job
+forever, and check `make.log` for errors before assuming success.
+
+### 6.4 Running an agent TUI (pi) inside tmux
+
+tmux can report `Shift+Enter`, `Ctrl+Enter` and `Enter` as the same key.  Enable
+extended keys so the agent can distinguish them (see the agent's own `tmux`
+docs):
+
+```tmux
+set -g extended-keys on
+set -g extended-keys-format csi-u
+```
+
+Then restart the tmux server.  On Android, clipboard-text integration needs the
+Termux:API app plus `pkg install termux-api`; shared storage needs
+`termux-setup-storage`.
+
+### 6.5 When to use what
+
+| Need | Use |
+|---|---|
+| move/edit geometry, export STL | `mged -c` (interactive) or `mged -p` (scripts) |
+| run a full build / smoke test | detached `setsid` job + sentinel log |
+| edit sources, manage the port | the agent TUI, inside tmux |
+| a 3D viewport | Termux:X11 GUI (§8) — optional |
+
+---
+
+## 7. Pitfall → cause → fix
 
 | Symptom | Cause | Fix |
 |---|---|---|
@@ -295,7 +383,7 @@ Expected: `mged` prints `sph`; `rt` reports `4096 rays` and writes a non-empty
 
 ---
 
-## 7. GPU / OpenGL / Vulkan (optional)
+## 8. GPU / OpenGL / Vulkan (optional)
 
 Hardware acceleration on a stock, un-rooted Android is the hardest part. Findings
 on the test device:
@@ -322,7 +410,7 @@ on the test device:
 
 ---
 
-## 8. Files in this branch
+## 9. Files in this branch
 
 ```
 TERMUX.md                         this guide (users)
