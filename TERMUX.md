@@ -227,14 +227,45 @@ make install
 
 ### Smoke test
 
+One command exercises the whole stack — model creation, ray tracing and STL
+export:
+
+```bash
+BRLCAD_BUILD="$BRLCAD_BUILD" bash "$BRLCAD_SRC/misc/termux/smoke-test.sh"
+```
+
+The script (for users and agents alike) is fully asserted and exits non-zero on
+any failure:
+
+1. **Model** — builds a CSG region `demo.r = box - ball`: an ARB8 cube
+   1000×1000×1000 mm minus a sphere of radius 500 mm (a cube with a spherical
+   cavity), using mged's default primitives.
+2. **Render** — `rt` renders one 64×64 frame to `demo.pix` and must report rays.
+3. **ASCII STL** — `g-stl` writes `demo.stl`; the test checks the `solid` /
+   `endsolid` framing and counts `facet normal` entries (300).
+4. **Binary STL** — `g-stl -b` writes `demo_bin.stl`; the test reads the
+   triangle count from byte offset 80 and asserts
+   `file size == 84 + triangles * 50` (300 triangles → 15 084 bytes).
+
+Expected tail:
+
+```
+SMOKE TEST PASSED
+  ASCII STL : .../demo.stl
+  binary STL: .../demo_bin.stl
+```
+
+If you only want a quick manual check without STL export:
+
 ```bash
 export LD_LIBRARY_PATH="$BRLCAD_BUILD/lib:$LD_LIBRARY_PATH"
-printf 'make sph sph\nls\nquit\n' | "$BRLCAD_BUILD/bin/mged" -c /tmp/t.g
-"$BRLCAD_BUILD/bin/rt" -s 64 -p 0 -o /tmp/t.pix /tmp/t.g sph
+printf 'make sph sph\nls\nquit\n' | "$BRLCAD_BUILD/bin/mged" -c "$HOME/tmp/t.g"
+"$BRLCAD_BUILD/bin/rt" -s 64 -p 0 -o "$HOME/tmp/t.pix" "$HOME/tmp/t.g" sph
 ```
 
 Expected: `mged` prints `sph`; `rt` reports `4096 rays` and writes a non-empty
-`/tmp/t.pix`.
+`t.pix`. Use a writable path such as `$HOME/tmp` (or Termux's `$TMPDIR`) —
+`/tmp` is not a normal writable directory on Termux.
 
 ---
 
@@ -286,6 +317,7 @@ on the test device:
 ```
 TERMUX.md                         this guide (users)
 misc/termux/AGENT.md              deterministic guide (agents/automation)
+misc/termux/smoke-test.sh         asserted model → render → STL smoke test
 misc/termux/bext-extra-edits.sh   copy-only bext edits (idempotent)
 misc/termux/patches/              bext patches (01 is the BRL-CAD tree, for other checkouts)
 ```

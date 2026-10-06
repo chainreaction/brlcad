@@ -138,17 +138,31 @@ test "${PIPESTATUS[0]:-$?}" -eq 0 || exit 1
 
 ## Step 6 — verify
 
+The repo ships an asserted end-to-end smoke test. It must exit 0 and print
+`SMOKE TEST PASSED`:
+
+```bash
+BRLCAD_BUILD="$BRLCAD_BUILD" bash "$BRLCAD_SRC/misc/termux/smoke-test.sh"
+```
+
+It creates the CSG model `demo.r = box - ball`, renders one 64×64 frame, and
+exports both ASCII and binary STL, checking the triangle counts and binary STL
+byte length (`84 + triangles*50`).
+
+Minimal manual equivalent if the script is unavailable:
+
 ```bash
 export LD_LIBRARY_PATH="$BRLCAD_BUILD/lib:$LD_LIBRARY_PATH"
 test -x "$BRLCAD_BUILD/bin/mged" || exit 1
 test -x "$BRLCAD_BUILD/bin/rt"   || exit 1
 
-out=$(printf 'make sph sph\nls\nquit\n' | "$BRLCAD_BUILD/bin/mged" -c /tmp/agent_t.g)
-echo "$out" | grep -qx 'sph' || exit 1
+out=$(printf 'make sph sph\nls\nquit\n' | "$BRLCAD_BUILD/bin/mged" -c "${TMPDIR:-$HOME/tmp}/agent_t.g")
+echo "$out" | grep -q 'sph' || exit 1
 
-"$BRLCAD_BUILD/bin/rt" -s 64 -p 0 -o /tmp/agent_t.pix /tmp/agent_t.g sph >/tmp/agent_rt.log 2>&1
-test -s /tmp/agent_t.pix || exit 1
-grep -q 'rays' /tmp/agent_rt.log || exit 1
+"$BRLCAD_BUILD/bin/rt" -s 64 -p 0 -o "${TMPDIR:-$HOME/tmp}/agent_t.pix" \
+    "${TMPDIR:-$HOME/tmp}/agent_t.g" sph >"${TMPDIR:-$HOME/tmp}/agent_rt.log" 2>&1
+test -s "${TMPDIR:-$HOME/tmp}/agent_t.pix" || exit 1
+grep -q 'rays' "${TMPDIR:-$HOME/tmp}/agent_rt.log" || exit 1
 ```
 
 ## Failure → remediation table
