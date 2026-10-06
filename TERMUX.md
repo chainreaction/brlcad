@@ -228,37 +228,41 @@ make install
 ### Smoke test
 
 One command exercises the whole stack — model creation, ray tracing and STL
-export:
+export — on **two** CSG models:
 
 ```bash
 BRLCAD_BUILD="$BRLCAD_BUILD" bash "$BRLCAD_SRC/misc/termux/smoke-test.sh"
 ```
 
 The script (for users and agents alike) is fully asserted and exits non-zero on
-any failure:
+any failure.  For each model it:
 
-1. **Model** — builds a CSG region `demo.r = box - ball`: an ARB8 cube
-   1000×1000×1000 mm minus a sphere of radius 300 mm centred on the top face
-   (`make -o 0 0 500 -s 600 ball sph`), i.e. a cube with a clearly **visible**
-   hemispherical dimple.
+1. **Builds** the region `demo.r` with `mged`.
+2. **Renders** one 64×64 frame with `rt` and requires rays to be traced.
+3. **Exports ASCII STL** with `g-stl` and checks the `solid` / `endsolid`
+   framing and the `facet normal` count.
+4. **Exports binary STL** with `g-stl -b`, reads the triangle count from byte
+   offset 80 and asserts `file size == 84 + triangles * 50` (also that it
+   matches the ASCII facet count).
 
-   > A sphere that is merely *inscribed* in the cube (radius 500) leaves an
-   > entirely internal cavity: the STL is geometrically correct, but from the
-   > outside you only see a plain cube.  Offset the sphere to a face so the cut
-   > opens up and is visible.
-2. **Render** — `rt` renders one 64×64 frame to `demo.pix` and must report rays.
-3. **ASCII STL** — `g-stl` writes `demo.stl`; the test checks the `solid` /
-   `endsolid` framing and counts `facet normal` entries.
-4. **Binary STL** — `g-stl -b` writes `demo_bin.stl`; the test reads the
-   triangle count from byte offset 80 and asserts
-   `file size == 84 + triangles * 50` (182 triangles → 9 184 bytes).
+The two models:
+
+| Case | Region | Construction | Triangles |
+|---|---|---|---|
+| `dimple` | `demo.r = box - ball` | cube 1000³ mm minus a sphere of radius 300 mm centred on the top face (`make -o 0 0 500 -s 600 ball sph`) — a **visible** hemispherical dimple | 182 |
+| `through-hole` | `demo.r = box - cyl` | cube 1000³ mm minus an RCC base `(0,0,-500)`, height `(0,0,1000)`, radius 200 mm (`in cyl rcc …`) — a hole all the way through | 112 |
+
+> A sphere that is merely *inscribed* in the cube (radius 500) leaves an
+> entirely internal cavity: the STL is geometrically correct, but from the
+> outside you only see a plain cube.  Move the cut tool so the cut opens up
+> (a face dimple) or goes all the way through (through-hole).
 
 Expected tail:
 
 ```
 SMOKE TEST PASSED
-  ASCII STL : .../demo.stl
-  binary STL: .../demo_bin.stl
+  dimple       : 182 triangles
+  through-hole : 112 triangles
 ```
 
 If you only want a quick manual check without STL export:

@@ -145,10 +145,12 @@ The repo ships an asserted end-to-end smoke test. It must exit 0 and print
 BRLCAD_BUILD="$BRLCAD_BUILD" bash "$BRLCAD_SRC/misc/termux/smoke-test.sh"
 ```
 
-It creates the CSG model `demo.r = box - ball` (a cube with a visible
-hemispherical dimple in the top face), renders one 64×64 frame, and exports
-both ASCII and binary STL, checking the triangle counts and binary STL byte
-length (`84 + triangles*50`).
+It builds two CSG models — `demo.r = box - ball` (a cube with a visible
+hemispherical dimple) and `demo.r = box - cyl` (a cube with a cylindrical
+through-hole) — renders one 64×64 frame of each, and exports both ASCII and
+binary STL, checking the triangle counts, the ASCII framing and the binary STL
+byte length (`84 + triangles*50`).  Expected: `dimple: 182 triangles`,
+`through-hole: 112 triangles`.
 
 Minimal manual equivalent if the script is unavailable:
 

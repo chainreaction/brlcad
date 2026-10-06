@@ -2,9 +2,12 @@
 # ---------------------------------------------------------------------------
 # BRL-CAD Termux smoke test
 #
-# Creates a small CSG model (cube with a spherical cavity), renders one frame,
-# and exports it to ASCII and binary STL.  Every step is asserted, so a
-# non-zero exit means the build is not functional.
+# Builds two small CSG models, renders one frame each, and exports both to
+# ASCII and binary STL.  Every step is asserted, so a non-zero exit means the
+# build is not functional.
+#
+#   dimple        demo.r = box - ball   (cube with a hemispherical dimple)
+#   through-hole  demo.r = box - cyl    (cube drilled all the way through)
 #
 # Usage:
 #   BRLCAD_BUILD=/path/to/build  bash misc/termux/smoke-test.sh
@@ -35,48 +38,71 @@ for exe in mged rt g-stl; do
     [ -x "$BRLCAD_BIN/$exe" ] || fail "$exe not found at $BRLCAD_BIN/$exe"
 done
 
-# --- 1. build a model: region demo.r = box - ball (visible dimple) --------
-echo "[1/4] creating model (box with a spherical dimple)"
-printf '%s\n' \
-    'make -o 0 0 500 -s 600 ball sph' \
-    'make box rpp' \
-    'r demo.r u box - ball' \
-    'ls' \
-    'quit' | "$BRLCAD_BIN/mged" -c "$WORK/demo.g" > "$WORK/mged.log" 2>&1 \
-    || fail "mged exited non-zero"
-grep -q 'demo.r/R' "$WORK/mged.log" || fail "region demo.r was not created"
-note "model: $WORK/demo.g"
+# Create a database from mged commands on stdin; the region must be demo.r.
+build_model() {
+    local db="$1"
+    "$BRLCAD_BIN/mged" -c "$db" > "$db.mged.log" 2>&1 || fail "mged failed for $(basename "$db")"
+    grep -q 'demo.r/R' "$db.mged.log" || fail "region demo.r not created in $(basename "$db")"
+}
 
-# --- 2. render one frame ---------------------------------------------------
-echo "[2/4] rendering one 64x64 frame"
-"$BRLCAD_BIN/rt" -s 64 -p 0 -o "$WORK/demo.pix" "$WORK/demo.g" demo.r \
-    > "$WORK/rt.log" 2>&1 || fail "rt exited non-zero"
-[ -s "$WORK/demo.pix" ] || fail "rt produced no image"
-grep -q 'rays' "$WORK/rt.log" || fail "rt reported no rays"
-note "image: $WORK/demo.pix ($(stat -c%s "$WORK/demo.pix") bytes)"
+# Render one 64x64 frame of demo.r and assert that rays were traced.
+render_model() {
+    local db="$1" pix="$2"
+    "$BRLCAD_BIN/rt" -s 64 -p 0 -o "$pix" "$db" demo.r > "$db.rt.log" 2>&1 \
+        || fail "rt failed for $(basename "$db")"
+    [ -s "$pix" ] || fail "rt produced no image for $(basename "$db")"
+    grep -q 'rays' "$db.rt.log" || fail "rt reported no rays for $(basename "$db")"
+}
 
-# --- 3. ASCII STL ----------------------------------------------------------
-echo "[3/4] exporting ASCII STL"
-"$BRLCAD_BIN/g-stl" -o "$WORK/demo.stl" "$WORK/demo.g" demo.r \
-    > "$WORK/stl.log" 2>&1 || fail "g-stl (ASCII) exited non-zero"
-facets=$(grep -c 'facet normal' "$WORK/demo.stl" || true)
-[ "${facets:-0}" -gt 0 ] || fail "ASCII STL contains no facets"
-head -1 "$WORK/demo.stl" | grep -q '^solid ' || fail "ASCII STL has no solid header"
-tail -1 "$WORK/demo.stl" | grep -q '^endsolid ' || fail "ASCII STL has no endsolid trailer"
-note "ASCII STL: $WORK/demo.stl ($facets facets)"
+# Export demo.r to ASCII and binary STL, validate both, print the triangle count.
+check_stl() {
+    local db="$1" base="$2" facets tris size
+    "$BRLCAD_BIN/g-stl" -o "$base.stl" "$db" demo.r >> "$db.stl.log" 2>&1 \
+        || fail "g-stl (ASCII) failed for $(basename "$db")"
+    facets=$(grep -c 'facet normal' "$base.stl" || true)
+    [ "${facets:-0}" -gt 0 ] || fail "ASCII STL has no facets: $base.stl"
+    head -1 "$base.stl" | grep -q '^solid '    || fail "ASCII STL has no solid header: $base.stl"
+    tail -1 "$base.stl" | grep -q '^endsolid ' || fail "ASCII STL has no endsolid trailer: $base.stl"
 
-# --- 4. binary STL ---------------------------------------------------------
-echo "[4/4] exporting binary STL"
-"$BRLCAD_BIN/g-stl" -b -o "$WORK/demo_bin.stl" "$WORK/demo.g" demo.r \
-    > "$WORK/stlb.log" 2>&1 || fail "g-stl (binary) exited non-zero"
-tris=$(od -An -tu4 -j80 -N4 "$WORK/demo_bin.stl" | tr -d ' ')
-size=$(stat -c%s "$WORK/demo_bin.stl")
-[ "$size" -eq "$((84 + tris * 50))" ] \
-    || fail "binary STL size mismatch (header says $tris triangles, file is $size bytes)"
-[ "$tris" -gt 0 ] || fail "binary STL contains no triangles"
-note "binary STL: $WORK/demo_bin.stl ($tris triangles, $size bytes)"
+    "$BRLCAD_BIN/g-stl" -b -o "$base.bin.stl" "$db" demo.r >> "$db.stl.log" 2>&1 \
+        || fail "g-stl (binary) failed for $(basename "$db")"
+    tris=$(od -An -tu4 -j80 -N4 "$base.bin.stl" | tr -d ' ')
+    size=$(stat -c%s "$base.bin.stl")
+    [ "$tris" -gt 0 ] || fail "binary STL has no triangles: $base.bin.stl"
+    [ "$size" -eq "$((84 + tris * 50))" ] \
+        || fail "binary STL size mismatch for $base (header says $tris triangles, file is $size bytes)"
+    [ "$facets" -eq "$tris" ] \
+        || fail "ASCII/binary triangle count mismatch for $base ($facets vs $tris)"
+    echo "$tris"
+}
+
+# --- case 1: cube with a visible hemispherical dimple ----------------------
+echo "[1/2] dimple model (box - ball)"
+build_model "$WORK/dimple.g" <<'EOF'
+make -o 0 0 500 -s 600 ball sph
+make box rpp
+r demo.r u box - ball
+ls
+quit
+EOF
+render_model "$WORK/dimple.g" "$WORK/dimple.pix"
+dimple_tris=$(check_stl "$WORK/dimple.g" "$WORK/dimple")
+note "dimple: $dimple_tris triangles ($WORK/dimple.stl, $WORK/dimple.bin.stl)"
+
+# --- case 2: cube with a cylindrical through-hole --------------------------
+echo "[2/2] through-hole model (box - cyl)"
+build_model "$WORK/hole.g" <<'EOF'
+make box rpp
+in cyl rcc 0 0 -500 0 0 1000 200
+r demo.r u box - cyl
+ls
+quit
+EOF
+render_model "$WORK/hole.g" "$WORK/hole.pix"
+hole_tris=$(check_stl "$WORK/hole.g" "$WORK/hole")
+note "through-hole: $hole_tris triangles ($WORK/hole.stl, $WORK/hole.bin.stl)"
 
 echo
 echo "SMOKE TEST PASSED"
-echo "  ASCII STL : $WORK/demo.stl"
-echo "  binary STL: $WORK/demo_bin.stl"
+note "dimple       : $dimple_tris triangles"
+note "through-hole : $hole_tris triangles"
