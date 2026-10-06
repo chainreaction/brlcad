@@ -1,9 +1,9 @@
+>>> TERMUX / ANDROID (aarch64) BUILD GUIDE: https://github.com/chainreaction/brlcad/blob/termux/TERMUX.md <<<
+=================================================================================================================
+
                           BRL-CAD
                       Release 7.46.0
                     http://brlcad.org/
-
-    Building on Termux / Android (aarch64)?  See the porting guide:
-                              TERMUX.md
 
 BRL-CAD is a powerful cross-platform open source combinatorial
 solid modeling system that includes an interactive 3D solid geometry
