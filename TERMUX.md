@@ -299,7 +299,23 @@ termux-wake-lock               # stop Android from killing the background server
 tmux new -s brlcad
 ```
 
-Create windows with `Ctrl-b c` and switch with `Ctrl-b 0/1/2`:
+A ready-made version of this layout ships in the branch:
+
+```bash
+# one-time: adopt the bundled config, then restart the tmux server
+cp "$BRLCAD_SRC/misc/termux/tmux.conf" ~/.tmux.conf
+
+# start (or re-attach to) the work session
+BRLCAD_BUILD="$BRLCAD_BUILD" [BRLCAD_DB=model.g] [START_AGENT=1] \
+  bash "$BRLCAD_SRC/misc/termux/start-work.sh"
+```
+
+`start-work.sh` acquires the wake lock, creates the `agent` / `mged` / `build`
+windows, pipes the build window to `~/brlcad-logs/<session>-build.log`, and
+attaches; re-running it just re-attaches.  Release the lock when you are done
+with `termux-wake-unlock`.
+
+Create windows manually with `Ctrl-b c` and switch with `Ctrl-b 0/1/2`:
 
 | Window | Command | Purpose |
 |---|---|---|
@@ -416,6 +432,8 @@ on the test device:
 TERMUX.md                         this guide (users)
 misc/termux/AGENT.md              deterministic guide (agents/automation)
 misc/termux/smoke-test.sh         asserted model → render → STL smoke test
+misc/termux/tmux.conf             persistent-session tmux config (extended keys)
+misc/termux/start-work.sh         wake-lock + agent/mged/build tmux session
 misc/termux/bext-extra-edits.sh   copy-only bext edits (idempotent)
 misc/termux/patches/              bext patches (01 is the BRL-CAD tree, for other checkouts)
 ```
