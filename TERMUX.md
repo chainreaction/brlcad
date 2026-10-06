@@ -310,20 +310,44 @@ BRLCAD_BUILD="$BRLCAD_BUILD" [BRLCAD_DB=model.g] [START_AGENT=1] \
   bash "$BRLCAD_SRC/misc/termux/start-work.sh"
 ```
 
-For a one-command launcher, install the bundled shim once and then just call
-`brlcad-tui` (it auto-detects the checkout and the configured build directory):
+For a one-command launcher, install the bundled `brlcad-tui` shim once; after
+that it is the only command you need.  It creates a **workspace** — a directory
+holding every artifact of the session — and starts the tmux session inside it.
+The workspace is resolved relative to the current directory, so you decide
+where it goes:
 
 ```bash
 bash "$BRLCAD_SRC/misc/termux/brlcad-tui" --install   # symlink into $PREFIX/bin
 
-brlcad-tui                    # start / re-attach the work session
-brlcad-tui model.g            # ... and open model.g in the mged window
+brlcad-tui                    # ./brlcad-<YYYYmmdd-HHMMSS>
+brlcad-tui mypart             # ./mypart
+brlcad-tui ~/models/bracket   # as given
 ```
 
-`start-work.sh` acquires the wake lock, creates the `agent` / `mged` / `build`
-windows, pipes the build window to `~/brlcad-logs/<session>-build.log`, and
-attaches; re-running it just re-attaches.  Release the lock when you are done
-with `termux-wake-unlock`.
+A newly created workspace is scaffolded as:
+
+| Path | Holds |
+|---|---|
+| `models/` | geometry databases (`*.g`) |
+| `exports/` | STL / STEP and other exports |
+| `renders/` | raytraced images |
+| `logs/` | session and build logs |
+| `AGENTS.md` | agent context: route geometry work through the session's `mged` |
+
+A new workspace is also seeded with `AGENTS.md` (copied from
+`misc/termux/workspace-AGENTS.md`) so the agent working in it drives the running
+`mged` window instead of spawning its own tools.  An existing directory is used
+as-is; only `logs/` is added for the session log.  `brlcad-tui` acquires the
+wake lock, creates (or reuses) the workspace and
+its `agent` / `mged` / `build` windows, pipes the build window to
+`<workspace>/logs/<session>-build.log`, and attaches; re-running it with the
+same path just re-attaches.  The session comes up ready: the `agent` window
+starts the agent TUI (`pi`, override with `START_AGENT` / `AGENT_CMD`), the
+`mged` window opens the workspace database — the first `models/*.g`, otherwise a
+fresh `models/model.g` — via `mged -c -a nu`, and `build` is a logged shell
+that opens with a short coloured hint.  The
+BRL-CAD build directory is auto-detected, preferring `build2` over `build`.
+Release the lock when you are done with `termux-wake-unlock`.
 
 Create windows manually with `Ctrl-b c` and switch with `Ctrl-b 0/1/2`:
 
@@ -444,7 +468,8 @@ misc/termux/AGENT.md              deterministic guide (agents/automation)
 misc/termux/smoke-test.sh         asserted model → render → STL smoke test
 misc/termux/tmux.conf             persistent-session tmux config (extended keys)
 misc/termux/start-work.sh         wake-lock + agent/mged/build tmux session
-misc/termux/brlcad-tui            one-command launcher (installs into $PREFIX/bin)
+misc/termux/brlcad-tui            workspace launcher (installs into $PREFIX/bin)
+misc/termux/workspace-AGENTS.md   template seeded as <workspace>/AGENTS.md
 misc/termux/bext-extra-edits.sh   copy-only bext edits (idempotent)
 misc/termux/patches/              bext patches (01 is the BRL-CAD tree, for other checkouts)
 ```

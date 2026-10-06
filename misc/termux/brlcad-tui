@@ -1,20 +1,37 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ---------------------------------------------------------------------------
-# brlcad-tui — one-command launcher for the BRL-CAD Termux work session.
+# brlcad-tui — the one command you need to start a BRL-CAD work session.
 #
-# Install once (creates a symlink in $PREFIX/bin so the script can locate the
-# repository it lives in):
+# The optional argument is the workspace (project) directory.  It is resolved
+# relative to the current directory, so you decide where it lives.  A workspace
+# that does not exist yet is created and scaffolded to hold every artifact of
+# the session:
 #
-#   bash misc/termux/brlcad-tui --install
+#   <workspace>/models    geometry databases (*.g)
+#   <workspace>/exports   STL / STEP and other exports
+#   <workspace>/renders   raytraced images
+#   <workspace>/logs      session and build logs
+#   <workspace>/AGENTS.md agent context: route geometry work through mged
 #
-# Then just:
+# An existing directory is used as-is; only `logs/` is added, for the session
+# log.
 #
-#   brlcad-tui                 # start / re-attach the work session
-#   brlcad-tui model.g         # ... and open model.g in the mged window
+# The session comes up ready to use: the agent TUI in the `agent` window, mged
+# on the workspace database in the `mged` window, and a build shell in `build`.
+#
+# Install once (symlink into $PREFIX/bin so the script can locate the repo):
+#
+#   brlcad-tui --install
+#
+# Then:
+#
+#   brlcad-tui                    # ./brlcad-YYYYmmdd-HHMMSS
+#   brlcad-tui mypart             # ./mypart
+#   brlcad-tui ~/models/bracket   # as given
 #
 # Environment (all optional):
-#   BRLCAD_SRC    BRL-CAD checkout root; auto-detected from the script location
-#   BRLCAD_BUILD  build directory; defaults to $BRLCAD_SRC/build, then build2
+#   BRLCAD_SRC        BRL-CAD checkout; auto-detected from the script location
+#   BRLCAD_BUILD      build directory; first of build2, build, else build
 #   SESSION, START_AGENT, AGENT_CMD, LOG_DIR   see start-work.sh
 # ---------------------------------------------------------------------------
 set -euo pipefail
@@ -23,21 +40,63 @@ PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
 self=$(readlink -f "$0")
 here=$(cd "$(dirname "$self")" && pwd)
 
-case "${1:-}" in
-    --install)
-        ln -sf "$self" "$PREFIX/bin/brlcad-tui"
-        echo "installed: $PREFIX/bin/brlcad-tui -> $self"
-        exit 0
-        ;;
-    -h|--help)
-        echo "usage: brlcad-tui [--install] [database.g]"
-        echo "  --install   symlink this script into $PREFIX/bin"
-        echo "  database.g  opened in the mged window (optional)"
-        exit 0
-        ;;
-esac
+usage() {
+    cat <<'EOF'
+usage: brlcad-tui [--install] [-h] [WORKSPACE]
 
-# Repository root: from the caller, else from the script location.
+Start (or re-attach to) a BRL-CAD tmux session rooted in a workspace directory
+that holds every artifact of the session (models, exports, renders, logs, and
+the AGENTS.md agent context file).
+
+  WORKSPACE    workspace directory, relative to the current directory.
+               Created and scaffolded if missing; used as-is if it exists.
+               Default: brlcad-<YYYYmmdd-HHMMSS>.
+  --install    symlink this script into $PREFIX/bin
+  -h, --help   show this help
+
+The session starts ready: the agent TUI in `agent`, mged on the workspace
+database in `mged`, and a build shell in `build`.
+
+Environment:
+  BRLCAD_SRC    BRL-CAD checkout (auto-detected)
+  BRLCAD_BUILD  build directory (default: first of build2, build)
+  START_AGENT   1 launches the agent TUI (default: 1)
+  AGENT_CMD     agent command (default: pi)
+  BRLCAD_DB     database opened in the mged window (default: first models/*.g)
+EOF
+}
+
+# --- arguments --------------------------------------------------------------
+workspace=
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --install)
+            ln -sf "$self" "$PREFIX/bin/brlcad-tui"
+            echo "installed: $PREFIX/bin/brlcad-tui -> $self"
+            exit 0
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            echo "brlcad-tui: unknown option: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+        *)
+            [ -z "$workspace" ] || { echo "brlcad-tui: too many arguments" >&2; exit 2; }
+            workspace=$1
+            ;;
+    esac
+    shift
+done
+
+if [ -z "$workspace" ]; then
+    workspace="brlcad-$(date +%Y%m%d-%H%M%S)"
+fi
+
+# --- locate the checkout and start-work.sh ----------------------------------
 if [ -z "${BRLCAD_SRC:-}" ]; then
     BRLCAD_SRC=$(cd "$here/../.." 2>/dev/null && pwd) || {
         echo "brlcad-tui: cannot locate the checkout; set BRLCAD_SRC" >&2
@@ -52,9 +111,9 @@ start_work="$here/start-work.sh"
     exit 1
 }
 
-# Default build directory: prefer an already-configured CMake build.
+# --- build directory: prefer the configured, validated build2 over build ----
 if [ -z "${BRLCAD_BUILD:-}" ]; then
-    for d in "$BRLCAD_SRC/build" "$BRLCAD_SRC/build2"; do
+    for d in "$BRLCAD_SRC/build2" "$BRLCAD_SRC/build"; do
         if [ -f "$d/CMakeCache.txt" ]; then
             BRLCAD_BUILD=$d
             break
@@ -63,12 +122,64 @@ if [ -z "${BRLCAD_BUILD:-}" ]; then
     : "${BRLCAD_BUILD:=$BRLCAD_SRC/build}"
 fi
 
-# Optional positional argument: the database to open in mged.
-if [ "$#" -ge 1 ] && [ -z "${BRLCAD_DB:-}" ]; then
-    BRLCAD_DB=$1
+# --- workspace --------------------------------------------------------------
+if [ -e "$workspace" ] && [ ! -d "$workspace" ]; then
+    echo "brlcad-tui: $workspace exists and is not a directory" >&2
+    exit 1
 fi
 
-export BRLCAD_SRC BRLCAD_BUILD
-[ -n "${BRLCAD_DB:-}" ] && export BRLCAD_DB
+fresh=no
+[ -d "$workspace" ] || fresh=yes
+mkdir -p "$workspace"
+PROJECT_DIR=$(cd "$workspace" && pwd)
+
+if [ "$PROJECT_DIR" = / ]; then
+    echo "brlcad-tui: refusing to use / as the workspace" >&2
+    exit 2
+fi
+
+if [ "$fresh" = yes ]; then
+    mkdir -p "$PROJECT_DIR"/{models,exports,renders,logs}
+    # Seed the agent context file so every new workspace routes its geometry
+    # work through its own mged window.  The template ships next to this
+    # script (resolved through the installed symlink).
+    agents_template="$here/workspace-AGENTS.md"
+    [ -f "$agents_template" ] || agents_template="$BRLCAD_SRC/misc/termux/workspace-AGENTS.md"
+    if [ -f "$agents_template" ]; then
+        cp "$agents_template" "$PROJECT_DIR/AGENTS.md"
+        echo "brlcad-tui: wrote $PROJECT_DIR/AGENTS.md"
+    else
+        echo "brlcad-tui: warning: $agents_template not found; no AGENTS.md" >&2
+    fi
+    echo "brlcad-tui: created workspace $PROJECT_DIR"
+else
+    echo "brlcad-tui: reusing workspace $PROJECT_DIR"
+fi
+
+# tmux treats '.' and ':' specially in session targets; keep the name simple.
+SESSION=$(printf '%s' "$(basename "$PROJECT_DIR")" | tr -c 'A-Za-z0-9_-' '_')
+
+# The mged window opens the workspace database: the first models/*.g, otherwise
+# a fresh models/model.g.  An explicit BRLCAD_DB wins.
+db=
+for f in "$PROJECT_DIR"/models/*.g; do
+    [ -e "$f" ] || continue
+    db=${f#"$PROJECT_DIR"/}
+    break
+done
+if [ -z "$db" ]; then
+    db=models/model.g
+    mkdir -p "$PROJECT_DIR/models"
+fi
+
+# Start a ready-to-use session: the agent TUI in window 0, mged on the
+# workspace database in window 1, and a build shell in window 2.
+: "${START_AGENT:=1}"
+: "${AGENT_CMD:=pi}"
+: "${BRLCAD_DB:=$db}"
+
+export BRLCAD_SRC BRLCAD_BUILD PROJECT_DIR SESSION
+export LOG_DIR="$PROJECT_DIR/logs"
+export START_AGENT AGENT_CMD BRLCAD_DB
 
 exec bash "$start_work"
