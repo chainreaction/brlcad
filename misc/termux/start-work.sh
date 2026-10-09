@@ -7,7 +7,8 @@
 #
 #   agent  a shell for an agent TUI (e.g. pi) or general editing
 #   mged   an interactive mged text console (opens a database if given)
-#   build  a shell in the workspace, its output piped to a log file
+#   build  a shell in the workspace, its output piped to a per-session,
+#          escape-stripped log in logs/
 #
 # Usually you do not call this directly -- `brlcad-tui` creates the workspace
 # and sets the variables below.  To drive it by hand:
@@ -49,7 +50,14 @@ if tmux has-session -t "$SESSION" >/dev/null 2>&1; then
 fi
 
 mkdir -p "$LOG_DIR"
-BUILD_LOG="$LOG_DIR/$SESSION-build.log"
+# One log per session: re-attaching to a workspace starts a fresh file, and the
+# oldest are pruned, so the log directory cannot grow without bound.
+BUILD_LOG="$LOG_DIR/build-$(date +%Y%m%d-%H%M%S).log"
+BUILD_LOG_KEEP=5
+: > "$BUILD_LOG"
+find "$LOG_DIR" -maxdepth 1 -name 'build-*.log' -printf '%T@ %p\n' 2>/dev/null \
+    | sort -rn | tail -n +$((BUILD_LOG_KEEP + 1)) | cut -d' ' -f2- \
+    | while IFS= read -r old; do rm -f -- "$old"; done
 
 # window 1: agent / editor.  This also starts the tmux server; it inherits our
 # exported environment.  Publish the paths too, so a pre-existing server picks
@@ -81,7 +89,7 @@ print_build_hint() {
         printf '  \033[2m────────────────────────────────────────────\033[0m\n'
         printf '  \033[1;33mworkspace\033[0m  %s\n' "$PROJECT_DIR"
         printf '  \033[1;33mlog      \033[0m  %s\n' "$BUILD_LOG"
-        printf '             \033[2m(everything here is also appended to the log)\033[0m\n'
+        printf '             \033[2m(this window is appended to it, escape noise stripped)\033[0m\n'
         printf '\n'
         printf '  \033[1;33mTypical work\033[0m\n'
         if [ -f "$PROJECT_DIR/Makefile" ] || [ -f "$PROJECT_DIR/makefile" ] || [ -f "$PROJECT_DIR/GNUmakefile" ]; then
@@ -103,7 +111,11 @@ print_build_hint() {
 }
 
 tmux new-window -t "$SESSION" -n build -c "$PROJECT_DIR"
-tmux pipe-pane -t "$SESSION:build" -o "cat >> '$BUILD_LOG'"
+# The pane is a terminal: strip CSI/OSC escapes and turn carriage returns into
+# newlines, so a full-screen editor in this window leaves a readable log
+# instead of megabytes of redraw frames.
+LOG_FILTER='s/\x1b\[[0-9;?]*[A-Za-z]//g;s/\x1b\][^\x07]*\x07//g;s/\x1b[()#][A-Za-z0-9]//g;s/\x1b[=>]//g;s/\x1b.//g;s/\x07//g;s/\r$//;s/\r/\n/g'
+tmux pipe-pane -t "$SESSION:build" -o "sed -u '$LOG_FILTER' >> '$BUILD_LOG'"
 print_build_hint
 
 tmux select-window -t "$SESSION:agent"
