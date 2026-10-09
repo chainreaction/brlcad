@@ -10,7 +10,8 @@
 #   <workspace>/models    geometry databases (*.g)
 #   <workspace>/exports   STL / STEP and other exports
 #   <workspace>/renders   raytraced images
-#   <workspace>/logs      session and build logs
+#   <workspace>/scripts   generators and other scripts (commit them)
+#   <workspace>/logs      session and build logs, notes.md
 #   <workspace>/AGENTS.md agent context: route geometry work through mged
 #
 # An existing directory is used as-is; only `logs/` is added, for the session
@@ -139,7 +140,7 @@ if [ "$PROJECT_DIR" = / ]; then
 fi
 
 if [ "$fresh" = yes ]; then
-    mkdir -p "$PROJECT_DIR"/{models,exports,renders,logs}
+    mkdir -p "$PROJECT_DIR"/{models,exports,renders,scripts,logs}
     # Seed the agent context file so every new workspace routes its geometry
     # work through its own mged window.  The template ships next to this
     # script (resolved through the installed symlink).
@@ -151,6 +152,14 @@ if [ "$fresh" = yes ]; then
     else
         echo "brlcad-tui: warning: $agents_template not found; no AGENTS.md" >&2
     fi
+    # The workspace is the only thing that survives a crash of the machine, so
+    # the findings log is created up front rather than left to convention.
+    cat > "$PROJECT_DIR/logs/notes.md" <<'EOF'
+# Session notes
+
+Findings and decisions for this workspace, appended as they happen.  The
+session can die with the machine at any moment; this file is what outlives it.
+EOF
     echo "brlcad-tui: created workspace $PROJECT_DIR"
 else
     echo "brlcad-tui: reusing workspace $PROJECT_DIR"
