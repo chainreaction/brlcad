@@ -98,8 +98,13 @@ print_build_hint() {
         fi
         printf '    \033[32m$BRLCAD_BUILD/bin/mged -c -a nu %s\033[0m\n' "${BRLCAD_DB:-<db.g>}"
         printf '        \033[2minspect geometry; the mged window already has it open\033[0m\n'
-        printf '    \033[32m$BRLCAD_BUILD/bin/rt -s 512 -o renders/x.png %s <object>\033[0m\n' "${BRLCAD_DB:-<db.g>}"
         printf '    \033[32m$BRLCAD_BUILD/bin/g-stl -o exports/x.stl %s <object>\033[0m\n' "${BRLCAD_DB:-<db.g>}"
+        printf '    \033[2min the mged window (a bare rt does not frame the object):\033[0m\n'
+        printf '    \033[32mdraw <object>; ae 35 25; autoview; zoom 1.85\033[0m\n'
+        printf '    \033[32mrt -R -s 800 -o renders/x.png\033[0m\n'
+        printf '\n'
+        printf '  \033[1;33mNotes\033[0m  write findings to \033[35mlogs/notes.md\033[0m as you go -- a\n'
+        printf '         session can die with the machine at any moment.\n'
         printf '\n'
         printf '  \033[1;33mtmux\033[0m\n'
         printf '    \033[35mCtrl-b 0\033[0m agent   \033[35mCtrl-b 1\033[0m mged   \033[35mCtrl-b 2\033[0m build\n'
