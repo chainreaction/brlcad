@@ -69,6 +69,15 @@ git -C bext submodule update --init --recursive
 > The optional `patches/01-main-brlcad.patch` exists only to carry them to another
 > checkout.
 
+> A checkout that carries both remotes has `fork` = `chainreaction/brlcad` (the
+> porting fork — **push here**) and `origin` = `brlcad/BRL-CAD` (upstream —
+> fetch only, the porting branch has no place there). `termux` tracks
+> `fork/termux`, so a bare `git push` from the porting branch already goes to
+> the right place; `git branch -vv` shows the target as `[fork/termux]`.
+> The root `AGENTS.md` inherited from `origin/main` forbids pushing to a remote
+> at all — that one is about keeping the port out of upstream, so on this branch
+> the rule reads: push to `fork`, never to `origin`.
+
 ## Step 3 — apply bext patches (idempotent)
 
 ```bash
