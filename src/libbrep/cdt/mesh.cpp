@@ -3625,6 +3625,36 @@ cdt_mesh_t::cdt()
     return result;
 }
 
+/* Directed sense of triangle t along the undirected edge {a,b}: +1 when t
+ * traverses a->b, -1 when b->a, 0 when the edge is not part of t. */
+static int
+tri_uedge_sense(const triangle_t &t, long a, long b)
+{
+    for (int i = 0; i < 3; i++) {
+	if (t.v[i] == a && t.v[(i + 1) % 3] == b) return 1;
+	if (t.v[i] == b && t.v[(i + 1) % 3] == a) return -1;
+    }
+    return 0;
+}
+
+/* Winding-independent identity of a triangle, so it stays recognisable after
+ * its vertices are swapped. */
+static std::pair<std::pair<long, long>, long>
+tri_key(const triangle_t &t)
+{
+    long v[3] = {t.v[0], t.v[1], t.v[2]};
+    for (int i = 0; i < 2; i++) {
+	for (int j = i + 1; j < 3; j++) {
+	    if (v[j] < v[i]) {
+		long tmp = v[i];
+		v[i] = v[j];
+		v[j] = tmp;
+	    }
+	}
+    }
+    return std::make_pair(std::make_pair(v[0], v[1]), v[2]);
+}
+
 bool
 cdt_mesh_t::repair()
 {
@@ -3740,56 +3770,79 @@ cdt_mesh_t::repair()
 	    if (ta_fwd == tb_fwd)
 		misoriented.insert(ue);
 	}
-	// For each misoriented pair, flip the triangle whose normal disagrees
-	// with the BREP face normal.  Do this with remove+re-add so all mesh
-	// maps stay consistent.
-	int flip_pass = 0;
-	while (!misoriented.empty() && flip_pass++ < 10) {
-	    std::set<uedge_t> still_misoriented;
-	    for (auto const& ue : misoriented) {
-		auto it2 = uedges2tris.find(ue);
-		if (it2 == uedges2tris.end() || it2->second.size() != 2) continue;
-		auto tit2 = it2->second.begin();
-		triangle_t ta = tris_vect[*tit2]; ++tit2;
-		triangle_t tb = tris_vect[*tit2];
-		ta.m = this; tb.m = this;
-		ON_3dVector ta_n = tnorm(ta);
-		ON_3dVector tb_n = tnorm(tb);
-		ON_3dVector bdir = bnorm(ta);
-		bool ta_ok = (ON_DotProduct(ta_n, bdir) >= 0);
-		bool tb_ok = (ON_DotProduct(tb_n, bdir) >= 0);
-		// Flip the one that is inconsistent with the face normal.
-		// If both are consistent (or neither is), flip tb as a
-		// tiebreaker to try to create a manifold neighbourhood.
-		triangle_t bad = (!ta_ok && tb_ok) ? ta : tb;
-		tri_remove(bad);
-		long tmp = bad.v[1];
-		bad.v[1] = bad.v[2];
-		bad.v[2] = tmp;
-		tri_add(bad);
-		// Check if the edge is still misoriented after the flip.
-		auto it3 = uedges2tris.find(ue);
-		if (it3 != uedges2tris.end() && it3->second.size() == 2) {
-		    tit2 = it3->second.begin();
-		    const triangle_t &na = tris_vect[*tit2]; ++tit2;
-		    const triangle_t &nb = tris_vect[*tit2];
-		    bool na_fwd = false;
-		    for (int i = 0; i < 3; i++) {
-			if (na.v[i] == ue.v[0] && na.v[(i+1)%3] == ue.v[1]) { na_fwd = true;  break; }
-			if (na.v[i] == ue.v[1] && na.v[(i+1)%3] == ue.v[0]) { na_fwd = false; break; }
+		/* Robust winding pass: propagate a consistent traversal across the
+	 * triangles connected to each misoriented edge, instead of flipping
+	 * triangles one at a time according to their normals.  Where two faces
+	 * meet at a shallow angle (a wing's trailing edge, say) both candidate
+	 * windings "agree" with the surface normal, so the per-triangle normal
+	 * test cannot decide and the flips never converge. */
+	{
+	    std::map<std::pair<std::pair<long, long>, long>, bool> decided;
+	    std::vector<triangle_t> comp;
+	    std::vector<bool> comp_flip;
+
+	    for (auto m_it = misoriented.begin(); m_it != misoriented.end(); m_it++) {
+		auto u_it = uedges2tris.find(*m_it);
+		if (u_it == uedges2tris.end() || u_it->second.size() != 2) continue;
+		std::set<size_t> share(u_it->second);
+		for (auto s_it2 = share.begin(); s_it2 != share.end(); s_it2++) {
+		    triangle_t seed = tris_vect[*s_it2];
+		    seed.m = this;
+		    if (decided.find(tri_key(seed)) != decided.end()) continue;
+		    /* The seed fixes the absolute orientation of its component:
+		     * it should agree with the surface normal it was
+		     * triangulated for. */
+		    bool flip = (ON_DotProduct(tnorm(seed), bnorm(seed)) < 0.0);
+		    comp.clear();
+		    comp_flip.clear();
+		    comp.push_back(seed);
+		    comp_flip.push_back(flip);
+		    decided[tri_key(seed)] = flip;
+		    for (size_t head = 0; head < comp.size(); head++) {
+			const triangle_t t = comp[head];
+			const bool t_flip = comp_flip[head];
+			for (int i = 0; i < 3; i++) {
+			    long a = t.v[i];
+			    long b = t.v[(i + 1) % 3];
+			    auto n_it = uedges2tris.find(uedge_t(a, b));
+			    if (n_it == uedges2tris.end() || n_it->second.size() != 2) continue;
+			    /* Copy the set: tri_add()/tri_remove() rewrite the map. */
+			    std::set<size_t> nshare(n_it->second);
+			    for (auto q = nshare.begin(); q != nshare.end(); q++) {
+				if (*q == t.ind) continue;
+				triangle_t nb = tris_vect[*q];
+				nb.m = this;
+				auto nk = tri_key(nb);
+				if (decided.find(nk) != decided.end()) continue;
+				/* Neighbours must traverse their shared edge in
+				 * opposite senses: flip exactly one of them when
+				 * they currently agree. */
+				bool agree = (tri_uedge_sense(t, a, b) ==
+					      tri_uedge_sense(nb, a, b));
+				bool nb_flip = agree ? !t_flip : t_flip;
+				decided[nk] = nb_flip;
+				comp.push_back(nb);
+				comp_flip.push_back(nb_flip);
+			    }
+			}
 		    }
-		    bool nb_fwd = false;
-		    for (int i = 0; i < 3; i++) {
-			if (nb.v[i] == ue.v[0] && nb.v[(i+1)%3] == ue.v[1]) { nb_fwd = true;  break; }
-			if (nb.v[i] == ue.v[1] && nb.v[(i+1)%3] == ue.v[0]) { nb_fwd = false; break; }
+		    /* Apply the flips with remove+re-add so every mesh map stays
+		     * consistent. */
+		    for (size_t i = 0; i < comp.size(); i++) {
+			if (!comp_flip[i]) continue;
+			triangle_t bad = tris_vect[comp[i].ind];
+			bad.m = this;
+			tri_remove(bad);
+			long tmp = bad.v[1];
+			bad.v[1] = bad.v[2];
+			bad.v[2] = tmp;
+			tri_add(bad);
 		    }
-		    if (na_fwd == nb_fwd)
-			still_misoriented.insert(ue);
 		}
 	    }
-	    misoriented = still_misoriented;
 	}
     }
+
 
     size_t try_cnt = 0;
     std::set<triangle_t>::iterator s_it = seed_tris.begin();
