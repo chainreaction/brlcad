@@ -209,6 +209,89 @@ naca_outline(int naca, size_t npts, double *outx, double *outz)
  *
  * Returns 0 on success, nonzero on failure.
  */
+/* NURBS/BREP back end, implemented in loftwing_brep.cpp: the same sections
+ * skinned into a degree 3x3 NURBS surface and written as a BREP solid
+ * instead of an ARS.  A BREP exchanges as an exact surface (IGES type 128),
+ * where an ARS is flattened into facets by g-iges(1).
+ */
+extern int loftwing_brep(struct rt_wdb *fp, const char *name,
+			 const double *sec, int ns, int np);
+
+/* Place one airfoil ring at span fraction 'frac'.
+ *
+ * Writes 'n' world-space points (n * ELEMENTS_PER_VECT fastf_t) to 'out',
+ * reading the canonical unit-chord outline from base_x/base_z.  When
+ * 'collapse' is set the ring degenerates to the quarter-chord point, which
+ * is how the ARS is closed at the wing tip.  Both back ends skin the same
+ * sections, so the transform lives here only once.
+ */
+static void
+station_ring(fastf_t *out, const double *base_x, const double *base_z, size_t n,
+	     double frac, double span, double root_chord, double tip_chord,
+	     double twist_deg, double sweep_deg, double dihedral_deg,
+	     int collapse)
+{
+    double chord;               /* local chord length */
+    double yspan;               /* spanwise position (Y) */
+    double xsweep;              /* leading-edge offset from sweep */
+    double zdihedral;           /* vertical offset from dihedral */
+    double twist;               /* local twist angle, radians */
+    double ct, st;              /* cos/sin of twist */
+    size_t k;
+
+    /* Linear taper of the chord from root to tip. */
+    chord = root_chord + (tip_chord - root_chord) * frac;
+
+    /* Spanwise station, leading-edge sweep, and dihedral rise. */
+    yspan = span * frac;
+    xsweep = yspan * tan(sweep_deg * DEG2RAD);
+    zdihedral = yspan * tan(dihedral_deg * DEG2RAD);
+
+    /* Geometric washout: linearly increasing nose-down twist toward the
+     * tip, applied about the quarter-chord point.
+     */
+    twist = -(twist_deg * DEG2RAD) * frac;
+    ct = cos(twist);
+    st = sin(twist);
+
+    if (collapse) {
+	/* Collapse the ring to a single point at the quarter-chord so it
+	 * forms a closing pole at the wing tip.
+	 */
+	point_t pole;
+	VSET(pole, xsweep + QUARTER_CHORD * chord, yspan, zdihedral);
+	for (k = 0; k < n; k++)
+	    VMOVE(&out[k * ELEMENTS_PER_VECT], pole);
+	return;
+    }
+
+    for (k = 0; k < n; k++) {
+	double lx, lz;      /* local airfoil coords, unit chord */
+	double sx, sz;      /* scaled by chord, about quarter-chord */
+	double rx, rz;      /* after twist rotation */
+	point_t pt;
+
+	lx = base_x[k];
+	lz = base_z[k];
+
+	/* Scale to chord and shift so rotation is about quarter-chord. */
+	sx = (lx - QUARTER_CHORD) * chord;
+	sz = lz * chord;
+
+	/* Rotate about the spanwise (Y) axis for twist. */
+	rx = sx * ct - sz * st;
+	rz = sx * st + sz * ct;
+
+	/* Translate into world position: chordwise X (with sweep and
+	 * quarter-chord origin restored), spanwise Y, vertical Z
+	 * (with dihedral).
+	 */
+	VSET(pt, xsweep + QUARTER_CHORD * chord + rx, yspan, zdihedral + rz);
+	VMOVE(&out[k * ELEMENTS_PER_VECT], pt);
+    }
+}
+
+
 static int
 build_loft(struct rt_wdb *db_fp, const char *name,
 	   const double *base_x, const double *base_z, size_t ppc,
@@ -218,7 +301,7 @@ build_loft(struct rt_wdb *db_fp, const char *name,
 {
     fastf_t **curves;
     size_t ncurves;             /* stations + root cap + tip pole */
-    size_t c, k;
+    size_t c;
     int ret;
 
     /* Total curves: a duplicate root ring (flat cap), the interior
@@ -234,86 +317,61 @@ build_loft(struct rt_wdb *db_fp, const char *name,
 
     for (c = 0; c < ncurves; c++) {
 	double frac;            /* 0 at root .. 1 at tip */
-	double chord;           /* local chord length */
-	double yspan;           /* spanwise position (Y) */
-	double xsweep;          /* leading-edge offset from sweep */
-	double zdihedral;       /* vertical offset from dihedral */
-	double twist;           /* local twist angle, radians */
-	double ct, st;          /* cos/sin of twist */
-	int is_tip;
-
-	is_tip = (c == ncurves - 1);
 
 	/* Curve 0 duplicates the root ring (frac 0) as a flat cap;
 	 * curves 1..stations are the interior airfoil rings spanning
 	 * frac (0,1]; the last curve is the collapsed tip pole.
 	 */
-	if (c == 0)
-	    frac = 0.0;
-	else
-	    frac = (double)c / (double)(ncurves - 1);
+	frac = (c == 0) ? 0.0 : (double)c / (double)(ncurves - 1);
 
-	/* Linear taper of the chord from root to tip. */
-	chord = root_chord + (tip_chord - root_chord) * frac;
-
-	/* Spanwise station, leading-edge sweep, and dihedral rise. */
-	yspan = span * frac;
-	xsweep = yspan * tan(sweep_deg * DEG2RAD);
-	zdihedral = yspan * tan(dihedral_deg * DEG2RAD);
-
-	/* Geometric washout: linearly increasing nose-down twist toward
-	 * the tip, applied about the quarter-chord point.
-	 */
-	twist = -(twist_deg * DEG2RAD) * frac;
-	ct = cos(twist);
-	st = sin(twist);
-
-	if (is_tip) {
-	    /* Collapse the ring to a single point at the quarter-chord
-	     * so this curve forms a closing pole at the wing tip.
-	     */
-	    point_t pole;
-	    VSET(pole,
-		 xsweep + QUARTER_CHORD * chord,
-		 yspan,
-		 zdihedral);
-	    for (k = 0; k < ppc; k++)
-		VMOVE(&curves[c][k * ELEMENTS_PER_VECT], pole);
-	    continue;
-	}
-
-	/* Lay out a full airfoil ring for this station. */
-	for (k = 0; k < ppc; k++) {
-	    double lx, lz;      /* local airfoil coords, unit chord */
-	    double sx, sz;      /* scaled by chord, about quarter-chord */
-	    double rx, rz;      /* after twist rotation */
-	    point_t pt;
-
-	    lx = base_x[k];
-	    lz = base_z[k];
-
-	    /* Scale to chord and shift so rotation is about quarter-chord. */
-	    sx = (lx - QUARTER_CHORD) * chord;
-	    sz = lz * chord;
-
-	    /* Rotate about the spanwise (Y) axis for twist. */
-	    rx = sx * ct - sz * st;
-	    rz = sx * st + sz * ct;
-
-	    /* Translate into world position: chordwise X (with sweep and
-	     * quarter-chord origin restored), spanwise Y, vertical Z
-	     * (with dihedral).
-	     */
-	    VSET(pt,
-		 xsweep + QUARTER_CHORD * chord + rx,
-		 yspan,
-		 zdihedral + rz);
-	    VMOVE(&curves[c][k * ELEMENTS_PER_VECT], pt);
-	}
+	station_ring(curves[c], base_x, base_z, ppc, frac, span,
+		     root_chord, tip_chord, twist_deg, sweep_deg,
+		     dihedral_deg, (c == ncurves - 1));
     }
 
     /* mk_ars takes ownership of the curves array and its rows. */
     ret = mk_ars(db_fp, name, ncurves, ppc, curves);
+    return ret;
+}
+
+
+/* BREP back end.  Unlike the ARS the tip is a real chord closed by a planar
+ * cap rather than a collapsed pole, so the sections are 'stations' rings
+ * spanning frac 0..1 inclusive.  The ring is used as the ARS outline has it:
+ * the trailing edge appears once as the first point and once as the last, so
+ * the section curve is closed and the u = 0 / u = 1 surface edges meet on the
+ * TE seam.
+ */
+static int
+build_loft_brep(struct rt_wdb *db_fp, const char *name,
+		const double *base_x, const double *base_z, size_t ppc,
+		int stations, double span,
+		double root_chord, double tip_chord,
+		double twist_deg, double sweep_deg, double dihedral_deg)
+{
+    size_t np = ppc;            /* TE .. TE: the outline closes on itself */
+    size_t ns = (size_t)stations;
+    double *sec;
+    size_t j;
+    int ret;
+
+    if (ns < 4 || np < 4) {
+	bu_log("loftwing: --format brep needs >= 4 stations and >= 4 points "
+	       "per airfoil (got %d and %d)\n", stations, (int)ppc);
+	return -1;
+    }
+
+    sec = (double *)bu_calloc(ns * np * ELEMENTS_PER_VECT, sizeof(double),
+			      "brep sections");
+    for (j = 0; j < ns; j++) {
+	double frac = (double)j / (double)(ns - 1);
+	station_ring((fastf_t *)&sec[j * np * ELEMENTS_PER_VECT],
+		     base_x, base_z, np, frac, span, root_chord, tip_chord,
+		     twist_deg, sweep_deg, dihedral_deg, 0);
+    }
+
+    ret = loftwing_brep(db_fp, name, sec, (int)ns, (int)np);
+    bu_free(sec, "brep sections");
     return ret;
 }
 
@@ -325,6 +383,7 @@ usage(const char *prog)
     bu_log("  Builds a lofted NACA-airfoil wing, or a twisted propeller, as ARS.\n");
     bu_log("Options (all optional; sensible defaults applied):\n");
     bu_log("  --mode wing|prop    wing (default) or twisted propeller\n");
+    bu_log("  --format ars|brep   ARS surface (default) or NURBS/BREP solid\n");
     bu_log("  --naca NNNN         NACA 4-digit code (default %d)\n", DEF_NACA);
     bu_log("  --stations N        spanwise stations (default %d)\n", DEF_STATIONS);
     bu_log("  --points N          points around airfoil (default %d)\n", DEF_POINTS);
@@ -348,6 +407,7 @@ main(int ac, char *av[])
 
     /* tunable parameters with defaults */
     int mode = MODE_WING;
+    int brep_format = 0;
     int naca = DEF_NACA;
     int stations = DEF_STATIONS;
     int points = DEF_POINTS;
@@ -393,6 +453,9 @@ main(int ac, char *av[])
 		mode = MODE_BLADE;
 	    else
 		mode = MODE_WING;
+	} else if (BU_STR_EQUAL(av[i], "--format") && i + 1 < ac) {
+	    i++;
+	    brep_format = BU_STR_EQUAL(av[i], "brep");
 	} else if (BU_STR_EQUAL(av[i], "--naca") && i + 1 < ac) {
 	    naca = atoi(av[++i]);
 	} else if (BU_STR_EQUAL(av[i], "--stations") && i + 1 < ac) {
@@ -468,6 +531,7 @@ main(int ac, char *av[])
 
     bu_log("loftwing: building a %s\n", (mode == MODE_BLADE) ? "propeller" : "wing");
     bu_log("  NACA %04d, %d stations, %d points/airfoil\n", naca, stations, points);
+    bu_log("  surface=%s\n", brep_format ? "NURBS/BREP" : "ARS");
     bu_log("  span=%g  root=%g  tip=%g (mm)\n", span, root_chord, tip_chord);
     bu_log("  twist=%g  sweep=%g  dihedral=%g (deg)\n",
 	   twist_deg, sweep_deg, dihedral_deg);
@@ -491,10 +555,10 @@ main(int ac, char *av[])
 
     if (mode == MODE_WING) {
 	/* Build the single lofted wing solid. */
-	if (build_loft(db_fp, "wing.s", base_x, base_z, ppc,
+	if ((brep_format ? build_loft_brep : build_loft)(db_fp, "wing.s", base_x, base_z, ppc,
 		       stations, span, root_chord, tip_chord,
 		       twist_deg, sweep_deg, dihedral_deg) != 0) {
-	    bu_exit(1, "loftwing: mk_ars failed building the wing\n");
+	    bu_exit(1, "loftwing: failed building the wing\n");
 	}
 
 	bu_free(base_x, "base_x");
@@ -530,10 +594,10 @@ main(int ac, char *av[])
 	double hub_half;
 	int b;
 
-	if (build_loft(db_fp, "blade.s", base_x, base_z, ppc,
+	if ((brep_format ? build_loft_brep : build_loft)(db_fp, "blade.s", base_x, base_z, ppc,
 		       stations, span, root_chord, tip_chord,
 		       twist_deg, sweep_deg, dihedral_deg) != 0) {
-	    bu_exit(1, "loftwing: mk_ars failed building the blade\n");
+	    bu_exit(1, "loftwing: failed building the blade\n");
 	}
 
 	bu_free(base_x, "base_x");
