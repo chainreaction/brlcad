@@ -10,6 +10,7 @@ set(
   curvetree.h
   edit.h
   intersect.h
+  loft.h
   pullback.h
   quality.h
   ray.h
