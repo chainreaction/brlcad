@@ -223,35 +223,84 @@ ring_plane(const vector<ON_3dPoint>& ring, const ON_3dVector& outward)
 /* Interpolate one closed section ring into a NURBS curve.  The ring repeats
  * its first point at the end, so the curve closes on the trailing edge. */
 static ON_NurbsCurve *
-section_curve(const vector<ON_3dPoint>& ring)
+section_run(const vector<ON_3dPoint>& ring, size_t i0, size_t i1)
 {
+    vector<ON_3dPoint> pts(ring.begin() + (long)i0, ring.begin() + (long)i1 + 1);
     vector<ON_3dPoint> cvs;
     vector<double> U;
 
-    if (!interp(ring, cvs, U))
+    if (!interp(pts, cvs, U))
 	return NULL;
 
     ON_NurbsCurve *c = make_nurbs_curve(cvs, U);
-    c->SetDomain(0.0, 1.0);
+    if (c)
+	c->SetDomain(0.0, 1.0);
     return c;
 }
 
-/* ------------------------------------------------------------------ brep */
-
-/* Cap one section: a planar surface whose domain is tightened to the loop's
- * bounding box, trimmed by the section curve itself.  ON creates the 3D edge
- * of that loop, and that edge is what the skin is ruled to - which is why the
- * caps must be added before the ruled faces.
- *
- * 'outward' points away from the solid and decides the plane normal.  This is
- * where we differ from librt: tgc_brep's cap planes take the normal of the
- * cone's own axes, which on the bottom cap points along the axis *into* the
- * solid, so it has to FlipFace afterwards.  Ours already faces out, and
- * flipping it on top of that is what left the bottom cap wound against the
- * skin and made the mesher report misoriented edges. */
+/* Index of the ring point farthest from the first one: the leading edge, the
+ * corner opposite the trailing-edge seam.  Picking it from the geometry keeps
+ * this independent of the handedness the caller generated the ring with. */
 static int
-add_cap(ON_Brep *b, const vector<ON_3dPoint>& ring, const ON_3dVector& outward,
-	ON_NurbsCurve *curve)
+ring_far_point(const vector<ON_3dPoint>& ring)
+{
+    int best = 1;
+    double dmax = -1.0;
+
+    for (size_t i = 1; i + 1 < ring.size(); ++i) {
+	const double d = ring[i].DistanceTo(ring[0]);
+	if (d > dmax) {
+	    dmax = d;
+	    best = (int)i;
+	}
+    }
+    return best;
+}
+
+/* The vertex of edge ei that sits at the start of the edge's 3D curve. */
+static int
+edge_start_vertex(const ON_Brep *b, int ei)
+{
+    const ON_BrepEdge& e = b->m_E[ei];
+
+    if (e.m_c3i >= 0) {
+	const ON_3dPoint p = b->m_C3[e.m_c3i]->PointAtStart();
+	if (b->m_V[e.m_vi[1]].point.DistanceTo(p) <
+	    b->m_V[e.m_vi[0]].point.DistanceTo(p))
+	    return e.m_vi[1];
+    }
+    return e.m_vi[0];
+}
+
+/* A straight edge between two existing vertices: the TE and LE ridges. */
+static int
+add_line_edge(ON_Brep *b, int v0, int v1, const ON_3dPoint& p0,
+	      const ON_3dPoint& p1, double tol)
+{
+    /* A degree-1 NURBS line rather than ON_LineCurve: its parameter is
+     * normalized to 0..1 like the section curves.  ON_LineCurve would be
+     * parameterized by length in model units (0..333 here), leaving the ruled
+     * surface with a wildly anisotropic (u,v) domain. */
+    ON_NurbsCurve *line = new ON_NurbsCurve(3, false, 2, 2);
+    line->SetCV(0, p0);
+    line->SetCV(1, p1);
+    /* ON stores only cv+order-2 knots: for a degree-1 curve with 2 CVs the
+     * vector is exactly {0,1} and the domain follows. */
+    line->SetKnot(0, 0.0);
+    line->SetKnot(1, 1.0);
+    const int c3i = b->AddEdgeCurve(ON_Curve::Cast(line));
+    ON_BrepEdge& e = b->NewEdge(b->m_V[v0], b->m_V[v1], c3i);
+    e.m_tolerance = tol;
+    return e.m_edge_index;
+}
+
+/* Cap a split section: one planar face whose outer loop holds both halves, so
+ * the vertices and the two edges it creates are the ones the skin rules to.
+ * ON decides the direction of those edges from the loop orientation, so they
+ * are identified by the corner their curve starts at. */
+static int
+add_cap2(ON_Brep *b, const vector<ON_3dPoint>& ring, const ON_3dVector& outward,
+	 ON_NurbsCurve *clo, ON_NurbsCurve *cup, int *elo, int *eup)
 {
     ON_PlaneSurface *p = new ON_PlaneSurface();
     p->m_plane = ring_plane(ring, outward);
@@ -263,7 +312,8 @@ add_cap(ON_Brep *b, const vector<ON_3dPoint>& ring, const ON_3dVector& outward,
 
     ON_BrepFace& face = b->NewFace(si);
     ON_SimpleArray<ON_Curve*> boundary;
-    boundary.Append(ON_Curve::Cast(curve));
+    boundary.Append(ON_Curve::Cast(clo));
+    boundary.Append(ON_Curve::Cast(cup));
     if (!b->NewPlanarFaceLoop(face.m_face_index, ON_BrepLoop::outer, boundary, true))
 	return -1;
 
@@ -275,41 +325,34 @@ add_cap(ON_Brep *b, const vector<ON_3dPoint>& ring, const ON_3dVector& outward,
 
     b->SetTrimIsoFlags(face);
 
-    return b->m_E.Count() - 1;
+    const int e0 = b->m_E.Count() - 2;
+    const int e1 = b->m_E.Count() - 1;
+    const double d0 = b->m_V[edge_start_vertex(b, e0)].point.DistanceTo(ring[0]);
+    const double d1 = b->m_V[edge_start_vertex(b, e1)].point.DistanceTo(ring[0]);
+    *elo = (d0 < d1) ? e0 : e1;
+    *eup = (d0 < d1) ? e1 : e0;
+    return 0;
 }
 
-/* A section that has no cap of its own still needs a 3D edge for the skin to
- * be ruled to.  The ring is closed, so both ends of the edge are one vertex. */
-static int
-add_section_edge(ON_Brep *b, ON_NurbsCurve *curve, double tol)
-{
-    const int c3i = b->AddEdgeCurve(ON_Curve::Cast(curve));
-    ON_BrepVertex& v = b->NewVertex(curve->PointAtStart(), tol);
-    ON_BrepEdge& e = b->NewEdge(v, v, c3i);
-    e.m_tolerance = tol;
-    return e.m_edge_index;
-}
-
-/* Skin the sections: a planar cap on the first and the last station, and one
- * ruled face between every pair of neighbouring section edges.
+/* Split skin: the seam-free alternative to build_solid().
  *
- * This is the construction librt uses for rcc/tgc
- * (src/librt/primitives/tgc/tgc_brep.cpp), and the only one the CDT mesher
- * accepts: ON keeps the trim, vertex and edge indices consistent as the faces
- * are added, so the shell comes out closed and correctly wound.  Building the
- * trims by hand instead - one tensor-product surface plus a manually welded
- * seam and two caps - produced a b-rep that IsValid() called a solid and that
- * rt and g-iges converted, but whose triangles the mesher could not repair. */
+ * build_solid() skins closed rings, so its surface is closed in u.  The CDT
+ * tessellator behind g-stl(1) and the mged display fails on such a surface
+ * when the planform tapers - "misoriented edges" along the TE seam and then
+ * "tessellation failure" - while mged's own solid test, rt(1) and g-iges(1)
+ * are happy with it.  This variant removes the closed direction: every ring
+ * is cut at the TE and at the LE, the two halves are skinned as separate
+ * faces, and the TE and LE ridges become ordinary edges shared by the lower
+ * and the upper face.  The caps get a two-trim outer loop.
+ *
+ * The two runs are always skinned from the TE towards the LE below and from
+ * the LE towards the TE above, whatever direction ON gave the cap edges, so
+ * the two skins face opposite ways without any face flipping. */
 static ON_Brep *
-build_solid(vector<vector<ON_3dPoint> > secs)
+build_solid_split(vector<vector<ON_3dPoint> > secs)
 {
     const int ns = (int)secs.size();
 
-    /* The skin and the caps have to agree on which way is out.  Ruling two
-     * sections puts the surface normal along ring_tangent x span, so the ring
-     * must wind counterclockwise as seen from the station after it - the way
-     * a circle sampled by increasing angle does.  Every station comes in the
-     * same order, so if the first one is wound the other way, they all are. */
     {
 	ON_3dPoint c0 = ring_centroid(secs[0]);
 	ON_3dVector span = ring_centroid(secs[ns - 1]) - c0;
@@ -323,15 +366,15 @@ build_solid(vector<vector<ON_3dPoint> > secs)
 	}
     }
 
-    ON_Brep *b = ON_Brep::New();
+    const int k = ring_far_point(secs[0]);
 
     ON_3dPoint lo = secs[0][0], hi = secs[0][0];
     for (int j = 0; j < ns; ++j) {
 	for (size_t i = 0; i < secs[j].size(); ++i) {
 	    const ON_3dPoint& p = secs[j][i];
-	    for (int k = 0; k < 3; ++k) {
-		if (p[k] < lo[k]) lo[k] = p[k];
-		if (p[k] > hi[k]) hi[k] = p[k];
+	    for (int m = 0; m < 3; ++m) {
+		if (p[m] < lo[m]) lo[m] = p[m];
+		if (p[m] > hi[m]) hi[m] = p[m];
 	    }
 	}
     }
@@ -342,29 +385,76 @@ build_solid(vector<vector<ON_3dPoint> > secs)
 	mid += ring_centroid(secs[j]);
     mid /= (double)ns;
 
-    vector<int> eidx(ns, -1);
+    ON_Brep *b = ON_Brep::New();
+    vector<int> vte(ns, -1), vle(ns, -1), elo(ns, -1), eup(ns, -1);
+
     for (int j = 0; j < ns; ++j) {
-	ON_NurbsCurve *c = section_curve(secs[j]);
-	if (!c) {
+	const vector<ON_3dPoint>& r = secs[j];
+	ON_NurbsCurve *clo = section_run(r, 0, (size_t)k);
+	ON_NurbsCurve *cup = section_run(r, (size_t)k, r.size() - 1);
+
+	if (!clo || !cup) {
 	    delete b;
 	    return NULL;
 	}
+
 	if (j == 0 || j == ns - 1) {
-	    eidx[j] = add_cap(b, secs[j], ring_centroid(secs[j]) - mid, c);
+	    if (add_cap2(b, r, ring_centroid(r) - mid, clo, cup,
+			 &elo[j], &eup[j]) < 0) {
+		delete b;
+		return NULL;
+	    }
+	    const int vs = edge_start_vertex(b, elo[j]);
+	    vte[j] = vs;
+	    vle[j] = (b->m_E[elo[j]].m_vi[0] == vs) ? b->m_E[elo[j]].m_vi[1]
+						   : b->m_E[elo[j]].m_vi[0];
 	} else {
-	    eidx[j] = add_section_edge(b, c, tol);
+	    /* Indices only: NewVertex and NewEdge append to m_V/m_E, so a
+	     * reference taken across another such call can dangle. */
+	    vte[j] = b->NewVertex(r[0], tol).m_vertex_index;
+	    vle[j] = b->NewVertex(r[k], tol).m_vertex_index;
+
+	    const int c3i_lo = b->AddEdgeCurve(ON_Curve::Cast(clo));
+	    elo[j] = b->NewEdge(b->m_V[vte[j]], b->m_V[vle[j]], c3i_lo).m_edge_index;
+	    b->m_E[elo[j]].m_tolerance = tol;
+
+	    const int c3i_up = b->AddEdgeCurve(ON_Curve::Cast(cup));
+	    eup[j] = b->NewEdge(b->m_V[vle[j]], b->m_V[vte[j]], c3i_up).m_edge_index;
+	    b->m_E[eup[j]].m_tolerance = tol;
 	}
-	if (eidx[j] < 0) {
+    }
+
+    /* The ridges first: NewRuledFace looks for an existing straight edge
+     * between the same two vertices and reuses it, and that reuse is what
+     * welds the panels into one shell. */
+    for (int j = 0; j + 1 < ns; ++j) {
+	if (add_line_edge(b, vte[j], vte[j + 1], secs[j][0],
+			  secs[j + 1][0], tol) < 0 ||
+	    add_line_edge(b, vle[j], vle[j + 1], secs[j][k],
+			  secs[j + 1][k], tol) < 0) {
 	    delete b;
 	    return NULL;
 	}
     }
 
     for (int j = 0; j + 1 < ns; ++j) {
-	if (!b->NewRuledFace(b->m_E[eidx[j]], false, b->m_E[eidx[j + 1]], false)) {
+	const bool la = (edge_start_vertex(b, elo[j]) != vte[j]);
+	const bool lb = (edge_start_vertex(b, elo[j + 1]) != vte[j + 1]);
+	const bool ua = (edge_start_vertex(b, eup[j]) != vle[j]);
+	const bool ub = (edge_start_vertex(b, eup[j + 1]) != vle[j + 1]);
+
+	if (!b->NewRuledFace(b->m_E[elo[j]], la, b->m_E[elo[j + 1]], lb)) {
 	    delete b;
 	    return NULL;
 	}
+	if (!b->NewRuledFace(b->m_E[eup[j]], ua, b->m_E[eup[j + 1]], ub)) {
+	    delete b;
+	    return NULL;
+	}
+	/* Both section runs are interpolated in the same direction, so the two
+	 * ruled surfaces get the same (u,v) frame and the two skins traverse
+	 * their shared ridge in the same direction; reverse one of them. */
+	b->FlipFace(b->m_F[b->m_F.Count() - 2]);   /* the lower skin of the pair */
     }
 
     b->Compact();
@@ -374,7 +464,7 @@ build_solid(vector<vector<ON_3dPoint> > secs)
 	ON_TextLog tl(w);
 	if (!b->IsValid(&tl)) {
 	    ON_String s(w);
-	    bu_log("loftwing: invalid brep:\n%s", s.Array());
+	    bu_log("loftwing: split brep invalid:\n%s", s.Array());
 	}
     }
 
@@ -418,7 +508,8 @@ loftwing_brep(struct rt_wdb *fp, const char *name, const double *sec, int ns, in
 	    secs[j][i] = ON_3dPoint(p[0], p[1], p[2]);
 	}
 
-    ON_Brep *brep = build_solid(secs);
+    ON_Brep *brep = build_solid_split(secs);
+
     if (!brep) {
 	bu_log("loftwing: solid construction failed for %s\n", name);
 	return -1;
