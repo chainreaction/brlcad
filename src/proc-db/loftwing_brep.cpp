@@ -29,7 +29,7 @@
  * genuine NURBS surface, IGES type 128).
  *
  * The caller supplies planar section rings in a single array.  Each ring
- * starts and ends at the trailing edge:
+ * starts at the trailing edge and runs around the section, e.g.
  *
  *      TE -> upper surface -> LE -> lower surface -> TE
  *
@@ -42,18 +42,17 @@
  * through every point it is given; the knot vectors are the averaged-knot
  * (centripetal-free) clamped form.
  *
- * Known limitation: the skin is closed in u, and the CDT tessellator behind
- * g-stl(1) and the mged display does not always mesh such a surface when the
- * planform tapers - it reports "misoriented edges" along the TE seam and then
- * "tessellation failure" (0 triangles written).  The solid itself is valid:
- * mged's "brep <obj> solid" confirms it and rt(1) and g-iges(1) handle it
- * without complaint.  Reproduction: --span 1000 --root-chord 800 --tip-chord
- * 400 --sweep 0 --twist 0 --dihedral 0 --naca 0012 --stations 4 --points 12.
- * Rectangular planforms (root chord == tip chord), circular and polygonal test
- * sections, and rcc/trc BREP conversions all tessellate, and no tessellation
- * tolerance (g-stl -a/-r/-n) changes the outcome, so the failure sits in the
- * mesher rather than in this construction.  --format ars (the default) is the
- * back end that works everywhere.
+ * Such a closed ring is not, however, how the shell is built: a surface
+ * closed in u leaves a degenerate TE seam, and the CDT mesher behind g-stl(1)
+ * and the mged display does not always resolve it on a tapered planform -
+ * "misoriented edges" along the seam and then "tessellation failure" (0
+ * triangles written), even though mged's "brep <obj> solid" test, rt(1) and
+ * g-iges(1) are all happy with the result.  Every ring is therefore cut at
+ * the TE and at the LE and the shell is skinned as two open ruled faces per
+ * panel, sharing the TE and LE ridges as explicit edges, with a planar cap
+ * owning both runs at each end station.  That shell is a closed oriented
+ * 2-manifold (ON_Brep::IsSolid()) and tessellates cleanly.  --format ars (the
+ * default), which builds no BREP at all, is unaffected either way.
  */
 
 #include "common.h"
@@ -334,20 +333,21 @@ add_cap2(ON_Brep *b, const vector<ON_3dPoint>& ring, const ON_3dVector& outward,
     return 0;
 }
 
-/* Split skin: the seam-free alternative to build_solid().
+/* Skin the stations as two open ruled faces per panel.
  *
- * build_solid() skins closed rings, so its surface is closed in u.  The CDT
- * tessellator behind g-stl(1) and the mged display fails on such a surface
- * when the planform tapers - "misoriented edges" along the TE seam and then
- * "tessellation failure" - while mged's own solid test, rt(1) and g-iges(1)
- * are happy with it.  This variant removes the closed direction: every ring
- * is cut at the TE and at the LE, the two halves are skinned as separate
- * faces, and the TE and LE ridges become ordinary edges shared by the lower
- * and the upper face.  The caps get a two-trim outer loop.
+ * Every ring is cut at the TE and at the LE, the two halves are skinned as
+ * separate faces and the TE and LE ridges become ordinary edges shared by the
+ * lower and the upper face; the caps get a two-trim outer loop.  Keeping the
+ * ring closed in one surface instead (the original approach) leaves a
+ * degenerate TE seam that the CDT mesher behind g-stl(1) and the mged display
+ * does not always resolve - "misoriented edges" along the seam and then
+ * "tessellation failure" - although mged's own solid test, rt(1) and
+ * g-iges(1) accept it.
  *
  * The two runs are always skinned from the TE towards the LE below and from
  * the LE towards the TE above, whatever direction ON gave the cap edges, so
- * the two skins face opposite ways without any face flipping. */
+ * the two skins come out with opposite, outward normals without any face
+ * flipping, and the shell is a closed oriented solid. */
 static ON_Brep *
 build_solid_split(vector<vector<ON_3dPoint> > secs)
 {
@@ -451,10 +451,9 @@ build_solid_split(vector<vector<ON_3dPoint> > secs)
 	    delete b;
 	    return NULL;
 	}
-	/* Both section runs are interpolated in the same direction, so the two
-	 * ruled surfaces get the same (u,v) frame and the two skins traverse
-	 * their shared ridge in the same direction; reverse one of them. */
-	b->FlipFace(b->m_F[b->m_F.Count() - 2]);   /* the lower skin of the pair */
+	/* la/lb/ua/ub put every section run in the direction ON expects, so the
+	 * two skins of a panel come out with opposite, outward normals; no face
+	 * has to be reversed after the fact. */
     }
 
     b->Compact();
@@ -513,6 +512,10 @@ loftwing_brep(struct rt_wdb *fp, const char *name, const double *sec, int ns, in
     if (!brep) {
 	bu_log("loftwing: solid construction failed for %s\n", name);
 	return -1;
+    }
+
+    if (!brep->IsSolid()) {
+	bu_log("loftwing: warning - %s is not a closed oriented solid\n", name);
     }
 
     int rc = emit_solid(fp, name, brep);
