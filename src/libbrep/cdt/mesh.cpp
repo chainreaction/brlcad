@@ -3792,7 +3792,15 @@ cdt_mesh_t::repair()
 		    /* The seed fixes the absolute orientation of its component:
 		     * it should agree with the surface normal it was
 		     * triangulated for. */
-		    bool flip = (ON_DotProduct(tnorm(seed), bnorm(seed)) < 0.0);
+		    /* Use the face's own surface normal at the triangle centroid:
+		     * the per-vertex averaged normals (bnorm) are ambiguous on the
+		     * vertices shared by two faces meeting at a shallow ridge. */
+		    ON_3dPoint seed_c = tcenter(seed);
+		    ON_3dPoint seed_sp = ON_3dPoint::UnsetPoint;
+		    ON_3dVector seed_sn = ON_3dVector::UnsetVector;
+		    closest_surf_pnt(seed_sp, seed_sn, &seed_c, 0.0);
+		    bool flip = (seed_sn.Length() > 0.5) &&
+			(ON_DotProduct(tnorm(seed), seed_sn) < 0.0);
 		    comp.clear();
 		    comp_flip.clear();
 		    comp.push_back(seed);
