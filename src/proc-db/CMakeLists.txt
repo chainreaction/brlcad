@@ -56,10 +56,7 @@ brlcad_addexec(brickwall brickwall.c "${PROC_DB_WDB_LIBS}" NO_INSTALL)
 brlcad_addexec(gears gears.c "${PROC_DB_WDB_LIBS}" NO_STRICT NO_INSTALL)
 brlcad_addexec(helicoil helicoil.c "${PROC_DB_WDB_LIBS}" NO_STRICT NO_INSTALL)
 brlcad_addexec(lattice lattice.c "${PROC_DB_WDB_LIBS}" NO_STRICT NO_INSTALL)
-brlcad_addexec(loftwing "loftwing.c;loftwing_brep.cpp" "${PROC_DB_WDB_OPENNURBS_LIBS}" NO_STRICT NO_INSTALL)
-# loftwing_brep.cpp uses rt_brep_mate_planar_cap(), which lives in librt's
-# (private) src/librt/primitives/brep/primitive_brep.h.
-target_include_directories(loftwing BEFORE PRIVATE ${CMAKE_SOURCE_DIR}/src/librt/primitives/brep)
+brlcad_addexec(loftwing "loftwing.c;loftwing_brep.cpp" "libwdb;libbrep;OPENNURBS::OPENNURBS;${M_LIBRARY}" NO_STRICT NO_INSTALL)
 brlcad_addexec(specimen specimen.c "${PROC_DB_WDB_LIBS}" NO_STRICT NO_INSTALL)
 brlcad_addexec(terragen terragen.c "${PROC_DB_WDB_LIBS}" NO_STRICT NO_INSTALL)
 brlcad_addexec(voxelize voxelize.c "${PROC_DB_WDB_LIBS}" NO_STRICT NO_INSTALL)
